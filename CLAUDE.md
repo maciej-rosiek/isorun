@@ -41,8 +41,10 @@ snapshot commit, without the history.
   character screens.
 - Touch screens and phones (`touch.ts`, `touch.css`): a window under 900 x 560 css px gets the compact dock
   (`Dock` `compact`, bars in place of the orbs, two message rows in landscape and four in portrait, the view's
-  centre lifted above the panes with `IsoRender3d.setCentreLift`). On a coarse pointer: the full screen and settings
-  buttons in the top-left corner, a close button on every popup (`touch-close`), the touch bar (`touch-bar.ts`) with
+  centre lifted above the panes with `IsoRender3d.setCentreLift`). Autofight or Explore is a larger button at the right
+  end of the actions (`.dock-action.main`). On a coarse pointer: the full screen and menu (the system menu)
+  buttons in the top-left corner, a close button on every popup (`touch-close`), a tap outside a menu or one of
+  our windows closes it as Back does (`GameScreen.tapAway`), the touch bar (`touch-bar.ts`) with
   the pad's bindings as buttons in every mode but command mode, a long press describes a cell, two fingers zoom,
   the walls drop to stubs over every floor cell within 6 cells of the player (`setCutAwayReach`), and the phone's
   Back is Escape (`back-button.ts`, `GameScreen.back`). Test it with `isMobile` and `hasTouch` in Playwright.
