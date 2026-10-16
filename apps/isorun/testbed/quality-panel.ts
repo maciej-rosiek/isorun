@@ -14,8 +14,9 @@ export function storedQuality(): IsoQuality {
       const label = 'label' in raw && typeof raw.label === 'string' ? raw.label : ''
       const actorTorchShadows = 'actorTorchShadows' in raw && raw.actorTorchShadows === true
       const aoSamples = 'aoSamples' in raw && typeof raw.aoSamples === 'number' ? raw.aoSamples : DEFAULT_QUALITY.aoSamples
+      const adaptive = !('adaptive' in raw) || raw.adaptive === true
       const antialias = 'antialias' in raw && typeof raw.antialias === 'boolean' ? raw.antialias : DEFAULT_QUALITY.antialias
-      if (typeof pixelRatio === 'number' && typeof aoResolution === 'number' && typeof shadows === 'boolean' && typeof torchShadows === 'number') return { label, pixelRatio, aoResolution, aoSamples, antialias, shadows, torchShadows, actorTorchShadows }
+      if (typeof pixelRatio === 'number' && typeof aoResolution === 'number' && typeof shadows === 'boolean' && typeof torchShadows === 'number') return { label, pixelRatio, adaptive, aoResolution, aoSamples, antialias, shadows, torchShadows, actorTorchShadows }
     }
   } catch {
     return DEFAULT_QUALITY
@@ -41,7 +42,7 @@ export function qualityPanel(container: HTMLElement, initial: IsoQuality, onChan
     for (const b of presetRow.querySelectorAll<HTMLButtonElement>('button')) {
       const name = b.dataset.preset ?? ''
       const preset = isQualityName(name) ? QUALITY[name] : undefined
-      b.classList.toggle('on', preset !== undefined && preset.pixelRatio === quality.pixelRatio && preset.aoResolution === quality.aoResolution && preset.aoSamples === quality.aoSamples && preset.antialias === quality.antialias && preset.shadows === quality.shadows && preset.torchShadows === quality.torchShadows && preset.actorTorchShadows === quality.actorTorchShadows)
+      b.classList.toggle('on', preset !== undefined && preset.pixelRatio === quality.pixelRatio && preset.adaptive === quality.adaptive && preset.aoResolution === quality.aoResolution && preset.aoSamples === quality.aoSamples && preset.antialias === quality.antialias && preset.shadows === quality.shadows && preset.torchShadows === quality.torchShadows && preset.actorTorchShadows === quality.actorTorchShadows)
     }
     localStorage.setItem(STORE_KEY, JSON.stringify(quality))
     onChange(quality)
@@ -108,6 +109,7 @@ export function qualityPanel(container: HTMLElement, initial: IsoQuality, onChan
     slider('Pixel ratio', 0.5, 3, 0.25, () => quality.pixelRatio, (v) => ({ ...quality, pixelRatio: v }), (v) => `${v}x`),
     slider('AO resolution', 0, 1, 0.25, () => quality.aoResolution, (v) => ({ ...quality, aoResolution: v }), (v) => (v > 0 ? `${v * 100}%` : 'off')),
     slider('AO samples', 4, 16, 4, () => quality.aoSamples, (v) => ({ ...quality, aoSamples: v }), String),
+    toggle('Dynamic resolution', () => quality.adaptive, (v) => ({ ...quality, adaptive: v })),
     toggle('Antialiasing', () => quality.antialias, (v) => ({ ...quality, antialias: v })),
     toggle('Shadows', () => quality.shadows, (v) => ({ ...quality, shadows: v })),
     slider('Torch shadows', 0, 8, 1, () => quality.torchShadows, (v) => ({ ...quality, torchShadows: v }), String),

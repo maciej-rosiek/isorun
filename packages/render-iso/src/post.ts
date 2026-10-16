@@ -28,9 +28,19 @@ const BLUR_STEP = (3 + 2 * 4) / (3 + 2 * BLUR_SIGMA)
 const BLUR_RESOLUTION = 0.5
 const PAINT_STEPS = 3
 
+/** The bloom's images, a part of the screen's size: a glow is soft, so a quarter of the size shows the same and costs a quarter of half. */
+const BLOOM_RESOLUTION = 0.25
+
+/** Bloom (three's BloomNode) on images a quarter of the screen's size. */
+function quarterBloom(...args: Parameters<typeof bloom>) {
+  const glow = bloom(...args)
+  glow.setResolutionScale(BLOOM_RESOLUTION)
+  return glow
+}
+
 /** For `material.mrtNode`: the screen effects leave this material as it is drawn. */
 export function overlayOutput() {
-  return mrt({ overlay: float(1) })
+  return mrt({ normal: vec4(packNormalToRGB(normalViewGeometry), 1) })
 }
 
 export function emissionOutput(colour: THREE.Node<'vec3'>) {
@@ -49,7 +59,7 @@ const DANGER_COLOUR = vec3(0.45, 0.03, 0.03)
  * The scene pass with the screen effects on top: GTAO, a painted filter, outlines, bloom, tilt-shift blur and a colour grade; then the overlay materials (`overlayOutput`) as they are.
  * With no effect but GTAO before it, the tilt-shift blurs the scene's own colour and shades the blur with the GTAO after: blurring the shaded image would draw it whole once more
  * into a texture of its own, which on a big screen costs as much as the rest of the effects together. The glow of lava and starwater is added after the blur, as it is soft already.
- * The normal and the overlay outputs are 8-bit, which they need; the scene's colour stays half float.
+ * The normal output is 8-bit, and its alpha marks the overlay materials; the scene's colour stays half float.
  */
 export class IsoPost {
   private readonly pipeline: THREE.RenderPipeline
@@ -169,10 +179,8 @@ export class IsoPost {
     const scenePass = pass(this.world, this.camera, { samples: this.samples })
     this.aoNode = null
     const aoOn = this.aoOn(settings)
-    const needsNormals = aoOn || settings.outline.enabled
-    scenePass.setMRT(mrt({ output, overlay: float(0), ...(needsNormals ? { normal: packNormalToRGB(normalViewGeometry) } : {}), ...(this.emitting ? { emission: vec4(0) } : {}) }))
-    scenePass.getTexture('overlay').type = THREE.UnsignedByteType
-    if (needsNormals) scenePass.getTexture('normal').type = THREE.UnsignedByteType
+    scenePass.setMRT(mrt({ output, normal: vec4(packNormalToRGB(normalViewGeometry), 0), ...(this.emitting ? { emission: vec4(0) } : {}) }))
+    scenePass.getTexture('normal').type = THREE.UnsignedByteType
     const colour = scenePass.getTextureNode('output')
     const depthTexture = scenePass.getTextureNode('depth')
     let image: THREE.Node<'vec4'> = colour
@@ -204,17 +212,17 @@ export class IsoPost {
       image = vec4(mix(image.rgb, this.outlineColour, edge.mul(this.outlineStrength)), image.a)
     }
     if (settings.pixelate.enabled) image = this.pixelate(image)
-    if (settings.bloom.enabled) image = image.add(bloom(colour, this.bloomStrength, this.bloomRadius, this.bloomThreshold))
+    if (settings.bloom.enabled) image = image.add(quarterBloom(colour, this.bloomStrength, this.bloomRadius, this.bloomThreshold))
     if (settings.tiltShift.enabled) {
       const blurred = onlyShaded ? shade(gaussianBlur(colour, this.blur.mul(BLUR_STEP), BLUR_SIGMA, { resolutionScale: BLUR_RESOLUTION })) : gaussianBlur(image, this.blur.mul(BLUR_STEP), BLUR_SIGMA, { resolutionScale: BLUR_RESOLUTION })
       const away = smoothstep(this.focus, this.focus.add(this.falloff), abs(screenUV.y.sub(0.5)).mul(2))
       image = mix(image, blurred, away)
     }
-    if (this.emitting) image = image.add(bloom(scenePass.getTextureNode('emission'), EMISSION_STRENGTH, EMISSION_RADIUS, 0))
+    if (this.emitting) image = image.add(quarterBloom(scenePass.getTextureNode('emission'), EMISSION_STRENGTH, EMISSION_RADIUS, 0))
     const graded = saturation(image.rgb, this.saturation)
     const tint = mix(this.shadows.div(luminance(this.shadows)), this.highlights.div(luminance(this.highlights)), smoothstep(0, 0.6, luminance(graded)))
     const corners = float(1).sub(length(screenUV.sub(0.5)).mul(1.414).pow(2).mul(this.vignette))
-    const overlay = scenePass.getTextureNode('overlay').r.clamp()
+    const overlay = scenePass.getTextureNode('normal').a
     const dangerEdge = smoothstep(DANGER_EDGE_START, DANGER_EDGE_END, length(screenUV.sub(0.5)).mul(1.414)).mul(this.danger).mul(DANGER_STRENGTH)
     const shown = mix(graded.mul(tint).mul(corners), DANGER_COLOUR, dangerEdge)
     this.pipeline.outputNode = vec4(mix(shown, colour.rgb, overlay), image.a)

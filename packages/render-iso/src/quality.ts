@@ -3,6 +3,8 @@ export interface IsoQuality {
   label: string
   /** The most device pixels the view draws per CSS pixel; a HiDPI screen draws fewer pixels and upscales them. */
   pixelRatio: number
+  /** Whether the view draws fewer pixels while the GPU cannot keep up with the screen (dynamic-resolution.ts), down to 70% of `pixelRatio`. */
+  adaptive: boolean
   /** Ambient occlusion: the size of its image, a part of the screen's size; 0 turns it off. */
   aoResolution: number
   /** Ambient occlusion: the samples per pixel; fewer is faster and grainier. */
@@ -18,9 +20,9 @@ export interface IsoQuality {
 }
 
 export const QUALITY = {
-  low: { label: 'Low', pixelRatio: 1, aoResolution: 0, aoSamples: 8, antialias: false, shadows: true, torchShadows: 0, actorTorchShadows: false },
-  medium: { label: 'Medium', pixelRatio: 1.5, aoResolution: 0.5, aoSamples: 8, antialias: false, shadows: true, torchShadows: 4, actorTorchShadows: false },
-  high: { label: 'High', pixelRatio: 2, aoResolution: 1, aoSamples: 16, antialias: true, shadows: true, torchShadows: 8, actorTorchShadows: true },
+  low: { label: 'Low', pixelRatio: 1, adaptive: true, aoResolution: 0, aoSamples: 8, antialias: false, shadows: true, torchShadows: 0, actorTorchShadows: false },
+  medium: { label: 'Medium', pixelRatio: 1.5, adaptive: true, aoResolution: 0.5, aoSamples: 8, antialias: false, shadows: true, torchShadows: 4, actorTorchShadows: false },
+  high: { label: 'High', pixelRatio: 2, adaptive: true, aoResolution: 1, aoSamples: 16, antialias: true, shadows: true, torchShadows: 8, actorTorchShadows: true },
 } satisfies Record<string, IsoQuality>
 
 export type QualityName = keyof typeof QUALITY

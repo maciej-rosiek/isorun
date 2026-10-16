@@ -20,6 +20,7 @@ export function qualityFor(s: Settings, devicePixelRatio: number): IsoQuality {
   return {
     ...preset,
     pixelRatio: s.resolution === 'auto' ? preset.pixelRatio : (devicePixelRatio * s.resolution) / 100,
+    adaptive: s.resolution === 'auto',
     aoResolution: ao?.resolution ?? preset.aoResolution,
     aoSamples: ao?.samples ?? preset.aoSamples,
     antialias: s.antialias === 'auto' ? preset.antialias : s.antialias === 'on',

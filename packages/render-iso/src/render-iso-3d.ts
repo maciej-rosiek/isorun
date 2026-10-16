@@ -8,6 +8,7 @@ import { KIT_SCALE, type IsoAssets } from './assets.js'
 import { TorchDust } from './dust.js'
 import { TorchLayer, type TorchPlacement } from './torches.js'
 import { MeshPool } from './mesh-pool.js'
+import { DynamicResolution } from './dynamic-resolution.js'
 import { LIGHTS, type IsoLights, type PointLightSpec } from './lights.js'
 import { QUALITY, type IsoQuality } from './quality.js'
 import { IsoPost, overlayOutput } from './post.js'
@@ -138,6 +139,7 @@ export class IsoRender3d implements MapRenderer {
   private readonly actors = new ActorLayer()
   private readonly torchModels = new TorchLayer()
   private readonly meshes = new MeshPool()
+  private readonly resolution = new DynamicResolution()
   private readonly torchDust = new TorchDust(TORCH_LIGHTS)
   private readonly tileTorches: Torch[] = []
   /** Goes up whenever `tileTorches` changes. */
@@ -359,6 +361,7 @@ export class IsoRender3d implements MapRenderer {
     const scene = this.scene
     if (!renderer || !this.ready || !scene || !this.tiles || !this.materials) return
     const now = performance.now() / 1000
+    if (this.lastFrame && this.quality.adaptive && this.resolution.frame((now - this.lastFrame) * 1000)) this.applySize()
     const dt = this.lastFrame ? Math.min(0.1, now - this.lastFrame) : 0
     this.lastFrame = now
     const staticKey = `${this.staticsRevision(scene)}|${this.cutAway(scene)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
@@ -434,6 +437,7 @@ export class IsoRender3d implements MapRenderer {
     this.width = Math.max(1, width)
     this.height = Math.max(1, height)
     this.dpr = dpr
+    this.resolution.reset()
     this.applySize()
   }
 
@@ -531,6 +535,7 @@ export class IsoRender3d implements MapRenderer {
     })
     this.markShadowsStale()
     if (this.renderer) this.renderer.shadowMap.enabled = this.quality.shadows
+    this.resolution.reset()
     this.post?.setAoResolution(this.quality.aoResolution)
     this.post?.setAoSamples(this.quality.aoSamples)
     this.post?.setAntialias(this.quality.antialias)
@@ -552,7 +557,7 @@ export class IsoRender3d implements MapRenderer {
   }
 
   private pixelRatio() {
-    return Math.min(this.dpr, this.quality.pixelRatio)
+    return Math.min(this.dpr, this.quality.pixelRatio) * (this.quality.adaptive ? this.resolution.scale : 1)
   }
 
   private applySize() {
