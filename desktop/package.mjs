@@ -62,6 +62,7 @@ const artifacts = await build({
       artifactName: 'Isorun-linux-${arch}.${ext}',
     },
     appImage: { artifactName: 'Isorun-${arch}.AppImage' },
+    toolsets: { appimage: '1.0.3' },
     win: {
       icon: join(isorun, 'apps/isorun/public/icons/icon-512.png'),
       artifactName: 'Isorun-win-${arch}.${ext}',
