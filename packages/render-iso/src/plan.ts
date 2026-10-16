@@ -110,10 +110,23 @@ export interface IsoPlan {
   sprites: Sprite[]
 }
 
-/** The cells walls must not hide: the player's, and one more (the cell the mouse points at). */
-export function cutAwayFocus(scene: Scene, extra: Vec2 | null): Vec2[] {
-  const focus = scene.playerOnLevel ? [scene.player] : []
+/**
+ * The cells walls must not hide: the player's, every floor cell seen within `reach` cells of it (a touch screen
+ * has no hover to cut the walls away from the cell it aims at), and one more (the cell the mouse points at).
+ */
+export function cutAwayFocus(scene: Scene, extra: Vec2 | null, reach = 0): Vec2[] {
+  const focus = scene.playerOnLevel ? [scene.player, ...floorAround(scene, scene.player, reach)] : []
   return extra ? [...focus, extra] : focus
+}
+
+function floorAround(scene: Scene, centre: Vec2, reach: number): Vec2[] {
+  const out: Vec2[] = []
+  for (let y = centre.y - reach; y <= centre.y + reach; y++)
+    for (let x = centre.x - reach; x <= centre.x + reach; x++) {
+      if ((x === centre.x && y === centre.y) || Math.hypot(x - centre.x, y - centre.y) > reach) continue
+      if (isPointable(getCell(scene, x, y))) out.push({ x, y })
+    }
+  return out
 }
 
 /** Whether the wall at a cell stands between the camera and a focus cell, so it drops to a stub. */

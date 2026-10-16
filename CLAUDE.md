@@ -39,6 +39,13 @@ snapshot commit, without the history.
   it is up), and hovering an item shows its card beside what it would replace, with base stats
   from crawl's item-prop.cc (`item-compare.ts`). In command mode `i` and `@` open the inventory and
   character screens.
+- Touch screens and phones (`touch.ts`, `touch.css`): a window under 900 x 560 css px gets the compact dock
+  (`Dock` `compact`, bars in place of the orbs, two message rows in landscape and four in portrait, the view's
+  centre lifted above the panes with `IsoRender3d.setCentreLift`). On a coarse pointer: the full screen and settings
+  buttons in the top-left corner, a close button on every popup (`touch-close`), the touch bar (`touch-bar.ts`) with
+  the pad's bindings as buttons in every mode but command mode, a long press describes a cell, two fingers zoom,
+  the walls drop to stubs over every floor cell within 6 cells of the player (`setCutAwayReach`), and the phone's
+  Back is Escape (`back-button.ts`, `GameScreen.back`). Test it with `isMobile` and `hasTouch` in Playwright.
 - A level up (the message "You have reached level N") shows a banner (`level-up.ts`, `level-up.css`, owned by
   `Overlays.levelUp`) with the gains read off the `player` message; it fades on its own, a key or click dismisses it
   (one that answers a --more-- lets it stay a moment for the gains). Crawl's stat-gain prompt

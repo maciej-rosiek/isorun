@@ -12,7 +12,7 @@ import { FILMS, WaterLayer } from './water.js'
 import { StarwaterLayer } from './starwater.js'
 import { LavaLayer } from './lava.js'
 import { AtlasMaterials, capTexture, glowMaterial } from './materials.js'
-import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type WallBlock } from './plan.js'
+import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type Vec2, type WallBlock } from './plan.js'
 import { TileFeatures, isTileFeature } from './tile-features.js'
 import { ACTOR_SHADOW_LAYER, ClayMaterial, SHADOW_LAYER, applyShading, castShadow } from './shading.js'
 import { ATLAS_INSET, QuadBatch, SPRITE_LEAN, type Point3 } from './quads.js'
@@ -155,6 +155,9 @@ export class IsoRender3d implements MapRenderer {
   private view: IsoView = DEFAULT_VIEW
   private aim: IsoAim | null = null
   private route: IsoRoute | null = null
+  private cutAwayReach = 0
+  private centreLift = 0
+  private focusMemo: { scene: Scene; reach: number; extra: string; focus: Vec2[] } | null = null
   private staticKey = ''
   private sceneRevision = -1
   /** What the level's geometry was last measured against (`staticsRevision`). */
@@ -277,6 +280,14 @@ export class IsoRender3d implements MapRenderer {
   /** Called when a door of the level opens or shuts; the first build of a level is not a change. */
   set onDoor(listener: ((x: number, y: number, open: boolean) => void) | null) {
     this.features.onDoor = listener
+  }
+
+  setCentreLift(px: number): void {
+    this.centreLift = Math.round(px)
+  }
+
+  setCutAwayReach(cells: number): void {
+    this.cutAwayReach = Math.max(0, cells)
   }
 
   /** How fast the actors walk and fight, 1 for the base speed. */
@@ -528,6 +539,8 @@ export class IsoRender3d implements MapRenderer {
       camera.near = 0.1
       camera.far = CAMERA_DISTANCE * 2
     }
+    if (this.centreLift) camera.setViewOffset(this.width, this.height, 0, this.centreLift, this.width, this.height)
+    else camera.clearViewOffset()
     camera.updateProjectionMatrix()
     camera.updateMatrixWorld()
     if (camera !== this.camera) {
@@ -614,8 +627,13 @@ export class IsoRender3d implements MapRenderer {
 
   private focus(scene: Scene) {
     const target = this.route?.target ?? (this.cursor && this.cursor.mode !== 'map' ? this.cursor : undefined)
-    const onFloor = target !== undefined && isPointable(getCell(scene, target.x, target.y))
-    return cutAwayFocus(scene, onFloor ? target : null)
+    const extra = target !== undefined && isPointable(getCell(scene, target.x, target.y)) ? target : null
+    const extraKey = extra ? `${extra.x},${extra.y}` : ''
+    const memo = this.focusMemo
+    if (memo && memo.scene === scene && memo.reach === this.cutAwayReach && memo.extra === extraKey) return memo.focus
+    const focus = cutAwayFocus(scene, extra, this.cutAwayReach)
+    this.focusMemo = { scene, reach: this.cutAwayReach, extra: extraKey, focus }
+    return focus
   }
 
   private aimColour(intent: AimIntent) {

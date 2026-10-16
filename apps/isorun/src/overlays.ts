@@ -73,6 +73,11 @@ export interface OverlayHooks {
   hideMenu?(menu: MenuState): boolean
   /** put a spell or an ability on a quick slot of the dock, from its row in crawl's list; absent without the dock */
   pinSlot?: (kind: 'spell' | 'ability', letter: string) => void
+  back?(): void
+}
+
+function touchClose(close: () => void): HTMLElement {
+  return h('button', { type: 'button', class: 'touch-close', 'aria-label': 'Close', onclick: close }, '✕')
 }
 
 export interface TileRef {
@@ -785,8 +790,15 @@ export class Overlays {
     const prompt = !!ti && ti.type !== 'seed-selection' && !this.hooks.watching() && this.device === 'pad'
     if (tt && (oskWasUp || prompt)) this.osk.attach(tt, tt.input.closest('.popup') || this.root)
     else if (!tt && !this.clientOverlay) this.osk.detach()
+    this.addTouchClose()
     // now that the new elements are laid out: the reader's place, or the scroll the server asked for
     this.restoreScroll()
+  }
+
+  private addTouchClose() {
+    if (this.hooks.watching()) return
+    const shown = this.root.querySelectorAll<HTMLElement>(':scope > .popup:not(.hidden):not([data-client])')
+    shown[shown.length - 1]?.append(touchClose(() => this.hooks.back?.()))
   }
 
   /** Record the top menu's and top popup's body scroll before their elements go. */
@@ -2579,6 +2591,7 @@ export class Overlays {
   private openClientOverlay(kind: ClientOverlayKind, el: HTMLElement, items: HTMLElement[], back?: () => void) {
     this.closeClientOverlay()
     el.dataset.client = '1'
+    if (!el.querySelector('.screen-close')) el.append(touchClose(() => this.clientOverlayInput('cancel')))
     this.root.append(el)
     this.clientOverlay = { kind, el, focus: 0, items, back }
     this.itemsTakeMouse(items)

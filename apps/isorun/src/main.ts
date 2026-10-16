@@ -12,6 +12,7 @@ import { morgueDirOf } from './whereis'
 import { settingsPanel } from './settings-panel'
 import { engines, keepEngines } from './engines'
 import { canQuit } from './quit'
+import { BackButton } from './back-button'
 import { Visits, type GameOnScreen } from './visits'
 
 const app = document.getElementById('app')!
@@ -21,6 +22,7 @@ let lastInput: InputDevice = 'keyboard'
 let session: Session | null = null
 let lobby: FrontEnd | null = null
 let game: GameScreen | null = null
+const backButton = new BackButton()
 /**
  * The game screen, and three.js with it, is a chunk of its own: the front
  * end draws without it, and fetches it once the first screen is up, so a
@@ -316,6 +318,7 @@ function scheduleRetry(s: Session) {
     if (game && live && ((r.kind === 'play' && account) || r.kind === 'watch')) {
       game.destroy()
       game = null
+      backButton.disarm()
       const i: Intent = r.kind === 'play' ? { kind: 'play', gameId: r.gameId } : { kind: 'watch', username: r.username }
       rejoining = { account: ownAccount(s), server, intent: i, tries: 0, timer: null }
       showBoot('Reconnecting\u2026')
@@ -549,6 +552,7 @@ function frontEnd(): FrontEnd {
   hideBoot()
   game?.destroy()
   game = null
+  backButton.disarm()
   if (!lobby) {
     lobby = new FrontEnd(app, {
       padConnected: () => gamepad.connected,
@@ -663,6 +667,7 @@ function startGame() {
       lobby?.destroy()
       lobby = null
       game = makeGame(GameScreen, s)
+      backButton.arm()
       visits.gameStarted(gameOnScreen(s))
       hideBoot()
     })
@@ -769,7 +774,12 @@ window.addEventListener('beforeunload', (ev) => {
 })
 
 // the address bar is the record of where we are (servers.ts Route)
-window.addEventListener('popstate', () => applyRoute(parseRoute()))
+window.addEventListener('popstate', (ev) => {
+  const back = backButton.take(ev.state, () => game?.back())
+  if (back === 'taken') return
+  if (back === 'stale') setRoute({ kind: 'home' })
+  applyRoute(parseRoute())
+})
 // before the first route is applied, so a game started from it finds the worker keeping the engine it fetches
 keepEngines(
   () => !!(game || starting) || session?.state.phase === 'loading' || session?.state.phase === 'playing',

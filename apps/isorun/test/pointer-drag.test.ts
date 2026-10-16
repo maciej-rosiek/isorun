@@ -17,7 +17,7 @@ function harness() {
   const dragView = vi.fn()
   const onPointer = vi.fn()
   const screen = Object.assign(Object.create(GameScreen.prototype), {
-    canvas, levelMap: null, drag: null, hover: null, pointerLive: false, tooltipTimer: 0,
+    canvas, levelMap: null, drag: null, hover: null, pointerLive: false, tooltipTimer: 0, touches: new Map(), pinchSpan: null, longPressTimer: 0,
     view: { drag: dragView }, hud: { hideTooltip: vi.fn() }, session: { state: initialState() },
     inputFrom: vi.fn(), wake: vi.fn(), armCellTooltip: vi.fn(), onPointer,
   }) as { attachPointer(c: HTMLCanvasElement): void; cancelDrag(): void; drag: unknown }

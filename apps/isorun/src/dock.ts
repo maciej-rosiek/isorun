@@ -8,8 +8,9 @@ import type { Action } from './bindings'
 import type { DockAction, DockIcon } from './dock-actions'
 import { SLOT_COUNT, type QuickSlot } from './quick-slots'
 import { useKey } from './gear'
-import { hudUnit } from './hud-unit'
+import { hudUnit, uiScale } from './hud-unit'
 import { keycaps, tipCard, type KeyHint, type Tip } from './tooltip'
+import { compactWindow, landscapeWindow, touchScreen } from './touch'
 
 /**
  * The dock: the HUD along the bottom of the screen, as an action RPG lays it
@@ -47,6 +48,7 @@ export const DOCK_BUTTONS: readonly DockButtonDef[] = [
 ]
 
 const ICON = { button: 40, action: 44, slot: 48 }
+const COMPACT_ICON: typeof ICON = { button: 30, action: 30, slot: 28 }
 
 export interface DockHooks {
   onAction(a: Action): void
@@ -132,6 +134,7 @@ export class Dock {
   private stops: DockStop[] = []
   private focus: number | null = null
   private unit = 0
+  private compact = false
   private padKind: PadKind = 'generic'
   private view: DockView | null = null
 
@@ -183,7 +186,8 @@ export class Dock {
   setShown(shown: boolean) {
     if (this.root.hidden === !shown) return
     this.root.hidden = !shown
-    if (!shown) this.focusOff()
+    if (shown) this.rescale()
+    else this.focusOff()
   }
 
   setTiles(gd: Gamedata | null) {
@@ -192,15 +196,15 @@ export class Dock {
     this.redrawIcons()
   }
 
-  private px(size: number): number {
-    return Math.round(size * this.unit)
+  private px(kind: keyof typeof ICON): number {
+    return Math.round((this.compact ? COMPACT_ICON : ICON)[kind] * this.unit)
   }
 
   private redrawIcons() {
-    if (!this.unit) this.unit = hudUnit()
+    if (!this.unit) this.rescale()
     for (const el of this.buttonEls) {
       const c = el.querySelector('canvas')
-      if (c) drawIcon(c, this.gd, { gui: el.dataset.icon }, this.px(ICON.button))
+      if (c) drawIcon(c, this.gd, { gui: el.dataset.icon }, this.px('button'))
     }
     for (const s of this.slotEls) s.drawn = ''
     this.keys.slots = ''
@@ -208,9 +212,13 @@ export class Dock {
   }
 
   private rescale() {
-    const unit = hudUnit()
-    if (unit === this.unit) return
+    const compact = compactWindow()
+    this.root.classList.toggle('compact', compact)
+    this.root.classList.toggle('landscape', compact && landscapeWindow())
+    const unit = compact ? uiScale() : hudUnit()
+    if (unit === this.unit && compact === this.compact) return
     this.unit = unit
+    this.compact = compact
     this.redrawIcons()
     if (this.view && !this.root.hidden) this.update(this.view)
   }
@@ -329,7 +337,7 @@ export class Dock {
   }
 
   private updateActions(actions: readonly DockAction[]) {
-    const key = JSON.stringify(actions.map((a) => [a.id, a.label, a.icon, a.here])) + !!this.gd + this.unit
+    const key = JSON.stringify(actions.map((a) => [a.id, a.label, a.icon, a.here])) + !!this.gd + this.unit + this.compact
     if (key === this.keys.actions) return
     this.keys.actions = key
     this.actions = actions
@@ -337,10 +345,10 @@ export class Dock {
       this.actionsEl,
       ...actions.map((a) => {
         const canvas = h('canvas', { class: 'tile' })
-        drawIcon(canvas, this.gd, a.icon, this.px(ICON.action))
+        drawIcon(canvas, this.gd, a.icon, this.px('action'))
         const el = h(
           'button',
-          { type: 'button', class: 'dock-action' + (a.here ? ' here' : '') },
+          { type: 'button', class: 'dock-action' + (a.here ? ' here' : ''), dataset: { action: a.id } },
           canvas,
           a.here ? h('span', { class: 'label' }, a.label) : null,
           a.key.keys.length ? h('span', { class: 'action-key' }, keycaps(a.key.keys)) : null,
@@ -354,7 +362,7 @@ export class Dock {
   }
 
   private updateSlots(slots: readonly (QuickSlot | null)[], pad: boolean) {
-    const key = JSON.stringify(slots) + !!this.gd + pad + this.unit
+    const key = JSON.stringify(slots) + !!this.gd + pad + this.unit + this.compact
     if (key === this.keys.slots) return
     this.keys.slots = key
     slots.forEach((slot, i) => {
@@ -372,12 +380,13 @@ export class Dock {
       replace(s.key, hint?.keys.length ? keycaps(hint.keys) : null)
       this.setTip(s.el, slot ? slotTip(slot, hint, pad) : { title: 'Empty slot', body: 'A spell, an ability or an item goes here', hints: [pad ? { keys: [], pad: 'A', label: 'Choose' } : { keys: ['Click'], label: 'Choose' }] })
       s.count.textContent = slot?.count && slot.count > 1 ? String(slot.count) : ''
-      if (slot?.ref.kind === 'fire' && !slot.tiles.length) drawIcon(s.canvas, this.gd, { gui: 'CMD_AUTOFIGHT' }, this.px(ICON.slot))
-      else drawLayers(s.canvas, this.gd, slot?.tiles ?? [], this.px(ICON.slot))
+      if (slot?.ref.kind === 'fire' && !slot.tiles.length) drawIcon(s.canvas, this.gd, { gui: 'CMD_AUTOFIGHT' }, this.px('slot'))
+      else drawLayers(s.canvas, this.gd, slot?.tiles ?? [], this.px('slot'))
     })
   }
 
   private showTip(target: EventTarget | null) {
+    if (touchScreen()) return
     let el = target instanceof Element ? target : null
     while (el && el !== this.root && !this.tips.has(el)) el = el.parentElement
     if (!el || el === this.root || !(el instanceof HTMLElement)) {

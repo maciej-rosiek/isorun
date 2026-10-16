@@ -35,6 +35,9 @@ import { emptyDockMemory, loadDockMemory, saveDockMemory, type DockMemory } from
 import { equipSlotOf, itemActionKeys, itemTitle, packItems, wornFromMenu, wornNow, type DollPlace, type ItemActionId, type PackItem } from './gear'
 import { characterScreen, inventoryScreen, weaponLine } from './screens'
 import type { CommandEntry } from './command-menu'
+import { compactWindow, landscapeWindow, touchScreen } from './touch'
+import { TouchBar } from './touch-bar'
+import { canFullscreen, toggleFullscreen } from './fullscreen'
 
 /** at rest the frame loop sleeps, waking to run its body this often, so nothing that changed without waking it waits longer */
 const IDLE_TICK_MS = 250
@@ -43,6 +46,13 @@ const ACTIVE_MS = 500
 
 /** css pixels a touch must travel before a press becomes a drag of the view */
 const DRAG_SLOP = 6
+const LONG_PRESS_MS = 450
+const RIGHT_BUTTON = 2
+const TOUCH_CUT_AWAY_CELLS = 6
+const COMPACT_MESSAGE_ROWS = { portrait: 4, landscape: 2 }
+const MAX_CENTRE_LIFT = 0.15
+const FULLSCREEN_ICON = '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>'
+const SETTINGS_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>'
 /** How much the view zooms per css pixel of wheel scroll, and per second at full right stick. */
 const ZOOM_PER_WHEEL_PIXEL = 0.0015
 const ZOOM_PER_STICK_SECOND = 1.5
@@ -203,6 +213,21 @@ export class GameScreen {
   private lastCursor: SceneCursor | null = null
   private lastOptKey = ''
   private drag: { id: number; x: number; y: number; x0: number; y0: number; moved: boolean; button: number } | null = null
+  private touchBar = new TouchBar((action) => {
+    this.inputActed()
+    this.runner.execute(action)
+    this.needsRender = true
+  })
+  private fullscreenButton = h('button', { type: 'button', class: 'touch-fullscreen', 'aria-label': 'Full screen', html: FULLSCREEN_ICON, onclick: () => toggleFullscreen() })
+  private touchCorner = h(
+    'div',
+    { class: 'touch-corner' },
+    this.fullscreenButton,
+    h('button', { type: 'button', class: 'touch-settings', 'aria-label': 'Settings', html: SETTINGS_ICON, onclick: () => this.openSettings() }),
+  )
+  private touches = new Map<number, { x: number; y: number }>()
+  private pinchSpan: number | null = null
+  private longPressTimer = 0
   /** Lets go of a drag with no click behind it: the window lost focus, or the button was released out of sight. */
   private cancelDrag: () => void = () => {}
   /** One per screen, however many canvases it goes through: a renderer swap must not leave the old canvas's listener behind. */
@@ -330,7 +355,8 @@ export class GameScreen {
       onSlotAssign: (i) => this.assignSlot(i),
       onButton: (id) => this.dockButton(id),
     })
-    this.root.append(this.dock.root)
+    this.root.append(this.dock.root, this.touchCorner, this.touchBar.root)
+    this.fullscreenButton.hidden = !canFullscreen()
     this.chat = new Chat(this.root, { send: (m) => this.runner.send(m), padKind: () => this.hooks.gamepad.kind })
     this.chatResize.observe(this.chat.root)
     this.overlays = new Overlays(this.root, {
@@ -348,6 +374,7 @@ export class GameScreen {
       actionTab: (to) => this.openActionTab(to),
       hideMenu: (m) => isPack(m) && (!!this.gearProbe || this.overlays.screenOpen === 'inventory'),
       pinSlot: (kind, letter) => this.pinToFreeSlot({ kind, letter }),
+      back: () => this.back(),
     })
     this.runner = new Runner(session, this.view, {
       context: () => this.ctx,
@@ -442,6 +469,7 @@ export class GameScreen {
     // these subscriptions: ended here, so a screen that is gone sends no follow-up key into the game
     this.runner.abortSequence()
     clearTimeout(this.tooltipTimer)
+    clearTimeout(this.longPressTimer)
     this.sound.dispose()
     this.damageNumbers.dispose()
     this.hud.destroy()
@@ -479,7 +507,7 @@ export class GameScreen {
     // that sends the first `player` (tileweb.cc `redraw`); a continued game has no sheet before that message either.
     const choosingCharacter = topPopup(st)?.type.startsWith('newgame') ?? false
     const dockOn = this.settings().hud === 'dock' && st.player.received && (st.phase === 'playing' || st.phase === 'watching') && !mapView && !choosingCharacter
-    const hideStats = hideSidebar || st.uiState === UiState.CRT || !st.player.received || dockOn
+    const hideStats = hideSidebar || st.uiState === UiState.CRT || !st.player.received || dockOn || (mapView && compactWindow())
     const chatRows = Math.ceil(this.chatPx / g.ch)
     const key = [g.cols, g.rows, g.cw, g.ch, g.ox, g.oy, st.messages.paneHeight, hideStats, hideSidebar, hideMessages, window.devicePixelRatio, dockOn, choosingCharacter, chatRows].join(',')
     if (!force && key === this.layoutKey) return
@@ -490,13 +518,14 @@ export class GameScreen {
     this.dock.setShown(dockOn)
     this.dockKey = ''
     if (dockOn) this.dockPx = this.dock.height
-    const cells = gameSplit(g, st.messages.paneHeight, undefined, dockOn ? Math.ceil(this.dockPx / g.ch) : 0)
+    const cells = gameSplit(g, this.messageRows(st.messages.paneHeight), undefined, dockOn ? Math.ceil(this.dockPx / g.ch) : 0)
     const view = mapView ? levelMapSplit(g, cells, { hideSidebar, hideMessages }) : cells.view
     this.grid.place(this.canvas, view)
     if (this.levelMap) this.grid.place(this.levelMap.canvas, view)
     const px = this.grid.px(view)
     this.viewPx = px
     this.renderer.resize(px.width, px.height, window.devicePixelRatio || 1)
+    this.iso?.setCentreLift(compactWindow() && !mapView ? Math.min((px.height - this.grid.px(cells.clear).height) / 2, px.height * MAX_CENTRE_LIFT) : 0)
     // what rides the view's edges keeps clear of the panes
     const free = mapView ? view : cells.clear
     const columnAboveChat = { ...cells.sidebar, h: Math.max(0, cells.sidebar.h - chatRows) }
@@ -508,6 +537,18 @@ export class GameScreen {
     chat.left = side.left + 'px'
     chat.width = side.width + 'px'
     chat.bottom = Math.max(0, this.root.clientHeight - side.top - side.height) + 'px'
+    this.needsRender = true
+  }
+
+  private messageRows(paneHeight: number): number {
+    if (!compactWindow()) return paneHeight
+    return Math.min(paneHeight, landscapeWindow() ? COMPACT_MESSAGE_ROWS.landscape : COMPACT_MESSAGE_ROWS.portrait)
+  }
+
+  private openSettings() {
+    this.inputActed()
+    if (this.overlays.hasClientOverlay) this.overlays.closeClientOverlay()
+    this.overlays.showSettings()
     this.needsRender = true
   }
 
@@ -524,6 +565,7 @@ export class GameScreen {
       r.setQuality(QUALITY[st.graphics])
       r.setLights(lightsFor(st.look))
       r.setAnimationSpeed(st.animationSpeed)
+      r.setCutAwayReach(touchScreen() ? TOUCH_CUT_AWAY_CELLS : 0)
       void IsoAssets.load('/iso/models').then((assets) => {
         if (this.destroyed) return
         r.setAssets(assets)
@@ -789,6 +831,7 @@ export class GameScreen {
     this.hud.minimapUpright = this.view.camera.yaw
     this.hud.update(st, this.session.scene, this.view.camera, this.ctx, this.hooks.gamepad.kind, this.session.gamedata, this.session.watching, this.lastInput, settings.hints !== 'off', padLabels, held, !this.overlays.hasClientOverlay && !this.chat.capturing && !this.dockOn, !!ours)
     this.updateDock(st)
+    this.touchBar.update(this.ctx, touchScreen() && !this.session.watching && !this.overlays.hasClientOverlay && !this.chat.capturing && !this.overlays.levelUp.choosing)
     this.trackGearProbe(now)
     this.trackResume(now)
     this.refreshScreen(st)
@@ -1369,6 +1412,23 @@ export class GameScreen {
     this.needsRender = true
   }
 
+  back() {
+    this.wake()
+    this.inputActed()
+    this.needsRender = true
+    if (this.lookPanel) return this.closeLookPanel()
+    if (this.overlays.levelUp.choosing) return
+    if (this.chat.capturing) return this.chat.close()
+    if (this.dock.focused) return this.dock.focusOff()
+    if (this.overlays.hasClientOverlay) return void this.overlays.clientOverlayInput('cancel')
+    if (this.session.watching) return this.overlays.showSystem({ spectating: true, inGame: true })
+    if (this.aimDir !== null) return this.clearAim()
+    if (this.ctx.mode === 'command') return this.menuKey('system')
+    if (this.ctx.mode === 'text') return this.runner.send(cm.key(27))
+    const cancel = buttonAction('B', this.ctx)
+    if (cancel) this.runner.execute(cancel)
+  }
+
   /** One of the menu keys (MENU_KEYS): it opens that menu, and closes it again as the button does. */
   private menuKey(menu: CommandMenu | 'levelmap' | 'equipment' | 'system') {
     const open = this.overlays.openMenu
@@ -1542,9 +1602,12 @@ export class GameScreen {
       this.hud.hideTooltip()
       // a click is the mouse speaking: its selection is live again, so a click right after a key still acts on the hovered cell
       if (ev.pointerType === 'mouse') this.pointerLive = true
+      if (ev.pointerType === 'touch') this.touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
+      if (this.touches.size === 2) return this.startPinch()
       if (this.drag) return
       this.drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, moved: false, button: ev.button }
       c.setPointerCapture(ev.pointerId)
+      if (ev.pointerType === 'touch') this.armLongPress(ev.clientX, ev.clientY)
     })
     c.addEventListener('pointermove', (ev) => {
       if (ev.pointerType === 'mouse') {
@@ -1556,6 +1619,10 @@ export class GameScreen {
         this.pickDirty = true
         this.wake()
         this.armCellTooltip(ev.pageX, ev.pageY)
+      }
+      if (this.touches.has(ev.pointerId)) {
+        this.touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
+        if (this.pinchSpan !== null) return this.pinch()
       }
       const d = this.drag
       if (!d || ev.pointerId !== d.id) return
@@ -1570,13 +1637,17 @@ export class GameScreen {
       d.y = ev.clientY
       if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < DRAG_SLOP) return
       d.moved = true
+      clearTimeout(this.longPressTimer)
       // the drag grabs the map: it follows the pointer until the player moves
       if (!this.levelMap) this.view.drag(dx, dy)
       this.needsRender = true
     })
     const end = (ev: PointerEvent) => {
+      this.touches.delete(ev.pointerId)
+      if (this.touches.size < 2) this.pinchSpan = null
       const d = this.drag
       if (!d || ev.pointerId !== d.id) return
+      clearTimeout(this.longPressTimer)
       this.drag = null
       if (c.hasPointerCapture(ev.pointerId)) c.releasePointerCapture(ev.pointerId)
       if (d.moved) this.needsRender = true
@@ -1604,6 +1675,35 @@ export class GameScreen {
       clearTimeout(this.tooltipTimer)
       this.hud.hideTooltip()
     })
+  }
+
+  private armLongPress(x: number, y: number) {
+    clearTimeout(this.longPressTimer)
+    this.longPressTimer = window.setTimeout(() => {
+      const d = this.drag
+      if (!d || d.moved) return
+      d.moved = true
+      const rect = this.canvas.getBoundingClientRect()
+      this.onPointer(x - rect.left, y - rect.top, RIGHT_BUTTON)
+    }, LONG_PRESS_MS)
+  }
+
+  private startPinch() {
+    clearTimeout(this.longPressTimer)
+    if (this.drag) this.drag.moved = true
+    this.pinchSpan = this.touchSpan()
+  }
+
+  private pinch() {
+    const span = this.touchSpan()
+    if (this.pinchSpan && span && !this.levelMap) this.view.zoomBy(span / this.pinchSpan)
+    this.pinchSpan = span
+    this.wake()
+  }
+
+  private touchSpan(): number {
+    const [a, b] = [...this.touches.values()]
+    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0
   }
 
   /**

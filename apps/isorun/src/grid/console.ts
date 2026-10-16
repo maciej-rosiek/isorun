@@ -40,6 +40,7 @@ export const STAT_WIDTH = 42
  * meant to show that many at once.
  */
 const MIN_VIEW_COLS = 34
+const MIN_VIEW_ROWS = 8
 
 /** the console's smallest window, so a layout never has to cope with nothing */
 export const MIN_COLS = 40
@@ -99,7 +100,7 @@ const STATS_ROWS = 13
 export function gameSplit(grid: Grid, msgRows: number, statWidth = STAT_WIDTH, dockRows = 0): GameLayout {
   const side = Math.max(0, Math.min(statWidth, grid.cols - MIN_VIEW_COLS))
   const leftW = grid.cols - side
-  const dock = Math.max(0, Math.min(dockRows, grid.rows - MIN_ROWS))
+  const dock = Math.max(0, Math.min(dockRows, grid.rows - MIN_VIEW_ROWS))
   const msgs = Math.max(2, Math.min(msgRows + 1, grid.rows - dock - 4))
   const clearH = grid.rows - dock - msgs
   return {

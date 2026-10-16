@@ -1,0 +1,387 @@
+.dock.compact {
+  --u: 1px;
+  left: 0;
+  right: 0;
+  transform: none;
+  font-size: 12px;
+}
+.dock.compact .dock-frame {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-areas:
+    'hp mp'
+    'xp xp'
+    'slots slots'
+    'buttons buttons';
+  align-items: center;
+  gap: 5px 8px;
+  padding: 7px max(8px, env(safe-area-inset-right)) max(6px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: linear-gradient(180deg, #1d1a17, var(--iron) 40%, var(--iron-deep));
+  border-top: 1px solid var(--bronze-dim);
+  box-shadow: 0 -8px 24px rgba(0, 0, 0, 0.55);
+}
+.dock.compact .dock-mid,
+.dock.compact .dock-row {
+  display: contents;
+}
+.dock.compact .dock-mid::before,
+.dock.compact .dock-mid::after,
+.dock.compact .dock-stats,
+.dock.compact .dock-info,
+.dock.compact .slots-pad,
+.dock.compact .slot-key,
+.dock.compact .action-key,
+.dock.compact .dock-button .pad {
+  display: none;
+}
+
+.dock.compact .orb {
+  width: auto;
+  height: 18px;
+  margin: 0;
+}
+.dock.compact .orb.hp {
+  grid-area: hp;
+}
+.dock.compact .orb.mp {
+  grid-area: mp;
+}
+.dock.compact .orb::before,
+.dock.compact .orb-liquid::before {
+  display: none;
+}
+.dock.compact .orb-well,
+.dock.compact .orb-glass,
+.dock.compact .orb-rim {
+  inset: 0;
+  border-radius: 3px;
+}
+.dock.compact .orb-well {
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px var(--bronze-dim);
+}
+.dock.compact .orb-liquid,
+.dock.compact .orb-poison {
+  transform: translateX(calc((var(--fill, 1) - 1) * 100%));
+}
+.dock.compact .orb.hp .orb-liquid {
+  background: linear-gradient(180deg, #e0404a, #a3151e 55%, #5e0a10);
+}
+.dock.compact .orb.mp .orb-liquid {
+  background: linear-gradient(180deg, #4a7ff0, #1d48b5 55%, #0e2466);
+}
+.dock.compact .orb-poison {
+  border-top: 0;
+  border-right: 2px dashed #8ae234;
+}
+.dock.compact .orb-glass {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 45%, rgba(0, 0, 0, 0.3));
+}
+.dock.compact .orb-text {
+  font: 700 12px / 1 var(--caps);
+}
+
+.dock.compact .dock-xp {
+  grid-area: xp;
+  gap: 6px;
+}
+.dock.compact .xp-level {
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
+.dock.compact .dock-xp .xp-track {
+  height: 5px;
+}
+
+.dock.compact .dock-slots {
+  grid-area: slots;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 3px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+}
+.dock.compact .slot {
+  --slot: 34px;
+  scroll-snap-align: start;
+}
+.dock.compact:not(.landscape) .dock-slots {
+  justify-content: center;
+}
+.dock.compact:not(.landscape) .slot {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: var(--slot);
+  width: auto;
+  height: auto;
+  aspect-ratio: 1;
+}
+.dock.compact .slot:nth-of-type(5) {
+  margin-right: 0;
+}
+.dock.compact .slot .count {
+  right: 2px;
+  bottom: 0;
+  font-size: 11px;
+}
+
+.dock.compact .dock-buttons {
+  grid-area: buttons;
+  justify-content: space-between;
+  gap: 4px;
+}
+.dock.compact .dock-button {
+  width: 46px;
+  height: 46px;
+}
+
+.dock.compact .dock-above {
+  min-height: 50px;
+  justify-content: stretch;
+  padding: 0 max(8px, env(safe-area-inset-right)) 6px max(8px, env(safe-area-inset-left));
+}
+.dock.compact .dock-status {
+  position: fixed;
+  left: max(8px, env(safe-area-inset-left));
+  top: calc(max(8px, env(safe-area-inset-top)) + 50px);
+  bottom: auto;
+  max-width: 45vw;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+.dock.compact .status-chip {
+  height: 22px;
+  gap: 5px;
+  padding: 0 7px;
+  font-size: 10.5px;
+}
+.dock.compact .dock-actions {
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.dock.compact .dock-actions {
+  flex: 1;
+  min-width: 0;
+}
+.dock.compact .dock-actions > :first-child {
+  margin-left: auto;
+}
+.dock.compact .dock-action {
+  flex: none;
+  height: 44px;
+  min-width: 44px;
+}
+.dock.compact .dock-action.here {
+  height: 44px;
+  padding: 0 10px 0 4px;
+  gap: 4px;
+}
+.dock.compact .dock-action.here .label {
+  max-width: 8.5em;
+  font-size: 12px;
+}
+.dock.compact:not(.landscape) .dock-actions {
+  gap: 5px;
+}
+.dock.compact:not(.landscape) .dock-action {
+  height: 42px;
+  min-width: 42px;
+}
+.dock.compact:not(.landscape) .dock-action.here {
+  height: 42px;
+  padding: 0;
+  box-shadow: 0 0 10px rgba(232, 201, 138, 0.35);
+}
+.dock.compact:not(.landscape) .dock-action.here .label {
+  display: none;
+}
+
+.dock.compact.landscape .dock-frame {
+  grid-template-columns: minmax(110px, 160px) minmax(0, 1fr) auto;
+  grid-template-rows: auto auto auto;
+  grid-template-areas:
+    'hp slots buttons'
+    'mp slots buttons'
+    'xp slots buttons';
+  gap: 3px 10px;
+  padding-top: 5px;
+  padding-bottom: max(4px, env(safe-area-inset-bottom));
+}
+.dock.compact.landscape .orb {
+  height: 15px;
+}
+.dock.compact.landscape .orb-text {
+  font-size: 11px;
+}
+.dock.compact.landscape .xp-level {
+  width: 16px;
+  height: 16px;
+  font-size: 10px;
+}
+.dock.compact.landscape .dock-slots {
+  justify-content: flex-start;
+}
+.dock.compact.landscape .dock-button {
+  width: 42px;
+  height: 42px;
+}
+
+.touch-corner {
+  display: none;
+}
+.touch-close {
+  display: none;
+}
+
+@media (pointer: coarse) {
+  .touch-corner {
+    position: absolute;
+    top: max(8px, env(safe-area-inset-top));
+    left: max(8px, env(safe-area-inset-left));
+    z-index: 13;
+    display: flex;
+    gap: 8px;
+  }
+  .touch-corner button,
+  .touch-close {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    color: var(--bronze-bright);
+    font: 700 16px / 1 var(--mono);
+    background: radial-gradient(circle at 50% 30%, rgba(40, 36, 31, 0.92), rgba(10, 9, 8, 0.92) 80%);
+    border: 1px solid var(--bronze-dim);
+    border-radius: 50%;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  }
+  .touch-corner button[hidden] {
+    display: none;
+  }
+  .touch-corner svg {
+    width: 20px;
+    height: 20px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+  .touch-close {
+    position: absolute;
+    top: -12px;
+    right: -6px;
+    z-index: 3;
+  }
+  .popup:has(> .touch-close) {
+    margin-top: 6px;
+  }
+  .screen-close {
+    width: 40px;
+    height: 40px;
+    font-size: 16px;
+  }
+  .game .messages.dismissable {
+    cursor: pointer;
+  }
+}
+
+.touch-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 21;
+  display: flex;
+  flex-wrap: wrap-reverse;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left));
+  background: linear-gradient(180deg, rgba(10, 9, 8, 0.75), rgba(10, 9, 8, 0.97) 30%);
+  border-top: 1px solid var(--bronze-dim);
+}
+.touch-bar[hidden] {
+  display: none;
+}
+.touch-bar button {
+  min-height: 42px;
+  max-width: 14em;
+  padding: 0 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font: 700 13px / 1 var(--caps);
+  letter-spacing: 0.03em;
+  color: var(--ink);
+  background: linear-gradient(180deg, rgba(42, 36, 29, 0.95), rgba(14, 12, 9, 0.95));
+  border: 1px solid var(--bronze-dim);
+  border-radius: 6px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+.touch-bar button.primary {
+  color: var(--bronze-bright);
+  border-color: var(--bronze);
+  background: linear-gradient(180deg, rgba(74, 58, 30, 0.96), rgba(24, 18, 10, 0.96));
+}
+.touch-bar button.cancel {
+  color: var(--ink-dim);
+}
+
+@media (max-width: 899px), (max-height: 559px) {
+  .popup {
+    min-width: 0;
+    max-width: calc(100vw - 16px);
+  }
+  .popup.menu.game {
+    min-width: min(26rem, calc(100vw - 16px));
+  }
+  .popup.newgame {
+    --u: 0.7px;
+    width: calc(100vw - 12px);
+    max-width: calc(100vw - 12px);
+    max-height: calc(100vh - 12px);
+  }
+  .newgame .details {
+    max-height: 24vh;
+  }
+  .popup.dock-screen {
+    --popup-top: 8px;
+    max-width: calc(100vw - 8px);
+    max-height: calc(100vh - 16px);
+  }
+}
+
+@media (max-width: 600px) {
+  .inv-panels {
+    flex-direction: column;
+    align-items: center;
+  }
+  .inventory,
+  .character {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+  .popup.dock-screen {
+    --sock: 46px;
+  }
+  .inv-grid {
+    --cols: 6 !important;
+  }
+  .inv-socket canvas.tile {
+    max-width: 100%;
+    max-height: 100%;
+  }
+}
+
+@media (max-height: 559px) {
+  .level-up .level {
+    font-size: 3.2rem;
+  }
+  .level-up-panel {
+    padding: 0.6rem 1rem;
+  }
+}
