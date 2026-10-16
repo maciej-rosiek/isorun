@@ -5,6 +5,7 @@ import { ActorLayer, STRIKE_DELAY, actorId, type UprightPose, type ActorAction, 
 import { CombatLayer } from './combat.js'
 import { StepLayer } from './steps.js'
 import { KIT_SCALE, type IsoAssets } from './assets.js'
+import { TorchDust } from './dust.js'
 import { TorchLayer, type TorchPlacement } from './torches.js'
 import { LIGHTS, type IsoLights, type PointLightSpec } from './lights.js'
 import { QUALITY, type IsoQuality } from './quality.js'
@@ -126,6 +127,7 @@ export class IsoRender3d implements MapRenderer {
   private cursor: SceneCursor | null = null
   private readonly actors = new ActorLayer()
   private readonly torchModels = new TorchLayer()
+  private readonly torchDust = new TorchDust(TORCH_LIGHTS)
   private readonly tileTorches: Torch[] = []
   private readonly features = new TileFeatures()
   /** Called for each hop an actor starts. */
@@ -186,7 +188,7 @@ export class IsoRender3d implements MapRenderer {
 
   constructor() {
     this.statics.add(this.features.group, this.torchModels.group)
-    this.world.add(this.statics, this.actors.group, this.fog.mesh, ...this.waters.map((w) => w.mesh), this.starwater.mesh, this.lava.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights)
+    this.world.add(this.statics, this.actors.group, this.fog.mesh, ...this.waters.map((w) => w.mesh), this.starwater.mesh, this.lava.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights, this.torchDust.mesh)
     this.aimGroup.add(this.aimArrow, this.aimSquare)
     this.aimArrow.renderOrder = this.aimSquare.renderOrder = 10
     this.aimGroup.visible = false
@@ -427,6 +429,7 @@ export class IsoRender3d implements MapRenderer {
     for (const water of this.waters) water.dispose()
     this.starwater.dispose()
     this.lava.dispose()
+    this.torchDust.dispose()
     this.memory.dispose()
     this.torchModels.dispose()
     this.post?.dispose()
@@ -626,6 +629,7 @@ export class IsoRender3d implements MapRenderer {
     })
     for (const light of this.undrawnShadows) if (light.castShadow) light.shadow.needsUpdate = true
     this.undrawnShadows.clear()
+    this.torchDust.update(this.litTorches.map((torch) => (torch && this.scene && getCell(this.scene, torch.cell.x, torch.cell.y)?.visibility === 'visible' ? torch : null)))
   }
 
   private placeAim(scene: Scene) {

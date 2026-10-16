@@ -100,7 +100,8 @@ snapshot commit, without the history.
   and bent by ripples (the wetness map's green, `underWater`); the liquids' surfaces have ripple
   normals and highlights (`liquidNormal`, a gloss per palette); starwater's stars lie in three
   layers at different depths under the nebula; the lava's crust takes the light on domed plates and
-  its molten rock shines from under the cracks.
+  its molten rock shines from under the cracks. Dust drifts up in the air before each lit torch whose
+  cell is in sight (`dust.ts` `TorchDust`, one instanced sprite moved in the shader; the Torch dust setting).
   The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
   the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
   in `lights.ts` are variations of `DIORAMA`.

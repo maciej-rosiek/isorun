@@ -29,6 +29,8 @@ export interface ShadingSettings {
   glow: number
   /** Glints on crystal, gems and ice; 0 for none. */
   sparkle: number
+  /** Dust drifting in the light of the torches; 0 for none. */
+  dust: number
 }
 
 const wrap = uniform(0)
@@ -45,6 +47,8 @@ const variationStrength = uniform(0)
 const wetStrength = uniform(0)
 const glowStrength = uniform(0)
 const sparkleStrength = uniform(0)
+/** How much dust shows in the torches' light (`dust.ts`). */
+export const dustStrength = uniform(0)
 
 /** How many steps the parallax takes into each tile (a quality setting): 16 is fine, 8 is coarse, 0 leaves the tiles flat. */
 export function setDepthSteps(steps: number) {
@@ -64,6 +68,7 @@ export function applyShading(settings: ShadingSettings) {
   wetStrength.value = settings.wetness
   glowStrength.value = settings.glow
   sparkleStrength.value = settings.sparkle
+  dustStrength.value = settings.dust
 }
 
 type DirectLight = THREE.LightingModelDirectInput & {

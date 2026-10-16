@@ -81,6 +81,7 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
       { label: 'Wetness', kind: 'number', min: 0, max: 1, step: 0.05, get: (l) => l.shading.wetness, set: (l, v) => (l.shading.wetness = v) },
       { label: 'Glow', kind: 'number', min: 0, max: 3, step: 0.05, get: (l) => l.shading.glow, set: (l, v) => (l.shading.glow = v) },
       { label: 'Sparkle', kind: 'number', min: 0, max: 3, step: 0.05, get: (l) => l.shading.sparkle, set: (l, v) => (l.shading.sparkle = v) },
+      { label: 'Torch dust', kind: 'number', min: 0, max: 2, step: 0.05, get: (l) => l.shading.dust, set: (l, v) => (l.shading.dust = v) },
     ],
   },
   {
