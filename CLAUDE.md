@@ -104,16 +104,9 @@ snapshot commit, without the history.
   layers at different depths under the nebula; the lava's crust takes the light on domed plates and
   its molten rock shines from under the cracks. Dust drifts up in the air before each lit torch whose
   cell is in sight (`dust.ts` `TorchDust`, one instanced sprite moved in the shader; the Torch dust setting).
-  Open task: a Surface detail setting of its own in the Graphics group (separate from Quality): Off (the
-  look before the surfaces: flat tiles, no gloss, glow, dust or liquid depth), Low (relief normals, dirt
-  and wear, cell variation, rim light), Medium (and parallax at 8 steps, gloss, wetness, glow with its
-  bloom, the monster statuses), High (all: parallax at 16 steps, sparkle, torch dust, liquid depth and
-  ripples). The statuses stay on above Off, as they tell the game. Off by default on a phone (the test of
-  the phone layout) with Medium the highest there; Medium by default elsewhere. Custom looks keep tuning.
-  The renderer side is done: `applySurfaceDetail(level)` (`shading.ts`, `SURFACE_DETAILS`) gates the
-  look's strengths, the parallax steps, the statuses and the liquids' depth (`liquidDepth`), the dust
-  hides at 0, and the glow's bloom follows `glowShown()`; a change of level builds no shader. The
-  menu row and its defaults are left.
+  The Surface detail setting (`applySurfaceDetail`, `SURFACE_DETAILS`: off, low, medium, high) gates the
+  look's strengths, the parallax steps (0, 0, 8, 16), the statuses, the liquids' depth (`liquidDepth`)
+  and the dust, and the glow's bloom follows `glowShown()`; a change of level builds no shader.
   The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
   the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
   in `lights.ts` are variations of `DIORAMA`.
