@@ -1,4 +1,5 @@
 import { app, BrowserWindow, net, protocol, shell } from 'electron'
+import electronUpdater from 'electron-updater'
 import { join } from 'node:path'
 import { ORIGIN, serve, type GameFiles } from './serve'
 
@@ -24,6 +25,14 @@ function serveGameFiles() {
     if (url.origin === ORIGIN) return serve(url, gameFiles)
     return net.fetch(request, { bypassCustomProtocolHandlers: true })
   })
+}
+
+function updateInBackground() {
+  if (!app.isPackaged || !process.env.APPIMAGE) return
+  const { autoUpdater } = electronUpdater
+  const logFailure = (error: Error) => console.error('update failed:', error.message)
+  autoUpdater.on('error', logFailure)
+  autoUpdater.checkForUpdates().catch(logFailure)
 }
 
 function openWindow() {
@@ -70,5 +79,6 @@ if (!app.requestSingleInstanceLock()) {
   void app.whenReady().then(() => {
     serveGameFiles()
     openWindow()
+    updateInBackground()
   })
 }

@@ -11,10 +11,12 @@
     "build": "vite build",
     "start": "vite build && electron .",
     "typecheck": "tsc --noEmit",
-    "package": "node package.mjs"
+    "package": "node package.mjs",
+    "release": "node package.mjs --publish"
   },
   "devDependencies": {
-    "@electron/packager": "20.3.0",
-    "electron": "44.8.0"
+    "electron": "44.8.0",
+    "electron-builder": "26.15.3",
+    "electron-updater": "6.8.9"
   }
 }
