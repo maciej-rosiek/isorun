@@ -171,7 +171,7 @@ export const LIGHTS = {
     l.exposure = 2
     l.background = 0x2c2620
     l.ambient.intensity = 2.5
-    l.shading = { ...l.shading, wrap: 0.55, bands: 0, relief: 0.8, depth: 0.08, gloss: 0.15, rim: 0.3, cavity: 0.9, variation: 0.04 }
+    l.shading = { ...l.shading, wrap: 0.55, bands: 5, relief: 0.8, depth: 0.08, gloss: 0.15, rim: 0.3, cavity: 0.9, variation: 0.04 }
     l.tiltShift = { enabled: true, blur: 0.55, focus: 0.25, falloff: 0.35 }
     l.grade = { saturation: 1.25, shadows: 0xece4ff, highlights: 0xfff0dc, vignette: 0.15 }
   }),
