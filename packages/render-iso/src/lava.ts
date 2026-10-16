@@ -1,9 +1,9 @@
 import * as THREE from 'three/webgpu'
-import { attribute, mix, positionWorld, texture, time, uniform, vec2 } from 'three/tsl'
+import { attribute, cameraWorldMatrix, mix, positionWorld, texture, time, uniform, vec2, vec4 } from 'three/tsl'
 import type { Scene } from '@isorun/scene'
 import { noiseTexture } from './fog.js'
 import { emissionOutput } from './post.js'
-import { LiquidGrid, liquidSight } from './water.js'
+import { LiquidGrid, liquidNormal, liquidSight } from './water.js'
 import type { MemoryMask } from './shading.js'
 
 export interface LavaSettings {
@@ -25,6 +25,14 @@ const CRACK_WIDTH = 0.08
 const FINE_CRACK_WIDTH = 0.04
 const RIM_OPACITY = 0.45
 const BRIGHTNESS = 0.9
+/** How far under the crust the molten rock seen through a crack lies, in cells, and how domed the crust's plates are. */
+const MOLTEN_DEPTH = 0.12
+const PLATE_TILT = 0.5
+
+/** A Lambert material with its own light: the crust takes the scene's light, the molten rock gives its own. */
+class LitLavaMaterial extends THREE.MeshLambertNodeMaterial {
+  emissiveNode: THREE.Node<'vec3'> | null = null
+}
 
 export class LavaLayer {
   readonly mesh: THREE.Mesh
@@ -39,7 +47,7 @@ export class LavaLayer {
     const noise = noiseTexture()
     const place = positionWorld.xz
     const clock = time.mul(this.speed).mul(DRIFT)
-    const flow = (scale: number, dx: number, dy: number) => texture(noise, place.mul(scale).add(vec2(clock.mul(dx), clock.mul(dy)))).r
+    const flow = (scale: number, dx: number, dy: number, at: THREE.Node<'vec2'> = place) => texture(noise, at.mul(scale).add(vec2(clock.mul(dx), clock.mul(dy)))).r
     const lava = attribute<'float'>('liquid', 'float')
     const near = attribute<'float'>('near', 'float')
     const depth = attribute<'float'>('depth', 'float')
@@ -47,17 +55,24 @@ export class LavaLayer {
     const edge = lava.add(flow(EDGE_SCALE, 0.2, -0.3).sub(0.5).mul(EDGE_WOBBLE))
     const shape = edge.smoothstep(0.47, 0.53)
     const crack = (value: THREE.Node<'float'>, width: number) => value.sub(0.5).abs().smoothstep(width, 0)
-    const cracks = crack(flow(PLATE_SCALE, 1, 0.4), CRACK_WIDTH).max(crack(flow(FINE_SCALE, -0.6, 0.8), FINE_CRACK_WIDTH).mul(0.45))
+    const cracksAt = (at: THREE.Node<'vec2'>) => crack(flow(PLATE_SCALE, 1, 0.4, at), CRACK_WIDTH).max(crack(flow(FINE_SCALE, -0.6, 0.8, at), FINE_CRACK_WIDTH).mul(0.45))
+    const view = cameraWorldMatrix.mul(vec4(0, 0, -1, 0)).xyz
+    const deep = place.add(view.xz.div(view.y.negate().max(0.2)).mul(MOLTEN_DEPTH))
     const pulse = flow(PULSE_SCALE, 0.3, 0.2).mul(0.6).add(0.7)
     const cooling = edge.smoothstep(0.5, 0.8)
-    const heat = cracks.mul(pulse).add(depth.mul(0.12)).mul(cooling.mul(0.8).add(0.2)).clamp(0, 1)
-    const melt = mix(this.molten, this.hot, heat.mul(heat))
-    const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false })
+    const heatOf = (cracks: THREE.Node<'float'>) => cracks.mul(pulse).add(depth.mul(0.12)).mul(cooling.mul(0.8).add(0.2)).clamp(0, 1)
+    const heat = heatOf(cracksAt(place))
+    const below = heatOf(cracksAt(deep).max(cracksAt(place)))
+    const melt = mix(this.molten, this.hot, below.mul(below))
+    const open = heat.smoothstep(0.15, 0.6)
+    const material = new LitLavaMaterial({ transparent: true, depthWrite: false })
     const rim = near.smoothstep(0, 0.5).pow(2).mul(shape.oneMinus()).mul(live)
     const crust = this.crust.mul(flow(PULSE_SCALE * 4, -0.2, 0.1).mul(0.7).add(0.65))
-    material.colorNode = mix(mix(crust, melt.mul(BRIGHTNESS), heat.smoothstep(0.15, 0.6)), this.molten, rim).mul(shade)
+    material.colorNode = crust.mul(open.oneMinus()).mul(shade)
+    material.normalNode = liquidNormal((at) => cracksAt(at).oneMinus(), place, PLATE_TILT)
+    material.emissiveNode = melt.mul(BRIGHTNESS).mul(open).add(this.molten.mul(rim)).mul(shade)
     material.opacityNode = shape.max(rim.mul(RIM_OPACITY))
-    material.mrtNode = emissionOutput(melt.mul(heat).mul(shape).mul(live).mul(this.glow))
+    material.mrtNode = emissionOutput(melt.mul(below).mul(shape).mul(live).mul(this.glow))
     this.mesh = new THREE.Mesh(this.grid.geometry, material)
     this.mesh.renderOrder = 4
   }

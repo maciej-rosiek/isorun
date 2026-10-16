@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu'
-import { attribute, mix, positionWorld, step, texture, time, uniform, vec2 } from 'three/tsl'
+import { attribute, cameraViewMatrix, float, mix, positionWorld, step, texture, time, uniform, vec2, vec3, vec4 } from 'three/tsl'
 import { getCell, type LiquidKind, type Scene } from '@isorun/scene'
 import { blur, chamfer, noiseTexture } from './fog.js'
 import type { MemoryMask } from './shading.js'
@@ -38,13 +38,19 @@ const AROUND = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => [dx, dy]))
 
 export type WaterKind = Exclude<LiquidKind, 'lava' | 'starwater'>
 
-const PALETTES: Record<Exclude<WaterKind, 'water'>, { deep: number; shallow: number; light: number; strength: number; speed: number; opacity: number }> = {
-  murky: { deep: 0x18200f, shallow: 0x0c1207, light: 0x6f7c3c, strength: 1, speed: 0.6, opacity: 1 },
-  bog: { deep: 0x1d360c, shallow: 0x284612, light: 0x8cc63c, strength: 2, speed: 0.35, opacity: 1.2 },
-  mud: { deep: 0x1e140c, shallow: 0x281b10, light: 0x7a6044, strength: 1, speed: 0.12, opacity: 1.6 },
-  slime: { deep: 0x15280a, shallow: 0x1c340c, light: 0xb0f060, strength: 2.5, speed: 0.2, opacity: 0.4 },
-  acid: { deep: 0x3c400a, shallow: 0x4a4e0c, light: 0xe6f070, strength: 2.5, speed: 0.45, opacity: 0.8 },
+const PALETTES: Record<Exclude<WaterKind, 'water'>, { deep: number; shallow: number; light: number; strength: number; speed: number; opacity: number; gloss: number }> = {
+  murky: { deep: 0x18200f, shallow: 0x0c1207, light: 0x6f7c3c, strength: 1, speed: 0.6, opacity: 1, gloss: 0.3 },
+  bog: { deep: 0x1d360c, shallow: 0x284612, light: 0x8cc63c, strength: 2, speed: 0.35, opacity: 1.2, gloss: 0.25 },
+  mud: { deep: 0x1e140c, shallow: 0x281b10, light: 0x7a6044, strength: 1, speed: 0.12, opacity: 1.6, gloss: 0.15 },
+  slime: { deep: 0x15280a, shallow: 0x1c340c, light: 0xb0f060, strength: 2.5, speed: 0.2, opacity: 0.4, gloss: 0.5 },
+  acid: { deep: 0x3c400a, shallow: 0x4a4e0c, light: 0xe6f070, strength: 2.5, speed: 0.45, opacity: 0.8, gloss: 0.4 },
 }
+/** How glossy clear water is, as the palettes' `gloss`; how narrow the highlights of a liquid are, and how much its ripples tilt it. */
+const WATER_GLOSS = 0.45
+const LIQUID_SHININESS = 40
+const RIPPLE_TILT = 0.18
+const RIPPLE_SCALE = 0.45
+const RIPPLE_STEP = 0.15
 
 export const FILMS: ReadonlySet<LiquidKind> = new Set(['slime', 'acid'])
 
@@ -143,6 +149,18 @@ export class LiquidGrid {
   }
 }
 
+/**
+ * The view-space normal of a liquid whose surface height at a place on the ground is `height`: tilted by its slope,
+ * from the height a little across and a little down.
+ */
+export function liquidNormal(height: (place: THREE.Node<'vec2'>) => THREE.Node<'float'>, place: THREE.Node<'vec2'>, tilt: number) {
+  const here = height(place)
+  const across = height(place.add(vec2(RIPPLE_STEP, 0))).sub(here)
+  const down = height(place.add(vec2(0, RIPPLE_STEP))).sub(here)
+  const world = vec3(across.mul(-tilt / RIPPLE_STEP), 1, down.mul(-tilt / RIPPLE_STEP)).normalize()
+  return cameraViewMatrix.mul(vec4(world, 0)).xyz.normalize()
+}
+
 /** How light a liquid's cell is (the memory mask), and 1 where it is in sight, 0 where it is only remembered: what moves on a liquid shows only in sight. */
 export function liquidSight(memory: MemoryMask) {
   return { shade: memory.shade, live: step(0.99, memory.shade) }
@@ -158,6 +176,7 @@ export class WaterLayer {
   private readonly strength = uniform(0)
   private readonly speed = uniform(0)
   private readonly opacity = uniform(1)
+  private readonly gloss = uniform(0)
 
   constructor(
     private readonly kind: WaterKind,
@@ -178,15 +197,20 @@ export class WaterLayer {
     const swell = drift(SWELL_SCALE, 0.4, -0.3).mul(0.25).add(0.875)
     const foam = edge.smoothstep(0.5 + FOAM_WIDTH, 0.5).mul(drift(FOAM_SCALE, -0.5, -0.8).smoothstep(0.3, 0.6))
     const glow = caustics.add(foam).min(1).mul(this.strength).mul(live)
-    const material = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false })
+    const material = new THREE.MeshPhongNodeMaterial({ transparent: true, depthWrite: false })
     material.colorNode = mix(mix(this.shallow, this.deep, depth).mul(swell), this.light, glow).mul(shade)
+    const ripples = (p: THREE.Node<'vec2'>) => texture(noise, p.mul(RIPPLE_SCALE).add(vec2(clock.mul(0.5), clock.mul(-0.4)))).r.add(texture(noise, p.mul(RIPPLE_SCALE * 2.3).add(vec2(clock.mul(-0.6), clock.mul(0.7)))).r.mul(0.5))
+    material.normalNode = liquidNormal(ripples, place, RIPPLE_TILT)
+    material.specularNode = vec3(this.gloss).mul(live)
+    material.shininessNode = float(LIQUID_SHININESS)
     material.opacityNode = shape.mul(mix(SHALLOW_OPACITY, DEEP_OPACITY, depth).mul(this.opacity).min(1)).max(glow.mul(shape))
     this.mesh = new THREE.Mesh(this.grid.geometry, material)
     this.mesh.renderOrder = 4
   }
 
   configure(settings: WaterSettings) {
-    const palette = this.kind === 'water' ? { ...settings, strength: 1, speed: 1, opacity: 1 } : PALETTES[this.kind]
+    const palette = this.kind === 'water' ? { ...settings, strength: 1, speed: 1, opacity: 1, gloss: WATER_GLOSS } : PALETTES[this.kind]
+    this.gloss.value = palette.gloss
     this.deep.value.set(palette.deep)
     this.shallow.value.set(palette.shallow)
     this.light.value.set(palette.light)

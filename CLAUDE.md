@@ -95,6 +95,11 @@ snapshot commit, without the history.
   label and shows crawl's statuses (`Billboard.effects` from the status icons: petrified, burning,
   poisoned, corroded, berserk, glowing, summoned, wet). The Surfaces section of the lights menu
   has their strengths; `setDepthSteps` sets the parallax steps (a quality setting).
+  The liquids have depth: the ground under water and murky water is seen lower by the water's depth
+  and bent by ripples (the wetness map's green, `underWater`); the liquids' surfaces have ripple
+  normals and highlights (`liquidNormal`, a gloss per palette); starwater's stars lie in three
+  layers at different depths under the nebula; the lava's crust takes the light on domed plates and
+  its molten rock shines from under the cracks.
   The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
   the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
   in `lights.ts` are variations of `DIORAMA`.

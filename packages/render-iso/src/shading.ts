@@ -174,6 +174,20 @@ export function parallaxUV(map: THREE.Texture) {
   })()
 }
 
+/**
+ * Where the ground under water is seen: as if lower by the water's depth, along the view, and bent by ripples. The
+ * tile wraps inside its rect, as the floor under water repeats.
+ */
+function underWater(at: THREE.Node<'vec2'>, submerged: THREE.Node<'float'>) {
+  const rect = attribute<'vec4'>(UV_RECT, 'vec4')
+  const size = rect.zw.sub(rect.xy)
+  const view = tangentSpaceView()
+  const sink = view.xy.div(view.z.max(0.25)).mul(submerged).mul(SUNKEN.depth).negate()
+  const wave = vec2(mx_noise_float(vec3(positionWorld.xz.mul(SUNKEN.rippleScale), time.mul(SUNKEN.rippleSpeed))), mx_noise_float(vec3(positionWorld.xz.mul(SUNKEN.rippleScale).add(17), time.mul(SUNKEN.rippleSpeed))))
+  const shifted = at.sub(rect.xy).div(size).add(sink).add(wave.mul(SUNKEN.ripple).mul(submerged))
+  return select(submerged.greaterThan(0.001), rect.xy.add(shifted.fract().mul(size)), at)
+}
+
 /** The colour of the map scaled by the sprite light, darker on a remembered cell. */
 export function spriteColour(map: THREE.Texture, memory: MemoryMask) {
   const colour = texture(map)
@@ -190,6 +204,11 @@ const INSIDE = 0.02
 const WETTING: ReadonlySet<LiquidKind> = new Set(['water', 'murky', 'bog', 'mud', 'slime', 'acid'])
 /** Cells from a wetting liquid to where the ground is dry again. */
 const WET_REACH = 2.5
+/** The waters the ground is seen through, and how deep shallow water is on the submersion's 0 to 255. */
+const SEE_THROUGH_WATER: ReadonlySet<LiquidKind> = new Set(['water', 'murky'])
+const SHALLOW_SUBMERSION = 100
+/** How far below the surface the ground under deep water seems, in tiles, and how much the ripples bend it. */
+const SUNKEN = { depth: 0.35, ripple: 0.012, rippleScale: 9, rippleSpeed: 0.8 }
 
 /**
  * The cells out of sight, one texel per cell: the level's materials draw a remembered cell darker by it, so a step that
@@ -200,11 +219,13 @@ export class MemoryMask {
   private readonly map = new THREE.DataTexture(this.cells, MEMORY_CELLS, MEMORY_CELLS, THREE.RedFormat)
   /** How light the surface's cell is: 1 in sight, `MEMORY_SHADE` remembered. */
   readonly shade: THREE.Node<'float'>
-  private readonly wetCells = new Uint8Array(MEMORY_CELLS * MEMORY_CELLS)
-  private readonly wetMap = new THREE.DataTexture(this.wetCells, MEMORY_CELLS, MEMORY_CELLS, THREE.RedFormat)
+  private readonly wetCells = new Uint8Array(MEMORY_CELLS * MEMORY_CELLS * 2)
+  private readonly wetMap = new THREE.DataTexture(this.wetCells, MEMORY_CELLS, MEMORY_CELLS, THREE.RGFormat)
   private wetKey = ''
   /** How wet the ground is here, 0 to 1: wet by water, bog, mud and slime and drier away from them, smooth between cells. */
   readonly wetness: THREE.Node<'float'>
+  /** How deep under clear or murky water the ground is here, 0 to 1 (deep water). */
+  readonly submerged: THREE.Node<'float'>
   /** The surface's cell, in cells. */
   readonly cell: THREE.Node<'vec2'>
 
@@ -218,7 +239,9 @@ export class MemoryMask {
     this.wetMap.magFilter = this.wetMap.minFilter = THREE.LinearFilter
     this.wetMap.generateMipmaps = false
     this.wetMap.needsUpdate = true
-    this.wetness = texture(this.wetMap, positionWorld.xz.div(MEMORY_CELLS)).r
+    const wet = texture(this.wetMap, positionWorld.xz.div(MEMORY_CELLS))
+    this.wetness = wet.r
+    this.submerged = wet.g
   }
 
   update(scene: Scene) {
@@ -233,7 +256,7 @@ export class MemoryMask {
 
   private updateWetness(scene: Scene) {
     const sources = [...scene.cells.values()].filter((c) => c.liquid && WETTING.has(c.liquid.kind) && c.visibility !== 'unseen' && c.x >= 0 && c.y >= 0 && c.x < MEMORY_CELLS && c.y < MEMORY_CELLS)
-    const key = sources.map((c) => `${c.x},${c.y}`).join(';')
+    const key = sources.map((c) => `${c.x},${c.y},${c.liquid?.kind},${c.liquid?.deep}`).join(';')
     if (key === this.wetKey) return
     this.wetKey = key
     this.wetCells.fill(0)
@@ -245,8 +268,9 @@ export class MemoryMask {
           const y = source.y + dy
           if (x < 0 || y < 0 || x >= MEMORY_CELLS || y >= MEMORY_CELLS) continue
           const wet = Math.max(0, 1 - Math.hypot(dx, dy) / WET_REACH) * 255
-          this.wetCells[y * MEMORY_CELLS + x] = Math.max(this.wetCells[y * MEMORY_CELLS + x], wet)
+          this.wetCells[(y * MEMORY_CELLS + x) * 2] = Math.max(this.wetCells[(y * MEMORY_CELLS + x) * 2], wet)
         }
+    for (const source of sources) if (source.liquid && SEE_THROUGH_WATER.has(source.liquid.kind)) this.wetCells[(source.y * MEMORY_CELLS + source.x) * 2 + 1] = source.liquid.deep ? 255 : SHALLOW_SUBMERSION
     this.wetMap.needsUpdate = true
   }
 
@@ -279,7 +303,7 @@ const PUDDLE_LEVEL = 0.55
 const PUDDLE_EDGE = 0.04
 /** How dark wet ground gets, and how glossy. */
 const WET_DARK = 0.55
-const WET_GLOSS = 0.55
+const WET_GLOSS = 0.4
 /** How fast the light of a glowing part breathes, and how much. */
 const GLOW_PULSE = { speed: 1.7, amount: 0.15 }
 /** Source texels per glint of sparkle, and how fast the glints come and go. */
@@ -309,7 +333,7 @@ function setGloss(material: ClayMaterial, gloss: THREE.Node<'float'>) {
  * surface says, and giving light where it glows; darker on a remembered cell.
  */
 export function dressGround(material: ClayMaterial, maps: PageMaps, memory: MemoryMask) {
-  const sunk = parallaxUV(maps.normal)
+  const sunk = underWater(parallaxUV(maps.normal), memory.submerged)
   const across = dFdx(uv())
   const down = dFdy(uv())
   const colour = texture(maps.colour, sunk).grad(across, down)
