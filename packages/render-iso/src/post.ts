@@ -76,6 +76,7 @@ export class IsoPost {
   private readonly bloomRadius = uniform(0)
   private readonly bloomThreshold = uniform(0)
   private emitting = false
+  private readonly emissionStrength = uniform(0)
   private readonly blur = uniform(1)
   private readonly focus = uniform(0.2)
   private readonly falloff = uniform(0.3)
@@ -152,11 +153,18 @@ export class IsoPost {
     this.vignette.value = settings.grade.vignette
   }
 
+  /**
+   * Whether something in view glows (lava, starwater, a glowing tile). The glow's bloom is built into the screen effects the
+   * first time and stays: building them again makes new pipelines, which costs a few slow frames, so a glow that goes out
+   * of view only turns the bloom's light off.
+   */
   setEmission(on: boolean) {
-    if (on === this.emitting) return
-    this.emitting = on
+    this.emissionStrength.value = on ? EMISSION_STRENGTH : 0
+    if (!on || this.emitting) return
+    this.emitting = true
     this.shape = ''
   }
+
 
   /** How red the screen edge is, 0 to 1. */
   setDanger(amount: number) {
@@ -225,7 +233,7 @@ export class IsoPost {
       const away = smoothstep(this.focus, this.focus.add(this.falloff), abs(screenUV.y.sub(0.5)).mul(2))
       image = mix(image, blurred, away)
     }
-    if (this.emitting) image = image.add(quarterBloom(scenePass.getTextureNode('emission'), EMISSION_STRENGTH, EMISSION_RADIUS, 0))
+    if (this.emitting) image = image.add(quarterBloom(scenePass.getTextureNode('emission'), this.emissionStrength, EMISSION_RADIUS, 0))
     const graded = saturation(image.rgb, this.saturation)
     const tint = mix(this.shadows.div(luminance(this.shadows)), this.highlights.div(luminance(this.highlights)), smoothstep(0, 0.6, luminance(graded)))
     const corners = float(1).sub(length(screenUV.sub(0.5)).mul(1.414).pow(2).mul(this.vignette))
