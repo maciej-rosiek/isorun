@@ -58,7 +58,7 @@ const DIORAMA: IsoLights = {
   sun: { colour: 0xfff1dc, intensity: 4.85 },
   torch: { colour: 0xffb26a, intensity: 6, distance: 9.5, decay: 1 },
   shadowSoftness: 2.5,
-  shading: { wrap: 0.25, bands: 5, relief: 0.6, depth: 0.075, sprites: 0.3, gloss: 0.6, rim: 0.5, cavity: 0.6, variation: 0.08, wetness: 0.8, glow: 1.2, sparkle: 1, dust: 0.8 },
+  shading: { wrap: 0.25, bands: 5, relief: 0.3, depth: 0.06, sprites: 0.2, gloss: 0.25, rim: 0.4, cavity: 0.55, variation: 0.01, wetness: 0.25, glow: 0.9, sparkle: 0.65, dust: 0.5 },
   paint: { radius: 0, levels: 0, lift: 1.4, upscale: 'scale2x' },
   walls: { bevel: 0, moss: 0.25, mossColour: 0x707070 },
   ao: { enabled: true, intensity: 1, radius: 0.85 },
@@ -90,7 +90,7 @@ export const LIGHTS = {
     l.background = 0x3a3530
     l.ambient.intensity = 2.5
     l.sun = { colour: 0xfff4e0, intensity: 5.5 }
-    l.shading = { wrap: 0.5, bands: 3, relief: 0.4, depth: 0.075, sprites: 0.3, gloss: 0.5, rim: 0.6, cavity: 0.5, variation: 0.06, wetness: 0.8, glow: 1.2, sparkle: 1, dust: 0.8 }
+    l.shading = { ...l.shading, wrap: 0.5, bands: 3, relief: 0.4, sprites: 0.3, rim: 0.5, cavity: 0.45 }
     l.paint = { radius: 2, levels: 0, lift: 1.6, upscale: 'scale2x' }
     l.walls = { bevel: 0.1, moss: 0.25, mossColour: 0x8a8a7a }
     l.outline = { enabled: true, thickness: 1, strength: 0.5, colour: 0x2a1e16 }
@@ -130,6 +130,61 @@ export const LIGHTS = {
     l.torch = { colour: 0xffa860, intensity: 9, distance: 8, decay: 1 }
     l.bloom = { enabled: true, strength: 0.4, radius: 0.4, threshold: 0.7 }
     l.grade = { saturation: 0.85, shadows: 0xc8d4ff, highlights: 0xfff2e0, vignette: 0.35 }
+  }),
+  rain: variation((l) => {
+    l.label = 'Rain crypt'
+    l.exposure = 1.9
+    l.background = 0x0e1216
+    l.ambient = { sky: 0x9fb4cc, ground: 0x3c4448, intensity: 1.7 }
+    l.sun = { colour: 0xc8d8ec, intensity: 3 }
+    l.torch = { colour: 0xffa858, intensity: 8, distance: 9, decay: 1 }
+    l.shading = { ...l.shading, gloss: 0.7, rim: 0.5, cavity: 0.7, wetness: 0.9, dust: 0.2 }
+    l.walls.mossColour = 0x4e5a4a
+    l.water = { ...l.water, strength: 0.25, speed: 0.9 }
+    l.grade = { saturation: 0.75, shadows: 0xd8e4ff, highlights: 0xfff0dc, vignette: 0.3 }
+  }),
+  ember: variation((l) => {
+    l.label = 'Ember forge'
+    l.exposure = 1.6
+    l.background = 0x1c0e0a
+    l.ambient = { sky: 0xb4a098, ground: 0x4a2a20, intensity: 1.3 }
+    l.sun = { colour: 0xffa070, intensity: 2.4 }
+    l.torch = { colour: 0xff9448, intensity: 7, distance: 9, decay: 1 }
+    l.shading = { ...l.shading, gloss: 0.35, rim: 0.7, cavity: 0.7, glow: 1.6, dust: 1.4 }
+    l.bloom = { enabled: true, strength: 0.3, radius: 0.5, threshold: 0.7 }
+    l.lava = { ...l.lava, glow: 0.8 }
+    l.grade = { saturation: 0.9, shadows: 0xe8dcff, highlights: 0xffe8c8, vignette: 0.4 }
+  }),
+  frost: variation((l) => {
+    l.label = 'Frost'
+    l.exposure = 2.1
+    l.background = 0x161c24
+    l.ambient = { sky: 0xd8ecff, ground: 0x6c7888, intensity: 2.4 }
+    l.sun = { colour: 0xe4f0ff, intensity: 4.2 }
+    l.torch = { colour: 0xffc890, intensity: 5, distance: 9, decay: 1 }
+    l.shading = { ...l.shading, wrap: 0.35, gloss: 0.6, rim: 0.9, sparkle: 1.6, wetness: 0.4, dust: 0.3 }
+    l.walls = { bevel: 0.05, moss: 0.35, mossColour: 0xdce8f4 }
+    l.grade = { saturation: 0.7, shadows: 0xd4e4ff, highlights: 0xf4f8ff, vignette: 0.2 }
+  }),
+  miniature: variation((l) => {
+    l.label = 'Miniature'
+    l.exposure = 2
+    l.background = 0x2c2620
+    l.ambient.intensity = 2.5
+    l.shading = { ...l.shading, wrap: 0.55, bands: 0, relief: 0.8, depth: 0.08, gloss: 0.15, rim: 0.3, cavity: 0.9, variation: 0.04 }
+    l.tiltShift = { enabled: true, blur: 0.55, focus: 0.25, falloff: 0.35 }
+    l.grade = { saturation: 1.25, shadows: 0xece4ff, highlights: 0xfff0dc, vignette: 0.15 }
+  }),
+  noir: variation((l) => {
+    l.label = 'Noir'
+    l.exposure = 1.6
+    l.background = 0x080808
+    l.ambient = { sky: 0xc0c0c0, ground: 0x303030, intensity: 0.9 }
+    l.sun = { colour: 0xffffff, intensity: 4 }
+    l.torch = { colour: 0xfff0e0, intensity: 7, distance: 7, decay: 1.4 }
+    l.shading = { ...l.shading, bands: 3, gloss: 0.4, rim: 1.2, cavity: 0.8, glow: 0.6, dust: 0.7 }
+    l.shadowSoftness = 1
+    l.grade = { saturation: 0.12, shadows: 0xe8ecf4, highlights: 0xfff8ec, vignette: 0.6 }
   }),
 } satisfies Record<string, IsoLights>
 
