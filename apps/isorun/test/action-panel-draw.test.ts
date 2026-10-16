@@ -24,6 +24,7 @@ const gd = {
     return { atlas: 'main', sx: 0, sy: 0, w: 32, h: 32, ox: 0, oy: 0, cell: 32 }
   },
   atlas: () => ({}) as unknown as CanvasImageSource,
+  serverTile: (id: number) => id,
 } as unknown as Gamedata
 
 /** the state after the server sent `items` on the panel, the inventory having arrived */

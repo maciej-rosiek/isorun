@@ -40,6 +40,7 @@ const gd = {
   // player-range parts stand 40 tall, so a doll hangs 8 px below the top of its cell
   tile: (t: number) => ({ atlas: 'main', sx: 0, sy: 0, w: 32, h: t >= 1000 ? 40 : 32, ox: 0, oy: 0 }),
   atlas: () => undefined,
+  serverTile: (t: number) => t,
 }
 
 beforeEach(() => {

@@ -250,9 +250,14 @@ function godPane(d: Record<string, unknown>, pane: number): HTMLElement {
  * draw_dolls does.
  */
 export function monsterTiles(gd: Gamedata | null, d: Record<string, unknown>): TileRef[] {
-  const fg = typeof d.fg_idx === 'number' ? d.fg_idx : 0
-  const doll = (Array.isArray(d.doll) ? d.doll : []).filter((x): x is [number, number] => Array.isArray(x) && typeof x[0] === 'number')
-  const mcache = (Array.isArray(d.mcache) ? d.mcache : []).filter((x): x is [number, number, number] => Array.isArray(x) && typeof x[0] === 'number')
+  const fg = typeof d.fg_idx === 'number' ? (gd?.serverTile(d.fg_idx, 'main') ?? d.fg_idx) : 0
+  const player = (id: number) => gd?.serverTile(id, 'player') ?? id
+  const doll = (Array.isArray(d.doll) ? d.doll : [])
+    .filter((x): x is [number, number] => Array.isArray(x) && typeof x[0] === 'number')
+    .map((x): [number, number] => [player(x[0]), x[1]])
+  const mcache = (Array.isArray(d.mcache) ? d.mcache : [])
+    .filter((x): x is [number, number, number] => Array.isArray(x) && typeof x[0] === 'number')
+    .map((x): [number, number, number] => [player(x[0]), x[1], x[2]])
   const r = gd?.ranges
   const drop = (id: number) => Math.max(0, (gd?.tile(id)?.h ?? 32) - 32)
   if (r && fg >= r.mainMax && doll.length) {

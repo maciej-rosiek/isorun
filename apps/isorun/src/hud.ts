@@ -852,7 +852,7 @@ export class Hud {
         // item's own tile), which action_panel.js draw_action wraps in an array and draws against `main`; a
         // `{ t, tex }` layer keeps its own texture, as the map's tiles do
         for (const t of Array.isArray(item.tile) ? item.tile : [item.tile]) {
-          const rect = typeof t === 'number' ? gd.tile(t, 'main') : gd.tile(t.t, String(t.tex))
+          const rect = typeof t === 'number' ? gd.tile(gd.serverTile(t, 'main')) : gd.tile(t.t, String(t.tex))
           const img = rect && gd.atlas(rect.atlas)
           if (!rect || !img) continue
           let hh = rect.h

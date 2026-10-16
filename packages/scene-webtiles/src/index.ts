@@ -611,7 +611,7 @@ function buildCell(mc: MapCell, gd: Gamedata): SceneCell | undefined {
   const MF = serverEnums(gd).mf
   const bgw = gd.bg(t?.bg)
   const bgIdx = bgw.value
-  const cloud = word(t?.cloud) & 0xffff
+  const cloud = gd.serverTile(word(t?.cloud) & 0xffff, 'main')
   const flags = {
     water: !!bgw.WATER || mc.mf === MF.WATER || mc.mf === MF.DEEP_WATER,
     lava: mc.mf === MF.LAVA,
@@ -1121,8 +1121,9 @@ function statusIcons(t: CellTiles, fgw: FlagWord, bgw: FlagWord, gd: Gamedata, s
   if (fgw.POISON) (add(I.POISON, -shift), (shift += 5))
   else if (fgw.MORE_POISON) (add(I.MORE_POISON, -shift), (shift += 5))
   else if (fgw.MAX_POISON) (add(I.MAX_POISON, -shift), (shift += 5))
-  for (const id of t.icons || []) {
-    if (typeof id !== 'number') continue
+  for (const sent of t.icons || []) {
+    if (typeof sent !== 'number') continue
+    const id = gd.serverTile(sent, 'icons')
     const size = gd.statusIconSize(id)
     if (size < 0) continue
     if (size === 0) add(id)
@@ -1230,10 +1231,10 @@ function addBillboards(scene: Scene, mc: MapCell, cell: SceneCell, gd: Gamedata,
       scene.billboards.push({
         x: mc.x,
         y: mc.y,
-        tile: t.doll[0][0],
+        tile: gd.serverTile(t.doll[0][0], 'player'),
         kind: 'player',
         height: 0.7,
-        layers: dollLayers(t),
+        layers: dollLayers(t, gd),
         statusIcons: badges.length ? badges : undefined,
         alpha,
       })
@@ -1266,17 +1267,17 @@ function addBillboards(scene: Scene, mc: MapCell, cell: SceneCell, gd: Gamedata,
       alpha,
     }
     if (fgIdx >= r.mainMax && t.doll && t.doll.length) {
-      bb.layers = dollLayers(t)
+      bb.layers = dollLayers(t, gd)
     } else if (fgIdx >= r.mcacheStart && t.mcache && t.mcache.length) {
-      bb.layers = t.mcache.filter((m) => Array.isArray(m)).map((m) => ({ tile: m[0], ox: m[1], oy: m[2] }))
+      bb.layers = t.mcache.filter((m) => Array.isArray(m)).map((m) => ({ tile: gd.serverTile(m[0], 'player'), ox: m[1], oy: m[2] }))
     } else {
       // a plain main-range sprite, possibly over a base tile (mimics, submerged things)
       const layers: { tile: number }[] = []
-      if (t.base) layers.push({ tile: t.base })
+      if (t.base) layers.push({ tile: gd.serverTile(t.base, 'main') })
       layers.push({ tile: fgIdx })
       if (parchment) {
-        if (t.overlay1) layers.push({ tile: t.overlay1 })
-        if (t.overlay2) layers.push({ tile: t.overlay2 })
+        if (t.overlay1) layers.push({ tile: gd.serverTile(t.overlay1, 'main') })
+        if (t.overlay2) layers.push({ tile: gd.serverTile(t.overlay2, 'main') })
       }
       if (layers.length > 1) bb.layers = layers
     }
@@ -1292,11 +1293,11 @@ function addBillboards(scene: Scene, mc: MapCell, cell: SceneCell, gd: Gamedata,
     // a corpse or a skeleton (tilepick.cc: a skeleton is FOOD_BONE, a humanoid's FOOD_BONE_HUMANOID)
     const lying = /^(CORPSE|FOOD_BONE)(_|$)/.test(name)
     const layers: { tile: number }[] = []
-    if (t.base) layers.push({ tile: t.base })
+    if (t.base) layers.push({ tile: gd.serverTile(t.base, 'main') })
     layers.push({ tile: fgIdx })
     if (parchment) {
-      if (t.overlay1) layers.push({ tile: t.overlay1 })
-      if (t.overlay2) layers.push({ tile: t.overlay2 })
+      if (t.overlay1) layers.push({ tile: gd.serverTile(t.overlay1, 'main') })
+      if (t.overlay2) layers.push({ tile: gd.serverTile(t.overlay2, 'main') })
     }
     scene.billboards.push({
       x: mc.x,
@@ -1354,14 +1355,14 @@ export function itemTileName(tile: string | undefined): string {
  * drawn at that entry's x/y offset. Used for the player and for monsters
  * drawn from dolls.
  */
-function dollLayers(t: CellTiles): { tile: number; ox?: number; oy?: number; ymax?: number }[] {
+function dollLayers(t: CellTiles, gd: Gamedata): { tile: number; ox?: number; oy?: number; ymax?: number }[] {
   const mcache = new Map<number, [number, number, number]>()
   if (Array.isArray(t.mcache)) for (const m of t.mcache) if (Array.isArray(m)) mcache.set(m[0], m)
   return (t.doll || [])
     .filter((d): d is [number, number] => Array.isArray(d) && typeof d[0] === 'number')
     .map((d) => {
       const mc2 = mcache.get(d[0])
-      return { tile: d[0], ox: mc2?.[1] || 0, oy: mc2?.[2] || 0, ymax: d[1] }
+      return { tile: gd.serverTile(d[0], 'player'), ox: mc2?.[1] || 0, oy: mc2?.[2] || 0, ymax: d[1] }
     })
 }
 
@@ -1507,7 +1508,7 @@ function dollOffhand(state: GameState, gd: Gamedata): HandItem | null {
   const tex = gd.enums.texture?.PLAYER
   for (const d of doll) {
     if (!Array.isArray(d) || typeof d[0] !== 'number') continue
-    const name = gd.player.name(d[0])
+    const name = gd.player.name(gd.serverTile(d[0], 'player'))
     if (!name || !name.startsWith('HAND2_')) continue
     return { layers: [{ tile: d[0], layer: tex !== undefined ? String(tex) : 'player', ymax: typeof d[1] === 'number' ? d[1] : undefined }], name }
   }

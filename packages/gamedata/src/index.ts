@@ -55,6 +55,12 @@ export interface TileModule {
   first: number
   end: number
   atlas: string
+  /**
+   * What is added to the server's id of a tile in this module to get the client's. Zero where the server numbers
+   * every module after the one before it, as DCSS does; a server that starts some modules at 0 again (bcrawl's
+   * main, gui and icons) has its modules moved up to stand one after the other.
+   */
+  offset: number
 }
 
 export interface FlagWord extends Array<number> {
@@ -141,6 +147,20 @@ function evalGamedata(url: string, src: string, resolve: (dep: string) => unknow
   } catch (e) {
     throw new Error(`gamedata ${url}: ${e instanceof Error ? e.message : String(e)}`)
   }
+}
+
+/** A module's first tile id, as the server numbers it: its lowest named id, the end when it names none. */
+function firstTileId(exports: Record<string, unknown>, end: number): number {
+  let first = end
+  for (const [k, v] of Object.entries(exports)) if (typeof v === 'number' && !k.endsWith('_MAX') && v < first) first = v
+  return first
+}
+
+/** A module's exports with every id moved up by the module's offset. */
+function movedExports(exports: Record<string, unknown>, offset: number): Record<string, unknown> {
+  const moved: Record<string, unknown> = {}
+  for (const [k, v] of Object.entries(exports)) moved[k] = typeof v === 'number' ? v + offset : v
+  return moved
 }
 
 function makeNameIndex(mods: TileModule[]): NameIndex {
@@ -298,6 +318,16 @@ export class Gamedata implements TileSource {
   }
 
   /**
+   * The client's id of a tile the server sent, from the module it sent it in: an atlas name, or the server's
+   * texture index. Every id this class hands out or takes is the client's, except one `tile` gets with a texture
+   * index, which is the server's. Zero, the server's "no tile", stays zero.
+   */
+  serverTile(id: TileId, from: AtlasName | number): TileId {
+    const m = typeof from === 'number' ? this.moduleForTexture(from) : this.modules[from]
+    return id && m ? id + m.offset : id
+  }
+
+  /**
    * Layout size of a status icon in the shifting row (see StatusIconSize).
    * Falls back to the icon's own width when the server does not publish
    * `status-icon-sizes.js`, which is what older clients did.
@@ -332,8 +362,10 @@ export class Gamedata implements TileSource {
 
   private tileUncached(id: TileId, layer?: string): TileRect | undefined {
     let m: TileModule | undefined
-    if (layer && /^\d+$/.test(layer)) m = this.moduleForTexture(Number(layer))
-    else if (layer && layer in this.modules) m = this.modules[layer as AtlasName]
+    if (layer && /^\d+$/.test(layer)) {
+      m = this.moduleForTexture(Number(layer))
+      if (m) id += m.offset
+    } else if (layer && layer in this.modules) m = this.modules[layer as AtlasName]
     else m = this.moduleFor(id)
     if (!m) return undefined
     let info: TileInfoRaw | undefined
@@ -396,12 +428,28 @@ export class Gamedata implements TileSource {
     this.iconSizes = fn
   }
 
+  /** A foreground word (a monster, an item, the player: main or player tiles), its `value` the client's id. */
   fg(word: number | number[] | FlagWord | undefined): FlagWord {
-    return this.enums.prepare_fg_flags(word || 0)
+    return this.moved(this.enums.prepare_fg_flags(word || 0), this.modules.main.offset)
   }
 
+  /** A background word (dungeon tiles), its `value` the client's id. */
   bg(word: number | number[] | FlagWord | undefined): FlagWord {
-    return this.enums.prepare_bg_flags(word || 0)
+    return this.moved(this.enums.prepare_bg_flags(word || 0), this.modules.floor.offset)
+  }
+
+  /** enums.js caches the words it prepares, so a moved word is a copy, kept for the next call with the same word. */
+  private movedWords = new WeakMap<FlagWord, FlagWord>()
+
+  private moved(word: FlagWord, offset: number): FlagWord {
+    if (!offset || !word.value) return word
+    let out = this.movedWords.get(word)
+    if (!out) {
+      out = Object.assign([...word], word, { value: word.value + offset })
+      this.movedWords.set(word, out)
+      this.movedWords.set(out, out)
+    }
+    return out
   }
 }
 
@@ -483,21 +531,22 @@ export async function loadGamedata(opts: LoadGamedataOptions): Promise<Gamedata>
     const tile_count = exports.tile_count as (idx: number) => number
     const basetile = exports.basetile as (idx: number) => number
     const get_img = exports.get_img as (idx: number) => string
-    // the first id of the module is the previous module's MAX, or 0
     const maxKey = Object.keys(exports).find((k) => /^(FLOOR|WALL|FEAT|MAIN|PLAYER|GUI|ICONS)_MAX$/.test(k))
     const end = (maxKey ? (exports[maxKey] as number) : 0) || 0
-    const first = p ? (Object.entries(p).find(([k]) => /_MAX$/.test(k) && /^(TILE|TILEP|TILEG|TILEI)_/.test(k))?.[1] as number) ?? 0 : 0
+    const first = firstTileId(exports, end)
+    const offset = (modules[TILEINFO_ORDER[i - 1]]?.end ?? 0) - first
     modules[name] = {
-      exports,
-      get_tile_info,
-      tile_count,
-      basetile,
+      exports: offset ? movedExports(exports, offset) : exports,
+      get_tile_info: (idx) => get_tile_info(idx - offset),
+      tile_count: (idx) => tile_count(idx - offset),
+      basetile: (idx) => basetile(idx - offset) + offset,
       get_img,
-      first: modules[TILEINFO_ORDER[i - 1]]?.end ?? first ?? 0,
-      end,
+      first: first + offset,
+      end: end + offset,
       atlas: name,
+      offset,
     }
-    fp += `${name}:${end};`
+    fp += `${name}:${end + offset};`
     prev = exports
   }
   const gd = new Gamedata(version, enums, modules, await fnv1a(fp))
