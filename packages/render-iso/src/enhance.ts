@@ -375,15 +375,57 @@ export interface PageSlot {
   sy: number
 }
 
-/** A tile just drawn on a page: its slot, and its upscaled pixels with their place on the page's canvases, to upload alone. */
-export interface DrawnSlot extends PageSlot {
+/** A tile's place on a page, with what it is and its pixels as the atlas has them, to be enhanced (`enhanceTile`). */
+export interface PlacedSlot extends PageSlot {
+  /** Where the tile's upscaled pixels go on the page, in page texels. */
   x: number
   y: number
-  colour: ImageData
-  normal: ImageData
-  surface: ImageData
   /** What the tile is, by its pixels; null when no label names it. */
   label: TileLabel | null
+  job: TileJob
+}
+
+/** What `enhanceTile` works from: a tile's pixels, whether it is a sprite cut from its cell (`framed`), and the paint settings. */
+export interface TileJob {
+  pixels: Uint8ClampedArray<ArrayBuffer>
+  w: number
+  h: number
+  framed: boolean
+  paint: PaintSettings
+  label: TileLabel | null
+}
+
+/** A tile's upscaled colour, its normal map and its surface data, `w` by `h`. */
+export interface EnhancedTile {
+  w: number
+  h: number
+  colour: Uint8ClampedArray<ArrayBuffer>
+  normal: Uint8ClampedArray<ArrayBuffer>
+  surface: Uint8ClampedArray<ArrayBuffer>
+}
+
+/** Upscale a tile, paint it, and make its normal map and surface data: the work a new tile costs, done off the main thread (enhance-worker.ts). */
+export function enhanceTile({ pixels, w: sourceW, h: sourceH, framed, paint, label }: TileJob): EnhancedTile {
+  const scale = upscaleFactor(paint.upscale)
+  const data = upscale(pixels, sourceW, sourceH, paint.upscale)
+  const w = sourceW * scale
+  const h = sourceH * scale
+  const colour = new Uint8ClampedArray(data.buffer)
+  const sprite = framed || hasTransparency(colour)
+  if (sprite) trimOutline(colour, w, h)
+  if (paint.lift !== 1) lift(colour, paint.lift)
+  if (paint.radius > 0) kuwahara(colour, w, h, Math.round(paint.radius))
+  if (paint.levels > 1) posterize(colour, Math.round(paint.levels))
+  const surface = surfaceMap(colour, w, h, label ?? UNLABELLED)
+  let normal: Uint8ClampedArray<ArrayBuffer>
+  if (sprite) {
+    const height = spriteHeight(colour, w, h)
+    normal = normalMap(height, tileDepth(colour, height), w, h, RELIEF)
+  } else {
+    const height = terrainHeight(colour, w, h, scale, label ?? UNLABELLED)
+    normal = normalMap(height, height, w, h, TERRAIN_RELIEF)
+  }
+  return { w, h, colour, normal, surface }
 }
 
 /**
@@ -405,31 +447,14 @@ export class EnhancedPage {
     this.size = PAGE_TEXELS * this.scale
   }
 
-  /** Upscale the tile from its atlas onto the page; null when the page has no room left for it. */
-  place(rect: TileRect, atlas: CanvasRenderingContext2D): DrawnSlot | null {
+  /** A place on the page for the tile from its atlas, with its pixels to enhance; null when the page has no room left for it. */
+  place(rect: TileRect, atlas: CanvasRenderingContext2D): PlacedSlot | null {
     const slot = this.allocate(rect.w, rect.h)
     if (!slot) return null
     const pixels = atlas.getImageData(rect.sx, rect.sy, rect.w, rect.h)
     const label = labelOf(tileHash(pixels.data, rect.w, rect.h))
-    const data = upscale(pixels.data, rect.w, rect.h, this.paint.upscale)
-    const w = rect.w * this.scale
-    const h = rect.h * this.scale
-    const colour = new Uint8ClampedArray(data.buffer)
-    const sprite = rect.ox !== 0 || rect.oy !== 0 || rect.w !== rect.cell || rect.h !== rect.cell || hasTransparency(colour)
-    if (sprite) trimOutline(colour, w, h)
-    if (this.paint.lift !== 1) lift(colour, this.paint.lift)
-    if (this.paint.radius > 0) kuwahara(colour, w, h, Math.round(this.paint.radius))
-    if (this.paint.levels > 1) posterize(colour, Math.round(this.paint.levels))
-    const surface = surfaceMap(colour, w, h, label ?? UNLABELLED)
-    let normal: Uint8ClampedArray<ArrayBuffer>
-    if (sprite) {
-      const height = spriteHeight(colour, w, h)
-      normal = normalMap(height, tileDepth(colour, height), w, h, RELIEF)
-    } else {
-      const height = terrainHeight(colour, w, h, this.scale, label ?? UNLABELLED)
-      normal = normalMap(height, height, w, h, TERRAIN_RELIEF)
-    }
-    return { ...slot, x: slot.sx * this.scale, y: slot.sy * this.scale, colour: new ImageData(colour, w, h), normal: new ImageData(normal, w, h), surface: new ImageData(surface, w, h), label }
+    const framed = rect.ox !== 0 || rect.oy !== 0 || rect.w !== rect.cell || rect.h !== rect.cell
+    return { ...slot, x: slot.sx * this.scale, y: slot.sy * this.scale, label, job: { pixels: pixels.data, w: rect.w, h: rect.h, framed, paint: this.paint, label } }
   }
 
   private allocate(w: number, h: number): PageSlot | null {

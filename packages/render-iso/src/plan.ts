@@ -183,11 +183,15 @@ export function isShown(b: Billboard, scene: Scene): boolean {
   return b.kind === 'monster' ? visibility === 'visible' : visibility !== 'unseen'
 }
 
-/** Everything a renderer draws, in world space: what lies on the ground, the wall blocks and what stands; with `within`, only on the cells it takes. */
-export function planScene(scene: Scene, yaw: number, elevation: number, view: IsoView, focus: readonly Vec2[], within: (x: number, y: number) => boolean = () => true): IsoPlan {
+/** Everything a renderer draws, in world space: what lies on the ground, the wall blocks and what stands; with `within`, only on the cells it takes, and with `spritesOnly`, only what stands. */
+export function planScene(scene: Scene, yaw: number, elevation: number, view: IsoView, focus: readonly Vec2[], within: (x: number, y: number) => boolean = () => true, spritesOnly = false): IsoPlan {
   const plan: IsoPlan = { ground: [], walls: [], sprites: [] }
   for (const cell of scene.cells.values()) {
     if (cell.visibility === 'unseen' || !within(cell.x, cell.y)) continue
+    if (spritesOnly) {
+      if (!cell.occluder && cell.featureTile !== undefined && cell.stance === 'upright') plan.sprites.push({ x: cell.x, y: cell.y, layers: [{ tile: cell.featureTile, ox: 0, oy: 0 }], lying: false })
+      continue
+    }
     if (cell.occluder) {
       const top = cell.wallTile ?? cell.floorTile
       const faces: WallFace[] = []

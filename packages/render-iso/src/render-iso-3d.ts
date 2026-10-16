@@ -7,6 +7,7 @@ import { StepLayer } from './steps.js'
 import { KIT_SCALE, type IsoAssets } from './assets.js'
 import { TorchDust } from './dust.js'
 import { TorchLayer, type TorchPlacement } from './torches.js'
+import { MeshPool } from './mesh-pool.js'
 import { LIGHTS, type IsoLights, type PointLightSpec } from './lights.js'
 import { QUALITY, type IsoQuality } from './quality.js'
 import { IsoPost, overlayOutput } from './post.js'
@@ -108,7 +109,12 @@ export class IsoRender3d implements MapRenderer {
   private readonly perspective = new THREE.PerspectiveCamera()
   private camera: THREE.OrthographicCamera | THREE.PerspectiveCamera = this.orthographic
   private readonly statics = new THREE.Group()
+  /** The ground, the walls and the wall tops of each chunk. */
   private readonly chunks = new Map<string, StaticChunk>()
+  /** What stands in each chunk (items, statues), which faces the camera: a turn of the view builds these alone again. */
+  private readonly spriteChunks = new Map<string, StaticChunk>()
+  /** The view the sprite chunks were built for. */
+  private spritesView = ''
   /** What every chunk was built for: a change builds them all again. */
   private chunksKey = ''
   /** What the chunks were built from, to find the cells that changed since: null builds every chunk. */
@@ -127,6 +133,7 @@ export class IsoRender3d implements MapRenderer {
   private cursor: SceneCursor | null = null
   private readonly actors = new ActorLayer()
   private readonly torchModels = new TorchLayer()
+  private readonly meshes = new MeshPool()
   private readonly torchDust = new TorchDust(TORCH_LIGHTS)
   private readonly tileTorches: Torch[] = []
   private readonly features = new TileFeatures()
@@ -452,7 +459,7 @@ export class IsoRender3d implements MapRenderer {
 
   private syncActors(scene: Scene) {
     if (!this.tiles || !this.materials) return
-    this.actors.sync(scene, this.clock, { tiles: this.tiles, materials: this.materials })
+    this.actors.sync(scene, this.clock, { tiles: this.tiles, materials: this.materials, meshes: this.meshes })
   }
 
   private landImpacts(scene: Scene, now: number) {
@@ -704,16 +711,17 @@ export class IsoRender3d implements MapRenderer {
   }
 
   private clearStatics() {
-    for (const chunk of this.chunks.values()) this.dropChunk(chunk)
+    for (const chunk of [...this.chunks.values(), ...this.spriteChunks.values()]) this.dropChunk(chunk)
     this.chunks.clear()
+    this.spriteChunks.clear()
     this.chunksKey = ''
     this.built = null
     this.tileTorches.length = 0
   }
 
   private dropChunk(chunk: StaticChunk) {
+    this.meshes.give(chunk.group)
     for (const g of chunk.geometries) g.dispose()
-    this.statics.remove(chunk.group)
   }
 
   private addTileTorch(chunk: StaticChunk, x: number, y: number, normal: { x: number; y: number }, wallHeight: number) {
@@ -728,60 +736,65 @@ export class IsoRender3d implements MapRenderer {
   private buildStatics(scene: Scene, tiles: TileSource, materials: AtlasMaterials): CellArea[] {
     const changed: CellArea[] = []
     const { stretch, lean } = this.upright()
-    const chunksKey = `${this.cam.yaw}|${stretch}|${lean}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.water.enabled}|${this.lights.lava.enabled}|${this.assets !== null}`
+    const chunksKey = `${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.water.enabled}|${this.lights.lava.enabled}|${this.assets !== null}`
     if (chunksKey !== this.chunksKey || materials !== this.chunkMaterials) {
       this.clearStatics()
       this.chunksKey = chunksKey
       this.chunkMaterials = materials
       changed.push(EVERYWHERE)
     }
+    const spritesView = `${this.cam.yaw}|${stretch}|${lean}`
+    const turned = spritesView !== this.spritesView
+    this.spritesView = spritesView
     const focus = this.focus(scene)
     const cut = cutAwayCells(scene, focus, this.cam.yaw, -this.cam.pitch, this.view)
     const standing = standingByCell(scene)
     const dirty = this.built && dirtyChunks(this.built, scene.cells, cut, standing)
     this.built = { cells: scene.cells, cut, standing }
     const plan = planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, focus, dirty ? (x, y) => dirty.has(chunkId(x, y)) : undefined)
+    const spritePlan = turned && dirty ? planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, focus, undefined, true) : plan
     const revision = this.staticsRevision(scene)
     this.fog.build(scene, revision, this.lights.fog.height, this.lights.fog.reach)
     for (const water of this.waters) water.build(scene, revision)
     this.starwater.build(scene, revision)
     this.lava.build(scene, revision)
-    if (this.features.build(scene, tiles, materials, this.view.wallHeight, groundBasis(this.cam.yaw).forward)) changed.push(EVERYWHERE)
-    const parts = new Map<string, ChunkPart>()
-    const partAt = (x: number, y: number) => {
+    if (this.features.build(scene, tiles, materials, this.meshes, this.view.wallHeight, groundBasis(this.cam.yaw).forward)) changed.push(EVERYWHERE)
+    const grounds = new Map<string, ChunkPart>()
+    const sprites = new Map<string, ChunkPart>()
+    const partAt = (parts: Map<string, ChunkPart>, x: number, y: number) => {
       const id = chunkId(x, y)
       let part = parts.get(id)
       if (!part) parts.set(id, (part = { ground: [], walls: [], sprites: [] }))
       return part
     }
-    for (const g of plan.ground) if (!isTileFeature(getCell(scene, g.x, g.y))) partAt(g.x, g.y).ground.push(g)
-    for (const w of plan.walls) if (!isTileFeature(getCell(scene, w.x, w.y))) partAt(w.x, w.y).walls.push(w)
-    for (const sprite of plan.sprites) {
+    for (const g of plan.ground) if (!isTileFeature(getCell(scene, g.x, g.y))) partAt(grounds, g.x, g.y).ground.push(g)
+    for (const w of plan.walls) if (!isTileFeature(getCell(scene, w.x, w.y))) partAt(grounds, w.x, w.y).walls.push(w)
+    for (const sprite of spritePlan.sprites) {
       const b = sprite.billboard
       if (b && actorId(b) !== undefined) continue
       if (!b && isTileFeature(getCell(scene, sprite.x, sprite.y))) continue
-      partAt(sprite.x, sprite.y).sprites.push(sprite)
+      partAt(sprites, sprite.x, sprite.y).sprites.push(sprite)
     }
-    for (const [id, part] of parts) {
-      const key = JSON.stringify([
-        part.ground.map((g) => [g.x, g.y, this.groundTile(scene, g), g.lift]),
-        part.walls.map((w) => [w.x, w.y, w.height, w.top, w.faces]),
-        part.sprites.map((sprite) => [sprite.x, sprite.y, sprite.lying, sprite.pile, sprite.layers]),
-      ])
-      const old = this.chunks.get(id)
-      if (old?.key === key) continue
-      if (old) this.dropChunk(old)
-      const chunk = this.buildChunk(scene, tiles, materials, part, key)
-      this.chunks.set(id, chunk)
-      this.statics.add(chunk.group)
-      changed.push(chunkArea(id))
-    }
-    for (const [id, chunk] of this.chunks)
-      if (!parts.has(id) && (!dirty || dirty.has(id))) {
-        this.dropChunk(chunk)
-        this.chunks.delete(id)
+    const update = (chunks: Map<string, StaticChunk>, parts: Map<string, ChunkPart>, keyOf: (part: ChunkPart) => string, everywhere: boolean) => {
+      for (const [id, part] of parts) {
+        const key = keyOf(part)
+        const old = chunks.get(id)
+        if (old?.key === key) continue
+        if (old) this.dropChunk(old)
+        const chunk = this.buildChunk(scene, tiles, materials, part, key)
+        chunks.set(id, chunk)
+        this.statics.add(chunk.group)
         changed.push(chunkArea(id))
       }
+      for (const [id, chunk] of chunks)
+        if (!parts.has(id) && (everywhere || !dirty || dirty.has(id))) {
+          this.dropChunk(chunk)
+          chunks.delete(id)
+          changed.push(chunkArea(id))
+        }
+    }
+    update(this.chunks, grounds, (part) => JSON.stringify([part.ground.map((g) => [g.x, g.y, this.groundTile(scene, g), g.lift]), part.walls.map((w) => [w.x, w.y, w.height, w.top, w.faces])]), !dirty)
+    update(this.spriteChunks, sprites, (part) => `${spritesView}|${JSON.stringify(part.sprites.map((sprite) => [sprite.x, sprite.y, sprite.lying, sprite.pile, sprite.layers]))}`, !dirty || turned)
     this.tileTorches.length = 0
     for (const chunk of this.chunks.values()) this.tileTorches.push(...chunk.torches)
     if (changed.length && this.assets) this.torchModels.set(this.assets.torch, [...this.chunks.values()].flatMap((chunk) => chunk.placements))
@@ -892,7 +905,7 @@ export class IsoRender3d implements MapRenderer {
     if (caps.positions.length) {
       const geometry = caps.geometry()
       chunk.geometries.push(geometry)
-      const mesh = new THREE.Mesh(geometry, this.capMaterial)
+      const mesh = this.meshes.take(geometry, this.capMaterial)
       mesh.receiveShadow = true
       chunk.group.add(mesh)
     }
@@ -902,7 +915,7 @@ export class IsoRender3d implements MapRenderer {
         if (!entry) continue
         const geometry = batch.geometry()
         chunk.geometries.push(geometry)
-        const mesh = new THREE.Mesh(geometry, sprites ? entry.sprite : entry.material)
+        const mesh = this.meshes.take(geometry, sprites ? entry.sprite : entry.material)
         mesh.receiveShadow = !sprites
         castShadow(mesh, sprites)
         chunk.group.add(mesh)
@@ -1088,3 +1101,4 @@ function assignTorches(held: readonly (Torch | null)[], wanted: readonly Torch[]
   const left = wanted.filter((w) => !kept.some((k) => sameTorch(k, w)))
   return kept.map((k) => k ?? left.shift() ?? null)
 }
+

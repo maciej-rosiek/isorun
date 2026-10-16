@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu'
 import type { Billboard, Scene, TileId, TileSource } from '@isorun/scene'
 import type { AtlasMaterials } from './materials.js'
+import type { MeshPool } from './mesh-pool.js'
 import { groundBasis, isShown, tileFrame } from './plan.js'
 import { ATLAS_INSET, QuadBatch, SPRITE_LEAN, type Point3 } from './quads.js'
 import { ACTOR_MOTIONS, ACTOR_SHADOW_LAYER, NO_EFFECTS, setActorLook, castShadow as setCastShadow, type ActorLook } from './shading.js'
@@ -76,6 +77,7 @@ export interface ActorStep {
 export interface ActorEnvironment {
   tiles: TileSource
   materials: AtlasMaterials
+  meshes: MeshPool
 }
 
 /** How far each layer of a sprite stands in front of the one under it, in cells, so the layers never fight over the same depth. */
@@ -109,6 +111,7 @@ class SpriteVisual {
   private readonly look: ActorLook = { tint: new THREE.Color(1, 1, 1), opacity: 1, motion: ACTOR_MOTIONS.none, phase: Math.random() * Math.PI * 2, effects: { ...NO_EFFECTS } }
 
   readonly atlas: AtlasMaterials
+  private readonly meshes: MeshPool
 
   constructor(
     b: Billboard,
@@ -117,6 +120,7 @@ class SpriteVisual {
     readonly castShadow: boolean,
   ) {
     this.atlas = env.materials
+    this.meshes = env.meshes
     for (const effect of b.effects ?? []) this.look.effects[effect] = 1
     const layers = spriteLayers(b, env.tiles)
     const batches = new Map<string, { batch: QuadBatch; material: THREE.Material }>()
@@ -141,7 +145,7 @@ class SpriteVisual {
     for (const { batch, material } of batches.values()) {
       const geometry = batch.geometry()
       this.geometries.push(geometry)
-      const mesh = new THREE.Mesh(geometry, material)
+      const mesh = env.meshes.take(geometry, material)
       setActorLook(mesh, this.look)
       setCastShadow(mesh, castShadow, ACTOR_SHADOW_LAYER)
       this.object.add(mesh)
@@ -157,6 +161,7 @@ class SpriteVisual {
   }
 
   dispose() {
+    this.meshes.give(this.object)
     for (const g of this.geometries) g.dispose()
   }
 }

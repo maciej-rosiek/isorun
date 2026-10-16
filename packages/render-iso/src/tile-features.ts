@@ -3,6 +3,7 @@ import { DIR8_DX, DIR8_DY, cellKey, getCell, type CellKey, type Scene, type Scen
 import { doorTexture, type AtlasMaterials } from './materials.js'
 import { ClayMaterial, castShadow } from './shading.js'
 import { ATLAS_INSET, QuadBatch, addBox, type BoxSide, type Point3 } from './quads.js'
+import type { MeshPool } from './mesh-pool.js'
 
 const POST_WIDTH = 0.18
 const FRAME_DEPTH = 0.32
@@ -19,6 +20,11 @@ const PIT_WALL_SHADE = 0.35
 const RIM_WIDTH = 0.09
 const RIM_HEIGHT = 0.07
 const RIM_SHADE = 1.15
+
+/** The side of a cell farthest from the camera, of the four: stairs run toward it. */
+function awayFrom(forward: { x: number; y: number }): number {
+  return [0, 2, 4, 6].reduce((best, d) => (DIR8_DX[d] * forward.x + DIR8_DY[d] * forward.y > DIR8_DX[best] * forward.x + DIR8_DY[best] * forward.y ? d : best))
+}
 
 export function isTileFeature(cell: SceneCell | undefined): boolean {
   return cell?.feature?.type === 'door' || cell?.feature?.type === 'stairs'
@@ -47,11 +53,11 @@ export class TileFeatures {
   private builtMaterials: AtlasMaterials | null = null
 
   /** Returns whether the doors and stairs were built again. */
-  build(scene: Scene, tiles: TileSource, materials: AtlasMaterials, wallHeight: number, forward: { x: number; y: number }): boolean {
+  build(scene: Scene, tiles: TileSource, materials: AtlasMaterials, meshes: MeshPool, wallHeight: number, forward: { x: number; y: number }): boolean {
     const features = [...scene.cells.values()].filter((c) => c.visibility !== 'unseen' && isTileFeature(c))
     const key = JSON.stringify([
       wallHeight,
-      forward,
+      awayFrom(forward),
       scene.level.ceilingTile,
       features.map((c) => [c.x, c.y, c.feature, c.floorTile, c.featureTile, [0, 2, 4, 6].map((d) => getCell(scene, c.x + DIR8_DX[d], c.y + DIR8_DY[d])).map((n) => [n?.occluder, n?.wallTile])]),
     ])
@@ -59,7 +65,7 @@ export class TileFeatures {
     this.builtKey = key
     this.builtMaterials = materials
     const before = new Map([...this.doors].map(([k, d]) => [k, { angle: d.pivot.rotation.y, target: d.target }]))
-    this.clear()
+    this.clear(meshes)
     const batches = new Map<string, { batch: QuadBatch; material: THREE.Material }>()
     const batchFor = (tile: TileId) => {
       const rect = tiles.tile(tile)
@@ -78,13 +84,13 @@ export class TileFeatures {
 
     for (const cell of scene.cells.values()) {
       if (cell.visibility === 'unseen') continue
-      if (cell.feature?.type === 'door') this.addDoor(scene, cell, box, wallHeight, before.get(cellKey(cell.x, cell.y)))
+      if (cell.feature?.type === 'door') this.addDoor(scene, cell, box, meshes, wallHeight, before.get(cellKey(cell.x, cell.y)))
       else if (cell.feature?.type === 'stairs') this.addStairs(scene, cell, box, cell.feature.dir, forward)
     }
     for (const { batch, material } of batches.values()) {
       const geometry = batch.geometry()
       this.geometries.push(geometry)
-      const mesh = new THREE.Mesh(geometry, material)
+      const mesh = meshes.take(geometry, material)
       mesh.receiveShadow = true
       castShadow(mesh, true)
       this.group.add(mesh)
@@ -115,7 +121,9 @@ export class TileFeatures {
     this.leafMaterial.dispose()
   }
 
-  private clear() {
+  /** Take the doors and stairs down; their meshes go back to `meshes` for use again. */
+  private clear(meshes?: MeshPool) {
+    if (meshes) for (const child of [...this.group.children]) meshes.give(child)
     for (const g of this.geometries) g.dispose()
     this.geometries.length = 0
     this.leafGeometry?.dispose()
@@ -125,7 +133,7 @@ export class TileFeatures {
     this.ground.clear()
   }
 
-  private addDoor(scene: Scene, cell: SceneCell, box: BoxMaker, wallHeight: number, previous: { angle: number; target: number } | undefined) {
+  private addDoor(scene: Scene, cell: SceneCell, box: BoxMaker, meshes: MeshPool, wallHeight: number, previous: { angle: number; target: number } | undefined) {
     const { x, y } = cell
     const west = getCell(scene, x - 1, y)
     const east = getCell(scene, x + 1, y)
@@ -156,7 +164,7 @@ export class TileFeatures {
       if (!someoneInside) box(stone, [x + 0.5 - half, lintel, y + POST_WIDTH], [x + 0.5 + half, h, y + 1 - POST_WIDTH], 1)
     }
     if (!this.leafGeometry) return
-    const leaf = new THREE.Mesh(this.leafGeometry, this.leafMaterial)
+    const leaf = meshes.take(this.leafGeometry, this.leafMaterial)
     castShadow(leaf, true)
     const pivot = new THREE.Group()
     pivot.add(leaf)
@@ -176,7 +184,7 @@ export class TileFeatures {
   /** Stairs run away from the camera: down into the screen, or up into it, so the eye looks onto the treads. */
   private addStairs(scene: Scene, cell: SceneCell, box: BoxMaker, dir: 'up' | 'down', forward: { x: number; y: number }) {
     const { x, y } = cell
-    const away = [0, 2, 4, 6].reduce((best, d) => (DIR8_DX[d] * forward.x + DIR8_DY[d] * forward.y > DIR8_DX[best] * forward.x + DIR8_DY[best] * forward.y ? d : best))
+    const away = awayFrom(forward)
     const fx = DIR8_DX[away]
     const fy = DIR8_DY[away]
     const stone = [0, 2, 4, 6].map((d) => getCell(scene, x + DIR8_DX[d], y + DIR8_DY[d])?.wallTile).find((t) => t !== undefined) ?? scene.level.ceilingTile ?? cell.floorTile

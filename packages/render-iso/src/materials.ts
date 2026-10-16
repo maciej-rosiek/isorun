@@ -1,6 +1,7 @@
 import * as THREE from 'three/webgpu'
 import type { TileRect, TileSource } from '@isorun/scene'
-import { EnhancedPage, PAGE_TEXELS, type DrawnSlot, type PaintSettings } from './enhance.js'
+import { EnhancedPage, PAGE_TEXELS, type EnhancedTile, type PaintSettings } from './enhance.js'
+import { TileEnhancer } from './tile-enhancer.js'
 import { ClayMaterial, actorMaterial, dressGround, dressSprite, type MemoryMask } from './shading.js'
 import type { TileLabel } from './tile-labels.js'
 import { atlasImage } from './plan.js'
@@ -41,8 +42,9 @@ export class AtlasMaterials {
   private readonly placed = new Map<string, PlacedTile>()
   private readonly atlases = new Map<string, CanvasRenderingContext2D | null>()
   private readonly averages = new Map<string, [number, number, number]>()
-  /** Tiles drawn on a page since the last upload, uploaded alone: a page is too big to upload again for each tile. */
-  private readonly drawn: { page: Page; slot: DrawnSlot }[] = []
+  /** Tiles enhanced since the last upload, uploaded alone: a page is too big to upload again for each tile. */
+  private readonly drawn: { page: Page; at: { x: number; y: number }; tile: EnhancedTile }[] = []
+  private readonly enhancer = new TileEnhancer()
   /** Whether a tile that gives light was placed: the screen then blooms the light it gives. */
   glowing = false
 
@@ -95,7 +97,9 @@ export class AtlasMaterials {
       slot = page.enhanced.place(rect, atlas)
     }
     if (!page || !slot) return null
-    this.drawn.push({ page, slot })
+    const at = { x: slot.x, y: slot.y }
+    const onPage = page
+    this.enhancer.enhance(slot.job, (tile) => this.drawn.push({ page: onPage, at, tile }))
     const placed = { ...page.material, rect: { ...rect, atlas: pageName(this.pages.indexOf(page)), sx: slot.sx, sy: slot.sy }, label: slot.label }
     if (slot.label && slot.label.glow > 0) this.glowing = true
     this.placed.set(key, placed)
@@ -109,11 +113,12 @@ export class AtlasMaterials {
    */
   upload(copier: TextureCopier) {
     const drawn = this.drawn.splice(0)
-    drawn.forEach(({ page, slot }, i) => {
+    drawn.forEach(({ page, at, tile }, i) => {
+      if (!this.pages.includes(page)) return
       const last = !drawn.slice(i + 1).some((d) => d.page === page)
-      copyPixels(copier, slot.colour, page.colour, slot, last)
-      copyPixels(copier, slot.normal, page.normal, slot, last)
-      copyPixels(copier, slot.surface, page.surface, slot, last)
+      copyPixels(copier, tile.colour, tile, page.colour, at, last)
+      copyPixels(copier, tile.normal, tile, page.normal, at, last)
+      copyPixels(copier, tile.surface, tile, page.surface, at, last)
     })
   }
 
@@ -135,6 +140,7 @@ export class AtlasMaterials {
     this.glowing = false
     this.placed.clear()
     this.drawn.length = 0
+    this.enhancer.dispose()
   }
 
   /** The atlas's own pixels, to read tiles from. */
@@ -184,8 +190,8 @@ function pageTexture(size: number): THREE.DataTexture {
   return page
 }
 
-function copyPixels(copier: TextureCopier, pixels: ImageData, page: THREE.Texture, at: { x: number; y: number }, mipmaps: boolean) {
-  const tile = new THREE.DataTexture(new Uint8Array(pixels.data.buffer), pixels.width, pixels.height)
+function copyPixels(copier: TextureCopier, pixels: Uint8ClampedArray<ArrayBuffer>, size: { w: number; h: number }, page: THREE.Texture, at: { x: number; y: number }, mipmaps: boolean) {
+  const tile = new THREE.DataTexture(new Uint8Array(pixels.buffer), size.w, size.h)
   tile.colorSpace = page.colorSpace
   tile.generateMipmaps = false
   tile.needsUpdate = true
