@@ -20,7 +20,7 @@ describe('dynamic resolution', () => {
     // when
     play(resolution, 3, (i) => (i % 3 === 0 ? SCREEN_MS * 2 : SCREEN_MS))
     const lowered = resolution.scale
-    play(resolution, 30, () => SCREEN_MS)
+    play(resolution, 60, () => SCREEN_MS)
 
     // then
     expect(lowered).toBeLessThan(1)

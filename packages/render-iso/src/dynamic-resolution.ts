@@ -3,13 +3,18 @@ const LOWEST = 0.7
 const STEP = 0.1
 /** A frame later than this many of the screen's frame times is late. */
 const LATE = 1.4
-/** Lower the resolution when more frames than this were late in a second; raise it again only after seconds with fewer than `CALM`. */
-const TOO_MANY_LATE = 0.08
+/**
+ * Lower the resolution when more frames than this were late in each of `LATE_SECONDS` seconds in a row: a GPU that cannot
+ * keep up makes frames late all the time, where the CPU's work makes a few late at once, and a change of the resolution
+ * costs a few slow frames itself. Raise it again only after `CALM_SECONDS` seconds with fewer than `CALM` late.
+ */
+const TOO_MANY_LATE = 0.25
+const LATE_SECONDS = 2
 const CALM = 0.02
-const CALM_SECONDS = 4
+const CALM_SECONDS = 10
 /** A step up that brings late frames back within this many seconds was too much: the next try waits `BACKOFF_SECONDS` longer. */
 const TRIAL_SECONDS = 2
-const BACKOFF_SECONDS = 20
+const BACKOFF_SECONDS = 60
 /** A frame further apart than this, in ms, is a pause (a hidden tab, a load), not a frame. */
 const PAUSE_MS = 100
 const INTERVALS_KEPT = 240
@@ -27,6 +32,7 @@ export class DynamicResolution {
   private screen = Infinity
   private second = { frames: 0, late: 0, ms: 0 }
   private calmSeconds = 0
+  private lateSeconds = 0
   private trial = 0
   private wait = 0
 
@@ -46,10 +52,14 @@ export class DynamicResolution {
     this.trial = Math.max(0, this.trial - 1)
     if (late > TOO_MANY_LATE) {
       this.calmSeconds = 0
+      this.lateSeconds++
+      if (this.lateSeconds < LATE_SECONDS && this.trial === 0) return false
+      this.lateSeconds = 0
       if (this.trial > 0) this.wait = BACKOFF_SECONDS
       this.trial = 0
       return this.set(this.scale - STEP)
     }
+    this.lateSeconds = 0
     this.calmSeconds = late < CALM ? this.calmSeconds + 1 : 0
     if (this.calmSeconds < CALM_SECONDS || this.wait > 0 || this.scale >= 1) return false
     this.calmSeconds = 0
@@ -64,6 +74,7 @@ export class DynamicResolution {
     this.screen = Infinity
     this.second = { frames: 0, late: 0, ms: 0 }
     this.calmSeconds = 0
+    this.lateSeconds = 0
     this.trial = 0
     this.wait = 0
   }
