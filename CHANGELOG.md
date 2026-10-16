@@ -2,6 +2,12 @@
 
 Notable changes to Isorun, newest first.
 
+## 0.1.4 — 2026-10-16
+
+- Lava looks like lava: dark plates of crust on molten rock that flows and glows, with a red light on the floor around it. It was drawn as water.
+- Swamp water is murky and green, the toxic bog bright green, and shallow water lighter than deep water, so you see where you can wade.
+- The card about a cell names its liquid: deep water, shallow water, toxic bog or lava.
+
 ## 0.1.3 — 2026-10-16
 
 - LT held to explore (Settings, Controls, LT explore: Hold) stops the walk when you let go, in a game on this device too: the offline game read the stop only once the walk was over.

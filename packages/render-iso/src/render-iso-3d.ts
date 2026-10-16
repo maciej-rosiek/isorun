@@ -9,6 +9,7 @@ import { QUALITY, type IsoQuality } from './quality.js'
 import { IsoPost, overlayOutput } from './post.js'
 import { FogLayer } from './fog.js'
 import { WaterLayer } from './water.js'
+import { LavaLayer } from './lava.js'
 import { AtlasMaterials, capTexture, glowMaterial } from './materials.js'
 import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type WallBlock } from './plan.js'
 import { TileFeatures, isTileFeature } from './tile-features.js'
@@ -113,7 +114,8 @@ export class IsoRender3d implements MapRenderer {
   /** Called for each hop an actor starts. */
   onHop: ((step: ActorStep) => void) | null = null
   private readonly fog = new FogLayer()
-  private readonly water = new WaterLayer()
+  private readonly waters = [new WaterLayer('water'), new WaterLayer('murky'), new WaterLayer('bog')]
+  private readonly lava = new LavaLayer()
   private readonly combat = new CombatLayer()
   private readonly steps = new StepLayer()
   private readonly impacts: PendingImpact[] = []
@@ -156,7 +158,7 @@ export class IsoRender3d implements MapRenderer {
 
   constructor() {
     this.statics.add(this.features.group)
-    this.world.add(this.statics, this.actors.group, this.fog.mesh, this.water.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights)
+    this.world.add(this.statics, this.actors.group, this.fog.mesh, ...this.waters.map((w) => w.mesh), this.lava.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights)
     this.aimGroup.add(this.aimArrow, this.aimSquare)
     this.aimArrow.renderOrder = this.aimSquare.renderOrder = 10
     this.aimGroup.visible = false
@@ -302,7 +304,7 @@ export class IsoRender3d implements MapRenderer {
     const now = performance.now() / 1000
     const dt = this.lastFrame ? Math.min(0.1, now - this.lastFrame) : 0
     this.lastFrame = now
-    const staticKey = `${this.staticsRevision(scene)}|${cutAwayKey(scene, this.focus(scene), this.cam.yaw, -this.cam.pitch, this.view)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}`
+    const staticKey = `${this.staticsRevision(scene)}|${cutAwayKey(scene, this.focus(scene), this.cam.yaw, -this.cam.pitch, this.view)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
     const rebuilt = staticKey !== this.staticKey
     if (rebuilt) {
       this.buildStatics(scene, this.tiles, this.materials)
@@ -333,6 +335,7 @@ export class IsoRender3d implements MapRenderer {
     this.world.updateMatrixWorld()
     const origin = new THREE.Vector3(0, 0, 0).project(this.camera)
     const pixels = this.pixelRatio()
+    this.post?.setEmission(this.lava.shown ? this.lights.lava.glow : 0)
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
   }
 
@@ -381,7 +384,8 @@ export class IsoRender3d implements MapRenderer {
     this.steps.dispose()
     this.materials?.dispose()
     this.fog.dispose()
-    this.water.dispose()
+    for (const water of this.waters) water.dispose()
+    this.lava.dispose()
     this.post?.dispose()
     this.renderer?.dispose()
     this.renderer = null
@@ -446,7 +450,8 @@ export class IsoRender3d implements MapRenderer {
     this.markShadowsStale()
     if (this.renderer) this.renderer.toneMappingExposure = this.lights.exposure
     this.fog.configure(this.lights.fog)
-    this.water.configure(this.lights.water)
+    for (const water of this.waters) water.configure(this.lights.water)
+    this.lava.configure(this.lights.lava)
     this.combat.configure(this.lights.combat)
     this.steps.configure(this.lights.steps)
     this.post?.configure(this.lights)
@@ -658,7 +663,7 @@ export class IsoRender3d implements MapRenderer {
   /** The level's geometry in chunks of `CHUNK_CELLS` square: only a chunk whose cells, cut-away walls or items changed is built again. */
   private buildStatics(scene: Scene, tiles: TileSource, materials: AtlasMaterials) {
     const { stretch, lean } = this.upright()
-    const chunksKey = `${this.cam.yaw}|${stretch}|${lean}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.water.enabled}|${this.assets !== null}`
+    const chunksKey = `${this.cam.yaw}|${stretch}|${lean}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.water.enabled}|${this.lights.lava.enabled}|${this.assets !== null}`
     if (chunksKey !== this.chunksKey || materials !== this.chunkMaterials) {
       this.clearStatics()
       this.chunksKey = chunksKey
@@ -666,7 +671,8 @@ export class IsoRender3d implements MapRenderer {
     }
     const plan = planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, this.focus(scene))
     this.fog.build(scene, this.lights.fog.height, this.lights.fog.reach)
-    this.water.build(scene)
+    for (const water of this.waters) water.build(scene)
+    this.lava.build(scene)
     this.features.build(scene, tiles, materials, this.view.wallHeight, groundBasis(this.cam.yaw).forward)
     const parts = new Map<string, ChunkPart>()
     const partAt = (x: number, y: number) => {
@@ -708,8 +714,9 @@ export class IsoRender3d implements MapRenderer {
 
   /** The floor tile a ground layer shows: under drawn water, the nearest land's floor. */
   private groundTile(scene: Scene, g: GroundLayer): TileId {
-    const underWater = this.lights.water.enabled && getCell(scene, g.x, g.y)?.flags.water === true
-    return g.lift === 0 && underWater ? (shoreFloor(scene, g.x, g.y) ?? g.tile) : g.tile
+    const liquid = getCell(scene, g.x, g.y)?.liquid
+    const drawn = liquid !== undefined && (liquid.kind === 'lava' ? this.lights.lava.enabled : this.lights.water.enabled)
+    return g.lift === 0 && drawn ? (shoreFloor(scene, g.x, g.y) ?? g.tile) : g.tile
   }
 
   private buildChunk(scene: Scene, tiles: TileSource, materials: AtlasMaterials, part: ChunkPart, key: string): StaticChunk {
@@ -853,7 +860,7 @@ function shoreFloor(scene: Scene, x: number, y: number): TileId | undefined {
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++) {
         const cell = getCell(scene, x + dx, y + dy)
-        if (cell && !cell.occluder && !cell.flags.water) return cell.floorTile
+        if (cell && !cell.occluder && !cell.liquid) return cell.floorTile
       }
   return undefined
 }
@@ -896,7 +903,7 @@ function squareGeometry(): THREE.BufferGeometry {
 function groundFloor(scene: Scene) {
   return (x: number, y: number) => {
     const cell = getCell(scene, x, y)
-    return cell !== undefined && !cell.occluder && !cell.flags.water && cell.visibility === 'visible'
+    return cell !== undefined && !cell.occluder && !cell.liquid && cell.visibility === 'visible'
   }
 }
 

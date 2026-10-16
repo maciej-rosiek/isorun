@@ -8,6 +8,7 @@ import {
   type CellKey,
   type Feature,
   type HandItem,
+  type Liquid,
   type Scene,
   type SceneCell,
   type Visibility,
@@ -576,6 +577,27 @@ function dist(scene: Scene, b: Billboard): number {
   return Math.max(Math.abs(b.x - scene.player.x), Math.abs(b.y - scene.player.y))
 }
 
+export function liquidOf(tile: string | undefined): Liquid | undefined {
+  if (!tile) return undefined
+  if (/^DNGN_LAVA/.test(tile)) return { kind: 'lava', deep: true }
+  if (/^DNGN_TOXIC_BOG/.test(tile)) return { kind: 'bog', deep: false }
+  const water = /^(?:DNGN|SHOALS)_(DEEP|SHALLOW)_WATER(_MURKY)?|^DNGN_OPEN_SEA/.exec(tile)
+  if (!water) return undefined
+  return { kind: water[2] ? 'murky' : 'water', deep: water[1] !== 'SHALLOW' }
+}
+
+export function liquidLabel(liquid: Liquid): string {
+  if (liquid.kind === 'lava') return 'lava'
+  if (liquid.kind === 'bog') return 'toxic bog'
+  return liquid.deep ? 'deep water' : 'shallow water'
+}
+
+function liquidOfMap(flags: { water: boolean; lava: boolean }, mf: number | undefined, MF: MfTable): Liquid | undefined {
+  if (flags.lava) return { kind: 'lava', deep: true }
+  if (flags.water) return { kind: 'water', deep: mf !== MF.WATER }
+  return undefined
+}
+
 function buildCell(mc: MapCell, gd: Gamedata): SceneCell | undefined {
   const t = mc.t
   const r = gd.ranges
@@ -623,6 +645,10 @@ function buildCell(mc: MapCell, gd: Gamedata): SceneCell | undefined {
   const visibility: Visibility = !bgw.UNSEEN && !bgw.MM_UNSEEN ? 'visible' : 'remembered'
   base.visibility = visibility
   const name = gd.dngn.baseName(bgIdx) || gd.dngn.name(bgIdx)
+  const liquid = liquidOf(gd.dngn.name(bgIdx)) ?? liquidOfMap(flags, mc.mf, MF)
+  if (liquid) base.liquid = liquid
+  flags.water = liquid?.kind === 'water' || liquid?.kind === 'murky'
+  flags.lava = liquid?.kind === 'lava'
   const floorUnder = t.flv?.f ?? bgIdx
   const hasCloud = cloud > 0
 
@@ -630,7 +656,7 @@ function buildCell(mc: MapCell, gd: Gamedata): SceneCell | undefined {
     base.kind = 'floor'
     base.occluder = false
     base.floorTile = bgIdx
-    base.label = flags.lava ? 'lava' : flags.water ? 'water' : 'floor'
+    base.label = liquid ? liquidLabel(liquid) : 'floor'
     if (glyph === '#' && !hasCloud) {
       // glyph backstop: a vault wall using a floor-range tile
       base.kind = 'wall'

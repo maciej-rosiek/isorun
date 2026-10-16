@@ -67,11 +67,6 @@ function prepareScene(s: Scene) {
   human.kind = 'player'
   human.attitude = 'friendly'
   s.player = { x: human.x, y: human.y }
-  for (const cell of s.cells.values()) {
-    if (cell.glyph !== 'w' && cell.glyph !== 's') continue
-    cell.flags.water = true
-    cell.label = cell.glyph === 'w' ? 'deep water' : 'shallow water'
-  }
 }
 
 // ------------------------------------------------------------------ the game stand-in
@@ -212,7 +207,7 @@ function act(dir: Dir8) {
 
 function walkable(x: number, y: number) {
   const cell = getCell(scene, x, y)
-  return cell !== undefined && !cell.occluder && !cell.flags.water && !monsterAt(x, y) && !(scene.player.x === x && scene.player.y === y)
+  return cell !== undefined && !cell.occluder && !cell.liquid && !monsterAt(x, y) && !(scene.player.x === x && scene.player.y === y)
 }
 
 function monstersTurn() {
@@ -246,7 +241,7 @@ function monstersTurn() {
 
 function passable(x: number, y: number, target: Vec2) {
   const cell = getCell(scene, x, y)
-  if (!cell || cell.visibility === 'unseen' || cell.flags.water || (cell.occluder && cell.kind !== 'door')) return false
+  if (!cell || cell.visibility === 'unseen' || cell.liquid || (cell.occluder && cell.kind !== 'door')) return false
   return !monsterAt(x, y) || (x === target.x && y === target.y)
 }
 

@@ -3,6 +3,7 @@ import type { ShadingSettings } from './shading.js'
 import type { PaintSettings } from './enhance.js'
 import type { FogSettings } from './fog.js'
 import type { WaterSettings } from './water.js'
+import type { LavaSettings } from './lava.js'
 import type { CombatSettings } from './combat.js'
 import type { StepSettings } from './steps.js'
 
@@ -42,6 +43,7 @@ export interface IsoLights {
   fog: FogSettings
   /** The drawn water: a rounded shore, shallow to deep colour, light lines and foam. */
   water: WaterSettings
+  lava: LavaSettings
   /** What a hit looks like: the blood, the shake, the stop and the flash. */
   combat: CombatSettings
   /** The dust and the footprints of a step. */
@@ -69,6 +71,7 @@ const DIORAMA: IsoLights = {
   aim: { colour: 0xffd75e, brightness: 1 },
   fog: { enabled: true, colour: 0xa19b9b, density: 0.4, height: 1, reach: 2, softness: 0.05 },
   water: { enabled: true, deep: 0x0d1e26, shallow: 0x02061d, light: 0x54899c, strength: 0.15, speed: 0.7 },
+  lava: { enabled: true, crust: 0x1c0d09, molten: 0xb02a08, hot: 0xffa030, glow: 0.6, speed: 0.6 },
   combat: { blood: 0x8a0f0f, gore: 1, shake: 0.4, hitStop: 0.07, flash: 1 },
   steps: { colour: 0x8a7a66, dust: 1, prints: 6 },
 }

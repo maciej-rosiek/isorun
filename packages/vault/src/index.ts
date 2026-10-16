@@ -10,7 +10,7 @@ import {
   type SceneCell,
   type TileId,
 } from '@isorun/scene'
-import { classifyFeature, isVegetation, stanceFor, standsFree } from '@isorun/scene-webtiles'
+import { classifyFeature, isVegetation, liquidLabel, liquidOf, stanceFor, standsFree } from '@isorun/scene-webtiles'
 
 /**
  * @isorun/vault
@@ -270,6 +270,13 @@ export function vaultScene(v: Vault, names: TileNames): Scene {
         flags: { ...NO_FLAGS },
         glyph: g,
         label: 'floor',
+      }
+      const liquid = liquidOf((floorByGlyph.get(g) ?? floorByGlyph.get('.'))?.tile)
+      if (liquid) {
+        cell.liquid = liquid
+        cell.flags.water = liquid.kind === 'water' || liquid.kind === 'murky'
+        cell.flags.lava = liquid.kind === 'lava'
+        cell.label = liquidLabel(liquid)
       }
       const e = byGlyph.get(g)
       if (e && e.kind === 'wall') {

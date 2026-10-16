@@ -81,6 +81,12 @@ export function keyToXY(key: CellKey): { x: number; y: number } {
 
 export type CellKind = 'unknown' | 'floor' | 'wall' | 'door' | 'feature'
 export type Visibility = 'visible' | 'remembered' | 'unseen'
+export type LiquidKind = 'water' | 'murky' | 'bog' | 'lava'
+
+export interface Liquid {
+  kind: LiquidKind
+  deep: boolean
+}
 
 export type Feature =
   /**
@@ -164,6 +170,7 @@ export interface SceneCell {
    * height a one-texel line is a scratch on the floor rather than a wave.
    */
   shorelines?: TileId[]
+  liquid?: Liquid
   /** Decals on a wall or closed door face (blood splatter, silence). */
   wallOverlays?: TileId[]
   /**

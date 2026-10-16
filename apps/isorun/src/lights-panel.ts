@@ -168,6 +168,17 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
     ],
   },
   {
+    title: 'Lava',
+    fields: [
+      toggle('On', (l) => l.lava),
+      { label: 'Crust', kind: 'colour', get: (l) => l.lava.crust, set: (l, v) => (l.lava.crust = v) },
+      { label: 'Molten', kind: 'colour', get: (l) => l.lava.molten, set: (l, v) => (l.lava.molten = v) },
+      { label: 'Hot', kind: 'colour', get: (l) => l.lava.hot, set: (l, v) => (l.lava.hot = v) },
+      { label: 'Glow', kind: 'number', min: 0, max: 3, step: 0.1, get: (l) => l.lava.glow, set: (l, v) => (l.lava.glow = v) },
+      { label: 'Speed', kind: 'number', min: 0, max: 3, step: 0.1, get: (l) => l.lava.speed, set: (l, v) => (l.lava.speed = v) },
+    ],
+  },
+  {
     title: 'Combat',
     fields: [
       { label: 'Blood', kind: 'colour', get: (l) => l.combat.blood, set: (l, v) => (l.combat.blood = v) },
@@ -283,7 +294,7 @@ export function lightsPanel(container: HTMLElement, requested: string, onChange:
     for (const b of presetRow.querySelectorAll<HTMLButtonElement>('button[data-preset]')) b.classList.toggle('on', b.dataset.preset === active)
     values.textContent = JSON.stringify(lights, (_, v: unknown) => (typeof v === 'number' && v > 255 ? hex(v) : v), 1)
       .replace(/\n\s*/g, ' ')
-      .replace(/ (?="(ambient|torch|exposure|background|sun|shadowSoftness|shading|paint|walls|ao|outline|painted|pixelate|bloom|tiltShift|grade|aim|fog|water|combat|steps))/g, '\n  ')
+      .replace(/ (?="(ambient|torch|exposure|background|sun|shadowSoftness|shading|paint|walls|ao|outline|painted|pixelate|bloom|tiltShift|grade|aim|fog|water|lava|combat|steps))/g, '\n  ')
     localStorage.setItem(CURRENT_KEY, JSON.stringify(valuesOf(lights)))
     onChange(lights)
   }

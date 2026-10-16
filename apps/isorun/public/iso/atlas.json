@@ -9,12 +9,12 @@
    "player",
    "wall"
   ],
-  "des": "apps/orbrun/testbed/iso.des"
+  "des": "apps/isorun/testbed/iso.des"
  },
  "license": "DCSS tile art (rltiles) is CC0; see ATTRIBUTION.md",
  "cell": 32,
  "width": 512,
- "height": 95,
+ "height": 154,
  "names": {
   "WALL_BRICK_DARK": {
    "id": 1104,
@@ -31,6 +31,18 @@
   "DNGN_SHALLOW_WATER": {
    "id": 991,
    "count": 2
+  },
+  "DNGN_LAVA": {
+   "id": 955,
+   "count": 16
+  },
+  "DNGN_DEEP_WATER_MURKY": {
+   "id": 995,
+   "count": 2
+  },
+  "DNGN_TOXIC_BOG": {
+   "id": 1013,
+   "count": 8
   },
   "DNGN_CLOSED_DOOR": {
    "id": 2726,
@@ -242,11 +254,299 @@
     "sy": 0
    }
   },
+  "955": {
+   "name": "DNGN_LAVA",
+   "from": "floor",
+   "sx": 256,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 576,
+    "sy": 928
+   }
+  },
+  "956": {
+   "name": "DNGN_LAVA +1",
+   "from": "floor",
+   "sx": 288,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 608,
+    "sy": 928
+   }
+  },
+  "957": {
+   "name": "DNGN_LAVA +2",
+   "from": "floor",
+   "sx": 320,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 640,
+    "sy": 928
+   }
+  },
+  "958": {
+   "name": "DNGN_LAVA +3",
+   "from": "floor",
+   "sx": 352,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 672,
+    "sy": 928
+   }
+  },
+  "959": {
+   "name": "DNGN_LAVA +4",
+   "from": "floor",
+   "sx": 384,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 704,
+    "sy": 928
+   }
+  },
+  "960": {
+   "name": "DNGN_LAVA +5",
+   "from": "floor",
+   "sx": 416,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 736,
+    "sy": 928
+   }
+  },
+  "961": {
+   "name": "DNGN_LAVA +6",
+   "from": "floor",
+   "sx": 448,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 768,
+    "sy": 928
+   }
+  },
+  "962": {
+   "name": "DNGN_LAVA +7",
+   "from": "floor",
+   "sx": 480,
+   "sy": 0,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 800,
+    "sy": 928
+   }
+  },
+  "963": {
+   "name": "DNGN_LAVA +8",
+   "from": "floor",
+   "sx": 0,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 832,
+    "sy": 928
+   }
+  },
+  "964": {
+   "name": "DNGN_LAVA +9",
+   "from": "floor",
+   "sx": 32,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 864,
+    "sy": 928
+   }
+  },
+  "965": {
+   "name": "DNGN_LAVA +10",
+   "from": "floor",
+   "sx": 64,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 896,
+    "sy": 928
+   }
+  },
+  "966": {
+   "name": "DNGN_LAVA +11",
+   "from": "floor",
+   "sx": 96,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 928,
+    "sy": 928
+   }
+  },
+  "967": {
+   "name": "DNGN_LAVA +12",
+   "from": "floor",
+   "sx": 128,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 960,
+    "sy": 928
+   }
+  },
+  "968": {
+   "name": "DNGN_LAVA +13",
+   "from": "floor",
+   "sx": 160,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 992,
+    "sy": 928
+   }
+  },
+  "969": {
+   "name": "DNGN_LAVA +14",
+   "from": "floor",
+   "sx": 192,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 0,
+    "sy": 960
+   }
+  },
+  "970": {
+   "name": "DNGN_LAVA +15",
+   "from": "floor",
+   "sx": 224,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 32,
+    "sy": 960
+   }
+  },
   "989": {
    "name": "DNGN_DEEP_WATER",
    "from": "floor",
    "sx": 256,
-   "sy": 0,
+   "sy": 32,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -264,7 +564,7 @@
    "name": "DNGN_DEEP_WATER +1",
    "from": "floor",
    "sx": 288,
-   "sy": 0,
+   "sy": 32,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -282,7 +582,7 @@
    "name": "DNGN_SHALLOW_WATER",
    "from": "floor",
    "sx": 320,
-   "sy": 0,
+   "sy": 32,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -300,7 +600,7 @@
    "name": "DNGN_SHALLOW_WATER +1",
    "from": "floor",
    "sx": 352,
-   "sy": 0,
+   "sy": 32,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -314,11 +614,191 @@
     "sy": 960
    }
   },
+  "995": {
+   "name": "DNGN_DEEP_WATER_MURKY",
+   "from": "floor",
+   "sx": 384,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 832,
+    "sy": 960
+   }
+  },
+  "996": {
+   "name": "DNGN_DEEP_WATER_MURKY +1",
+   "from": "floor",
+   "sx": 416,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 864,
+    "sy": 960
+   }
+  },
+  "1013": {
+   "name": "DNGN_TOXIC_BOG",
+   "from": "floor",
+   "sx": 448,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 384,
+    "sy": 992
+   }
+  },
+  "1014": {
+   "name": "DNGN_TOXIC_BOG +1",
+   "from": "floor",
+   "sx": 480,
+   "sy": 32,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 416,
+    "sy": 992
+   }
+  },
+  "1015": {
+   "name": "DNGN_TOXIC_BOG +2",
+   "from": "floor",
+   "sx": 0,
+   "sy": 64,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 448,
+    "sy": 992
+   }
+  },
+  "1016": {
+   "name": "DNGN_TOXIC_BOG +3",
+   "from": "floor",
+   "sx": 32,
+   "sy": 64,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 480,
+    "sy": 992
+   }
+  },
+  "1017": {
+   "name": "DNGN_TOXIC_BOG +4",
+   "from": "floor",
+   "sx": 64,
+   "sy": 64,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 512,
+    "sy": 992
+   }
+  },
+  "1018": {
+   "name": "DNGN_TOXIC_BOG +5",
+   "from": "floor",
+   "sx": 96,
+   "sy": 64,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 544,
+    "sy": 992
+   }
+  },
+  "1019": {
+   "name": "DNGN_TOXIC_BOG +6",
+   "from": "floor",
+   "sx": 128,
+   "sy": 64,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 576,
+    "sy": 992
+   }
+  },
+  "1020": {
+   "name": "DNGN_TOXIC_BOG +7",
+   "from": "floor",
+   "sx": 160,
+   "sy": 64,
+   "w": 32,
+   "h": 32,
+   "ox": 0,
+   "oy": 0,
+   "raw": {
+    "w": 32,
+    "h": 32,
+    "ox": 0,
+    "oy": 0,
+    "sx": 608,
+    "sy": 992
+   }
+  },
   "1104": {
    "name": "WALL_BRICK_DARK",
    "from": "wall",
-   "sx": 384,
-   "sy": 0,
+   "sx": 192,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -335,8 +815,8 @@
   "1105": {
    "name": "WALL_BRICK_DARK +1",
    "from": "wall",
-   "sx": 416,
-   "sy": 0,
+   "sx": 224,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -353,8 +833,8 @@
   "1106": {
    "name": "WALL_BRICK_DARK +2",
    "from": "wall",
-   "sx": 448,
-   "sy": 0,
+   "sx": 256,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -371,8 +851,8 @@
   "1107": {
    "name": "WALL_BRICK_DARK +3",
    "from": "wall",
-   "sx": 480,
-   "sy": 0,
+   "sx": 288,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -389,8 +869,8 @@
   "1108": {
    "name": "WALL_BRICK_DARK +4",
    "from": "wall",
-   "sx": 0,
-   "sy": 32,
+   "sx": 320,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -407,8 +887,8 @@
   "1109": {
    "name": "WALL_BRICK_DARK +5",
    "from": "wall",
-   "sx": 32,
-   "sy": 32,
+   "sx": 352,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -425,8 +905,8 @@
   "1110": {
    "name": "WALL_BRICK_DARK +6",
    "from": "wall",
-   "sx": 64,
-   "sy": 32,
+   "sx": 384,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -443,8 +923,8 @@
   "1111": {
    "name": "WALL_BRICK_DARK +7",
    "from": "wall",
-   "sx": 96,
-   "sy": 32,
+   "sx": 416,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -461,8 +941,8 @@
   "1112": {
    "name": "WALL_BRICK_DARK +8",
    "from": "wall",
-   "sx": 128,
-   "sy": 32,
+   "sx": 448,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -479,8 +959,8 @@
   "1113": {
    "name": "WALL_BRICK_DARK +9",
    "from": "wall",
-   "sx": 160,
-   "sy": 32,
+   "sx": 480,
+   "sy": 64,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -497,8 +977,8 @@
   "1114": {
    "name": "WALL_BRICK_DARK +10",
    "from": "wall",
-   "sx": 192,
-   "sy": 32,
+   "sx": 0,
+   "sy": 96,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -515,8 +995,8 @@
   "1115": {
    "name": "WALL_BRICK_DARK +11",
    "from": "wall",
-   "sx": 224,
-   "sy": 32,
+   "sx": 32,
+   "sy": 96,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -533,8 +1013,8 @@
   "2726": {
    "name": "DNGN_CLOSED_DOOR",
    "from": "feat",
-   "sx": 256,
-   "sy": 32,
+   "sx": 64,
+   "sy": 96,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -551,8 +1031,8 @@
   "2733": {
    "name": "DNGN_OPEN_DOOR",
    "from": "feat",
-   "sx": 288,
-   "sy": 32,
+   "sx": 96,
+   "sy": 96,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -569,8 +1049,8 @@
   "2823": {
    "name": "DNGN_GRANITE_STATUE",
    "from": "feat",
-   "sx": 470,
-   "sy": 32,
+   "sx": 278,
+   "sy": 96,
    "w": 32,
    "h": 31,
    "ox": 0,
@@ -587,8 +1067,8 @@
   "3024": {
    "name": "DNGN_STONE_STAIRS_DOWN",
    "from": "feat",
-   "sx": 320,
-   "sy": 32,
+   "sx": 128,
+   "sy": 96,
    "w": 32,
    "h": 32,
    "ox": 0,
@@ -605,8 +1085,8 @@
   "4124": {
    "name": "SCROLL",
    "from": "main",
-   "sx": 138,
-   "sy": 64,
+   "sx": 448,
+   "sy": 96,
    "w": 27,
    "h": 28,
    "ox": 2,
@@ -623,8 +1103,8 @@
   "4274": {
    "name": "POTION_OFFSET",
    "from": "main",
-   "sx": 165,
-   "sy": 64,
+   "sx": 475,
+   "sy": 96,
    "w": 25,
    "h": 27,
    "ox": 7,
@@ -641,8 +1121,8 @@
   "4631": {
    "name": "GOLD05",
    "from": "main",
-   "sx": 190,
-   "sy": 64,
+   "sx": 0,
+   "sy": 128,
    "w": 18,
    "h": 26,
    "ox": 9,
@@ -659,8 +1139,8 @@
   "6138": {
    "name": "MONS_JACKAL",
    "from": "player",
-   "sx": 236,
-   "sy": 64,
+   "sx": 46,
+   "sy": 128,
    "w": 31,
    "h": 24,
    "ox": 1,
@@ -677,8 +1157,8 @@
   "6863": {
    "name": "MONS_HUMAN",
    "from": "player",
-   "sx": 0,
-   "sy": 64,
+   "sx": 310,
+   "sy": 96,
    "w": 26,
    "h": 31,
    "ox": 3,
@@ -695,8 +1175,8 @@
   "6864": {
    "name": "MONS_HUMAN +1",
    "from": "player",
-   "sx": 26,
-   "sy": 64,
+   "sx": 336,
+   "sy": 96,
    "w": 26,
    "h": 31,
    "ox": 3,
@@ -713,8 +1193,8 @@
   "6865": {
    "name": "MONS_HUMAN +2",
    "from": "player",
-   "sx": 52,
-   "sy": 64,
+   "sx": 362,
+   "sy": 96,
    "w": 26,
    "h": 31,
    "ox": 3,
@@ -731,8 +1211,8 @@
   "6869": {
    "name": "MONS_NECROMANCER",
    "from": "player",
-   "sx": 352,
-   "sy": 32,
+   "sx": 160,
+   "sy": 96,
    "w": 30,
    "h": 32,
    "ox": 2,
@@ -749,8 +1229,8 @@
   "7048": {
    "name": "MONS_KOBOLD",
    "from": "player",
-   "sx": 107,
-   "sy": 64,
+   "sx": 417,
+   "sy": 96,
    "w": 31,
    "h": 29,
    "ox": 1,
@@ -767,8 +1247,8 @@
   "7085": {
    "name": "MONS_OGRE",
    "from": "player",
-   "sx": 382,
-   "sy": 32,
+   "sx": 190,
+   "sy": 96,
    "w": 29,
    "h": 32,
    "ox": 1,
@@ -785,8 +1265,8 @@
   "7209": {
    "name": "MONS_GOBLIN",
    "from": "player",
-   "sx": 208,
-   "sy": 64,
+   "sx": 18,
+   "sy": 128,
    "w": 28,
    "h": 25,
    "ox": 2,
@@ -803,8 +1283,8 @@
   "7255": {
    "name": "MONS_ORC",
    "from": "player",
-   "sx": 411,
-   "sy": 32,
+   "sx": 219,
+   "sy": 96,
    "w": 31,
    "h": 32,
    "ox": 1,
@@ -821,8 +1301,8 @@
   "7282": {
    "name": "MONS_WIGHT",
    "from": "player",
-   "sx": 78,
-   "sy": 64,
+   "sx": 388,
+   "sy": 96,
    "w": 29,
    "h": 31,
    "ox": 2,
@@ -839,8 +1319,8 @@
   "7283": {
    "name": "MONS_SKELETAL_WARRIOR",
    "from": "player",
-   "sx": 442,
-   "sy": 32,
+   "sx": 250,
+   "sy": 96,
    "w": 28,
    "h": 32,
    "ox": 2,
