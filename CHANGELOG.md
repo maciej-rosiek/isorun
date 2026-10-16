@@ -2,6 +2,11 @@
 
 Notable changes to Isorun, newest first.
 
+## 0.1.5 — 2026-10-16
+
+- Starwater shows a night sky: dark blue water with drifting violet and stars that twinkle and glow.
+- Mud from a liquefying spell is thick wet brown mud, the floor of the Slime Pits shines under a film of slime, and corroding ground bubbles yellow-green; the cell card says mud and corroding ground.
+
 ## 0.1.4 — 2026-10-16
 
 - Lava looks like lava: dark plates of crust on molten rock that flows and glows, with a red light on the floor around it. It was drawn as water.

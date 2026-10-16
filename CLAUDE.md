@@ -86,10 +86,12 @@ snapshot commit, without the history.
   upscaled tiles, so a change rebuilds the atlas materials and the actor sprites.
   `NodeMaterial.clone()` drops `alphaTest`; set it again on clones.
 - Liquids: `liquidOf` (`packages/scene-webtiles`) names a cell's liquid from its tile (crawl puts
-  `TILE_FLAG_WATER` on lava too): water, murky water, toxic bog or lava, deep or shallow.
-  `WaterLayer` draws the three waters (`water.ts`, shallow cells stay light), `LavaLayer` the lava
-  (`lava.ts`), which writes the `emission` target that `IsoPost` blooms only while lava is in view
-  (`setEmission`). The test bed has a pool of each.
+  `TILE_FLAG_WATER` on lava too): water, murky water, starwater, toxic bog, mud (liquefied ground),
+  slime and acid floor, or lava, deep or shallow. `WaterLayer` draws the waters, the bog, the mud and
+  the slime and acid films over their floor tile (`water.ts` palettes, shallow cells stay light),
+  `StarwaterLayer` the stars, `LavaLayer` the lava; starwater and lava write the `emission` target
+  that `IsoPost` blooms only while one is in view (`setEmission`). The liquid grids rebuild only when
+  the renderer's cell revision changes. The test bed has a patch of each.
 - The test bed's level is `apps/isorun/testbed/iso.des`. Its atlas (`apps/isorun/public/iso`) is
   packed with `node tools/build/pack-room.mjs <images dir> apps/isorun/testbed/iso.des
   apps/isorun/public/iso`; `apps/isorun/public/room/README.md` says how to fetch the images.

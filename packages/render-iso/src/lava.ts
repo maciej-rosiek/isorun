@@ -75,8 +75,8 @@ export class LavaLayer {
     this.mesh.visible = settings.enabled
   }
 
-  build(scene: Scene) {
-    if (this.grid.build(scene)) this.mesh.geometry = this.grid.geometry
+  build(scene: Scene, revision: number) {
+    if (this.grid.build(scene, revision)) this.mesh.geometry = this.grid.geometry
   }
 
   dispose() {

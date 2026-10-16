@@ -37,6 +37,7 @@ export function emissionOutput(colour: THREE.Node<'vec3'>) {
   return mrt({ emission: vec4(colour, 1) })
 }
 const EMISSION_RADIUS = 0.6
+const EMISSION_STRENGTH = 1
 const OUTLINE_DEPTH = 0.25
 const OUTLINE_NORMAL = 0.35
 const DANGER_EDGE_START = 0.6
@@ -63,7 +64,6 @@ export class IsoPost {
   private readonly bloomStrength = uniform(1)
   private readonly bloomRadius = uniform(0)
   private readonly bloomThreshold = uniform(0)
-  private readonly emissionStrength = uniform(0)
   private emitting = false
   private readonly blur = uniform(1)
   private readonly focus = uniform(0.2)
@@ -124,10 +124,9 @@ export class IsoPost {
     this.vignette.value = settings.grade.vignette
   }
 
-  setEmission(strength: number) {
-    this.emissionStrength.value = strength
-    if (strength > 0 === this.emitting) return
-    this.emitting = strength > 0
+  setEmission(on: boolean) {
+    if (on === this.emitting) return
+    this.emitting = on
     this.shape = ''
   }
 
@@ -186,7 +185,7 @@ export class IsoPost {
     }
     if (settings.pixelate.enabled) image = this.pixelate(image)
     if (settings.bloom.enabled) image = image.add(bloom(colour, this.bloomStrength, this.bloomRadius, this.bloomThreshold))
-    if (this.emitting) image = image.add(bloom(scenePass.getTextureNode('emission'), this.emissionStrength, EMISSION_RADIUS, 0))
+    if (this.emitting) image = image.add(bloom(scenePass.getTextureNode('emission'), EMISSION_STRENGTH, EMISSION_RADIUS, 0))
     if (settings.tiltShift.enabled) {
       const blurred = onlyShaded ? shade(gaussianBlur(colour, this.blur.mul(BLUR_STEP), BLUR_SIGMA, { resolutionScale: BLUR_RESOLUTION })) : gaussianBlur(image, this.blur.mul(BLUR_STEP), BLUR_SIGMA, { resolutionScale: BLUR_RESOLUTION })
       const away = smoothstep(this.focus, this.focus.add(this.falloff), abs(screenUV.y.sub(0.5)).mul(2))

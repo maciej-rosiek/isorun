@@ -81,7 +81,7 @@ export function keyToXY(key: CellKey): { x: number; y: number } {
 
 export type CellKind = 'unknown' | 'floor' | 'wall' | 'door' | 'feature'
 export type Visibility = 'visible' | 'remembered' | 'unseen'
-export type LiquidKind = 'water' | 'murky' | 'bog' | 'lava'
+export type LiquidKind = 'water' | 'murky' | 'starwater' | 'bog' | 'mud' | 'slime' | 'acid' | 'lava'
 
 export interface Liquid {
   kind: LiquidKind

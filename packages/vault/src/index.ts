@@ -274,7 +274,7 @@ export function vaultScene(v: Vault, names: TileNames): Scene {
       const liquid = liquidOf((floorByGlyph.get(g) ?? floorByGlyph.get('.'))?.tile)
       if (liquid) {
         cell.liquid = liquid
-        cell.flags.water = liquid.kind === 'water' || liquid.kind === 'murky'
+        cell.flags.water = liquid.kind === 'water' || liquid.kind === 'murky' || liquid.kind === 'starwater'
         cell.flags.lava = liquid.kind === 'lava'
         cell.label = liquidLabel(liquid)
       }

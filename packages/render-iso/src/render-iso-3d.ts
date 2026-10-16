@@ -8,7 +8,8 @@ import { LIGHTS, type IsoLights, type PointLightSpec } from './lights.js'
 import { QUALITY, type IsoQuality } from './quality.js'
 import { IsoPost, overlayOutput } from './post.js'
 import { FogLayer } from './fog.js'
-import { WaterLayer } from './water.js'
+import { FILMS, WaterLayer } from './water.js'
+import { StarwaterLayer } from './starwater.js'
 import { LavaLayer } from './lava.js'
 import { AtlasMaterials, capTexture, glowMaterial } from './materials.js'
 import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type WallBlock } from './plan.js'
@@ -114,7 +115,8 @@ export class IsoRender3d implements MapRenderer {
   /** Called for each hop an actor starts. */
   onHop: ((step: ActorStep) => void) | null = null
   private readonly fog = new FogLayer()
-  private readonly waters = [new WaterLayer('water'), new WaterLayer('murky'), new WaterLayer('bog')]
+  private readonly waters = [new WaterLayer('water'), new WaterLayer('murky'), new WaterLayer('bog'), new WaterLayer('mud'), new WaterLayer('slime'), new WaterLayer('acid')]
+  private readonly starwater = new StarwaterLayer()
   private readonly lava = new LavaLayer()
   private readonly combat = new CombatLayer()
   private readonly steps = new StepLayer()
@@ -158,7 +160,7 @@ export class IsoRender3d implements MapRenderer {
 
   constructor() {
     this.statics.add(this.features.group)
-    this.world.add(this.statics, this.actors.group, this.fog.mesh, ...this.waters.map((w) => w.mesh), this.lava.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights)
+    this.world.add(this.statics, this.actors.group, this.fog.mesh, ...this.waters.map((w) => w.mesh), this.starwater.mesh, this.lava.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights)
     this.aimGroup.add(this.aimArrow, this.aimSquare)
     this.aimArrow.renderOrder = this.aimSquare.renderOrder = 10
     this.aimGroup.visible = false
@@ -335,7 +337,7 @@ export class IsoRender3d implements MapRenderer {
     this.world.updateMatrixWorld()
     const origin = new THREE.Vector3(0, 0, 0).project(this.camera)
     const pixels = this.pixelRatio()
-    this.post?.setEmission(this.lava.shown ? this.lights.lava.glow : 0)
+    this.post?.setEmission(this.lava.shown || this.starwater.shown)
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
   }
 
@@ -385,6 +387,7 @@ export class IsoRender3d implements MapRenderer {
     this.materials?.dispose()
     this.fog.dispose()
     for (const water of this.waters) water.dispose()
+    this.starwater.dispose()
     this.lava.dispose()
     this.post?.dispose()
     this.renderer?.dispose()
@@ -451,6 +454,7 @@ export class IsoRender3d implements MapRenderer {
     if (this.renderer) this.renderer.toneMappingExposure = this.lights.exposure
     this.fog.configure(this.lights.fog)
     for (const water of this.waters) water.configure(this.lights.water)
+    this.starwater.configure(this.lights.water.enabled)
     this.lava.configure(this.lights.lava)
     this.combat.configure(this.lights.combat)
     this.steps.configure(this.lights.steps)
@@ -671,8 +675,10 @@ export class IsoRender3d implements MapRenderer {
     }
     const plan = planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, this.focus(scene))
     this.fog.build(scene, this.lights.fog.height, this.lights.fog.reach)
-    for (const water of this.waters) water.build(scene)
-    this.lava.build(scene)
+    const revision = this.staticsRevision(scene)
+    for (const water of this.waters) water.build(scene, revision)
+    this.starwater.build(scene, revision)
+    this.lava.build(scene, revision)
     this.features.build(scene, tiles, materials, this.view.wallHeight, groundBasis(this.cam.yaw).forward)
     const parts = new Map<string, ChunkPart>()
     const partAt = (x: number, y: number) => {
@@ -715,7 +721,7 @@ export class IsoRender3d implements MapRenderer {
   /** The floor tile a ground layer shows: under drawn water, the nearest land's floor. */
   private groundTile(scene: Scene, g: GroundLayer): TileId {
     const liquid = getCell(scene, g.x, g.y)?.liquid
-    const drawn = liquid !== undefined && (liquid.kind === 'lava' ? this.lights.lava.enabled : this.lights.water.enabled)
+    const drawn = liquid !== undefined && !FILMS.has(liquid.kind) && (liquid.kind === 'lava' ? this.lights.lava.enabled : this.lights.water.enabled)
     return g.lift === 0 && drawn ? (shoreFloor(scene, g.x, g.y) ?? g.tile) : g.tile
   }
 
@@ -860,7 +866,7 @@ function shoreFloor(scene: Scene, x: number, y: number): TileId | undefined {
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++) {
         const cell = getCell(scene, x + dx, y + dy)
-        if (cell && !cell.occluder && !cell.liquid) return cell.floorTile
+        if (cell && !cell.occluder && onLand(cell)) return cell.floorTile
       }
   return undefined
 }
@@ -899,11 +905,15 @@ function squareGeometry(): THREE.BufferGeometry {
   return new THREE.ShapeGeometry(shape).rotateX(Math.PI / 2)
 }
 
+function onLand(cell: SceneCell) {
+  return !cell.liquid || FILMS.has(cell.liquid.kind)
+}
+
 /** Whether blood, dust and footprints show on a cell: open dry ground in sight. */
 function groundFloor(scene: Scene) {
   return (x: number, y: number) => {
     const cell = getCell(scene, x, y)
-    return cell !== undefined && !cell.occluder && !cell.liquid && cell.visibility === 'visible'
+    return cell !== undefined && !cell.occluder && onLand(cell) && cell.visibility === 'visible'
   }
 }
 

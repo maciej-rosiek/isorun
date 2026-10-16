@@ -35,10 +35,17 @@ const EDGE_WOBBLE = 0.12
 const FOAM_WIDTH = 0.08
 const AROUND = [-1, 0, 1].flatMap((dy) => [-1, 0, 1].map((dx) => [dx, dy]))
 
-const PALETTES: Record<Exclude<LiquidKind, 'water' | 'lava'>, { deep: number; shallow: number; light: number; strength: number; speed: number }> = {
-  murky: { deep: 0x18200f, shallow: 0x0c1207, light: 0x6f7c3c, strength: 1, speed: 0.6 },
-  bog: { deep: 0x1d360c, shallow: 0x284612, light: 0x8cc63c, strength: 2, speed: 0.35 },
+export type WaterKind = Exclude<LiquidKind, 'lava' | 'starwater'>
+
+const PALETTES: Record<Exclude<WaterKind, 'water'>, { deep: number; shallow: number; light: number; strength: number; speed: number; opacity: number }> = {
+  murky: { deep: 0x18200f, shallow: 0x0c1207, light: 0x6f7c3c, strength: 1, speed: 0.6, opacity: 1 },
+  bog: { deep: 0x1d360c, shallow: 0x284612, light: 0x8cc63c, strength: 2, speed: 0.35, opacity: 1.2 },
+  mud: { deep: 0x1e140c, shallow: 0x281b10, light: 0x7a6044, strength: 1, speed: 0.12, opacity: 1.6 },
+  slime: { deep: 0x15280a, shallow: 0x1c340c, light: 0xb0f060, strength: 2.5, speed: 0.2, opacity: 0.4 },
+  acid: { deep: 0x3c400a, shallow: 0x4a4e0c, light: 0xe6f070, strength: 2.5, speed: 0.45, opacity: 0.8 },
 }
+
+export const FILMS: ReadonlySet<LiquidKind> = new Set(['slime', 'acid'])
 
 /**
  * A fine grid over the seen cells of one liquid and the land around them; its points carry how much of the liquid is there
@@ -47,6 +54,7 @@ const PALETTES: Record<Exclude<LiquidKind, 'water' | 'lava'>, { deep: number; sh
 export class LiquidGrid {
   geometry = new THREE.BufferGeometry()
   private builtKey = ''
+  private builtRevision = -1
 
   constructor(private readonly kind: LiquidKind) {}
 
@@ -54,7 +62,9 @@ export class LiquidGrid {
     return this.geometry.index !== null && this.geometry.index.count > 0
   }
 
-  build(scene: Scene): boolean {
+  build(scene: Scene, revision: number): boolean {
+    if (revision === this.builtRevision) return false
+    this.builtRevision = revision
     const holds = (x: number, y: number) => getCell(scene, x, y)?.liquid?.kind === this.kind
     const pools = [...scene.cells.values()].filter((c) => c.liquid?.kind === this.kind && c.visibility !== 'unseen')
     const key = JSON.stringify(pools.map((c) => [c.x, c.y, c.visibility, c.liquid?.deep, AROUND.map(([dx, dy]) => getCell(scene, c.x + dx, c.y + dy)).map((n) => [n?.visibility, n?.occluder, n?.liquid?.kind])]))
@@ -148,8 +158,9 @@ export class WaterLayer {
   private readonly light = uniform(new THREE.Color())
   private readonly strength = uniform(0)
   private readonly speed = uniform(0)
+  private readonly opacity = uniform(1)
 
-  constructor(private readonly kind: Exclude<LiquidKind, 'lava'>) {
+  constructor(private readonly kind: WaterKind) {
     this.grid = new LiquidGrid(kind)
     const noise = noiseTexture()
     const place = positionWorld.xz
@@ -168,23 +179,24 @@ export class WaterLayer {
     const glow = caustics.add(foam).min(1).mul(this.strength).mul(live)
     const material = new THREE.MeshLambertNodeMaterial({ transparent: true, depthWrite: false })
     material.colorNode = mix(mix(this.shallow, this.deep, depth).mul(swell), this.light, glow).mul(shade)
-    material.opacityNode = shape.mul(mix(SHALLOW_OPACITY, DEEP_OPACITY, depth)).max(glow.mul(shape))
+    material.opacityNode = shape.mul(mix(SHALLOW_OPACITY, DEEP_OPACITY, depth).mul(this.opacity).min(1)).max(glow.mul(shape))
     this.mesh = new THREE.Mesh(this.grid.geometry, material)
     this.mesh.renderOrder = 4
   }
 
   configure(settings: WaterSettings) {
-    const palette = this.kind === 'water' ? { ...settings, strength: 1, speed: 1 } : PALETTES[this.kind]
+    const palette = this.kind === 'water' ? { ...settings, strength: 1, speed: 1, opacity: 1 } : PALETTES[this.kind]
     this.deep.value.set(palette.deep)
     this.shallow.value.set(palette.shallow)
     this.light.value.set(palette.light)
     this.strength.value = Math.min(1, settings.strength * palette.strength)
     this.speed.value = settings.speed * palette.speed
+    this.opacity.value = palette.opacity
     this.mesh.visible = settings.enabled
   }
 
-  build(scene: Scene) {
-    if (this.grid.build(scene)) this.mesh.geometry = this.grid.geometry
+  build(scene: Scene, revision: number) {
+    if (this.grid.build(scene, revision)) this.mesh.geometry = this.grid.geometry
   }
 
   dispose() {

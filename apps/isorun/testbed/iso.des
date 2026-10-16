@@ -1,7 +1,7 @@
 # The isometric test bed's level (testbed/iso.ts): two halls joined by a
-# corridor, pools of water, murky water, toxic bog and lava, a side room and a
-# lower hall with the stairs down. The human (h) is the player; @ and l only
-# satisfy the vault format.
+# corridor, pools of water, murky water, starwater, toxic bog, mud and lava,
+# slime and corroding floor, a side room and a lower hall with the stairs
+# down. The human (h) is the player; @ and l only satisfy the vault format.
 NAME: isorun_testbed
 TILE:  # = wall_brick_dark
 FTILE: . = floor_grey_dirt
@@ -10,6 +10,10 @@ FTILE: s = dngn_shallow_water
 FTILE: L = dngn_lava
 FTILE: m = dngn_deep_water_murky
 FTILE: b = dngn_toxic_bog
+FTILE: * = dngn_starwater
+FTILE: u = liquefaction
+FTILE: z = floor_slime
+FTILE: a = floor_slime_acidic
 KFEAT: + = dngn_closed_door
 KFEAT: ' = dngn_open_door
 KFEAT: > = dngn_stone_stairs_down
@@ -36,12 +40,12 @@ MAP
 #...!.LL..######.mm.swws...O...#
 #.........######.mmm.ss........#
 ####.#####################+#####
-####.#####......##########.#####
-####.#####.g....+..........#####
-####.#####......####.###########
-#.........######....$.....######
-#..h.@.l.......+..W...k...######
-#.....?...######.8..K..8..######
-#.........######....N>....######
+####.#####..zzzz##########.#####
+####.#####.gzzzz+..........#####
+####.#####..zzzz####.###########
+#.........######aa..$..uuu######
+#..h.@.l.......+a.W...k.uu######
+#.....?**.######.8..K..8..######
+#.....***.######....N>....######
 ################################
 ENDMAP

@@ -581,6 +581,10 @@ export function liquidOf(tile: string | undefined): Liquid | undefined {
   if (!tile) return undefined
   if (/^DNGN_LAVA/.test(tile)) return { kind: 'lava', deep: true }
   if (/^DNGN_TOXIC_BOG/.test(tile)) return { kind: 'bog', deep: false }
+  if (/^DNGN_STARWATER/.test(tile)) return { kind: 'starwater', deep: true }
+  if (/^LIQUEFACTION/.test(tile)) return { kind: 'mud', deep: false }
+  if (/^FLOOR_SLIME_ACIDIC/.test(tile)) return { kind: 'acid', deep: false }
+  if (/^FLOOR_SLIME/.test(tile)) return { kind: 'slime', deep: false }
   const water = /^(?:DNGN|SHOALS)_(DEEP|SHALLOW)_WATER(_MURKY)?|^DNGN_OPEN_SEA/.exec(tile)
   if (!water) return undefined
   return { kind: water[2] ? 'murky' : 'water', deep: water[1] !== 'SHALLOW' }
@@ -589,6 +593,9 @@ export function liquidOf(tile: string | undefined): Liquid | undefined {
 export function liquidLabel(liquid: Liquid): string {
   if (liquid.kind === 'lava') return 'lava'
   if (liquid.kind === 'bog') return 'toxic bog'
+  if (liquid.kind === 'mud') return 'mud'
+  if (liquid.kind === 'acid') return 'corroding ground'
+  if (liquid.kind === 'slime') return 'floor'
   return liquid.deep ? 'deep water' : 'shallow water'
 }
 
@@ -645,9 +652,9 @@ function buildCell(mc: MapCell, gd: Gamedata): SceneCell | undefined {
   const visibility: Visibility = !bgw.UNSEEN && !bgw.MM_UNSEEN ? 'visible' : 'remembered'
   base.visibility = visibility
   const name = gd.dngn.baseName(bgIdx) || gd.dngn.name(bgIdx)
-  const liquid = liquidOf(gd.dngn.name(bgIdx)) ?? liquidOfMap(flags, mc.mf, MF)
+  const liquid = liquidOf(gd.dngn.name(bgIdx)) ?? liquidOfMap(flags, mc.mf, MF) ?? (t.liquefied ? { kind: 'mud', deep: false } : undefined)
   if (liquid) base.liquid = liquid
-  flags.water = liquid?.kind === 'water' || liquid?.kind === 'murky'
+  flags.water = liquid?.kind === 'water' || liquid?.kind === 'murky' || liquid?.kind === 'starwater'
   flags.lava = liquid?.kind === 'lava'
   const floorUnder = t.flv?.f ?? bgIdx
   const hasCloud = cloud > 0
