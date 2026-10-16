@@ -1,0 +1,20 @@
+Hit messages always carry the damage done (" for N"), as debug builds do, so the
+client can show floating damage numbers.
+
+Modified for the WebAssembly build of the webtiles binary (engine/README.md).
+GPLv2+, as the file it patches.
+
+--- a/crawl-ref/source/attack.cc
++++ b/crawl-ref/source/attack.cc
+@@ -704,11 +704,7 @@
+  */
+ string attack::debug_damage_number()
+ {
+-#ifdef DEBUG_DIAGNOSTICS
+     return make_stringf(" for %d", damage_done);
+-#else
+-    return "";
+-#endif
+ }
+ 
+ /* Returns standard attack punctuation

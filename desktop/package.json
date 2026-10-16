@@ -1,0 +1,20 @@
+{
+  "name": "isorun-desktop",
+  "productName": "Isorun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isorun as a desktop app: the game and the offline engine in an Electron window, for a Steam Deck, a ROG Ally or any PC",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "main": "dist/app/main.js",
+  "scripts": {
+    "build": "vite build",
+    "start": "vite build && electron .",
+    "typecheck": "tsc --noEmit",
+    "package": "node package.mjs"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "electron": "44.8.0"
+  }
+}

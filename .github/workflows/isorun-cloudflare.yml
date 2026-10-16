@@ -1,0 +1,40 @@
+name: Deploy Isorun to Cloudflare
+
+# The hosted game (https://isorun.maciej-rosiek.workers.dev): the static build, the gamedata proxy
+# and the visit counts in one Worker. The offline engine is not hosted, so the build offers no offline play. Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and
+# CLOUDFLARE_ACCOUNT_ID repository secrets, and ISORUN_STATS_KEY for the /stats page.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ['engine/**']
+  workflow_dispatch:
+
+concurrency:
+  group: isorun-cloudflare
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx vitest run --exclude packages/offline/test/engine.test.ts
+      - run: npm run build
+        env:
+          VITE_OFFLINE: 'off'
+      - name: Deploy
+        run: |
+          printf 'STATS_KEY=%s\n' "$STATS_KEY" > .stats-secrets.env
+          npx wrangler deploy --secrets-file .stats-secrets.env
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          STATS_KEY: ${{ secrets.ISORUN_STATS_KEY }}

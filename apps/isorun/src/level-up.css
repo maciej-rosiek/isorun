@@ -1,0 +1,369 @@
+.level-up {
+  --lu-gold: #f3d68c;
+  --lu-gold-deep: #b8873a;
+  --lu-bronze: #9c7a45;
+  --lu-iron: #121110;
+  --lu-display: var(--display, 'Grenze Gotisch'), var(--mono);
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  font-family: var(--mono);
+  color: #efe4cc;
+  padding-bottom: 8vh;
+}
+.level-up::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 45%, rgba(4, 3, 2, 0.6), rgba(4, 3, 2, 0) 60%);
+  animation: level-up-fade-in 300ms ease-out both;
+}
+.level-up.choosing::before {
+  background: radial-gradient(ellipse at 50% 45%, rgba(4, 3, 2, 0.75), rgba(4, 3, 2, 0.45) 75%);
+  transition: background 300ms ease;
+}
+.level-up.leaving {
+  animation: level-up-leave 450ms ease-in forwards;
+}
+
+.level-up-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  pointer-events: auto;
+  cursor: pointer;
+  padding: 1.5rem 3rem 1.8rem;
+  text-align: center;
+}
+.level-up.choosing .level-up-panel {
+  cursor: default;
+}
+
+.level-up-rays,
+.level-up-glow {
+  position: absolute;
+  left: 50%;
+  top: 4.6rem;
+  pointer-events: none;
+}
+.level-up-rays {
+  width: 46rem;
+  height: 46rem;
+  margin: -23rem 0 0 -23rem;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 220, 140, 0.38) 0deg 2.5deg, rgba(255, 220, 140, 0) 2.5deg 15deg);
+  mask-image: radial-gradient(circle, #000 8%, rgba(0, 0, 0, 0.55) 30%, transparent 62%);
+  animation: level-up-rays 2600ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+.level-up-glow {
+  width: 26rem;
+  height: 14rem;
+  margin: -7rem 0 0 -13rem;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(255, 205, 110, 0.55), rgba(255, 170, 60, 0.18) 45%, transparent 70%);
+  animation: level-up-glow 1800ms ease-out both;
+}
+
+.level-up .kicker {
+  position: relative;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 0.6em;
+  margin-right: -0.6em;
+  text-transform: uppercase;
+  color: var(--lu-gold);
+  text-shadow: 0 0 12px rgba(255, 190, 90, 0.6), 0 2px 4px #000;
+  animation: level-up-rise 500ms 120ms ease-out both;
+}
+.level-up .level {
+  position: relative;
+  font-family: var(--lu-display);
+  font-weight: 700;
+  font-size: clamp(4.5rem, 11vw, 7.5rem);
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  background: linear-gradient(180deg, #fff6d6 0%, #f7d88a 38%, #c98f35 72%, #8a5a1c 100%);
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 0 18px rgba(255, 180, 70, 0.55)) drop-shadow(0 4px 2px rgba(0, 0, 0, 0.9));
+  animation: level-up-pop 700ms cubic-bezier(0.18, 1.5, 0.4, 1) both;
+}
+.level-up .rule {
+  position: relative;
+  width: 22rem;
+  height: 2px;
+  margin: 0.5rem 0 0.9rem;
+  background: linear-gradient(90deg, transparent, var(--lu-gold) 30%, #fff3cf 50%, var(--lu-gold) 70%, transparent);
+  box-shadow: 0 0 10px rgba(255, 200, 100, 0.7);
+  animation: level-up-rule 600ms 250ms ease-out both;
+}
+.level-up-gains {
+  position: relative;
+  display: flex;
+  gap: 0.6rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  min-height: 1.9rem;
+}
+.level-up-gains .gain {
+  padding: 0.25rem 0.75rem;
+  border: 1px solid rgba(243, 214, 140, 0.35);
+  border-radius: 999px;
+  background: rgba(12, 10, 8, 0.82);
+  font-size: 1rem;
+  font-weight: 700;
+  text-shadow: 0 1px 2px #000;
+  animation: level-up-rise 400ms 350ms ease-out both;
+}
+.level-up-gains .gain.hp {
+  color: #ff8a7a;
+  border-color: rgba(255, 110, 90, 0.45);
+}
+.level-up-gains .gain.mp {
+  color: #8ab8ff;
+  border-color: rgba(110, 160, 255, 0.45);
+}
+.level-up-gains .gain.stat {
+  color: var(--lu-gold);
+}
+
+.level-up-choice {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 0.4rem;
+}
+.level-up-choice .ask {
+  font-family: var(--lu-display);
+  font-size: 1.6rem;
+  color: #efe4cc;
+  text-shadow: 0 2px 6px #000;
+  margin-bottom: 1rem;
+  animation: level-up-rise 400ms ease-out both;
+}
+.level-up-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 14.5rem);
+  gap: 1.1rem;
+}
+.level-up-card {
+  --accent: 243, 214, 140;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  padding: 1.2rem 1rem 1rem;
+  font: inherit;
+  color: inherit;
+  text-align: center;
+  cursor: pointer;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(var(--accent), 0.16), transparent 65%),
+    linear-gradient(180deg, #1c1a17, #0d0c0b);
+  border: 1px solid #3a3226;
+  border-radius: 10px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 10px 30px rgba(0, 0, 0, 0.6);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+  animation: level-up-card-in 450ms calc(80ms * var(--i, 0)) cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+.level-up-card.str {
+  --accent: 255, 120, 90;
+}
+.level-up-card.int {
+  --accent: 120, 170, 255;
+}
+.level-up-card.dex {
+  --accent: 130, 220, 140;
+}
+.level-up-card:hover {
+  border-color: rgba(var(--accent), 0.6);
+}
+.level-up-card.focused {
+  transform: translateY(-6px);
+  border-color: rgba(var(--accent), 0.9);
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--accent), 0.35),
+    0 0 26px rgba(var(--accent), 0.35),
+    0 14px 34px rgba(0, 0, 0, 0.7);
+}
+.level-up-card .emblem {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 5.2rem;
+  height: 5.2rem;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent), 0.28), rgba(0, 0, 0, 0.6) 70%);
+  border: 2px solid rgba(var(--accent), 0.55);
+  box-shadow: 0 0 18px rgba(var(--accent), 0.25);
+}
+.level-up-card .emblem canvas {
+  mix-blend-mode: screen;
+  clip-path: circle(42%);
+}
+.level-up-card .name {
+  font-family: var(--lu-display);
+  font-size: 1.7rem;
+  line-height: 1;
+  color: rgb(var(--accent));
+  text-shadow: 0 2px 4px #000;
+}
+.level-up-card .value {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+.level-up-card .value .from {
+  color: #a59a87;
+}
+.level-up-card .value .arrow {
+  color: #6f6555;
+  font-size: 1rem;
+}
+.level-up-card .value .to {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(var(--accent), 0.8);
+}
+.level-up-card .effect {
+  min-height: 2.6em;
+  font-size: 0.85rem;
+  line-height: 1.3;
+  color: #b9ae9a;
+}
+.level-up kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.7em;
+  height: 1.7em;
+  padding: 0 0.35em;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #fff;
+  background: #15171c;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-bottom-width: 3px;
+  border-radius: 4px;
+}
+.level-up-card kbd {
+  margin-top: auto;
+  font-size: 1rem;
+}
+.level-up.pad .level-up-card kbd {
+  display: none;
+}
+.level-up-footer {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 1.2rem;
+  font-size: 0.9rem;
+  color: #a59a87;
+  animation: level-up-fade-in 400ms 300ms ease-out both;
+}
+.level-up-footer svg {
+  font-size: 1.4em;
+}
+
+@keyframes level-up-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes level-up-leave {
+  to {
+    opacity: 0;
+    transform: translateY(-14px) scale(1.02);
+  }
+}
+@keyframes level-up-rays {
+  0% {
+    opacity: 0;
+    transform: rotate(-25deg) scale(0.4);
+  }
+  25% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.45;
+    transform: rotate(20deg) scale(1);
+  }
+}
+@keyframes level-up-glow {
+  0% {
+    opacity: 0;
+    transform: scale(0.3);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1.2);
+  }
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+}
+@keyframes level-up-pop {
+  from {
+    opacity: 0;
+    transform: scale(1.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes level-up-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+@keyframes level-up-rule {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+}
+@keyframes level-up-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px) scale(0.94);
+  }
+}
+
+@media (max-width: 760px) {
+  .level-up-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.6rem;
+  }
+  .level-up-panel {
+    padding: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .level-up *,
+  .level-up::before {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+}

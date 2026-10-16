@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Isorun isometric test bed</title>
+    <style>
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #0e0a12; color: #ddd; font: 13px system-ui, sans-serif; }
+      #bed { display: grid; grid-template-columns: 1fr 300px; height: 100%; }
+      #stage { position: relative; min-width: 0; height: 100%; }
+      #view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+      #log { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); padding: 6px 12px; background: rgba(0, 0, 0, 0.7); border-radius: 4px; pointer-events: none; white-space: nowrap; }
+      #log:empty { display: none; }
+      #help { position: absolute; left: 10px; top: 8px; color: #888; line-height: 1.45; text-shadow: 0 1px 2px #000; pointer-events: none; }
+      #fps { position: absolute; right: 10px; top: 8px; color: #9cf; font-variant-numeric: tabular-nums; text-shadow: 0 1px 2px #000; pointer-events: none; }
+      #boxes { position: absolute; right: 10px; top: 30px; width: 260px; display: flex; flex-direction: column; gap: 8px; }
+      :is(#camera, #graphics) { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; background: rgba(17, 17, 17, 0.85); border: 1px solid #333; border-radius: 4px; }
+      #side { display: flex; flex-direction: column; gap: 6px; padding: 10px; border-left: 1px solid #333; background: #111; overflow: auto; }
+      #boxes h2 { margin: 0; font-size: 13px; color: #9cf; }
+      #side h2 { margin: 6px 0 0; font-size: 13px; color: #9cf; }
+      :is(#side, #boxes) label { display: flex; align-items: center; gap: 8px; }
+      :is(#side, #boxes) label input[type=range] { flex: 1; min-width: 0; }
+      #side label input[type=color] { margin-left: auto; width: 48px; height: 22px; padding: 0; border: 1px solid #444; background: none; }
+      :is(#side, #boxes) label span.v { min-width: 2.5em; text-align: right; font-variant-numeric: tabular-nums; color: #9cf; }
+      #side label span.v:empty { display: none; }
+      :is(#side, #boxes) .row { display: flex; gap: 6px; flex-wrap: wrap; }
+      :is(#side, #boxes) button { background: #222; color: #ddd; border: 1px solid #444; padding: 3px 8px; font: inherit; cursor: pointer; }
+      :is(#side, #boxes) button.on { border-color: #9cf; color: #9cf; }
+      #side .saved { display: inline-flex; }
+      #side .saved button + button { border-left: none; padding: 3px 6px; color: #888; }
+      #side pre { margin: 0; font-size: 11px; color: #aaa; white-space: pre-wrap; user-select: all; }
+    </style>
+  </head>
+  <body>
+    <div id="bed">
+      <div id="stage">
+        <canvas id="view"></canvas>
+        <div id="help">
+          Gamepad: left stick or d-pad aims, A confirms (hold A to keep walking), LB / RB turn the view.<br />
+          Keyboard: arrows or WASD aim (two keys for a diagonal), Space or Enter confirms, Q / E turn the view by 45 degrees, R / F tilt it up and down.<br />
+          Mouse: point at a cell to see the way, click to go there; the wheel zooms, the right or middle button drags the view.<br />
+          Keyboard + / - zoom. The view goes back to the player when the player moves.<br />
+          Walk into a monster to attack it, into a closed door to open it.
+          <div id="pad"></div>
+        </div>
+        <div id="log"></div>
+        <div id="fps"></div>
+        <div id="boxes">
+          <div id="camera"></div>
+          <div id="graphics"></div>
+        </div>
+      </div>
+      <div id="side"></div>
+    </div>
+    <script type="module" src="./iso.ts"></script>
+  </body>
+</html>

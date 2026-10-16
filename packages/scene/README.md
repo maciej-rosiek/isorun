@@ -1,0 +1,30 @@
+# @isorun/scene
+
+The renderer-facing model of a DCSS level, with no knowledge of where it came
+from and no dependency on anything: a `Scene` of `SceneCell`s (kind, tiles,
+feature, visibility, shade) and `Billboard`s (monsters, items, clouds, the
+player), a `Camera`, a `Viewmodel` for what is held, and the contracts a
+renderer and a tile provider have to meet (`MapRenderer`, `TileSource`).
+
+Also here, because every consumer needs them:
+
+- Directions: `Dir8`, `dirFromDelta`, `rotateDir`, `dirToYaw`, `yawToDir`,
+  `normalizeYaw`, `yawDelta`.
+- Cell keys: `cellKey`, `keyToXY`, `getCell`, `cellAhead`, `cellUnder`,
+  `isWalkable`, `bearingTo`.
+- Queries over billboards: `billboardsAt`, `monstersInView`, `isThreat`,
+  `nearestHostile`, `blocksExplore`, `nearestBlocker`, `nearestOf`.
+- Layout change detection for renderers that rebuild geometry only when the
+  level changes: `cellLayoutEquals`, `sceneLayoutEquals`.
+- The camera: `makeCamera`, `REST_PITCH`.
+- `motion.ts`: shared player/monster arrival cadence and finite movement curves
+  (`StepCadence`, `planStep`, `sampleStep`), using only confirmed movement.
+- `bars.ts`: the health and magic minibar rules ported from the official
+  client's cell renderer (`woundLevel`, `minibarRects`, `fillRun`, colours).
+
+`@isorun/scene-webtiles` builds a `Scene` from a live game;
+`@isorun/vault` builds one from a `.des` file; `@isorun/render-2d` and
+`@isorun/render-3d` draw one.
+
+No dependencies. Part of [Isorun](https://github.com/maciej-rosiek/isorun).
+AGPL-3.0-or-later; see the repository's ATTRIBUTION.md for `bars.ts`.

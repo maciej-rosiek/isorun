@@ -1,0 +1,36 @@
+Travel and explore wait their delay between steps, not before the first one, so a
+click or an explore starts at once.
+
+Modified for the WebAssembly build of the webtiles binary (engine/README.md).
+GPLv2+, as the files it patches.
+
+--- a/crawl-ref/source/delay.cc
++++ b/crawl-ref/source/delay.cc
+@@ -440,10 +440,10 @@ static command_type _get_running_command()
+         if (tiles.need_redraw(Options.tile_runrest_rate))
+             tiles.redraw();
+ #endif
+-        if (Options.explore_delay > 0)
++        if (Options.explore_delay > 0 && you.running.turns_passed > 0)
+             delay(Options.explore_delay);
+     }
+-    else if (Options.travel_delay > 0)
++    else if (Options.travel_delay > 0 && you.running.turns_passed > 0)
+         delay(Options.travel_delay);
+ 
+     return direction_to_command(you.running.pos.x, you.running.pos.y);
+--- a/crawl-ref/source/travel.cc
++++ b/crawl-ref/source/travel.cc
+@@ -1250,10 +1250,10 @@ command_type travel()
+             if (tiles.need_redraw(Options.tile_runrest_rate))
+                 tiles.redraw();
+ #endif
+-            if (Options.explore_delay > 0)
++            if (Options.explore_delay > 0 && you.running.turns_passed > 0)
+                 delay(Options.explore_delay);
+         }
+-        else if (Options.travel_delay > 0)
++        else if (Options.travel_delay > 0 && you.running.turns_passed > 0)
+             delay(Options.travel_delay);
+     }
+ 

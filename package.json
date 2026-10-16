@@ -1,0 +1,42 @@
+{
+  "name": "isorun-monorepo",
+  "private": true,
+  "description": "Isorun: Dungeon Crawl Stone Soup drawn isometrically, for gamepad, keyboard and mouse. The game plus the DCSS-as-a-library packages it is built on.",
+  "license": "AGPL-3.0-or-later",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/maciej-rosiek/isorun.git"
+  },
+  "bugs": "https://github.com/maciej-rosiek/isorun/issues",
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "apps/*",
+    "tools/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/isorun",
+    "prebuild": "node tools/build/ensure-dev-deps.mjs",
+    "build": "npm run build -w apps/isorun",
+    "preview": "npm run preview -w apps/isorun",
+    "typecheck": "tsc -b",
+    "check": "npm run typecheck && npm test",
+    "test": "vitest run",
+    "e2e": "vitest run -c vitest.e2e.config.ts",
+    "record": "node tools/record/record.mjs",
+    "room:pack": "node tools/build/pack-room.mjs",
+    "deploy": "wrangler deploy",
+    "deploy:check": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.1",
+    "@types/three": "^0.185.4",
+    "happy-dom": "^20.14.0",
+    "opentype.js": "^2.0.0",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.0",
+    "vitest": "^3.2.4",
+    "wrangler": "^4.129.0",
+    "ws": "^8.18.0"
+  }
+}

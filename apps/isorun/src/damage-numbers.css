@@ -1,0 +1,106 @@
+/* The numbers that pop over the actors as blows land (damage-numbers.ts): placed each frame by a transform on
+   .damage-number, popping, rising and fading by the keyframes on .damage-text, --s its size and --dx its drift. */
+
+.damage-numbers {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.damage-number {
+  position: absolute;
+  left: 0;
+  top: 0;
+  will-change: transform;
+}
+
+.damage-shake {
+  display: block;
+  animation: damage-shake 0.32s linear;
+}
+
+.damage-text {
+  position: absolute;
+  left: 0;
+  bottom: calc(14 * var(--hu));
+  translate: -50% 0;
+  white-space: nowrap;
+  font-family: var(--caps);
+  font-weight: 900;
+  font-size: calc(30 * var(--hu) * var(--s, 1));
+  line-height: 1;
+  color: #f4ead2;
+  -webkit-text-stroke: calc(1.5 * var(--hu)) #120c06;
+  paint-order: stroke fill;
+  text-shadow: 0 calc(2 * var(--hu)) calc(4 * var(--hu)) rgb(0 0 0 / 0.8);
+  opacity: 0;
+  animation: damage-float 0.9s cubic-bezier(0.2, 0.7, 0.3, 1) forwards;
+}
+
+.damage-text.dealt {
+  color: #ffe9a8;
+}
+.damage-text.taken {
+  color: #ff4a3d;
+}
+.damage-text.miss {
+  color: #a8a49c;
+  font-weight: 600;
+  font-style: italic;
+}
+.damage-text.kill {
+  color: #ffb347;
+  letter-spacing: 0.12em;
+  bottom: calc(44 * var(--hu));
+}
+.damage-text.heal {
+  color: #7fe07a;
+}
+
+@keyframes damage-float {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3);
+  }
+  12% {
+    opacity: 1;
+    transform: translate(calc(var(--dx) * 0.2), calc(-6 * var(--hu))) scale(1.3);
+  }
+  26% {
+    opacity: 1;
+    transform: translate(calc(var(--dx) * 0.35), calc(-12 * var(--hu))) scale(1);
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx), calc(-56 * var(--hu))) scale(0.85);
+  }
+}
+
+@keyframes damage-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  20% {
+    transform: translate(calc(-5 * var(--hu)), calc(2 * var(--hu)));
+  }
+  40% {
+    transform: translate(calc(5 * var(--hu)), calc(-2 * var(--hu)));
+  }
+  60% {
+    transform: translate(calc(-3 * var(--hu)), calc(1 * var(--hu)));
+  }
+  80% {
+    transform: translate(calc(3 * var(--hu)), 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .damage-shake {
+    animation: none;
+  }
+}

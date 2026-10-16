@@ -1,0 +1,7 @@
+{
+  "name": "@isorun/tools-record",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "isorun-record": "./record.mjs" }
+}

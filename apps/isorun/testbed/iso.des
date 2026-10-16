@@ -1,0 +1,43 @@
+# The isometric test bed's level (testbed/iso.ts): two halls joined by a
+# corridor, a pool, a side room and a lower hall with the stairs down. The
+# human (h) is the player; @ and l only satisfy the vault format.
+NAME: isorun_testbed
+TILE:  # = wall_brick_dark
+FTILE: . = floor_grey_dirt
+FTILE: w = dngn_deep_water
+FTILE: s = dngn_shallow_water
+KFEAT: + = dngn_closed_door
+KFEAT: ' = dngn_open_door
+KFEAT: > = dngn_stone_stairs_down
+KFEAT: 8 = dngn_granite_statue
+KMONS: h = mons_human
+KMONS: o = mons_orc
+KMONS: O = mons_ogre
+KMONS: j = mons_jackal
+KMONS: g = mons_goblin
+KMONS: k = mons_kobold
+KMONS: K = mons_skeletal_warrior
+KMONS: W = mons_wight
+KMONS: N = mons_necromancer
+KITEM: ! = potion_offset
+KITEM: ? = scroll
+KITEM: $ = gold05
+EYE:   @ N
+LIGHT: l
+MAP
+################################
+#.........######...............#
+#..o......######.....ss........#
+#.........+..j.'....swws.......#
+#...!.....######....swws...O...#
+#.........######.....ss........#
+####.#####################+#####
+####.#####......##########.#####
+####.#####.g....+..........#####
+####.#####......####.###########
+#.........######....$.....######
+#..h.@.l.......+..W...k...######
+#.....?...######.8..K..8..######
+#.........######....N>....######
+################################
+ENDMAP

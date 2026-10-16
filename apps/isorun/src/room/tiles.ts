@@ -1,0 +1,106 @@
+import type { TileId, TileRect, TileSource } from '@isorun/scene'
+import type { TileNames } from '@isorun/vault'
+import type { PlaceFile } from './place-data'
+
+/**
+ * The front room's tiles: one small atlas packed at build time from a pinned
+ * DCSS gamedata version (tools/build/pack-room.mjs), served as a static
+ * file. The menu draws its room from this before any server is spoken to,
+ * and never from a server's gamedata: the room is a build asset, the game
+ * is not (ATTRIBUTION.md).
+ */
+export interface RoomAtlasJson {
+  source: { host: string; version: string; atlases: string[]; des: string }
+  license: string
+  cell: number
+  width: number
+  height: number
+  /** tile name -> base id and how many variants follow it */
+  names: Record<string, { id: number; count: number }>
+  /** tile id -> where it is in the packed image, with the offsets tileinfo gave it */
+  tiles: Record<string, { name: string; from: string; sx: number; sy: number; w: number; h: number; ox: number; oy: number }>
+}
+
+const ROOM_ATLAS_DIR = '/room'
+const ATLAS = 'room'
+/** the game's atlases whose tiles stand in the world: features, items and monsters; not floor and wall */
+const SPRITE_ATLASES = new Set(['feat', 'main', 'player'])
+
+export class RoomTiles implements TileSource, TileNames {
+  private rects = new Map<TileId, TileRect>()
+  private counts = new Map<TileId, number>()
+  private ids = new Map<string, TileId>()
+  /** the rects of the tiles crawl keeps in its sprite atlases (`spriteRects`) */
+  private sprites: { sx: number; sy: number; w: number; h: number }[] = []
+
+  constructor(
+    readonly json: RoomAtlasJson,
+    private image: TexImageSource | undefined,
+  ) {
+    for (const [id, t] of Object.entries(json.tiles)) {
+      this.rects.set(Number(id), { atlas: ATLAS, sx: t.sx, sy: t.sy, w: t.w, h: t.h, ox: t.ox, oy: t.oy, cell: json.cell })
+      if (SPRITE_ATLASES.has(t.from)) this.sprites.push({ sx: t.sx, sy: t.sy, w: t.w, h: t.h })
+    }
+    for (const [name, n] of Object.entries(json.names)) {
+      this.ids.set(name, n.id)
+      this.counts.set(n.id, n.count)
+    }
+  }
+
+  /** A place's own atlas (place-data.ts): the tiles its level names, packed the same way, by the ids its scene uses. */
+  static fromPlace(file: Pick<PlaceFile, 'atlas' | 'source' | 'license'>, image: TexImageSource | undefined): RoomTiles {
+    const { cell, width, height } = file.atlas
+    const tiles = Object.fromEntries(Object.entries(file.atlas.tiles).map(([id, t]) => [id, { name: '', ...t }]))
+    const atlases = [...new Set(Object.values(file.atlas.tiles).map((t) => t.from))].sort()
+    return new RoomTiles({ source: { host: file.source.host, version: file.source.version, atlases, des: '' }, license: file.license, cell, width, height, names: {}, tiles }, image)
+  }
+
+  tile(id: TileId): TileRect | undefined {
+    return this.rects.get(id)
+  }
+  atlas(name: string): TexImageSource | undefined {
+    return name === ATLAS ? this.image : undefined
+  }
+  atlasNames(): string[] {
+    return [ATLAS]
+  }
+  /**
+   * The one atlas here packs every kind together, where the game keeps floors
+   * and walls in atlases of their own that the renderer never peels the ink
+   * off. So the sprite art is the tiles that came from the atlases the game
+   * does peel, and a floor's dark edge stays as it stays in the game.
+   */
+  spriteRects(name: string): ReadonlyArray<{ sx: number; sy: number; w: number; h: number }> | undefined {
+    return name === ATLAS ? this.sprites : undefined
+  }
+  spriteAtlases(): readonly string[] {
+    return [ATLAS]
+  }
+  id(name: string): number | undefined {
+    return this.ids.get(name)
+  }
+  tileCount(id: TileId): number {
+    return this.counts.get(id) ?? 1
+  }
+}
+
+/** Fetch the packed atlas and its image. */
+export async function loadRoomTiles(dir = ROOM_ATLAS_DIR): Promise<RoomTiles> {
+  const [json, image] = await Promise.all([
+    fetch(`${dir}/atlas.json`).then((r) => {
+      if (!r.ok) throw new Error(`room atlas: HTTP ${r.status}`)
+      return r.json() as Promise<RoomAtlasJson>
+    }),
+    loadImage(`${dir}/atlas.png`),
+  ])
+  return new RoomTiles(json, image)
+}
+
+function loadImage(url: string): Promise<TexImageSource> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => resolve(img)
+    img.onerror = () => reject(new Error(`room atlas: could not load ${url}`))
+    img.src = url
+  })
+}

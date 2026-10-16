@@ -1,0 +1,14 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/scene" },
+    { "path": "packages/webtiles" },
+    { "path": "packages/gamedata" },
+    { "path": "packages/scene-webtiles" },
+    { "path": "packages/render-2d" },
+    { "path": "packages/render-iso" },
+    { "path": "packages/vault" },
+    { "path": "packages/offline" },
+    { "path": "apps/isorun" }
+  ]
+}

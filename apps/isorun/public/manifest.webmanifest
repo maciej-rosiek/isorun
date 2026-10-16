@@ -1,0 +1,23 @@
+{
+  "name": "Isorun",
+  "short_name": "Isorun",
+  "description": "Play Dungeon Crawl Stone Soup (DCSS) in an isometric view with a gamepad, keyboard or mouse, on your own WebTiles account.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["games", "entertainment"],
+  "lang": "en",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "screenshots": [
+    { "src": "/room/poster.jpg", "sizes": "1280x720", "type": "image/jpeg", "form_factor": "wide", "label": "The front room, where the menus stand" }
+  ]
+}

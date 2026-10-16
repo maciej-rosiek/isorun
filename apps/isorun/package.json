@@ -1,0 +1,24 @@
+{
+  "name": "isorun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "The Isorun game: an isometric WebTiles client for Dungeon Crawl Stone Soup",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "preview": "vite preview --host"
+  },
+  "dependencies": {
+    "@isorun/gamedata": "*",
+    "@isorun/offline": "*",
+    "@isorun/render-2d": "*",
+    "@isorun/render-iso": "*",
+    "@isorun/scene": "*",
+    "@isorun/scene-webtiles": "*",
+    "@isorun/vault": "*",
+    "@isorun/webtiles": "*",
+    "three": "^0.185.1"
+  }
+}

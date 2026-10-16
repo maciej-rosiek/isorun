@@ -1,0 +1,34 @@
+{
+  // isorun-engine: the offline engine's files (engine/dist, as build.sh lays it
+  // out), served to the app's /engine/* through a service binding, and the
+  // nightly trigger for its own build (engine/ci.sh on Workers Builds), which
+  // emails how that build went.
+  //
+  // A Worker of its own so a new engine build never redeploys the app, and the
+  // app's deploy never has to carry the engine. Publish with
+  //   engine/build.sh && node engine/publish.mjs
+  // not a bare `wrangler deploy`: publish.mjs stages the channels not built
+  // here from the live Worker into .publish, since a deploy replaces every file.
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "isorun-engine",
+  "main": "worker/index.ts",
+  "compatibility_date": "2025-04-01",
+  "assets": {
+    "directory": ".publish",
+    "binding": "ASSETS",
+    // a missing file is a 404, never a page: a channel that was not published
+    // reads as absent (@isorun/offline)
+    "not_found_handling": "none",
+    "run_worker_first": true
+  },
+  // the night's two chances to build: one channel a run (engine/plan.mjs)
+  "triggers": { "crons": ["0 4 * * *", "30 4 * * *"] },
+  // Workers Builds events for this Worker (a queue event subscription), and
+  // the email they turn into: to the NOTIFY_EMAIL secret, from the engine@ address of the domain it sends from
+  "queues": { "consumers": [{ "queue": "isorun-engine-builds" }] },
+  "send_email": [{ "name": "EMAIL" }],
+  "version_metadata": { "binding": "VERSION" },
+  "observability": {
+    "enabled": true
+  }
+}
