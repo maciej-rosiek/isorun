@@ -10,8 +10,6 @@ const sw = fs.readFileSync(path.join(here, '..', 'public', 'sw.js'), 'utf8')
 /** a build's files, as dist has them */
 const BUILT = [
   'index.html',
-  'backdrop/keys-bg.webp',
-  'backdrop/account-bg.webp',
   'assets/index-AbC123.js',
   'assets/index-AbC123.js.map',
   'assets/index-DeF456.css',
@@ -34,14 +32,12 @@ const BUILT = [
 
 /** Isorun opens with no connection: the service worker keeps what the app needs to start, and nothing else. */
 describe('the app kept on the device', () => {
-  it('keeps the page, the bundles, the fonts, the places the front screen stands in, the stills the menus stand in and the icons', () => {
+  it('keeps the page, the bundles, the fonts, the places the front screen stands in and the icons', () => {
     expect(shellFiles(BUILT)).toEqual([
       '/',
       '/assets/index-AbC123.js',
       '/assets/index-DeF456.css',
       '/assets/worker-GhI789.js',
-      '/backdrop/account-bg.webp',
-      '/backdrop/keys-bg.webp',
       '/favicon.svg',
       '/fonts/dejavu-sans-mono-400.woff2',
       '/icons/icon-192.png',

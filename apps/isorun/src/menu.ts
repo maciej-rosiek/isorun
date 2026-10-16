@@ -34,16 +34,6 @@ export type View = 'home' | 'watch' | 'settings' | 'settings-group' | 'controls'
 
 const SECTIONS: View[] = ['home', 'watch', 'settings']
 
-/**
- * A place of the dungeon a screen stands in, in place of the room: a still of
- * a real game (public/backdrop), tinted as the screen that stands on it is.
- */
-type Backdrop = { still: string; tint: 'depths' | 'abyss' | 'lair' | 'dungeon' }
-const NEWS_BACKDROP: Backdrop = { still: 'keys-bg', tint: 'depths' }
-const ACCOUNT_BACKDROP: Backdrop = { still: 'account-bg', tint: 'abyss' }
-const SETTINGS_BACKDROP: Backdrop = { still: 'pad-bg', tint: 'lair' }
-const WATCH_BACKDROP: Backdrop = { still: 'branch-bg', tint: 'dungeon' }
-
 /** about as long as a browser's smooth scroll takes: until then a scroll under way is taken to be where it is going */
 const GLIDE_MS = 500
 
@@ -745,10 +735,9 @@ export class FrontEnd {
 
   /** The screen's frame in the safe area, over the room; the room stays where it is. */
   private screen(cls: string, content: (HTMLElement | null)[]) {
-    const keep: HTMLElement[] = [this.roomView.el, this.roomView.veil, this.backdrop.el]
+    const keep: HTMLElement[] = [this.roomView.el, this.roomView.veil]
     for (const child of Array.from(this.root.children)) if (!keep.includes(child as HTMLElement)) child.remove()
     for (const el of keep) if (el.parentNode !== this.root) this.root.append(el)
-    this.stand(this.backdropFor())
     // the first screen of a visit has no screen before it to move in from: it is simply there
     const first = !this.arrived
     this.arrived = true
@@ -757,35 +746,6 @@ export class FrontEnd {
 
   /** a screen has been drawn this visit (`screen`) */
   private arrived = false
-
-  /** the still a screen can stand in over the room, kept from screen to screen so the account's screens share one without fading it in again */
-  private backdrop = (() => {
-    const img = h('img', { alt: '', draggable: 'false', decoding: 'async' })
-    return { el: h('div', { class: 'menu-backdrop', 'aria-hidden': 'true' }, img), img }
-  })()
-
-  /** where the screen on show stands: What's new, the account's screens, Settings and Watch in a still of their own, the rest in the room */
-  private backdropFor(): Backdrop | null {
-    const v = this._view
-    if (v === 'news') return NEWS_BACKDROP
-    if (v === 'accounts' || v === 'versions' || v === 'rc' || v === 'login' || v === 'register') return ACCOUNT_BACKDROP
-    if (v === 'settings' || v === 'settings-group' || v === 'controls') return SETTINGS_BACKDROP
-    if (v === 'servers' || v === 'add-server') return this.serversMode === 'add' ? ACCOUNT_BACKDROP : WATCH_BACKDROP
-    if (v === 'watch') return WATCH_BACKDROP
-    return null
-  }
-
-  /** Stand the screen in `b`, or back in the room; the room draws nothing while a still covers it, and cannot be taken hold of. */
-  private stand(b: Backdrop | null) {
-    const { el, img } = this.backdrop
-    this.root.classList.toggle('covered', !!b)
-    this.roomView.cover(!!b)
-    if (!b) return el.classList.remove('up')
-    const src = `/backdrop/${b.still}.webp`
-    if (img.getAttribute('src') !== src) img.src = src
-    el.dataset.tint = b.tint
-    el.classList.add('up')
-  }
 
   /** The head of a screen: its name and the line under it; the title screen has Xom's word beneath both. */
   private head(title: string, lede: string | null, splash?: string): HTMLElement {
@@ -1206,6 +1166,7 @@ export class FrontEnd {
     // What's new reads here, offline too, and says when there is something unread
     utilities.push({ id: 'news', label: 'What’s new', marker: '!', dot: newsUnread(), hint: newsUnread() ? `What changed in Isorun ${version}, and before.` : 'What changed in Isorun, newest first.', fn: () => this.showNews() })
     if (appDownloadsOffered()) utilities.push({ id: 'app', label: 'Get the app', marker: '+', hint: 'Isorun as an app for Linux, SteamOS and Windows: offline games, no browser.', fn: () => this.showApp() })
+    if (appDownloadsOffered()) utilities.push({ id: 'steam', label: 'Add to Steam', marker: '+', hint: 'Five steps that put the Linux app in a Steam Deck’s library.', fn: () => this.showSteam(() => this.showHome()) })
     utilities.push({ id: 'about', label: 'About & credits', marker: '?', hint: 'About Isorun, and the people behind the game.', fn: () => this.showAbout() })
     const onPad = !!this.hooks.padConnected?.()
     rows.push({ id: 'settings', label: 'Settings', marker: '?', hint: 'Graphics, controls, the HUD: kept on this device.' + (onPad ? ' (X)' : ''), fn: () => this.showSettings(() => this.showHome()) })
@@ -1372,8 +1333,8 @@ export class FrontEnd {
     this.at({ kind: 'menu', path: 'app' })
   }
 
-  showSteam() {
-    this.showDoc({ title: 'Add to Steam', from: () => this.showApp(), body: () => renderMarkdown(steam, { dropTitle: true }) })
+  showSteam(from: () => void = () => this.showApp()) {
+    this.showDoc({ title: 'Add to Steam', from, body: () => renderMarkdown(steam, { dropTitle: true }) })
     this.at({ kind: 'menu', path: 'app/steam' })
   }
 

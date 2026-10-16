@@ -52,8 +52,6 @@ export class RoomView {
   readonly veil: HTMLElement
   /** the place this visit stands in */
   private readonly place: string
-  /** a still stands over the room (menu.ts `stand`): nothing drawn, nothing to take hold of */
-  private covered = false
 
   get cellWidth(): number {
     return this.grid.cw
@@ -81,14 +79,6 @@ export class RoomView {
     void this.start()
   }
 
-  /** A screen stands in a still over the room, or no longer does: the room keeps its eye and draws again once uncovered. */
-  cover(on: boolean) {
-    if (on === this.covered) return
-    this.covered = on
-    if (on) this.cancelDrag()
-    else this.invalidate()
-  }
-
   destroy() {
     this.destroyed = true
     cancelAnimationFrame(this.raf)
@@ -103,7 +93,6 @@ export class RoomView {
 
   /** Right stick: dx, dy in [-1, 1]; zero releases it. */
   look(dx: number, _dy: number) {
-    if (this.covered) return
     this.stick = dx
     this.invalidate()
   }
@@ -159,7 +148,7 @@ export class RoomView {
 
   private invalidate() {
     this.needsRender = true
-    if (!this.raf && !document.hidden && !this.covered) {
+    if (!this.raf && !document.hidden) {
       // frames had stopped: the clock starts again, so a look's first frame eases from zero
       this.last = performance.now()
       this.raf = requestAnimationFrame(this.tick)
@@ -170,8 +159,6 @@ export class RoomView {
   /** A frame for as long as the room shows: the camera turns, the torches flicker and the fog drifts. */
   private tick(now: number) {
     this.raf = 0
-    // covered since the frame was asked for: the render waits for the room to show again (cover)
-    if (this.covered) return
     const dt = Math.min(0.1, (now - this.last) / 1000 || 0)
     this.last = now
     const room = this.room
@@ -204,7 +191,7 @@ export class RoomView {
   private attachPointer() {
     const surface = this.host
     surface.addEventListener('pointerdown', (ev) => {
-      if (this.drag || !this.room || this.covered) return
+      if (this.drag || !this.room) return
       if (!isScenery(ev.target)) return
       // the press is the room's: no caret dropped in the words it went through, no row taking focus
       ev.preventDefault()

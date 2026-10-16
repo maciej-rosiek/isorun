@@ -673,30 +673,6 @@ describe('the front end: the home screen', () => {
     expect(screen.view).toBe('home')
   })
 
-  it('stands What’s new, the account’s screens, Settings and Watch in stills of their own, and the rest in the room', () => {
-    const { screen } = make()
-    const still = () => (screen.root.querySelector('.menu-backdrop.up img') as HTMLImageElement | null)?.getAttribute('src') ?? null
-    expect(still()).toBeNull()
-    screen.showNews()
-    expect(still()).toBe('/backdrop/keys-bg.webp')
-    expect(screen.root.classList.contains('covered')).toBe(true)
-    pad(screen, 'B')
-    expect(still()).toBeNull()
-    expect(screen.root.classList.contains('covered')).toBe(false)
-    screen.showAccounts()
-    expect(still()).toBe('/backdrop/account-bg.webp')
-    screen.showServers('add')
-    expect(still()).toBe('/backdrop/account-bg.webp')
-    screen.showServers('watch')
-    expect(still()).toBe('/backdrop/branch-bg.webp')
-    screen.showWatch()
-    expect(still()).toBe('/backdrop/branch-bg.webp')
-    screen.showSettings()
-    expect(still()).toBe('/backdrop/pad-bg.webp')
-    screen.showHome()
-    expect(still()).toBeNull()
-  })
-
   it('opens About & credits as a screen of the app, at its own address, and Back returns home', () => {
     // given
     const { screen, at, connect } = make()
@@ -711,17 +687,19 @@ describe('the front end: the home screen', () => {
     expect(screen.view).toBe('home')
   })
 
-  it('opens Add to Steam at its own address, and Back returns to Get the app', () => {
+  it('opens Add to Steam from the home screen of the hosted build, at its own address, and Back returns home', () => {
     // given
+    vi.stubEnv('VITE_OFFLINE', 'off')
     const { screen, at } = make()
     // when
-    screen.open({ kind: 'menu', path: 'app/steam' })
+    pick(screen, 'Add to Steam')
     // then
     expect(screen.view).toBe('doc')
     expect(at).toHaveBeenLastCalledWith({ kind: 'menu', path: 'app/steam' })
     expect(screen.root.querySelector('.doc')?.textContent).toContain('Isorun-x86_64.AppImage')
     pad(screen, 'B')
-    expect(at).toHaveBeenLastCalledWith({ kind: 'menu', path: 'app' })
+    expect(screen.view).toBe('home')
+    vi.unstubAllEnvs()
   })
 
   it('shows connection problems without moving the footer cursor, then clears them after login', () => {

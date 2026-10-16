@@ -7,7 +7,7 @@ import type { Plugin } from 'vite'
  * The app's own files, kept on the device by the service worker
  * (public/sw.js), so Isorun opens with no connection: the page, the bundle,
  * the fonts, the places the front screen stands in (their levels and
- * tiles), the stills the menus stand in and the icons. Not the build's other files or the source maps; the engine is kept apart
+ * tiles) and the icons. Not the build's other files or the source maps; the engine is kept apart
  * (@isorun/offline EngineStore).
  *
  * The build writes the list, with a version made from the files' contents,
@@ -23,8 +23,6 @@ const KEPT = [
   /^fonts\/.+\.woff2$/,
   // the places the front screen stands in (room/places.ts): each one's level and tiles
   /^room\/places\/[\w-]+\.(json|png)$/,
-  // the stills the menus stand in (menu.ts Backdrop)
-  /^backdrop\/[\w-]+\.webp$/,
   /^icons\/.+\.png$/,
   /^(favicon\.svg|orb\.png|manifest\.webmanifest)$/,
 ]

@@ -10,8 +10,7 @@ import { RoomTiles } from './tiles'
  * film-record branch) and listed in
  * places.json. The front screen stands in the next of the `cycle` each time
  * the front end opens, so every visit is somewhere else. The screens off it
- * (What's new, the account's, Settings, Watch) stand in stills of their own
- * over it (menu.ts Backdrop).
+ * stand in the same place.
  */
 export type Tint = 'depths' | 'abyss' | 'lair' | 'dungeon' | 'shoals' | 'zot' | 'spider'
 

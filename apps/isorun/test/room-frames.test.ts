@@ -13,7 +13,7 @@ function harness(room: { render: () => void } | null) {
   const el = document.createElement('canvas')
   const view = Object.assign(Object.create(RoomView.prototype), {
     el, room, lost: false, needsRender: true, raf: 0, last: 0, destroyed: false,
-    cam: new IsoCamera(), stick: 0, reducedMotion: false, covered: false,
+    cam: new IsoCamera(), stick: 0, reducedMotion: false,
   }) as { tick(now: number): void; invalidate(): void; raf: number; needsRender: boolean; room: unknown }
   return view
 }
