@@ -1,4 +1,4 @@
-import { DIR8_DX, DIR8_DY, cellKey, dirFromDelta, getCell, keyToXY, type Billboard, type CellKey, type Dir8, type Scene } from '@isorun/scene'
+import { DIR8_DX, DIR8_DY, cellKey, dirFromDelta, getCell, keyToXY, type Billboard, type CellKey, type Dir8, type Scene, type SpriteEffect } from '@isorun/scene'
 import { IsoAssets, IsoCamera, IsoRender3d, TURN_DEGREES, actorId, stickToDir, type AimIntent, type IsoAim, type IsoRoute, type Vec2 } from '@isorun/render-iso'
 import { parseDes, vaultScene } from '@isorun/vault'
 import { loadRoomTiles } from '../src/room/tiles'
@@ -37,6 +37,18 @@ const [tiles, assets] = await Promise.all([loadRoomTiles('/iso'), IsoAssets.load
 const levels: Record<string, string> = { stress: stressDes }
 const scene = vaultScene(parseDes(levels[new URLSearchParams(location.search).get('level') ?? ''] ?? des), tiles)
 const openDoor = [...scene.cells.values()].find((c) => c.feature?.type === 'door' && c.feature.state === 'open')
+/** A status on each monster of the level, to see every effect a status puts on a sprite. */
+const STATUSES: Record<string, SpriteEffect[]> = {
+  orc: ['wet'],
+  jackal: ['glowing'],
+  goblin: ['corroded'],
+  kobold: ['poisoned'],
+  'skeletal warrior': ['petrified'],
+  wight: ['summoned'],
+  necromancer: ['burning'],
+  ogre: ['berserk'],
+}
+
 const hitPoints = new Map<number, number>()
 const fogOfWar = new URLSearchParams(location.search).get('fog') !== 'off'
 const explored = new Set<CellKey>()
@@ -60,6 +72,7 @@ function prepareScene(s: Scene) {
   for (const b of s.billboards) {
     if (b.kind !== 'monster') continue
     b.scenery = false
+    b.effects = STATUSES[b.name ?? '']
     const id = nextId++
     b.ref = { id }
     hitPoints.set(id, MONSTER_HP)

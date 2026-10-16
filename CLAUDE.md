@@ -93,7 +93,8 @@ snapshot commit, without the history.
   puddles near water (the memory mask's `wetness`), glowing parts and glints into the `emission`
   target (the screen blooms it while a glowing tile is placed). An actor hovers or flickers by its
   label and shows crawl's statuses (`Billboard.effects` from the status icons: petrified, burning,
-  poisoned, corroded, berserk, glowing, summoned, wet). The Surfaces section of the lights menu
+  poisoned, corroded, berserk, glowing, summoned, wet; each monster of the test bed has one, `STATUSES` in
+  `testbed/iso.ts`), and its death dissolves with a glowing edge. The Surfaces section of the lights menu
   has their strengths; `setDepthSteps` sets the parallax steps (a quality setting).
   The liquids have depth: the ground under water and murky water is seen lower by the water's depth
   and bent by ripples (the wetness map's green, `underWater`); the liquids' surfaces have ripple

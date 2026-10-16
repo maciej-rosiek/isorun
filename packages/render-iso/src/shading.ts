@@ -421,7 +421,8 @@ export function setActorLook(mesh: THREE.Object3D, look: ActorLook) {
 
 const HOVER = { lift: 0.05, bob: 0.04, speed: 2.2 }
 const FLICKER = { amount: 0.035, speed: 11 }
-const FLAME = { scale: vec2(5, 3), rise: 1.6, from: 0.5, colour: vec3(1, 0.42, 0.08), strength: 1.6 }
+/** Flames: their noise's size and speed up, how high on the sprite they reach, their colour and their light. */
+const FLAME = { scale: vec2(5, 3), rise: 1.6, reach: 0.35, colour: vec3(1, 0.42, 0.08), strength: 1.6 }
 const STONE = vec3(0.62, 0.6, 0.57)
 const POISON = vec3(0.55, 1.15, 0.45)
 const RUST = vec3(0.55, 0.5, 0.3)
@@ -431,6 +432,9 @@ const SUMMONED_GLOW = vec3(0.25, 0.4, 0.7)
 /** How much of a see-through sprite, or a summoned one, is drawn. */
 const SEE_THROUGH = 0.55
 const SUMMONED_SHOWN = 0.8
+/** The edge of a dissolving sprite glows like embers, this wide on the dissolve's 0 to 1. */
+const DISSOLVE_EDGE = 0.12
+const EMBERS = vec3(1.4, 0.5, 0.12)
 
 /**
  * One sprite material for every actor on a page: the flash, the fade, the motion and the statuses are per mesh
@@ -468,10 +472,14 @@ export function actorMaterial(sprite: ClayMaterial, maps: PageMaps): ClayMateria
   tinted = mix(tinted, tinted.mul(WET_DARK + 0.2), soaked)
   material.colorNode = vec4(tinted.mul(spriteLight).mul(actorTint), colour.a)
   setGloss(material, mix(max(surface.r, soaked.mul(WET_GLOSS)), float(0), petrified))
-  const flames = smoothstep(FLAME.from, 1, mx_noise_float(vec3(texel.div(32).mul(FLAME.scale).sub(vec2(0, time.mul(FLAME.rise))), phase)).mul(0.5).add(0.5))
+  const flameNoise = mx_noise_float(vec3(texel.div(32).mul(FLAME.scale).sub(vec2(0, time.mul(FLAME.rise))), phase)).mul(0.5).add(0.5)
+  const flames = smoothstep(0.5, 0.75, flameNoise.add(0.25).sub(positionLocal.y.mul(FLAME.reach)))
   const edge = float(1).sub(normalView.dot(positionViewDirection).clamp()).pow(2)
+  const grain = interleavedGradientNoise(screenCoordinate.xy)
+  const embers = smoothstep(actorOpacity.sub(DISSOLVE_EDGE), actorOpacity, grain).mul(actorOpacity.lessThan(1).select(float(1), float(0)))
   const light = emission(colour.rgb, surface, uv(), phase)
     .mul(float(1).sub(petrified))
+    .add(EMBERS.mul(embers))
     .add(FLAME.colour.mul(flames).mul(burning).mul(FLAME.strength))
     .add(RAGE_GLOW.mul(edge).mul(berserk).mul(pulse.mul(0.5).add(0.5)))
     .add(colour.rgb.mul(0.5).mul(glowing))
@@ -480,7 +488,7 @@ export function actorMaterial(sprite: ClayMaterial, maps: PageMaps): ClayMateria
   material.mrtNode = emissionOutput(light)
   material.rimNode = float(1)
   const shown = actorOpacity.mul(mix(float(1), float(SEE_THROUGH), surface.a)).mul(mix(float(1), float(SUMMONED_SHOWN).add(pulse.mul(1 - SUMMONED_SHOWN)), summoned))
-  material.maskNode = interleavedGradientNoise(screenCoordinate.xy).lessThan(shown)
+  material.maskNode = grain.lessThan(shown)
   return material
 }
 
