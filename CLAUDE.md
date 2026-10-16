@@ -132,7 +132,8 @@ snapshot commit, without the history.
   --use-webgpu-adapter=swiftshader`. WebGPU allows 16 sampled textures per shader, and every
   shadow-casting light takes one.
 - The desktop app (`desktop/`, not an npm workspace, so `npm install` there; README there):
-  Electron, for a Steam Deck or a ROG Ally. `src/main.ts` takes every https request and answers the
+  Electron, for a Steam Deck or a ROG Ally. `STEAM.md` (shown in the game at `/app/steam`, under Get the
+  app) puts the AppImage in Steam; `tools/build/brand.mjs` writes its artwork to `public/steam/art`. `src/main.ts` takes every https request and answers the
   ones to `https://isorun.localhost` from `src/serve.ts` (the built app, `engine/dist` at `/engine/`, the
   gamedata and morgue proxies), so the page has a real https origin: Cache Storage and the service
   worker work as on the web. It loads `/?fullscreen`, so the Quit row shows. `npm run package`

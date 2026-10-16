@@ -18,7 +18,7 @@ import { glyph, glyphName, type GlyphName } from './glyphs'
 import { pickSplash } from './splash'
 import { canQuit, quit } from './quit'
 import { canFullscreen, fullscreenLabel, isFullscreen, toggleFullscreen } from './fullscreen'
-import { about } from './about'
+import { about, steam } from './about'
 import { renderMarkdown } from './markdown'
 import { changelog, latestLine, markNewsSeen, newsDoc, newsSeen, newsUnread } from './news'
 
@@ -735,6 +735,7 @@ export class FrontEnd {
       else this.showAccounts()
     } else if (root === 'whats-new') this.showNews()
     else if (root === 'about') this.showAbout()
+    else if (root === 'app' && sub === 'steam') this.showSteam()
     else if (root === 'app') this.showApp()
     else if (root === 'watch') {
       if (sub === 'add') this.showAddServer('watch')
@@ -1365,9 +1366,15 @@ export class FrontEnd {
     const rows: Row[] = [
       { id: BACK, label: 'Back', marker: '<', hint: 'Back.', fn: () => this.back() },
       ...APP_DOWNLOADS.map(({ file, label, sub, hint }) => ({ id: 'app:' + file, label, sub, marker: '+', hint, fn: () => window.location.assign(LATEST_RELEASE_DOWNLOAD + file) })),
+      { id: 'steam', label: 'Add to Steam', marker: '?', hint: 'Five steps that put the Linux app in a Steam Deck’s library.', fn: () => this.showSteam() },
     ]
     this.list({ cls: 'app-list', title: 'Get the app', lede: 'Isorun as an app: offline games on this device, with no browser. The downloads come from the latest release on GitHub.', rows, focus: 'app:' + APP_DOWNLOADS[0].file })
     this.at({ kind: 'menu', path: 'app' })
+  }
+
+  showSteam() {
+    this.showDoc({ title: 'Add to Steam', from: () => this.showApp(), body: () => renderMarkdown(steam, { dropTitle: true }) })
+    this.at({ kind: 'menu', path: 'app/steam' })
   }
 
   // ------------------------------------------------------------------ watch

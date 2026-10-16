@@ -17,14 +17,9 @@ Each [release](https://github.com/maciej-rosiek/isorun/releases) has three packa
 
 ## Play from Steam
 
-1. Download `Isorun-x86_64.AppImage` from the latest
-   [release](https://github.com/maciej-rosiek/isorun/releases/latest).
-2. Make it executable: `chmod +x Isorun-x86_64.AppImage`.
-3. In Steam (Desktop Mode), select "Add a Non-Steam Game" and select the AppImage.
-4. In the controller settings of the game, set the layout to "Gamepad".
-
-You do this one time. The updates replace the AppImage at the same path, so the Steam shortcut
-stays correct.
+[STEAM.md](../STEAM.md) has the steps for a Steam Deck, with the artwork; the game shows the same
+page at `/app/steam`, under Get the app. You do this one time. The updates replace the AppImage
+at the same path, so the Steam shortcut stays correct.
 
 The app starts in full screen. F11 toggles full screen, and `--windowed` starts it in a window.
 The Quit row on the home screen closes it. If the app does not start, add `--no-sandbox` or

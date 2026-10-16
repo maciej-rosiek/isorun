@@ -6,6 +6,7 @@
  *
  *   assets/logo.svg                    the README's wordmark: the orb beside the name, as the title screen sets it
  *   apps/isorun/public/favicon.svg     the orb on a dark rounded square
+ *   apps/isorun/public/steam/art/*.png  Steam artwork: icon (the orb), logo, hero, grid, portrait (the wordmark)
  *   apps/isorun/public/icons/*.png      the web app manifest's icons and the home-screen icon (the orb)
  *
  *   node tools/build/brand.mjs
@@ -22,6 +23,7 @@ import opentype from 'opentype.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
 const pub = path.join(root, 'apps/isorun/public')
+const art = path.join(pub, 'steam/art')
 const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'isorun-brand-'))
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'inherit'] })
 
@@ -121,6 +123,14 @@ fs.writeFileSync(path.join(root, 'assets/logo.svg'), wordmark())
 fs.writeFileSync(path.join(pub, 'favicon.svg'), mark(64))
 
 const icon = svg('icon.svg', mark(512))
+const word = svg('word.svg', wordmark({ background: false }))
+const wordRounded = svg('word-rounded.svg', wordmark())
+fs.mkdirSync(art, { recursive: true })
+render(path.join(art, 'icon.png'), icon, 512)
+render(path.join(art, 'logo.png'), wordRounded, 1152)
+render(path.join(art, 'hero.png'), word, 1152, 1920, 620)
+render(path.join(art, 'grid.png'), word, 864, 920, 430)
+render(path.join(art, 'portrait.png'), word, 540, 600, 900)
 const icons = path.join(pub, 'icons')
 const square = svg('square.svg', mark(512, false))
 fs.mkdirSync(icons, { recursive: true })
@@ -131,6 +141,7 @@ render(path.join(icons, 'apple-touch-icon.png'), square, 180)
 for (const f of [
   'assets/logo.svg',
   'apps/isorun/public/favicon.svg',
+  ...fs.readdirSync(art).map((f) => `apps/isorun/public/steam/art/${f}`),
   ...fs.readdirSync(icons).map((f) => `apps/isorun/public/icons/${f}`),
 ]) console.log(`${f}  ${fs.statSync(path.join(root, f)).size} bytes`)
 fs.rmSync(tmp, { recursive: true, force: true })

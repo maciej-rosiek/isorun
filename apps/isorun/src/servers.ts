@@ -18,7 +18,7 @@ export const HOME: Page = {
 }
 
 /** the front end's screens that belong to no server; a settings group is its name in lower case (settings-rows.ts) */
-export const MENU_PATH = /^(settings(\/[a-z]+)?|settings\/controls\/gamepad|accounts(\/add(\/server)?)?|watch(\/add)?|whats-new|about|app)$/
+export const MENU_PATH = /^(settings(\/[a-z]+)?|settings\/controls\/gamepad|accounts(\/add(\/server)?)?|watch(\/add)?|whats-new|about|app(\/steam)?)$/
 
 /** an account's Other versions, under Accounts: `/accounts/versions/cdi` */
 export const VERSIONS_PATH = 'accounts/versions'

@@ -197,7 +197,7 @@ describe('the front end: the home screen', () => {
     pick(screen, 'Windows')
 
     // then
-    expect(labels(screen)).toEqual(['Back', 'Linux', 'Linux', 'Windows'])
+    expect(labels(screen)).toEqual(['Back', 'Linux', 'Linux', 'Windows', 'Add to Steam'])
     expect(assign).toHaveBeenCalledWith('https://github.com/maciej-rosiek/isorun/releases/latest/download/Isorun-win-x64.zip')
     vi.unstubAllEnvs()
     vi.restoreAllMocks()
@@ -709,6 +709,19 @@ describe('the front end: the home screen', () => {
     expect(connect).not.toHaveBeenCalled()
     pad(screen, 'B')
     expect(screen.view).toBe('home')
+  })
+
+  it('opens Add to Steam at its own address, and Back returns to Get the app', () => {
+    // given
+    const { screen, at } = make()
+    // when
+    screen.open({ kind: 'menu', path: 'app/steam' })
+    // then
+    expect(screen.view).toBe('doc')
+    expect(at).toHaveBeenLastCalledWith({ kind: 'menu', path: 'app/steam' })
+    expect(screen.root.querySelector('.doc')?.textContent).toContain('Isorun-x86_64.AppImage')
+    pad(screen, 'B')
+    expect(at).toHaveBeenLastCalledWith({ kind: 'menu', path: 'app' })
   })
 
   it('shows connection problems without moving the footer cursor, then clears them after login', () => {
