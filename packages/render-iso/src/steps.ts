@@ -24,6 +24,8 @@ interface Print {
   z: number
   angle: number
   age: number
+  /** A footprint's matrix is set once, when it is new in its slot. */
+  unplaced: boolean
 }
 
 interface Landing {
@@ -52,6 +54,10 @@ const PRINT_FADE = 0.4
 const PRINT_DARKNESS = 0.15
 
 const random = (min: number, max: number) => min + Math.random() * (max - min)
+
+const UP = new THREE.Vector3(0, 1, 0)
+const printRotation = new THREE.Quaternion()
+const printPosition = new THREE.Vector3()
 
 /** Dust that puffs up when an actor lifts off and lands, and footprints that fade, so a walk shows. */
 export class StepLayer {
@@ -138,18 +144,22 @@ export class StepLayer {
     this.puffFade.needsUpdate = true
 
     const stay = this.settings.prints
-    for (const print of this.prints) print.age += dt
-    const rotation = new THREE.Quaternion()
-    const axis = new THREE.Vector3(0, 1, 0)
+    if (!this.prints.length && !this.printMesh.count) return
+    let placed = false
     this.prints.forEach((print, i) => {
-      rotation.setFromAxisAngle(axis, print.angle)
-      matrix.compose(new THREE.Vector3(print.x, PRINT_HEIGHT, print.z), rotation, scale.set(PRINT_WIDTH, 1, PRINT_LENGTH))
-      this.printMesh.setMatrixAt(i, matrix)
+      print.age += dt
+      if (print.unplaced) {
+        print.unplaced = false
+        placed = true
+        printRotation.setFromAxisAngle(UP, print.angle)
+        matrix.compose(printPosition.set(print.x, PRINT_HEIGHT, print.z), printRotation, scale.set(PRINT_WIDTH, 1, PRINT_LENGTH))
+        this.printMesh.setMatrixAt(i, matrix)
+      }
       const left = stay > 0 ? 1 - print.age / stay : 0
       this.printFade.setX(i, Math.min(1, Math.max(0, left / PRINT_FADE)))
     })
     this.printMesh.count = this.prints.length
-    this.printMesh.instanceMatrix.needsUpdate = true
+    if (placed) this.printMesh.instanceMatrix.needsUpdate = true
     this.printFade.needsUpdate = true
   }
 
@@ -190,7 +200,7 @@ export class StepLayer {
       const along = side * PRINT_STAGGER
       const x = to.x + 0.5 + (dx / len) * along + (dy / len) * side * PRINT_APART
       const z = to.y + 0.5 + (dy / len) * along - (dx / len) * side * PRINT_APART
-      const print = { x, z, angle, age: 0 }
+      const print = { x, z, angle, age: 0, unplaced: true }
       if (this.prints.length < MAX_PRINTS) this.prints.push(print)
       else this.prints[this.nextPrint] = print
       this.nextPrint = (this.nextPrint + 1) % MAX_PRINTS

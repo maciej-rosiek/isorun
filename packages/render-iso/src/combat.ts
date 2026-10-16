@@ -33,6 +33,8 @@ interface Splat {
   angle: number
   age: number
   grow: number
+  /** A grown splat's matrix is set once; a new splat in an old one's slot needs its own. */
+  unplaced: boolean
 }
 
 interface ImpactSpec {
@@ -77,6 +79,12 @@ const SPLAT_NOISE_SCALE = 1.3
 const SPLAT_OPACITY = 0.92
 
 const random = (min: number, max: number) => min + Math.random() * (max - min)
+
+const UP = new THREE.Vector3(0, 1, 0)
+const splatMatrix = new THREE.Matrix4()
+const splatRotation = new THREE.Quaternion()
+const splatPosition = new THREE.Vector3()
+const splatScale = new THREE.Vector3()
 
 /** The blood, the sparks, the flash of light, the shake and the stop that make a hit felt. */
 export class CombatLayer {
@@ -182,18 +190,19 @@ export class CombatLayer {
     const up = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion)
     placeStreaks(this.dropMesh, this.drops, camera.quaternion, right, up, 1)
     placeStreaks(this.sparkMesh, this.sparks, camera.quaternion, right, up, 2.5)
-    const matrix = new THREE.Matrix4()
-    const rotation = new THREE.Quaternion()
-    const axis = new THREE.Vector3(0, 1, 0)
+    let moved = this.splatMesh.count !== this.splats.length
     this.splats.forEach((splat, i) => {
+      if (splat.age >= splat.grow && !splat.unplaced) return
       splat.age += dt
+      splat.unplaced = false
       const grown = splat.size * Math.sqrt(Math.min(1, splat.age / splat.grow))
-      rotation.setFromAxisAngle(axis, splat.angle)
-      matrix.compose(new THREE.Vector3(splat.x, SPLAT_HEIGHT, splat.z), rotation, new THREE.Vector3(grown, 1, grown * 0.8))
-      this.splatMesh.setMatrixAt(i, matrix)
+      splatRotation.setFromAxisAngle(UP, splat.angle)
+      splatMatrix.compose(splatPosition.set(splat.x, SPLAT_HEIGHT, splat.z), splatRotation, splatScale.set(grown, 1, grown * 0.8))
+      this.splatMesh.setMatrixAt(i, splatMatrix)
+      moved = true
     })
     this.splatMesh.count = this.splats.length
-    this.splatMesh.instanceMatrix.needsUpdate = true
+    if (moved) this.splatMesh.instanceMatrix.needsUpdate = true
   }
 
   /** How far the camera moves and turns now: `x` and `y` in cells to the screen's right and up, `roll` in radians, and `zoom` to multiply the zoom by. */
@@ -225,7 +234,7 @@ export class CombatLayer {
   }
 
   private splat(x: number, z: number, size: number, grow: number) {
-    const splat = { x, z, size, angle: random(0, Math.PI * 2), age: 0, grow }
+    const splat = { x, z, size, angle: random(0, Math.PI * 2), age: 0, grow, unplaced: true }
     if (this.splats.length < MAX_SPLATS) this.splats.push(splat)
     else this.splats[this.nextSplat] = splat
     this.nextSplat = (this.nextSplat + 1) % MAX_SPLATS
@@ -239,20 +248,23 @@ function prune(list: Particle[]) {
 }
 
 /** Every particle is a small square that faces the camera, stretched along the way it moves on the screen. */
+const streakMatrix = new THREE.Matrix4()
+const streakTurn = new THREE.Quaternion()
+const streakRotation = new THREE.Quaternion()
+const streakScale = new THREE.Vector3()
+const TOWARD_CAMERA = new THREE.Vector3(0, 0, 1)
+
 function placeStreaks(mesh: THREE.InstancedMesh, list: readonly Particle[], facing: THREE.Quaternion, right: THREE.Vector3, up: THREE.Vector3, stretch: number) {
-  const matrix = new THREE.Matrix4()
-  const turn = new THREE.Quaternion()
-  const rotation = new THREE.Quaternion()
-  const forward = new THREE.Vector3(0, 0, 1)
+  if (!list.length && !mesh.count) return
   list.forEach((p, i) => {
     const across = p.velocity.dot(right)
     const along = p.velocity.dot(up)
     const fade = Number.isFinite(p.life) ? 1 - p.age / p.life : 1
-    turn.setFromAxisAngle(forward, Math.atan2(along, across))
-    rotation.copy(facing).multiply(turn)
+    streakTurn.setFromAxisAngle(TOWARD_CAMERA, Math.atan2(along, across))
+    streakRotation.copy(facing).multiply(streakTurn)
     const size = p.size * fade
-    matrix.compose(p.position, rotation, new THREE.Vector3(size + Math.hypot(across, along) * STREAK * stretch, size, 1))
-    mesh.setMatrixAt(i, matrix)
+    streakMatrix.compose(p.position, streakRotation, streakScale.set(size + Math.hypot(across, along) * STREAK * stretch, size, 1))
+    mesh.setMatrixAt(i, streakMatrix)
   })
   mesh.count = list.length
   mesh.instanceMatrix.needsUpdate = true

@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu'
-import { attribute, mix, positionWorld, texture, time, uniform, vec2 } from 'three/tsl'
-import { MEMORY_SHADE, getCell, type LiquidKind, type Scene } from '@isorun/scene'
+import { attribute, mix, positionWorld, step, texture, time, uniform, vec2 } from 'three/tsl'
+import { getCell, type LiquidKind, type Scene } from '@isorun/scene'
 import { blur, chamfer, noiseTexture } from './fog.js'
+import type { MemoryMask } from './shading.js'
 
 export interface WaterSettings {
   enabled: boolean
@@ -49,7 +50,7 @@ export const FILMS: ReadonlySet<LiquidKind> = new Set(['slime', 'acid'])
 
 /**
  * A fine grid over the seen cells of one liquid and the land around them; its points carry how much of the liquid is there
- * (rounded at the corners), how deep (shallow cells stay shallow), and whether the cell is in sight.
+ * (rounded at the corners) and how deep (shallow cells stay shallow). Whether a cell is in sight is the memory mask's (`liquidSight`).
  */
 export class LiquidGrid {
   geometry = new THREE.BufferGeometry()
@@ -67,7 +68,7 @@ export class LiquidGrid {
     this.builtRevision = revision
     const holds = (x: number, y: number) => getCell(scene, x, y)?.liquid?.kind === this.kind
     const pools = [...scene.cells.values()].filter((c) => c.liquid?.kind === this.kind && c.visibility !== 'unseen')
-    const key = JSON.stringify(pools.map((c) => [c.x, c.y, c.visibility, c.liquid?.deep, AROUND.map(([dx, dy]) => getCell(scene, c.x + dx, c.y + dy)).map((n) => [n?.visibility, n?.occluder, n?.liquid?.kind])]))
+    const key = JSON.stringify(pools.map((c) => [c.x, c.y, c.liquid?.deep, AROUND.map(([dx, dy]) => getCell(scene, c.x + dx, c.y + dy)).map((n) => [n?.visibility === 'unseen', n?.occluder, n?.liquid?.kind])]))
     if (key === this.builtKey) return false
     this.builtKey = key
     this.geometry.dispose()
@@ -76,16 +77,12 @@ export class LiquidGrid {
     const amount: number[] = []
     const near: number[] = []
     const depth: number[] = []
-    const live: number[] = []
-    const shade: number[] = []
     const indices: number[] = []
     const commit = () => {
       this.geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
       this.geometry.setAttribute('liquid', new THREE.Float32BufferAttribute(amount, 1))
       this.geometry.setAttribute('near', new THREE.Float32BufferAttribute(near, 1))
       this.geometry.setAttribute('depth', new THREE.Float32BufferAttribute(depth, 1))
-      this.geometry.setAttribute('live', new THREE.Float32BufferAttribute(live, 1))
-      this.geometry.setAttribute('shade', new THREE.Float32BufferAttribute(shade, 1))
       this.geometry.setIndex(indices)
       return true
     }
@@ -122,7 +119,6 @@ export class LiquidGrid {
         }
     const row = SUBDIVISIONS + 1
     for (const { x, y } of covered.values()) {
-      const seen = getCell(scene, x, y)?.visibility === 'visible'
       const base = positions.length / 3
       for (let j = 0; j <= SUBDIVISIONS; j++)
         for (let i = 0; i <= SUBDIVISIONS; i++) {
@@ -132,8 +128,6 @@ export class LiquidGrid {
           amount.push(sample(field, px, py))
           near.push(sample(nearField, px, py))
           depth.push(sample(depthField, px, py))
-          live.push(seen ? 1 : 0)
-          shade.push(seen ? 1 : MEMORY_SHADE)
         }
       for (let j = 0; j < SUBDIVISIONS; j++)
         for (let i = 0; i < SUBDIVISIONS; i++) {
@@ -149,6 +143,11 @@ export class LiquidGrid {
   }
 }
 
+/** How light a liquid's cell is (the memory mask), and 1 where it is in sight, 0 where it is only remembered: what moves on a liquid shows only in sight. */
+export function liquidSight(memory: MemoryMask) {
+  return { shade: memory.shade, live: step(0.99, memory.shade) }
+}
+
 /** A water surface over the seen water cells: a rounded shore, shallow to deep colour, light lines that drift and foam along the shore. */
 export class WaterLayer {
   readonly mesh: THREE.Mesh
@@ -160,7 +159,10 @@ export class WaterLayer {
   private readonly speed = uniform(0)
   private readonly opacity = uniform(1)
 
-  constructor(private readonly kind: WaterKind) {
+  constructor(
+    private readonly kind: WaterKind,
+    memory: MemoryMask,
+  ) {
     this.grid = new LiquidGrid(kind)
     const noise = noiseTexture()
     const place = positionWorld.xz
@@ -169,8 +171,7 @@ export class WaterLayer {
     const ridge = (scale: number, dx: number, dy: number) => drift(scale, dx, dy).mul(2).sub(1).abs().oneMinus()
     const water = attribute<'float'>('liquid', 'float')
     const depth = attribute<'float'>('depth', 'float')
-    const live = attribute<'float'>('live', 'float')
-    const shade = attribute<'float'>('shade', 'float')
+    const { shade, live } = liquidSight(memory)
     const edge = water.add(drift(EDGE_SCALE, 0.3, -0.2).sub(0.5).mul(EDGE_WOBBLE))
     const shape = edge.smoothstep(0.47, 0.53)
     const caustics = ridge(CAUSTIC_SCALE, 1, 0.6).mul(ridge(CAUSTIC_SCALE * 1.3, -0.7, 0.9)).pow(CAUSTIC_SHARPNESS).mul(depth.mul(-0.5).add(1))

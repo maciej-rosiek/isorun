@@ -4,19 +4,25 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js'
 /** Kit pieces are authored on a 4-unit grid; a cell is 1. */
 export const KIT_SCALE = 0.25
 
-/** The 3D models: a torch for the walls (KayKit Dungeon, CC0), loaded once and cloned per use. */
+/** One mesh of a model: what an instanced mesh draws it from, with the place the model puts it at. */
+export interface ModelPart {
+  geometry: THREE.BufferGeometry
+  material: THREE.Material
+  matrix: THREE.Matrix4
+}
+
+/** The 3D models: a torch for the walls (KayKit Dungeon, CC0), loaded once and drawn instanced. */
 export class IsoAssets {
-  private constructor(private readonly torchTemplate: THREE.Object3D) {}
+  private constructor(readonly torch: ModelPart) {}
 
   static async load(baseUrl: string): Promise<IsoAssets> {
     const gltf = await new GLTFLoader().loadAsync(`${baseUrl}/torch_mounted.glb`)
+    gltf.scene.updateMatrixWorld(true)
+    let torch: ModelPart | null = null
     gltf.scene.traverse((o) => {
-      o.receiveShadow = true
+      if (!torch && o instanceof THREE.Mesh && o.material instanceof THREE.Material) torch = { geometry: o.geometry, material: o.material, matrix: o.matrixWorld.clone() }
     })
-    return new IsoAssets(gltf.scene)
-  }
-
-  torch(): THREE.Object3D {
-    return this.torchTemplate.clone()
+    if (!torch) throw new Error('torch_mounted.glb has no mesh')
+    return new IsoAssets(torch)
   }
 }

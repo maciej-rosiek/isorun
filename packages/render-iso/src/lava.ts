@@ -3,7 +3,8 @@ import { attribute, mix, positionWorld, texture, time, uniform, vec2 } from 'thr
 import type { Scene } from '@isorun/scene'
 import { noiseTexture } from './fog.js'
 import { emissionOutput } from './post.js'
-import { LiquidGrid } from './water.js'
+import { LiquidGrid, liquidSight } from './water.js'
+import type { MemoryMask } from './shading.js'
 
 export interface LavaSettings {
   enabled: boolean
@@ -34,7 +35,7 @@ export class LavaLayer {
   private readonly glow = uniform(0)
   private readonly speed = uniform(0)
 
-  constructor() {
+  constructor(memory: MemoryMask) {
     const noise = noiseTexture()
     const place = positionWorld.xz
     const clock = time.mul(this.speed).mul(DRIFT)
@@ -42,8 +43,7 @@ export class LavaLayer {
     const lava = attribute<'float'>('liquid', 'float')
     const near = attribute<'float'>('near', 'float')
     const depth = attribute<'float'>('depth', 'float')
-    const live = attribute<'float'>('live', 'float')
-    const shade = attribute<'float'>('shade', 'float')
+    const { shade, live } = liquidSight(memory)
     const edge = lava.add(flow(EDGE_SCALE, 0.2, -0.3).sub(0.5).mul(EDGE_WOBBLE))
     const shape = edge.smoothstep(0.47, 0.53)
     const crack = (value: THREE.Node<'float'>, width: number) => value.sub(0.5).abs().smoothstep(width, 0)

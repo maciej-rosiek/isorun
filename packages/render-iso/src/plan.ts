@@ -1,4 +1,4 @@
-import { getCell, hasItemsUnder, yawToDir, type Billboard, type Dir8, type Scene, type SceneCell, type TileId, type TileRect, type TileSource } from '@isorun/scene'
+import { cellKey, getCell, hasItemsUnder, yawToDir, type Billboard, type CellKey, type Dir8, type Scene, type SceneCell, type TileId, type TileRect, type TileSource } from '@isorun/scene'
 
 export interface IsoView {
   /** Screen pixels per cell. */
@@ -147,17 +147,22 @@ export function wallHeightAt(x: number, y: number, focus: readonly Vec2[], yaw: 
   return focus.some((f) => isCutAway(x, y, f, yaw, elevation, view.wallHeight)) ? Math.min(CUTAWAY_HEIGHT, view.wallHeight) : view.wallHeight
 }
 
-/** The wall cells that drop to stubs for these focus cells, as a key that changes only when that set changes. */
-export function cutAwayKey(scene: Scene, focus: readonly Vec2[], yaw: number, elevation: number, view: IsoView): string {
+/** The wall cells that drop to stubs for these focus cells. */
+export function cutAwayCells(scene: Scene, focus: readonly Vec2[], yaw: number, elevation: number, view: IsoView): Set<CellKey> {
   const reach = Math.ceil(view.wallHeight / Math.max(0.01, Math.tan(elevation))) + 2
-  const cut = new Set<string>()
+  const cut = new Set<CellKey>()
   for (const f of focus)
     for (let y = f.y - reach; y <= f.y + reach; y++)
       for (let x = f.x - reach; x <= f.x + reach; x++) {
         const cell = getCell(scene, x, y)
-        if (cell?.occluder && isCutAway(x, y, f, yaw, elevation, view.wallHeight)) cut.add(`${x},${y}`)
+        if (cell?.occluder && isCutAway(x, y, f, yaw, elevation, view.wallHeight)) cut.add(cellKey(x, y))
       }
-  return [...cut].sort().join(' ')
+  return cut
+}
+
+/** The wall cells that drop to stubs for these focus cells, as a key that changes only when that set changes. */
+export function cutAwayKey(scene: Scene, focus: readonly Vec2[], yaw: number, elevation: number, view: IsoView): string {
+  return [...cutAwayCells(scene, focus, yaw, elevation, view)].sort().join(' ')
 }
 
 /** The point where a view ray meets the ground, in cells. */
@@ -178,11 +183,11 @@ export function isShown(b: Billboard, scene: Scene): boolean {
   return b.kind === 'monster' ? visibility === 'visible' : visibility !== 'unseen'
 }
 
-/** Everything a renderer draws, in world space: what lies on the ground, the wall blocks and what stands. */
-export function planScene(scene: Scene, yaw: number, elevation: number, view: IsoView, focus: readonly Vec2[]): IsoPlan {
+/** Everything a renderer draws, in world space: what lies on the ground, the wall blocks and what stands; with `within`, only on the cells it takes. */
+export function planScene(scene: Scene, yaw: number, elevation: number, view: IsoView, focus: readonly Vec2[], within: (x: number, y: number) => boolean = () => true): IsoPlan {
   const plan: IsoPlan = { ground: [], walls: [], sprites: [] }
   for (const cell of scene.cells.values()) {
-    if (cell.visibility === 'unseen') continue
+    if (cell.visibility === 'unseen' || !within(cell.x, cell.y)) continue
     if (cell.occluder) {
       const top = cell.wallTile ?? cell.floorTile
       const faces: WallFace[] = []
@@ -206,7 +211,7 @@ export function planScene(scene: Scene, yaw: number, elevation: number, view: Is
     }
   }
   for (const b of scene.billboards) {
-    if (!isShown(b, scene)) continue
+    if (!isShown(b, scene) || !within(b.x, b.y)) continue
     const layers = b.layers?.map((l) => ({ tile: l.tile, ox: l.ox ?? 0, oy: l.oy ?? 0, ymax: l.ymax })) ?? [{ tile: b.tile, ox: 0, oy: 0 }]
     const sprite: Sprite = { billboard: b, x: b.x, y: b.y, layers, lying: b.lying ?? false }
     if (b.kind === 'item' && hasItemsUnder(b)) sprite.pile = true

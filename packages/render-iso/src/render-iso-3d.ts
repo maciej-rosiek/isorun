@@ -1,9 +1,11 @@
 import * as THREE from 'three/webgpu'
-import { DIR8_DX, DIR8_DY, MEMORY_SHADE, cellKey, getCell, hasItemsUnder, makeCamera, type Camera, type CellKey, type MapRenderer, type Scene, type SceneCell, type SceneCursor, type TileId, type TileSource } from '@isorun/scene'
+import { texture } from 'three/tsl'
+import { DIR8_DX, DIR8_DY, cellKey, getCell, keyToXY, hasItemsUnder, makeCamera, type Camera, type CellKey, type MapRenderer, type Scene, type SceneCell, type SceneCursor, type TileId, type TileSource } from '@isorun/scene'
 import { ActorLayer, STRIKE_DELAY, actorId, type UprightPose, type ActorAction, type ActorId, type ActorStep } from './actors.js'
 import { CombatLayer } from './combat.js'
 import { StepLayer } from './steps.js'
 import { KIT_SCALE, type IsoAssets } from './assets.js'
+import { TorchLayer, type TorchPlacement } from './torches.js'
 import { LIGHTS, type IsoLights, type PointLightSpec } from './lights.js'
 import { QUALITY, type IsoQuality } from './quality.js'
 import { IsoPost, overlayOutput } from './post.js'
@@ -11,10 +13,10 @@ import { FogLayer } from './fog.js'
 import { FILMS, WaterLayer } from './water.js'
 import { StarwaterLayer } from './starwater.js'
 import { LavaLayer } from './lava.js'
-import { AtlasMaterials, capTexture, glowMaterial } from './materials.js'
-import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type Vec2, type WallBlock } from './plan.js'
+import { AtlasMaterials, capTexture } from './materials.js'
+import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayCells, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type Vec2, type WallBlock } from './plan.js'
 import { TileFeatures, isTileFeature } from './tile-features.js'
-import { ACTOR_SHADOW_LAYER, ClayMaterial, SHADOW_LAYER, applyShading, castShadow } from './shading.js'
+import { ACTOR_SHADOW_LAYER, ClayMaterial, MemoryMask, SHADOW_LAYER, applyShading, castShadow, remembered } from './shading.js'
 import { ATLAS_INSET, QuadBatch, SPRITE_LEAN, type Point3 } from './quads.js'
 
 interface ChunkPart {
@@ -28,7 +30,19 @@ interface StaticChunk {
   group: THREE.Group
   geometries: THREE.BufferGeometry[]
   torches: Torch[]
+  /** Where the chunk's torches are drawn (`TorchLayer`). */
+  placements: TorchPlacement[]
 }
+
+/** Cells from `x0`, `y0` up to (not with) `x1`, `y1`. */
+interface CellArea {
+  x0: number
+  y0: number
+  x1: number
+  y1: number
+}
+
+const EVERYWHERE: CellArea = { x0: -Infinity, y0: -Infinity, x1: Infinity, y1: Infinity }
 
 interface Torch {
   position: THREE.Vector3
@@ -96,6 +110,8 @@ export class IsoRender3d implements MapRenderer {
   private readonly chunks = new Map<string, StaticChunk>()
   /** What every chunk was built for: a change builds them all again. */
   private chunksKey = ''
+  /** What the chunks were built from, to find the cells that changed since: null builds every chunk. */
+  private built: { cells: ReadonlyMap<CellKey, SceneCell>; cut: ReadonlySet<CellKey>; standing: ReadonlyMap<CellKey, string> } | null = null
   private chunkMaterials: AtlasMaterials | null = null
   private readonly aimGroup = new THREE.Group()
   private readonly aimMaterial = aimMaterial()
@@ -109,15 +125,16 @@ export class IsoRender3d implements MapRenderer {
   private readonly cursorSquare = new THREE.Mesh(squareGeometry(), this.cursorMaterial)
   private cursor: SceneCursor | null = null
   private readonly actors = new ActorLayer()
-  private readonly glow = glowMaterial()
+  private readonly torchModels = new TorchLayer()
   private readonly tileTorches: Torch[] = []
   private readonly features = new TileFeatures()
   /** Called for each hop an actor starts. */
   onHop: ((step: ActorStep) => void) | null = null
   private readonly fog = new FogLayer()
-  private readonly waters = [new WaterLayer('water'), new WaterLayer('murky'), new WaterLayer('bog'), new WaterLayer('mud'), new WaterLayer('slime'), new WaterLayer('acid')]
-  private readonly starwater = new StarwaterLayer()
-  private readonly lava = new LavaLayer()
+  private readonly memory = new MemoryMask()
+  private readonly waters = (['water', 'murky', 'bog', 'mud', 'slime', 'acid'] as const).map((kind) => new WaterLayer(kind, this.memory))
+  private readonly starwater = new StarwaterLayer(this.memory)
+  private readonly lava = new LavaLayer(this.memory)
   private readonly combat = new CombatLayer()
   private readonly steps = new StepLayer()
   private readonly impacts: PendingImpact[] = []
@@ -127,7 +144,7 @@ export class IsoRender3d implements MapRenderer {
   private danger = 0
   /** How fast the actors walk and fight: their clock runs this many times as fast as the real one. */
   private animationSpeed = 1.5
-  private readonly capMaterial = new ClayMaterial({ map: capTexture(), vertexColors: true })
+  private readonly capMaterial = capMaterial(this.memory)
   private readonly hemisphere = new THREE.HemisphereLight()
   private readonly torchLights = Array.from({ length: TORCH_LIGHTS }, () => new THREE.PointLight())
   /** Torch lights whose shadow map no longer shows what is around them; it is drawn again when the light is on. */
@@ -168,7 +185,7 @@ export class IsoRender3d implements MapRenderer {
   private dpr = 1
 
   constructor() {
-    this.statics.add(this.features.group)
+    this.statics.add(this.features.group, this.torchModels.group)
     this.world.add(this.statics, this.actors.group, this.fog.mesh, ...this.waters.map((w) => w.mesh), this.starwater.mesh, this.lava.mesh, this.combat.group, this.steps.group, this.aimGroup, this.routeGroup, this.cursorSquare, this.hemisphere, this.sun, this.sun.target, ...this.torchLights)
     this.aimGroup.add(this.aimArrow, this.aimSquare)
     this.aimArrow.renderOrder = this.aimSquare.renderOrder = 10
@@ -230,6 +247,7 @@ export class IsoRender3d implements MapRenderer {
     if (scene === this.scene && scene.revision === this.sceneRevision) return
     this.scene = scene
     this.sceneRevision = scene.revision
+    this.memory.update(scene)
     this.syncActors(scene)
   }
 
@@ -324,12 +342,12 @@ export class IsoRender3d implements MapRenderer {
     const dt = this.lastFrame ? Math.min(0.1, now - this.lastFrame) : 0
     this.lastFrame = now
     const staticKey = `${this.staticsRevision(scene)}|${cutAwayKey(scene, this.focus(scene), this.cam.yaw, -this.cam.pitch, this.view)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
-    const rebuilt = staticKey !== this.staticKey
-    if (rebuilt) {
-      this.buildStatics(scene, this.tiles, this.materials)
+    const changed: CellArea[] = []
+    if (staticKey !== this.staticKey) {
+      changed.push(...this.buildStatics(scene, this.tiles, this.materials))
       this.staticKey = staticKey
     }
-    const doorsMoved = this.features.update(dt)
+    for (const door of this.features.update(dt)) changed.push({ x0: door.x, y0: door.y, x1: door.x + 1, y1: door.y + 1 })
     if (now >= this.stopUntil) this.clock += dt * this.animationSpeed
     this.landImpacts(scene, now)
     const hops = this.actors.update(this.clock, this.cam.yaw, this.upright(), (x, y) => this.features.groundAt(x, y))
@@ -339,8 +357,11 @@ export class IsoRender3d implements MapRenderer {
       this.onHop?.(hop)
     }
     const actorShadowsMoved = this.actors.takeShadowChange()
-    if (doorsMoved || rebuilt || (actorShadowsMoved && this.quality.actorTorchShadows)) this.markShadowsStale()
-    else if (actorShadowsMoved) this.sunStale = true
+    if (actorShadowsMoved && this.quality.actorTorchShadows) this.markShadowsStale()
+    else {
+      this.markShadowsStaleAround(changed)
+      if (actorShadowsMoved) this.sunStale = true
+    }
     this.fog.update(dt)
     this.placeCamera()
     this.combat.update(dt, this.camera)
@@ -406,6 +427,8 @@ export class IsoRender3d implements MapRenderer {
     for (const water of this.waters) water.dispose()
     this.starwater.dispose()
     this.lava.dispose()
+    this.memory.dispose()
+    this.torchModels.dispose()
     this.post?.dispose()
     this.renderer?.dispose()
     this.renderer = null
@@ -414,7 +437,7 @@ export class IsoRender3d implements MapRenderer {
   private rebuildMaterials() {
     if (!this.tiles) return
     this.materials?.dispose()
-    this.materials = new AtlasMaterials(this.tiles, this.lights.paint)
+    this.materials = new AtlasMaterials(this.tiles, this.lights.paint, this.memory)
     this.paintKey = JSON.stringify(this.lights.paint)
     this.invalidate()
   }
@@ -494,6 +517,15 @@ export class IsoRender3d implements MapRenderer {
   private markShadowsStale() {
     for (const light of this.torchLights) this.staleShadows.add(light)
     this.sunStale = true
+  }
+
+  /** The shadow maps that see a part of these areas no longer show what is there: a torch's within its reach, the sun's within its own. */
+  private markShadowsStaleAround(areas: readonly CellArea[]) {
+    if (!areas.length) return
+    const near = (x: number, z: number, reach: number) => areas.some((a) => x > a.x0 - reach && x < a.x1 + reach && z > a.y0 - reach && z < a.y1 + reach)
+    for (const light of this.torchLights) if (near(light.position.x, light.position.z, this.lights.torch.distance)) this.staleShadows.add(light)
+    const sunAt = this.sun.target.position
+    if (near(sunAt.x, sunAt.z, SUN_REACH * Math.SQRT2)) this.sunStale = true
   }
 
   private pixelRatio() {
@@ -669,6 +701,7 @@ export class IsoRender3d implements MapRenderer {
     for (const chunk of this.chunks.values()) this.dropChunk(chunk)
     this.chunks.clear()
     this.chunksKey = ''
+    this.built = null
     this.tileTorches.length = 0
   }
 
@@ -680,36 +713,37 @@ export class IsoRender3d implements MapRenderer {
   private addTileTorch(chunk: StaticChunk, x: number, y: number, normal: { x: number; y: number }, wallHeight: number) {
     if (!this.assets) return
     const height = TORCH_HEIGHT * Math.min(1, wallHeight / 0.85)
-    const torch = this.assets.torch()
-    torch.scale.setScalar(KIT_SCALE)
-    torch.position.set(x + 0.5 + normal.x * 0.5, height, y + 0.5 + normal.y * 0.5)
-    torch.rotation.y = Math.atan2(normal.x, normal.y)
-    const glow = new THREE.Sprite(this.glow)
-    glow.position.set(x + 0.5 + normal.x * 0.62, height + 0.2, y + 0.5 + normal.y * 0.62)
-    glow.scale.setScalar(0.45)
-    chunk.group.add(torch, glow)
+    const model = new THREE.Matrix4().compose(new THREE.Vector3(x + 0.5 + normal.x * 0.5, height, y + 0.5 + normal.y * 0.5), new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(normal.x, normal.y)), new THREE.Vector3(KIT_SCALE, KIT_SCALE, KIT_SCALE))
+    chunk.placements.push({ model, glow: new THREE.Vector3(x + 0.5 + normal.x * 0.62, height + 0.2, y + 0.5 + normal.y * 0.62) })
     chunk.torches.push({ position: new THREE.Vector3(x + 0.5 + normal.x * 0.75, height + 0.2, y + 0.5 + normal.y * 0.75), phase: (x * 7 + y * 13) % 10, cell: { x: x + normal.x, y: y + normal.y } })
   }
 
-  /** The level's geometry in chunks of `CHUNK_CELLS` square: only a chunk whose cells, cut-away walls or items changed is built again. */
-  private buildStatics(scene: Scene, tiles: TileSource, materials: AtlasMaterials) {
+  /** The level's geometry in chunks of `CHUNK_CELLS` square: only a chunk whose cells, cut-away walls or items changed is built again. Returns where the geometry changed. */
+  private buildStatics(scene: Scene, tiles: TileSource, materials: AtlasMaterials): CellArea[] {
+    const changed: CellArea[] = []
     const { stretch, lean } = this.upright()
     const chunksKey = `${this.cam.yaw}|${stretch}|${lean}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.water.enabled}|${this.lights.lava.enabled}|${this.assets !== null}`
     if (chunksKey !== this.chunksKey || materials !== this.chunkMaterials) {
       this.clearStatics()
       this.chunksKey = chunksKey
       this.chunkMaterials = materials
+      changed.push(EVERYWHERE)
     }
-    const plan = planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, this.focus(scene))
-    this.fog.build(scene, this.lights.fog.height, this.lights.fog.reach)
+    const focus = this.focus(scene)
+    const cut = cutAwayCells(scene, focus, this.cam.yaw, -this.cam.pitch, this.view)
+    const standing = standingByCell(scene)
+    const dirty = this.built && dirtyChunks(this.built, scene.cells, cut, standing)
+    this.built = { cells: scene.cells, cut, standing }
+    const plan = planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, focus, dirty ? (x, y) => dirty.has(chunkId(x, y)) : undefined)
     const revision = this.staticsRevision(scene)
+    this.fog.build(scene, revision, this.lights.fog.height, this.lights.fog.reach)
     for (const water of this.waters) water.build(scene, revision)
     this.starwater.build(scene, revision)
     this.lava.build(scene, revision)
-    this.features.build(scene, tiles, materials, this.view.wallHeight, groundBasis(this.cam.yaw).forward)
+    if (this.features.build(scene, tiles, materials, this.view.wallHeight, groundBasis(this.cam.yaw).forward)) changed.push(EVERYWHERE)
     const parts = new Map<string, ChunkPart>()
     const partAt = (x: number, y: number) => {
-      const id = `${Math.floor(x / CHUNK_CELLS)},${Math.floor(y / CHUNK_CELLS)}`
+      const id = chunkId(x, y)
       let part = parts.get(id)
       if (!part) parts.set(id, (part = { ground: [], walls: [], sprites: [] }))
       return part
@@ -722,12 +756,11 @@ export class IsoRender3d implements MapRenderer {
       if (!b && isTileFeature(getCell(scene, sprite.x, sprite.y))) continue
       partAt(sprite.x, sprite.y).sprites.push(sprite)
     }
-    const shadeAt = (x: number, y: number) => (getCell(scene, x, y)?.visibility === 'remembered' ? MEMORY_SHADE : 1)
     for (const [id, part] of parts) {
       const key = JSON.stringify([
-        part.ground.map((g) => [g.x, g.y, this.groundTile(scene, g), g.lift, shadeAt(g.x, g.y)]),
-        part.walls.map((w) => [w.x, w.y, w.height, w.top, w.faces, shadeAt(w.x, w.y)]),
-        part.sprites.map((sprite) => [sprite.x, sprite.y, sprite.lying, sprite.pile, sprite.layers, shadeAt(sprite.x, sprite.y)]),
+        part.ground.map((g) => [g.x, g.y, this.groundTile(scene, g), g.lift]),
+        part.walls.map((w) => [w.x, w.y, w.height, w.top, w.faces]),
+        part.sprites.map((sprite) => [sprite.x, sprite.y, sprite.lying, sprite.pile, sprite.layers]),
       ])
       const old = this.chunks.get(id)
       if (old?.key === key) continue
@@ -735,14 +768,18 @@ export class IsoRender3d implements MapRenderer {
       const chunk = this.buildChunk(scene, tiles, materials, part, key)
       this.chunks.set(id, chunk)
       this.statics.add(chunk.group)
+      changed.push(chunkArea(id))
     }
     for (const [id, chunk] of this.chunks)
-      if (!parts.has(id)) {
+      if (!parts.has(id) && (!dirty || dirty.has(id))) {
         this.dropChunk(chunk)
         this.chunks.delete(id)
+        changed.push(chunkArea(id))
       }
     this.tileTorches.length = 0
     for (const chunk of this.chunks.values()) this.tileTorches.push(...chunk.torches)
+    if (changed.length && this.assets) this.torchModels.set(this.assets.torch, [...this.chunks.values()].flatMap((chunk) => chunk.placements))
+    return changed
   }
 
   /** The floor tile a ground layer shows: under drawn water, the nearest land's floor. */
@@ -753,11 +790,10 @@ export class IsoRender3d implements MapRenderer {
   }
 
   private buildChunk(scene: Scene, tiles: TileSource, materials: AtlasMaterials, part: ChunkPart, key: string): StaticChunk {
-    const chunk: StaticChunk = { key, group: new THREE.Group(), geometries: [], torches: [] }
+    const chunk: StaticChunk = { key, group: new THREE.Group(), geometries: [], torches: [], placements: [] }
     const groundBatches = new Map<string, QuadBatch>()
     const spriteBatches = new Map<string, QuadBatch>()
     let batches = groundBatches
-    const shadeAt = (x: number, y: number) => (getCell(scene, x, y)?.visibility === 'remembered' ? MEMORY_SHADE : 1)
     const quad = (tile: TileId, corners: [Point3, Point3, Point3, Point3], texelHeight: number | undefined, shade: number) => {
       const rect = tiles.tile(tile)
       if (!rect) return
@@ -773,14 +809,13 @@ export class IsoRender3d implements MapRenderer {
     const mossAmount = this.lights.walls.moss
     for (const g of part.ground) {
       const y = g.lift * LIFT_STEP
-      quad(this.groundTile(scene, g), [[g.x, y, g.y], [g.x + 1, y, g.y], [g.x + 1, y, g.y + 1], [g.x, y, g.y + 1]], undefined, shadeAt(g.x, g.y))
+      quad(this.groundTile(scene, g), [[g.x, y, g.y], [g.x + 1, y, g.y], [g.x + 1, y, g.y + 1], [g.x, y, g.y + 1]], undefined, 1)
     }
     for (const w of part.walls) {
       const h = w.height
       const topRect = tiles.tile(w.top)
       const [r, g, b] = topRect ? materials.averageColour(topRect) : [0.3, 0.3, 0.3]
-      const shade = shadeAt(w.x, w.y)
-      const capColour: Point3 = [THREE.MathUtils.lerp(r * CAP_SHADE, moss.r, mossAmount) * shade, THREE.MathUtils.lerp(g * CAP_SHADE, moss.g, mossAmount) * shade, THREE.MathUtils.lerp(b * CAP_SHADE, moss.b, mossAmount) * shade]
+      const capColour: Point3 = [THREE.MathUtils.lerp(r * CAP_SHADE, moss.r, mossAmount), THREE.MathUtils.lerp(g * CAP_SHADE, moss.g, mossAmount), THREE.MathUtils.lerp(b * CAP_SHADE, moss.b, mossAmount)]
       const bevel = Math.min(this.lights.walls.bevel, h / 2)
       const exposed = new Set(w.faces.map((f) => f.side))
       const x0 = w.x + (exposed.has('w') ? bevel : 0)
@@ -797,7 +832,7 @@ export class IsoRender3d implements MapRenderer {
         const by = w.y + to.y
         const rect = tiles.tile(face.tile)
         const texelHeight = rect ? rect.h * Math.min(1, faceTop) : undefined
-        quad(face.tile, [[ax, faceTop, ay], [bx, faceTop, by], [bx, 0, by], [ax, 0, ay]], texelHeight, shade)
+        quad(face.tile, [[ax, faceTop, ay], [bx, faceTop, by], [bx, 0, by], [ax, 0, ay]], texelHeight, 1)
         if (bevel > 0) {
           const clampX = (x: number) => THREE.MathUtils.clamp(x, x0, x1)
           const clampZ = (z: number) => THREE.MathUtils.clamp(z, z0, z1)
@@ -824,7 +859,7 @@ export class IsoRender3d implements MapRenderer {
       const x1 = x0 + f.width * scale
       const y1 = y0 + f.height * scale
       const [l, r] = copy?.mirror ? [x1, x0] : [x0, x1]
-      quad(layer.tile, [[l, y, y0], [r, y, y0], [r, y, y1], [l, y, y1]], f.texelHeight, shadeAt(s.x, s.y) * (copy ? PILE_SHADE : 1))
+      quad(layer.tile, [[l, y, y0], [r, y, y0], [r, y, y1], [l, y, y1]], f.texelHeight, copy ? PILE_SHADE : 1)
     }
     const standingLayer = (s: Sprite, layer: SpriteLayer, copy: { across: number; behind: number; mirror: boolean } | null) => {
       const rect = tiles.tile(layer.tile)
@@ -840,7 +875,7 @@ export class IsoRender3d implements MapRenderer {
       const bottom = (1 - f.top - f.height) * stretch * scale
       const [l, r] = copy?.mirror ? [rightEdge, left] : [left, rightEdge]
       const at = (across: number, up: number): Point3 => [cx + right.x * across + forward.x * up * Math.sin(lean), up * Math.cos(lean), cy + right.y * across + forward.y * up * Math.sin(lean)]
-      quad(layer.tile, [at(l, top), at(r, top), at(r, bottom), at(l, bottom)], f.texelHeight, shadeAt(s.x, s.y) * (copy ? PILE_SHADE : 1))
+      quad(layer.tile, [at(l, top), at(r, top), at(r, bottom), at(l, bottom)], f.texelHeight, copy ? PILE_SHADE : 1)
     }
     for (const s of part.sprites) {
       const copies = s.pile ? PILE_COPIES : []
@@ -873,12 +908,56 @@ export class IsoRender3d implements MapRenderer {
   }
 }
 
+function chunkId(x: number, y: number): string {
+  return `${Math.floor(x / CHUNK_CELLS)},${Math.floor(y / CHUNK_CELLS)}`
+}
+
+/**
+ * The chunks that may build differently since `built`: around every cell whose drawn content changed (as far as a
+ * water cell looks for the floor of its shore, which covers the wall faces of the neighbours), and the cells whose
+ * cut-away or items changed.
+ */
+function dirtyChunks(built: { cells: ReadonlyMap<CellKey, SceneCell>; cut: ReadonlySet<CellKey>; standing: ReadonlyMap<CellKey, string> }, cells: ReadonlyMap<CellKey, SceneCell>, cut: ReadonlySet<CellKey>, standing: ReadonlyMap<CellKey, string>): Set<string> {
+  const dirty = new Set<string>()
+  const around = (x: number, y: number, reach: number) => {
+    for (const dy of [-reach, reach]) for (const dx of [-reach, reach]) dirty.add(chunkId(x + dx, y + dy))
+  }
+  const at = (key: CellKey, reach: number) => {
+    const { x, y } = keyToXY(key)
+    around(x, y, reach)
+  }
+  if (built.cells !== cells) {
+    for (const [key, cell] of cells) {
+      const old = built.cells.get(key)
+      if (old !== cell && (!old || drawnCell(old) !== drawnCell(cell))) at(key, SHORE_SEARCH)
+    }
+    for (const key of built.cells.keys()) if (!cells.has(key)) at(key, SHORE_SEARCH)
+  }
+  for (const key of cut) if (!built.cut.has(key)) at(key, 0)
+  for (const key of built.cut) if (!cut.has(key)) at(key, 0)
+  for (const [key, signature] of standing) if (built.standing.get(key) !== signature) at(key, 0)
+  for (const key of built.standing.keys()) if (!standing.has(key)) at(key, 0)
+  return dirty
+}
+
+function chunkArea(id: string): CellArea {
+  const [cx, cy] = id.split(',').map(Number)
+  return { x0: cx * CHUNK_CELLS, y0: cy * CHUNK_CELLS, x1: (cx + 1) * CHUNK_CELLS, y1: (cy + 1) * CHUNK_CELLS }
+}
+
 function applyPointLight(light: THREE.PointLight, spec: PointLightSpec) {
   light.color.set(spec.colour)
   light.intensity = spec.intensity
   light.distance = spec.distance
   light.decay = spec.decay
   light.shadow.camera.far = spec.distance
+}
+
+/** The wall tops: a faint stone grain under the vertex colours, darker on a remembered cell. */
+function capMaterial(memory: MemoryMask) {
+  const material = new ClayMaterial({ vertexColors: true })
+  material.colorNode = remembered(texture(capTexture()), memory)
+  return material
 }
 
 function aimMaterial() {
@@ -958,8 +1037,28 @@ function sameCells(before: ReadonlyMap<CellKey, SceneCell> | null, after: Readon
   return true
 }
 
+/** A cell as the geometry sees it: whether it is in sight or only remembered is the memory mask's, not the geometry's. */
 function drawnCell(cell: SceneCell): string {
-  return JSON.stringify(cell, (field, value) => (UNDRAWN_CELL_FIELDS.has(field) ? undefined : value))
+  let drawn = drawnCells.get(cell)
+  if (drawn === undefined) {
+    drawn = JSON.stringify(cell, (field, value) => (UNDRAWN_CELL_FIELDS.has(field) ? undefined : field === 'visibility' ? value === 'unseen' : value))
+    drawnCells.set(cell, drawn)
+  }
+  return drawn
+}
+
+/** `drawnCell` of each cell object: the scene builder hands over the same object for a cell it did not touch. */
+const drawnCells = new WeakMap<SceneCell, string>()
+
+/** What stands on each cell in the level's geometry: the items and features shown that are not actors. */
+function standingByCell(scene: Scene): Map<CellKey, string> {
+  const standing = new Map<CellKey, string>()
+  for (const b of scene.billboards) {
+    if (actorId(b) !== undefined || !isShown(b, scene)) continue
+    const key = cellKey(b.x, b.y)
+    standing.set(key, `${standing.get(key) ?? ''}|${b.kind}:${b.tile},${b.lying ? 1 : 0},${hasItemsUnder(b) ? 1 : 0},${b.layers?.map((l) => `${l.tile}/${l.ox ?? 0}/${l.oy ?? 0}/${l.ymax ?? ''}`).join(';') ?? ''}`)
+  }
+  return standing
 }
 
 /** What stands in the level's geometry: the items and features that are not actors, and the actors in doorways, which lift the door's lintel. */

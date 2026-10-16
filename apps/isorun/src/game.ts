@@ -688,9 +688,10 @@ export class GameScreen {
   /** Where a cell's middle at head height is on the game screen, in CSS pixels, while the dungeon view is up. */
   private canvasPointOf(x: number, y: number): { x: number; y: number } | null {
     const iso = this.iso
-    if (!iso || this.renderer !== iso) return null
+    const view = this.viewPx
+    if (!iso || this.renderer !== iso || !view) return null
     const at = iso.screenOf(x, y)
-    return { x: this.canvas.offsetLeft + at.x, y: this.canvas.offsetTop + at.y }
+    return { x: view.left + at.x, y: view.top + at.y }
   }
 
   /** Whether the player's own key already swung this blow at `at`. */

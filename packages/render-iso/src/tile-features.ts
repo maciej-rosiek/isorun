@@ -29,6 +29,7 @@ type BoxMaker = (tile: TileId, min: Point3, max: Point3, shade: number, sides?: 
 interface Door {
   pivot: THREE.Object3D
   target: number
+  cell: { x: number; y: number }
 }
 
 /** Doors and stairs built in 3D from the level's own tiles: a frame of the wall's stone with a swinging wooden leaf, and steps down into a pit or up onto a landing. */
@@ -45,15 +46,16 @@ export class TileFeatures {
   onDoor: ((x: number, y: number, open: boolean) => void) | null = null
   private builtMaterials: AtlasMaterials | null = null
 
-  build(scene: Scene, tiles: TileSource, materials: AtlasMaterials, wallHeight: number, forward: { x: number; y: number }) {
+  /** Returns whether the doors and stairs were built again. */
+  build(scene: Scene, tiles: TileSource, materials: AtlasMaterials, wallHeight: number, forward: { x: number; y: number }): boolean {
     const features = [...scene.cells.values()].filter((c) => c.visibility !== 'unseen' && isTileFeature(c))
     const key = JSON.stringify([
       wallHeight,
       forward,
       scene.level.ceilingTile,
-      features.map((c) => [c.x, c.y, c.feature, c.floorTile, c.featureTile, c.visibility, [0, 2, 4, 6].map((d) => getCell(scene, c.x + DIR8_DX[d], c.y + DIR8_DY[d])).map((n) => [n?.occluder, n?.wallTile])]),
+      features.map((c) => [c.x, c.y, c.feature, c.floorTile, c.featureTile, [0, 2, 4, 6].map((d) => getCell(scene, c.x + DIR8_DX[d], c.y + DIR8_DY[d])).map((n) => [n?.occluder, n?.wallTile])]),
     ])
-    if (key === this.builtKey && materials === this.builtMaterials) return
+    if (key === this.builtKey && materials === this.builtMaterials) return false
     this.builtKey = key
     this.builtMaterials = materials
     const before = new Map([...this.doors].map(([k, d]) => [k, { angle: d.pivot.rotation.y, target: d.target }]))
@@ -87,6 +89,7 @@ export class TileFeatures {
       castShadow(mesh, true)
       this.group.add(mesh)
     }
+    return true
   }
 
   /** The height of the ground an actor stands on in cell `x`, `y`: 0 off the stairs. */
@@ -94,14 +97,14 @@ export class TileFeatures {
     return this.ground.get(cellKey(x, y)) ?? 0
   }
 
-  /** Swing the doors; returns whether a door moved. */
-  update(dt: number) {
-    let moved = false
+  /** Swing the doors; returns the cells of the doors that moved. */
+  update(dt: number): { x: number; y: number }[] {
+    const moved: { x: number; y: number }[] = []
     for (const door of this.doors.values()) {
       const r = door.pivot.rotation
       const turn = (door.target - r.y) * Math.min(1, dt * DOOR_SWING_PER_SECOND)
       r.y += turn
-      moved ||= Math.abs(turn) > DOOR_STILL
+      if (Math.abs(turn) > DOOR_STILL) moved.push(door.cell)
     }
     return moved
   }
@@ -167,7 +170,7 @@ export class TileFeatures {
     const target = open ? DOOR_OPEN_ANGLE : 0
     pivot.rotation.y = previous?.angle ?? target
     if (previous && previous.target !== target) this.onDoor?.(x, y, open)
-    this.doors.set(cellKey(x, y), { pivot, target })
+    this.doors.set(cellKey(x, y), { pivot, target, cell: { x, y } })
   }
 
   /** Stairs run away from the camera: down into the screen, or up into it, so the eye looks onto the treads. */

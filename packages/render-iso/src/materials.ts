@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu'
 import type { TileRect, TileSource } from '@isorun/scene'
 import { dFdx, dFdy, texture, uv } from 'three/tsl'
 import { EnhancedPage, PAGE_TEXELS, type DrawnSlot, type PaintSettings } from './enhance.js'
-import { ClayMaterial, actorMaterial, parallaxUV, reliefNormal, spriteColour } from './shading.js'
+import { ClayMaterial, actorMaterial, parallaxUV, reliefNormal, remembered, spriteColour, type MemoryMask } from './shading.js'
 import { atlasImage } from './plan.js'
 
 export type TileMaterial = ClayMaterial
@@ -23,8 +23,8 @@ export interface PlacedTile extends AtlasMaterial {
 
 interface Page {
   enhanced: EnhancedPage
-  colour: THREE.CanvasTexture
-  normal: THREE.CanvasTexture
+  colour: THREE.DataTexture
+  normal: THREE.DataTexture
   material: AtlasMaterial
 }
 
@@ -45,6 +45,7 @@ export class AtlasMaterials {
   constructor(
     private readonly tiles: TileSource,
     private readonly paint: PaintSettings,
+    private readonly memory: MemoryMask,
   ) {}
 
   /** The mean colour of a tile's opaque texels, 0..1 in linear light. */
@@ -147,28 +148,34 @@ export class AtlasMaterials {
 
   private addPage(): Page {
     const enhanced = new EnhancedPage(this.paint)
-    const colour = new THREE.CanvasTexture(enhanced.colour)
+    const colour = pageTexture(enhanced.size)
     colour.colorSpace = THREE.SRGBColorSpace
-    colour.flipY = false
     colour.anisotropy = 4
-    colour.minFilter = THREE.LinearMipmapLinearFilter
     colour.magFilter = this.paint.upscale === 'pixel' ? THREE.NearestFilter : THREE.LinearFilter
-    const normal = new THREE.CanvasTexture(enhanced.normal)
-    normal.flipY = false
-    normal.minFilter = THREE.LinearMipmapLinearFilter
-    normal.magFilter = THREE.LinearFilter
+    const normal = pageTexture(enhanced.size)
     const material = new ClayMaterial({ vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, map: colour })
     const sprite = material.clone()
     sprite.alphaTest = material.alphaTest
-    sprite.colorNode = spriteColour(colour)
+    sprite.colorNode = spriteColour(colour, this.memory)
     sprite.normalNode = reliefNormal(normal)
     const sunk = parallaxUV(normal)
-    material.colorNode = texture(colour, sunk).grad(dFdx(uv()), dFdy(uv()))
+    material.colorNode = remembered(texture(colour, sunk).grad(dFdx(uv()), dFdy(uv())), this.memory)
     material.normalNode = reliefNormal(normal, sunk)
     const page = { enhanced, colour, normal, material: { material, sprite, actor: actorMaterial(sprite, colour), width: PAGE_TEXELS, height: PAGE_TEXELS } }
     this.pages.push(page)
     return page
   }
+}
+
+/** A page on the GPU, made empty: its tiles are copied into it one by one, so the page is never uploaded whole. */
+function pageTexture(size: number): THREE.DataTexture {
+  const page = new THREE.DataTexture(null, size, size)
+  page.needsUpdate = true
+  page.source.dataReady = false
+  page.generateMipmaps = true
+  page.minFilter = THREE.LinearMipmapLinearFilter
+  page.magFilter = THREE.LinearFilter
+  return page
 }
 
 function copyPixels(copier: TextureCopier, pixels: ImageData, page: THREE.Texture, at: { x: number; y: number }, mipmaps: boolean) {

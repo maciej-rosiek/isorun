@@ -3,7 +3,8 @@ import { attribute, mix, positionWorld, texture, time, vec2, vec3 } from 'three/
 import type { Scene } from '@isorun/scene'
 import { noiseTexture } from './fog.js'
 import { emissionOutput } from './post.js'
-import { LiquidGrid } from './water.js'
+import { LiquidGrid, liquidSight } from './water.js'
+import type { MemoryMask } from './shading.js'
 
 const DEEP = vec3(0.012, 0.016, 0.05)
 const NEBULA = vec3(0.065, 0.026, 0.125)
@@ -23,14 +24,13 @@ export class StarwaterLayer {
   readonly mesh: THREE.Mesh
   private readonly grid = new LiquidGrid('starwater')
 
-  constructor() {
+  constructor(memory: MemoryMask) {
     const noise = noiseTexture()
     const place = positionWorld.xz
     const clock = time.mul(DRIFT)
     const at = (scale: number, dx: number, dy: number) => texture(noise, place.mul(scale).add(vec2(clock.mul(dx), clock.mul(dy)))).r
     const water = attribute<'float'>('liquid', 'float')
-    const live = attribute<'float'>('live', 'float')
-    const shade = attribute<'float'>('shade', 'float')
+    const { shade, live } = liquidSight(memory)
     const edge = water.add(at(EDGE_SCALE, 0.3, -0.2).sub(0.5).mul(EDGE_WOBBLE))
     const shape = edge.smoothstep(0.47, 0.53)
     const sky = mix(DEEP, NEBULA, at(NEBULA_SCALE, 1, -0.6).smoothstep(0.4, 0.75))

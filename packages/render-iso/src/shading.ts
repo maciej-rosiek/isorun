@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
-import { Fn, If, Loop, attribute, clamp, diffuseColor, dFdx, dFdy, float, frontFacing, interleavedGradientNoise, mix, normalMap, normalView, normalViewGeometry, positionView, positionViewDirection, screenCoordinate, select, texture, uniform, uv, vec3, vec4 } from 'three/tsl'
+import { MEMORY_SHADE, type Scene } from '@isorun/scene'
+import { Fn, If, Loop, attribute, clamp, diffuseColor, dFdx, dFdy, float, frontFacing, interleavedGradientNoise, mix, normalMap, normalView, normalViewGeometry, normalWorld, positionView, positionViewDirection, positionWorld, screenCoordinate, select, texture, uniform, uv, vec3, vec4 } from 'three/tsl'
 import { UV_RECT } from './quads.js'
 
 export interface ShadingSettings {
@@ -118,10 +119,54 @@ export function parallaxUV(map: THREE.Texture) {
   })()
 }
 
-/** The colour of the map scaled by the sprite light. */
-export function spriteColour(map: THREE.Texture) {
+/** The colour of the map scaled by the sprite light, darker on a remembered cell. */
+export function spriteColour(map: THREE.Texture, memory: MemoryMask) {
   const colour = texture(map)
-  return vec4(colour.rgb.mul(spriteLight), colour.a)
+  return vec4(colour.rgb.mul(spriteLight).mul(memory.shade), colour.a)
+}
+
+/** Cells across and down the memory mask: crawl's levels are 80 by 70. */
+const MEMORY_CELLS = 128
+const IN_SIGHT = 255
+const REMEMBERED = Math.round(MEMORY_SHADE * IN_SIGHT)
+/** How far behind a surface its cell is looked for: a wall's face lies on the edge of its cell. */
+const INSIDE = 0.02
+
+/**
+ * The cells out of sight, one texel per cell: the level's materials draw a remembered cell darker by it, so a step that
+ * changes what is in sight uploads a small texture and leaves the level's geometry as it is.
+ */
+export class MemoryMask {
+  private readonly cells = new Uint8Array(MEMORY_CELLS * MEMORY_CELLS).fill(IN_SIGHT)
+  private readonly map = new THREE.DataTexture(this.cells, MEMORY_CELLS, MEMORY_CELLS, THREE.RedFormat)
+  /** How light the surface's cell is: 1 in sight, `MEMORY_SHADE` remembered. */
+  readonly shade: THREE.Node<'float'>
+
+  constructor() {
+    this.map.magFilter = this.map.minFilter = THREE.NearestFilter
+    this.map.generateMipmaps = false
+    this.map.needsUpdate = true
+    const cell = positionWorld.xz.sub(normalWorld.xz.mul(INSIDE)).floor()
+    this.shade = texture(this.map, cell.add(0.5).div(MEMORY_CELLS)).r
+  }
+
+  update(scene: Scene) {
+    const next = new Uint8Array(this.cells.length).fill(IN_SIGHT)
+    for (const cell of scene.cells.values())
+      if (cell.visibility === 'remembered' && cell.x >= 0 && cell.y >= 0 && cell.x < MEMORY_CELLS && cell.y < MEMORY_CELLS) next[cell.y * MEMORY_CELLS + cell.x] = REMEMBERED
+    if (next.every((v, i) => v === this.cells[i])) return
+    this.cells.set(next)
+    this.map.needsUpdate = true
+  }
+
+  dispose() {
+    this.map.dispose()
+  }
+}
+
+/** A colour, darker on a remembered cell. */
+export function remembered(colour: THREE.Node<'vec4'>, memory: MemoryMask): THREE.Node<'vec4'> {
+  return vec4(colour.rgb.mul(memory.shade), colour.a)
 }
 
 /** How an actor's sprite is drawn now: tinted for the flash of a hit, and how much of it is left as it fades away (1 is all of it). */

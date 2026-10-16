@@ -53,6 +53,8 @@ export class FogLayer {
   private to = { field: new Uint8Array(0), mask: new Uint8Array(0) }
   private shapeKey = ''
   private height = 0
+  private reach = 0
+  private builtRevision = -1
 
   constructor() {
     const noise = noiseTexture()
@@ -97,8 +99,11 @@ export class FogLayer {
     this.blend.value = Math.min(1, this.blend.value + dt / FADE_SECONDS)
   }
 
-  /** The fog over the unexplored cells the explored floor opens onto, in layers from the floor up to `height`; the same explored area keeps the fog as it is. */
-  build(scene: Scene, height: number, reach: number) {
+  /** The fog over the unexplored cells the explored floor opens onto, in layers from the floor up to `height`; the same explored area keeps the fog as it is. `revision` counts the changes of the level's cells. */
+  build(scene: Scene, revision: number, height: number, reach: number) {
+    if (revision === this.builtRevision && height === this.height && reach === this.reach) return
+    this.builtRevision = revision
+    this.reach = reach
     const explored = [...scene.cells.values()].filter((c) => c.visibility !== 'unseen')
     const shapeKey = `${reach}|${explored.map((c) => `${c.x},${c.y}${c.occluder ? '#' : ''}`).join(' ')}`
     if (shapeKey === this.shapeKey && height === this.height) return
@@ -138,7 +143,13 @@ export class FogLayer {
     this.origin.value.set(x0, y0)
     this.size.value.set(w, h)
     for (const [node, data] of [[this.fieldFrom, this.from.field], [this.fieldTo, this.to.field], [this.maskFrom, this.from.mask], [this.maskTo, this.to.mask]] as const) {
-      node.value.dispose()
+      const map = node.value
+      if (map instanceof THREE.DataTexture && map.image.width === w && map.image.height === h) {
+        map.image.data = data
+        map.needsUpdate = true
+        continue
+      }
+      map.dispose()
       node.value = cellTexture(data, w, h)
     }
     const positions: number[] = []

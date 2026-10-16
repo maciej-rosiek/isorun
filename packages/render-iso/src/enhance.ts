@@ -292,25 +292,19 @@ export interface DrawnSlot extends PageSlot {
  * A page of tiles upscaled four times (three for ScaleFX), filled one tile at a
  * time as tiles are first drawn, in rows from the top: the colour, and a normal
  * map beside it. Only the tiles in use are upscaled, so a page stays within
- * every GPU's texture size, however big the atlases the tiles come from.
+ * every GPU's texture size, however big the atlases the tiles come from. The
+ * page itself lives on the GPU alone (materials.ts `AtlasMaterials`): each tile
+ * is handed over to be copied there.
  */
 export class EnhancedPage {
-  readonly colour: HTMLCanvasElement
-  readonly normal: HTMLCanvasElement
-  private readonly colourCtx: CanvasRenderingContext2D
-  private readonly normalCtx: CanvasRenderingContext2D
+  /** The page's size in texels, as upscaled. */
+  readonly size: number
   private readonly scale: number
   private row = { x: 0, y: 0, height: 0 }
 
   constructor(private readonly paint: PaintSettings) {
     this.scale = upscaleFactor(paint.upscale)
-    this.colour = document.createElement('canvas')
-    this.normal = document.createElement('canvas')
-    for (const c of [this.colour, this.normal]) c.width = c.height = PAGE_TEXELS * this.scale
-    this.colourCtx = context(this.colour)
-    this.normalCtx = context(this.normal)
-    this.normalCtx.fillStyle = 'rgb(128,128,255)'
-    this.normalCtx.fillRect(0, 0, this.normal.width, this.normal.height)
+    this.size = PAGE_TEXELS * this.scale
   }
 
   /** Upscale the tile from its atlas onto the page; null when the page has no room left for it. */
@@ -326,10 +320,7 @@ export class EnhancedPage {
     if (this.paint.lift !== 1) lift(colour, this.paint.lift)
     if (this.paint.radius > 0) kuwahara(colour, w, h, Math.round(this.paint.radius))
     if (this.paint.levels > 1) posterize(colour, Math.round(this.paint.levels))
-    const drawn = { ...slot, x: slot.sx * this.scale, y: slot.sy * this.scale, colour: new ImageData(colour, w, h), normal: new ImageData(normalMap(colour, w, h), w, h) }
-    this.colourCtx.putImageData(drawn.colour, drawn.x, drawn.y)
-    this.normalCtx.putImageData(drawn.normal, drawn.x, drawn.y)
-    return drawn
+    return { ...slot, x: slot.sx * this.scale, y: slot.sy * this.scale, colour: new ImageData(colour, w, h), normal: new ImageData(normalMap(colour, w, h), w, h) }
   }
 
   private allocate(w: number, h: number): PageSlot | null {
@@ -347,8 +338,3 @@ function hasTransparency(pixels: Uint8ClampedArray) {
   return false
 }
 
-function context(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
-  const ctx = canvas.getContext('2d', { willReadFrequently: true })
-  if (!ctx) throw new Error('no 2D canvas context')
-  return ctx
-}

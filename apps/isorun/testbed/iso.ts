@@ -3,6 +3,7 @@ import { IsoAssets, IsoCamera, IsoRender3d, TURN_DEGREES, actorId, stickToDir, t
 import { parseDes, vaultScene } from '@isorun/vault'
 import { loadRoomTiles } from '../src/room/tiles'
 import des from './iso.des?raw'
+import stressDes from './stress.des?raw'
 import { lightsPanel } from '../src/lights-panel'
 import { cameraPanel, storedAngles } from './camera-panel'
 import { qualityPanel, storedQuality } from './quality-panel'
@@ -33,7 +34,8 @@ const log = element('log', HTMLDivElement)
 const padInfo = element('pad', HTMLDivElement)
 
 const [tiles, assets] = await Promise.all([loadRoomTiles('/iso'), IsoAssets.load('/iso/models')])
-const scene = vaultScene(parseDes(des), tiles)
+const levels: Record<string, string> = { stress: stressDes }
+const scene = vaultScene(parseDes(levels[new URLSearchParams(location.search).get('level') ?? ''] ?? des), tiles)
 const openDoor = [...scene.cells.values()].find((c) => c.feature?.type === 'door' && c.feature.state === 'open')
 const hitPoints = new Map<number, number>()
 const fogOfWar = new URLSearchParams(location.search).get('fog') !== 'off'
