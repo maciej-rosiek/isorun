@@ -35,6 +35,7 @@ export class TorchDust {
 
   /** Put the motes in the air before these torches, over the open cell each hangs over; a torch that is null is not lit. */
   update(torches: readonly ({ position: THREE.Vector3; cell: { x: number; y: number } } | null)[]) {
+    this.mesh.visible = dustStrength.value > 0
     const lit = torches.flatMap((t) => (t ? [new THREE.Vector3(t.cell.x + 0.5, t.position.y, t.cell.y + 0.5).lerp(t.position, 1 - OUT_FROM_WALL)] : []))
     const key = lit.map((p) => `${p.x.toFixed(2)},${p.y.toFixed(2)},${p.z.toFixed(2)}`).join(';')
     if (key === this.key) return

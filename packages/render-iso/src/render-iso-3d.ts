@@ -17,7 +17,7 @@ import { LavaLayer } from './lava.js'
 import { AtlasMaterials, capTexture } from './materials.js'
 import { AIM_COLOURS, DEFAULT_VIEW, SIDES, TORCH_HEIGHT, groundBasis, cutAwayCells, cutAwayFocus, cutAwayKey, groundPoint, hasTorch, isPointable, isShown, planScene, wallHeightAt, tileFrame, type AimIntent, type GroundLayer, type IsoAim, type IsoRoute, type IsoView, type Sprite, type SpriteLayer, type Vec2, type WallBlock } from './plan.js'
 import { TileFeatures, isTileFeature } from './tile-features.js'
-import { ACTOR_SHADOW_LAYER, ClayMaterial, MemoryMask, SHADOW_LAYER, applyShading, castShadow, remembered } from './shading.js'
+import { ACTOR_SHADOW_LAYER, ClayMaterial, MemoryMask, SHADOW_LAYER, applyShading, castShadow, glowShown, remembered } from './shading.js'
 import { ATLAS_INSET, QuadBatch, SPRITE_LEAN, type Point3 } from './quads.js'
 
 interface ChunkPart {
@@ -377,7 +377,7 @@ export class IsoRender3d implements MapRenderer {
     this.world.updateMatrixWorld()
     const origin = new THREE.Vector3(0, 0, 0).project(this.camera)
     const pixels = this.pixelRatio()
-    this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing ?? false))
+    this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing === true && glowShown()))
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
   }
 

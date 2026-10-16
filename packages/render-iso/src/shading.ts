@@ -50,25 +50,59 @@ const sparkleStrength = uniform(0)
 /** How much dust shows in the torches' light (`dust.ts`). */
 export const dustStrength = uniform(0)
 
-/** How many steps the parallax takes into each tile (a quality setting): 16 is fine, 8 is coarse, 0 leaves the tiles flat. */
-export function setDepthSteps(steps: number) {
-  depthSteps.value = Math.max(0, Math.round(steps))
+export const SURFACE_DETAILS = ['off', 'low', 'medium', 'high'] as const
+/** How much of the surface work is drawn (a graphics setting apart from the look): `off` is the look before it. */
+export type SurfaceDetail = (typeof SURFACE_DETAILS)[number]
+
+/** What each level of surface detail draws: the parallax's steps, and which effects of the look are on. */
+const DETAIL: Record<SurfaceDetail, { depthSteps: number; gloss: boolean; rim: boolean; cavity: boolean; variation: boolean; wetness: boolean; glow: boolean; sparkle: boolean; dust: boolean; statuses: boolean; liquids: boolean }> = {
+  off: { depthSteps: 0, gloss: false, rim: false, cavity: false, variation: false, wetness: false, glow: false, sparkle: false, dust: false, statuses: false, liquids: false },
+  low: { depthSteps: 0, gloss: false, rim: true, cavity: true, variation: true, wetness: false, glow: false, sparkle: false, dust: false, statuses: true, liquids: false },
+  medium: { depthSteps: 8, gloss: true, rim: true, cavity: true, variation: true, wetness: true, glow: true, sparkle: false, dust: false, statuses: true, liquids: false },
+  high: { depthSteps: 16, gloss: true, rim: true, cavity: true, variation: true, wetness: true, glow: true, sparkle: true, dust: true, statuses: true, liquids: true },
+}
+
+let detail: SurfaceDetail = 'high'
+let shading: ShadingSettings | null = null
+/** 1 where the liquids have depth (the ground under water, ripples, starwater's layers, the lava's crust), 0 for flat liquids. */
+export const liquidDepth = uniform(1)
+
+/** Draw this much of the surface work; the look's strengths stay as they are, so a level back on brings them back. */
+export function applySurfaceDetail(level: SurfaceDetail) {
+  detail = level
+  refreshShading()
+}
+
+/** Whether glowing tiles give light that the screen blooms, at this surface detail. */
+export function glowShown(): boolean {
+  return DETAIL[detail].glow && (shading?.glow ?? 0) > 0
 }
 
 export function applyShading(settings: ShadingSettings) {
-  wrap.value = settings.wrap
-  bands.value = settings.bands
-  relief.value = settings.relief
-  depth.value = settings.depth
-  spriteLight.value = settings.sprites
-  glossStrength.value = settings.gloss
-  rimStrength.value = settings.rim
-  cavityStrength.value = settings.cavity
-  variationStrength.value = settings.variation
-  wetStrength.value = settings.wetness
-  glowStrength.value = settings.glow
-  sparkleStrength.value = settings.sparkle
-  dustStrength.value = settings.dust
+  shading = settings
+  refreshShading()
+}
+
+function refreshShading() {
+  const on = DETAIL[detail]
+  liquidDepth.value = on.liquids ? 1 : 0
+  depthSteps.value = on.depthSteps
+  if (!shading) return
+  const gate = (shown: boolean, value: number) => (shown ? value : 0)
+  wrap.value = shading.wrap
+  bands.value = shading.bands
+  relief.value = shading.relief
+  depth.value = shading.depth
+  spriteLight.value = shading.sprites
+  glossStrength.value = gate(on.gloss, shading.gloss)
+  rimStrength.value = gate(on.rim, shading.rim)
+  cavityStrength.value = gate(on.cavity, shading.cavity)
+  variationStrength.value = gate(on.variation, shading.variation)
+  wetStrength.value = gate(on.wetness, shading.wetness)
+  glowStrength.value = gate(on.glow, shading.glow)
+  sparkleStrength.value = gate(on.sparkle, shading.sparkle)
+  dustStrength.value = gate(on.dust, shading.dust)
+  statusesShown = on.statuses
 }
 
 type DirectLight = THREE.LightingModelDirectInput & {
@@ -187,10 +221,10 @@ function underWater(at: THREE.Node<'vec2'>, submerged: THREE.Node<'float'>) {
   const rect = attribute<'vec4'>(UV_RECT, 'vec4')
   const size = rect.zw.sub(rect.xy)
   const view = tangentSpaceView()
-  const sink = view.xy.div(view.z.max(0.25)).mul(submerged).mul(SUNKEN.depth).negate()
+  const sink = view.xy.div(view.z.max(0.25)).mul(submerged).mul(liquidDepth).mul(SUNKEN.depth).negate()
   const wave = vec2(mx_noise_float(vec3(positionWorld.xz.mul(SUNKEN.rippleScale), time.mul(SUNKEN.rippleSpeed))), mx_noise_float(vec3(positionWorld.xz.mul(SUNKEN.rippleScale).add(17), time.mul(SUNKEN.rippleSpeed))))
-  const shifted = at.sub(rect.xy).div(size).add(sink).add(wave.mul(SUNKEN.ripple).mul(submerged))
-  return select(submerged.greaterThan(0.001), rect.xy.add(shifted.fract().mul(size)), at)
+  const shifted = at.sub(rect.xy).div(size).add(sink).add(wave.mul(SUNKEN.ripple).mul(submerged).mul(liquidDepth))
+  return select(submerged.mul(liquidDepth).greaterThan(0.001), rect.xy.add(shifted.fract().mul(size)), at)
 }
 
 /** The colour of the map scaled by the sprite light, darker on a remembered cell. */
@@ -410,12 +444,13 @@ const lookOf = (object: THREE.Object3D | null | undefined) => (object ? actorLoo
 const actorTint = uniform(new THREE.Color(1, 1, 1)).onObjectUpdate(({ object }) => lookOf(object)?.tint ?? UNTINTED)
 const actorOpacity = uniform(1).onObjectUpdate(({ object }) => lookOf(object)?.opacity ?? 1)
 const actorMotion = uniform(new THREE.Vector2(0, 0)).onObjectUpdate(({ object }, self) => self.value.set(lookOf(object)?.motion ?? 0, lookOf(object)?.phase ?? 0))
+let statusesShown = true
 const actorHarm = uniform(new THREE.Vector4()).onObjectUpdate(({ object }, self) => {
-  const e = lookOf(object)?.effects
+  const e = statusesShown ? lookOf(object)?.effects : undefined
   return e ? self.value.set(e.petrified, e.burning, e.poisoned, e.corroded) : NOTHING
 })
 const actorAura = uniform(new THREE.Vector4()).onObjectUpdate(({ object }, self) => {
-  const e = lookOf(object)?.effects
+  const e = statusesShown ? lookOf(object)?.effects : undefined
   return e ? self.value.set(e.berserk, e.glowing, e.summoned, e.wet) : NOTHING
 })
 
@@ -427,7 +462,7 @@ export function setActorLook(mesh: THREE.Object3D, look: ActorLook) {
 const HOVER = { lift: 0.05, bob: 0.04, speed: 2.2 }
 const FLICKER = { amount: 0.035, speed: 11 }
 /** Flames: their noise's size and speed up, how high on the sprite they reach, their colour and their light. */
-const FLAME = { scale: vec2(5, 3), rise: 1.6, reach: 0.35, colour: vec3(1, 0.42, 0.08), strength: 1.6 }
+const FLAME = { scale: vec2(7, 4), rise: 1.6, reach: 0.5, colour: vec3(1, 0.42, 0.08), strength: 0.9 }
 const STONE = vec3(0.62, 0.6, 0.57)
 const POISON = vec3(0.55, 1.15, 0.45)
 const RUST = vec3(0.55, 0.5, 0.3)
@@ -478,7 +513,7 @@ export function actorMaterial(sprite: ClayMaterial, maps: PageMaps): ClayMateria
   material.colorNode = vec4(tinted.mul(spriteLight).mul(actorTint), colour.a)
   setGloss(material, mix(max(surface.r, soaked.mul(WET_GLOSS)), float(0), petrified))
   const flameNoise = mx_noise_float(vec3(texel.div(32).mul(FLAME.scale).sub(vec2(0, time.mul(FLAME.rise))), phase)).mul(0.5).add(0.5)
-  const flames = smoothstep(0.5, 0.75, flameNoise.add(0.25).sub(positionLocal.y.mul(FLAME.reach)))
+  const flames = smoothstep(0.6, 0.8, flameNoise.add(0.25).sub(positionLocal.y.mul(FLAME.reach)))
   const edge = float(1).sub(normalView.dot(positionViewDirection).clamp()).pow(2)
   const grain = interleavedGradientNoise(screenCoordinate.xy)
   const embers = smoothstep(actorOpacity.sub(DISSOLVE_EDGE), actorOpacity, grain).mul(actorOpacity.lessThan(1).select(float(1), float(0)))

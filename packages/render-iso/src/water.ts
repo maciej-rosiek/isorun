@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu'
 import { attribute, cameraViewMatrix, float, mix, positionWorld, step, texture, time, uniform, vec2, vec3, vec4 } from 'three/tsl'
 import { getCell, type LiquidKind, type Scene } from '@isorun/scene'
 import { blur, chamfer, noiseTexture } from './fog.js'
-import type { MemoryMask } from './shading.js'
+import { liquidDepth, type MemoryMask } from './shading.js'
 
 export interface WaterSettings {
   enabled: boolean
@@ -151,13 +151,13 @@ export class LiquidGrid {
 
 /**
  * The view-space normal of a liquid whose surface height at a place on the ground is `height`: tilted by its slope,
- * from the height a little across and a little down.
+ * from the height a little across and a little down; flat where the liquids have no depth (`liquidDepth`).
  */
 export function liquidNormal(height: (place: THREE.Node<'vec2'>) => THREE.Node<'float'>, place: THREE.Node<'vec2'>, tilt: number) {
   const here = height(place)
   const across = height(place.add(vec2(RIPPLE_STEP, 0))).sub(here)
   const down = height(place.add(vec2(0, RIPPLE_STEP))).sub(here)
-  const world = vec3(across.mul(-tilt / RIPPLE_STEP), 1, down.mul(-tilt / RIPPLE_STEP)).normalize()
+  const world = vec3(across.mul(liquidDepth).mul(-tilt / RIPPLE_STEP), 1, down.mul(liquidDepth).mul(-tilt / RIPPLE_STEP)).normalize()
   return cameraViewMatrix.mul(vec4(world, 0)).xyz.normalize()
 }
 
@@ -201,7 +201,7 @@ export class WaterLayer {
     material.colorNode = mix(mix(this.shallow, this.deep, depth).mul(swell), this.light, glow).mul(shade)
     const ripples = (p: THREE.Node<'vec2'>) => texture(noise, p.mul(RIPPLE_SCALE).add(vec2(clock.mul(0.5), clock.mul(-0.4)))).r.add(texture(noise, p.mul(RIPPLE_SCALE * 2.3).add(vec2(clock.mul(-0.6), clock.mul(0.7)))).r.mul(0.5))
     material.normalNode = liquidNormal(ripples, place, RIPPLE_TILT)
-    material.specularNode = vec3(this.gloss).mul(live)
+    material.specularNode = vec3(this.gloss).mul(live).mul(liquidDepth)
     material.shininessNode = float(LIQUID_SHININESS)
     material.opacityNode = shape.mul(mix(SHALLOW_OPACITY, DEEP_OPACITY, depth).mul(this.opacity).min(1)).max(glow.mul(shape))
     this.mesh = new THREE.Mesh(this.grid.geometry, material)

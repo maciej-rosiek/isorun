@@ -4,7 +4,7 @@ import type { Scene } from '@isorun/scene'
 import { noiseTexture } from './fog.js'
 import { emissionOutput } from './post.js'
 import { LiquidGrid, liquidSight } from './water.js'
-import type { MemoryMask } from './shading.js'
+import { liquidDepth, type MemoryMask } from './shading.js'
 
 const DEEP = vec3(0.012, 0.016, 0.05)
 const NEBULA = vec3(0.065, 0.026, 0.125)
@@ -41,7 +41,7 @@ export class StarwaterLayer {
     const edge = water.add(at(EDGE_SCALE, 0.3, -0.2).sub(0.5).mul(EDGE_WOBBLE))
     const shape = edge.smoothstep(0.47, 0.53)
     const view = cameraWorldMatrix.mul(vec4(0, 0, -1, 0)).xyz
-    const below = (depth: number) => place.add(view.xz.div(view.y.negate().max(0.2)).mul(depth))
+    const below = (depth: number) => place.add(view.xz.div(view.y.negate().max(0.2)).mul(liquidDepth).mul(depth))
     const sky = mix(DEEP, NEBULA, texture(noise, below(NEBULA_DEPTH).mul(NEBULA_SCALE).add(vec2(clock, clock.mul(-0.6)))).r.smoothstep(0.4, 0.75))
     const twinkle = at(TWINKLE_SCALE, 9, 6).smoothstep(0.3, 0.75)
     let stars: THREE.Node<'float'> = float(0)

@@ -4,7 +4,7 @@ import type { Scene } from '@isorun/scene'
 import { noiseTexture } from './fog.js'
 import { emissionOutput } from './post.js'
 import { LiquidGrid, liquidNormal, liquidSight } from './water.js'
-import type { MemoryMask } from './shading.js'
+import { liquidDepth, type MemoryMask } from './shading.js'
 
 export interface LavaSettings {
   enabled: boolean
@@ -57,7 +57,7 @@ export class LavaLayer {
     const crack = (value: THREE.Node<'float'>, width: number) => value.sub(0.5).abs().smoothstep(width, 0)
     const cracksAt = (at: THREE.Node<'vec2'>) => crack(flow(PLATE_SCALE, 1, 0.4, at), CRACK_WIDTH).max(crack(flow(FINE_SCALE, -0.6, 0.8, at), FINE_CRACK_WIDTH).mul(0.45))
     const view = cameraWorldMatrix.mul(vec4(0, 0, -1, 0)).xyz
-    const deep = place.add(view.xz.div(view.y.negate().max(0.2)).mul(MOLTEN_DEPTH))
+    const deep = place.add(view.xz.div(view.y.negate().max(0.2)).mul(liquidDepth).mul(MOLTEN_DEPTH))
     const pulse = flow(PULSE_SCALE, 0.3, 0.2).mul(0.6).add(0.7)
     const cooling = edge.smoothstep(0.5, 0.8)
     const heatOf = (cracks: THREE.Node<'float'>) => cracks.mul(pulse).add(depth.mul(0.12)).mul(cooling.mul(0.8).add(0.2)).clamp(0, 1)

@@ -95,7 +95,7 @@ snapshot commit, without the history.
   label and shows crawl's statuses (`Billboard.effects` from the status icons: petrified, burning,
   poisoned, corroded, berserk, glowing, summoned, wet; each monster of the test bed has one, `STATUSES` in
   `testbed/iso.ts`), and its death dissolves with a glowing edge. The Surfaces section of the lights menu
-  has their strengths; `setDepthSteps` sets the parallax steps (a quality setting).
+  has their strengths; the surface detail sets the parallax steps.
   The liquids have depth: the ground under water and murky water is seen lower by the water's depth
   and bent by ripples (the wetness map's green, `underWater`); the liquids' surfaces have ripple
   normals and highlights (`liquidNormal`, a gloss per palette); starwater's stars lie in three
@@ -108,6 +108,10 @@ snapshot commit, without the history.
   bloom, the monster statuses), High (all: parallax at 16 steps, sparkle, torch dust, liquid depth and
   ripples). The statuses stay on above Off, as they tell the game. Off by default on a phone (the test of
   the phone layout) with Medium the highest there; Medium by default elsewhere. Custom looks keep tuning.
+  The renderer side is done: `applySurfaceDetail(level)` (`shading.ts`, `SURFACE_DETAILS`) gates the
+  look's strengths, the parallax steps, the statuses and the liquids' depth (`liquidDepth`), the dust
+  hides at 0, and the glow's bloom follows `glowShown()`; a change of level builds no shader. The
+  menu row and its defaults are left.
   The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
   the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
   in `lights.ts` are variations of `DIORAMA`.
