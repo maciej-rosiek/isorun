@@ -3,7 +3,7 @@ import { extname, join, normalize, sep } from 'node:path'
 import { GAMEDATA_PROXY_PREFIX, MORGUE_PROXY_PREFIX, serveGamedata, serveMorgue } from '../../apps/isorun/gamedata-proxy'
 import { VISIT_PATH } from '../../apps/isorun/src/visit-beacon'
 
-export const ORIGIN = 'https://isorun.app'
+export const ORIGIN = 'https://isorun.localhost'
 
 export interface GameFiles {
   web: string

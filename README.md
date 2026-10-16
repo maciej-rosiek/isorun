@@ -14,6 +14,11 @@ in the browser, on your own WebTiles account (or offline, with no server).
 
 Isorun is a fork of [Orbrun](https://github.com/Caeous/orbrun) by Caeous.
 
+**Play it in the browser: <https://isorun.maciej-rosiek.workers.dev>.** No
+install, and no Isorun account: log in with your WebTiles account, register
+one, or watch without one. What the hosted app counts is in
+[ABOUT.md](ABOUT.md#security-and-privacy).
+
 ## Run it
 
 ```sh

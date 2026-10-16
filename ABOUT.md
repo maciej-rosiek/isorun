@@ -61,6 +61,14 @@ version. Isorun never caches or overrides them.
 The hosted app relays the tile data your browser needs from the server you
 picked. Your game traffic never passes through it.
 
+The hosted app counts visits, so its developer knows if anyone plays. Each
+page load gets a random number, which is forgotten when you close or reload
+the tab. While the tab is in view, the page sends that number every 30
+seconds, with whether you play or watch a game and on which server. The site
+keeps this with your country and the times, for a year. It keeps no IP
+address, no account name and no cookie, and nothing goes to anyone else. The
+desktop app sends no counts at all.
+
 ## Support the people who run it
 
 Isorun is only a client. The game is DCSS, made by a team of volunteers, and
@@ -87,6 +95,6 @@ developers and contributors. Its tiles, which Isorun draws, are the work of
 the DCSS tile artists, released under CC0. The wall torch is from KayKit
 Dungeon Remastered by Kay Lousberg (CC0).
 
-Most of the code was written with Claude Code. The source is licensed under
+Most of the code was written with Claude Code. [The source](https://github.com/maciej-rosiek/isorun) is licensed under
 [AGPL-3.0-or-later](LICENSE), and [ATTRIBUTION.md](ATTRIBUTION.md) explains
 how it relates to Orbrun and DCSS.

@@ -4,7 +4,7 @@ import { VISIT_PATH } from '../src/visit-beacon'
 export { VisitLog } from './visit-log'
 
 /**
- * isorun.app: the static build, plus the gamedata proxy the browser cannot do
+ * isorun.maciej-rosiek.workers.dev: the static build, plus the gamedata proxy the browser cannot do
  * without and the morgue proxy the exit screen reads through (see
  * ../gamedata-proxy.ts for why and for the routes), and the offline engine's
  * files, handed to the isorun-engine Worker as they are.

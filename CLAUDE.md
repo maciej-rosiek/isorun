@@ -131,7 +131,7 @@ snapshot commit, without the history.
   shadow-casting light takes one.
 - The desktop app (`desktop/`, not an npm workspace, so `npm install` there; README there):
   Electron, for a Steam Deck or a ROG Ally. `src/main.ts` takes every https request and answers the
-  ones to `https://isorun.app` from `src/serve.ts` (the built app, `engine/dist` at `/engine/`, the
+  ones to `https://isorun.localhost` from `src/serve.ts` (the built app, `engine/dist` at `/engine/`, the
   gamedata and morgue proxies), so the page has a real https origin: Cache Storage and the service
   worker work as on the web. It loads `/?fullscreen`, so the Quit row shows. `npm run package`
   (`package.mjs`, electron-builder) builds the app with offline on and writes a Linux AppImage, a Linux tar.gz and a

@@ -4,7 +4,7 @@ Isorun as a desktop app: the game and the offline engine in an Electron window. 
 Steam Deck, a ROG Ally or any PC, and it plays offline games with no network.
 
 The app serves the built game (`apps/isorun/dist`) and the engine (`engine/dist`) from its own
-files at `https://isorun.app/`, together with the gamedata and morgue proxies (`src/serve.ts`).
+files at `https://isorun.localhost/`, together with the gamedata and morgue proxies (`src/serve.ts`).
 Requests to other hosts go to the network as usual. Server games still need the network.
 
 Each [release](https://github.com/maciej-rosiek/isorun/releases) has three packages:
