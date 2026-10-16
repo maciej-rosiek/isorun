@@ -134,6 +134,12 @@ export class IsoRender3d implements MapRenderer {
   private readonly staleShadows = new Set(this.torchLights)
   /** The torch each torch light hangs at, null while it has none. */
   private readonly litTorches: (Torch | null)[] = this.torchLights.map(() => null)
+  /**
+   * Torch lights whose shadow map was never drawn. They are all drawn in one frame, torch or not: three makes the
+   * map's depth texture again when it is first drawn, and a material bound to the old one in a frame between fails
+   * every submit after it, so nothing is drawn at all.
+   */
+  private readonly undrawnShadows = new Set(this.torchLights)
   /** The sun's shadow map no longer shows what is under it; it is drawn again on the next frame. */
   private sunStale = true
   private readonly sun = new THREE.DirectionalLight()
@@ -466,6 +472,7 @@ export class IsoRender3d implements MapRenderer {
       light.castShadow = i < this.quality.torchShadows
       light.shadow.camera.layers.set(SHADOW_LAYER)
       if (this.quality.actorTorchShadows) light.shadow.camera.layers.enable(ACTOR_SHADOW_LAYER)
+      if (light.castShadow) this.undrawnShadows.add(light)
     })
     this.markShadowsStale()
     if (this.renderer) this.renderer.shadowMap.enabled = this.quality.shadows
@@ -572,6 +579,8 @@ export class IsoRender3d implements MapRenderer {
       light.intensity = fade(torch) * this.lights.torch.intensity * (0.85 + 0.1 * Math.sin(now * 13 + torch.phase) + 0.05 * Math.sin(now * 29 + torch.phase * 2))
       if (i === due?.i && this.staleShadows.delete(light)) light.shadow.needsUpdate = true
     })
+    for (const light of this.undrawnShadows) if (light.castShadow) light.shadow.needsUpdate = true
+    this.undrawnShadows.clear()
   }
 
   private placeAim(scene: Scene) {
