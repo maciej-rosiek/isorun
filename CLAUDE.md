@@ -217,6 +217,20 @@ snapshot commit, without the history.
   colour and shades after) and took 21 taps a pass where 9 do (`BLUR_STEP`). Other sessions share
   this machine: check `/proc/loadavg` before a run, and check that the dev server serves the
   edited file (`curl` the module), as its watcher can miss edits.
+  Three frees a mesh's render objects (bindings, uniform buffers) only when its material is
+  disposed, not when the mesh leaves the scene or its geometry is disposed: a mesh made and dropped
+  again and again with a shared material goes through `MeshPool` (`mesh-pool.ts`), or the heap and
+  the garbage collections grow (found with a heap snapshot: thousands of `Mesh` and `RenderObject`).
+  A material that changes a property in its cache key (`transparent`, a define) builds a new shader:
+  per-object looks go through `onObjectUpdate` uniforms (`setActorLook`). Nothing the level's geometry
+  is built from may change every frame: a key that held the camera's exact yaw rebuilt every chunk in
+  every frame of a turn. In sight or remembered is the `MemoryMask` texture, not the geometry. New
+  tiles are enhanced on workers (`tile-enhancer.ts`). The minimap is drawn after the frame
+  (`afterFrame`). With Resolution on Auto, `DynamicResolution` lowers the pixel ratio (to 70%) while
+  frames come late. GPU time per pass: time every render pass with timestamp queries from an init
+  script (wrap `GPUCommandEncoder.beginRenderPass` to add `timestampWrites`, resolve after
+  `GPUQueue.submit`, `--enable-webgpu-developer-features`); the test bed's `?level=stress` level
+  fills the screen. 4x MSAA on the scene pass cost a third of the GPU time; it is on High only.
   To count the objects three.js updates each frame, expose the `THREE.Scene` on `globalThis` for
   one run and walk it with `page.evaluate`.
   To check a walk, log the player's `Actor.moveTo` and each hop's start, length and lateness with
