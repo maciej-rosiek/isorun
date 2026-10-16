@@ -1,0 +1,32 @@
+Waits a delay (travel and explore steps, animations) by suspending the engine
+instead of blocking it, so the worker takes the messages sent meanwhile: a key
+sent during an explore stops it at the next step, not after the walk.
+
+Modified for the WebAssembly build of the webtiles binary (engine/README.md).
+GPLv2+, as the file it patches.
+
+--- a/crawl-ref/source/libunix.cc
++++ b/crawl-ref/source/libunix.cc
+@@ -42,6 +42,10 @@
+ #include "view.h"
+ #include "ui.h"
+ 
++#ifdef __EMSCRIPTEN__
++extern "C" void wasm_bridge_sleep(int ms);
++#endif
++
+ static struct termios def_term;
+ static struct termios game_term;
+ 
+@@ -1846,7 +1850,11 @@ void delay(unsigned int time)
+ 
+     refresh();
+     if (time)
++#ifdef __EMSCRIPTEN__
++        wasm_bridge_sleep(time);
++#else
+         usleep(time * 1000);
++#endif
+ }
+ 
+ static bool _headless_kbhit()

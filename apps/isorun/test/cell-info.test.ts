@@ -37,4 +37,16 @@ describe('the details of a cell', () => {
     // then
     expect(details).toEqual([{ text: 'Club and more items' }])
   })
+
+  it('says nothing about a wall', () => {
+    // given
+    const scene = emptyScene()
+    scene.cells.set(cellKey(3, 4), { ...floor(3, 4), kind: 'wall', occluder: true, wallTile: 2, label: 'brick dark 1' })
+
+    // when
+    const details = cellDetails(scene, 3, 4)
+
+    // then
+    expect(details).toEqual([])
+  })
 })

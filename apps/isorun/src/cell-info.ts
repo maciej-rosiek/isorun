@@ -19,7 +19,7 @@ const WOUNDS: Partial<Record<WoundLevel, string>> = {
  * What a cell holds, in words, for the card about the cell the pointer or the
  * aim is on: a monster in sight with its threat, wounds and attitude, the
  * items that lie there (the top one of a pile, as the server names no more)
- * and the terrain (plain floor says nothing). Nothing for a cell never seen.
+ * and the terrain (plain floor and walls say nothing). Nothing for a cell never seen.
  */
 export function cellDetails(scene: Scene, x: number, y: number): CellDetail[] {
   const cell = getCell(scene, x, y)
@@ -37,7 +37,7 @@ export function cellDetails(scene: Scene, x: number, y: number): CellDetail[] {
   }
   const items = here.filter((b) => b.kind === 'item' && b.name && !b.scenery)
   if (items.length) details.push({ text: capitalise(items.map((b) => b.name).join(', ')) + (items.some(hasItemsUnder) ? ' and more items' : '') })
-  if (cell.label && cell.label !== 'floor') details.push({ text: capitalise(cell.label) + (cell.visibility === 'remembered' ? ' (remembered)' : ''), tone: 'note' })
+  if (cell.label && cell.label !== 'floor' && cell.kind !== 'wall') details.push({ text: capitalise(cell.label) + (cell.visibility === 'remembered' ? ' (remembered)' : ''), tone: 'note' })
   return details
 }
 

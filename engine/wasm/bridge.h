@@ -54,6 +54,10 @@ EM_ASYNC_JS(void, wasm_bridge_await_message, (), {
     await new Promise(function(resolve) { b['wake'] = resolve; });
 });
 
+EM_ASYNC_JS(void, wasm_bridge_sleep, (int ms), {
+    await new Promise(function(resolve) { setTimeout(resolve, ms); });
+});
+
 // Flushes the IDBFS save dir (wasm/pre.js) to IndexedDB and suspends until it
 // lands. The mount is not autoPersist (wasm/pre.js): the engine calls this at
 // consistency points only -- package::commit() and end() -- so a tab death
