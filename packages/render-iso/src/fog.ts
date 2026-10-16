@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu'
-import { attribute, mix, positionWorld, texture, time, uniform, vec2 } from 'three/tsl'
+import { float, instanceIndex, mix, positionLocal, positionWorld, texture, time, uniform, vec2, vec3 } from 'three/tsl'
 import type { Scene, SceneCell } from '@isorun/scene'
 
 export interface FogSettings {
@@ -42,6 +42,8 @@ export class FogLayer {
   private readonly eye = uniform(new THREE.Vector3())
   private readonly perspective = uniform(0)
   private readonly blend = uniform(1)
+  /** Cells from the floor to the top layer. */
+  private readonly layerHeight = uniform(0)
   private readonly origin = uniform(new THREE.Vector2())
   private readonly size = uniform(new THREE.Vector2(1, 1))
   private readonly fieldFrom = texture(cellTexture(new Uint8Array(1), 1, 1))
@@ -58,7 +60,7 @@ export class FogLayer {
 
   constructor() {
     const noise = noiseTexture()
-    const layer = attribute<'float'>('layer', 'float')
+    const layer = float(instanceIndex).div(LAYERS - 1)
     const place = positionWorld.xz.add(layer.mul(3.7))
     const slow = texture(noise, place.mul(NOISE_SCALE).add(vec2(time.mul(DRIFT), time.mul(DRIFT * 0.6)))).r
     const fast = texture(noise, place.mul(NOISE_SCALE * 2.3).sub(vec2(time.mul(DRIFT * 1.7), time.mul(DRIFT * 0.4)))).r
@@ -72,9 +74,10 @@ export class FogLayer {
     const body = fog.add(puffs.sub(0.5).mul(EDGE_NOISE)).sub(layer.mul(DOME))
     const width = this.softness.mul(EDGE).add(0.02)
     const material = new THREE.MeshBasicNodeMaterial({ transparent: true, depthWrite: false, side: THREE.DoubleSide })
+    material.positionNode = positionLocal.add(vec3(0, layer.mul(this.layerHeight), 0))
     material.colorNode = this.colour
     material.opacityNode = body.smoothstep(width.negate().add(EDGE), width.add(EDGE)).mul(fog.smoothstep(0, 0.1)).mul(explored.oneMinus()).mul(this.density).mul(LAYER_OPACITY)
-    this.mesh = new THREE.Mesh(fogGeometry([], [], []), material)
+    this.mesh = new THREE.Mesh(fogGeometry(new Float32Array(0), new Uint32Array(0)), material)
     this.mesh.renderOrder = 5
     this.mesh.visible = false
   }
@@ -104,16 +107,29 @@ export class FogLayer {
     if (revision === this.builtRevision && height === this.height && reach === this.reach) return
     this.builtRevision = revision
     this.reach = reach
-    const explored = [...scene.cells.values()].filter((c) => c.visibility !== 'unseen')
-    const shapeKey = `${reach}|${explored.map((c) => `${c.x},${c.y}${c.occluder ? '#' : ''}`).join(' ')}`
+    const explored: SceneCell[] = []
+    let shape = reach
+    let left = Infinity
+    let top = Infinity
+    let right = -Infinity
+    let bottom = -Infinity
+    for (const c of scene.cells.values()) {
+      left = Math.min(left, c.x)
+      top = Math.min(top, c.y)
+      right = Math.max(right, c.x)
+      bottom = Math.max(bottom, c.y)
+      if (c.visibility === 'unseen') continue
+      explored.push(c)
+      shape = (Math.imul(shape, 31) + c.x * 1031 + c.y * 7 + (c.occluder ? 1 : 0)) | 0
+    }
+    const shapeKey = `${explored.length}|${shape}`
     if (shapeKey === this.shapeKey && height === this.height) return
-    const all = [...scene.cells.values()]
-    if (!all.length) return
+    if (!scene.cells.size) return
     const margin = Math.ceil(reach + 2 * SHAPE_BLUR) + 1
-    const x0 = Math.min(...all.map((c) => c.x)) - margin
-    const y0 = Math.min(...all.map((c) => c.y)) - margin
-    const w = Math.max(...all.map((c) => c.x)) + margin - x0 + 1
-    const h = Math.max(...all.map((c) => c.y)) + margin - y0 + 1
+    const x0 = left - margin
+    const y0 = top - margin
+    const w = right + margin - x0 + 1
+    const h = bottom + margin - y0 + 1
     const next = fogShape(explored, reach, x0, y0, w, h)
     if (shapeKey !== this.shapeKey) {
       const t = THREE.MathUtils.smoothstep(this.blend.value, 0, 1)
@@ -152,25 +168,33 @@ export class FogLayer {
       map.dispose()
       node.value = cellTexture(data, w, h)
     }
-    const positions: number[] = []
-    const layers: number[] = []
-    const indices: number[] = []
-    const foggy = (x: number, y: number) => x >= 0 && y >= 0 && x < w && y < h && (this.from.field[y * w + x] > 0 || this.to.field[y * w + x] > 0)
+    const foggy = new Uint8Array(w * h)
+    for (let i = 0; i < w * h; i++) foggy[i] = this.from.field[i] > 0 || this.to.field[i] > 0 ? 1 : 0
+    const covered: number[] = []
     for (let y = 0; y < h; y++)
       for (let x = 0; x < w; x++) {
-        if (![-1, 0, 1].some((dy) => [-1, 0, 1].some((dx) => foggy(x + dx, y + dy)))) continue
-        for (let i = 0; i < LAYERS; i++) {
-          const base = positions.length / 3
-          const layer = i / (LAYERS - 1)
-          for (const [cx, cy] of [[x, y], [x + 1, y], [x + 1, y + 1], [x, y + 1]]) {
-            positions.push(cx + x0, layer * height, cy + y0)
-            layers.push(layer)
+        let near = false
+        for (let dy = -1; dy <= 1 && !near; dy++)
+          for (let dx = -1; dx <= 1 && !near; dx++) {
+            const nx = x + dx
+            const ny = y + dy
+            near = nx >= 0 && ny >= 0 && nx < w && ny < h && foggy[ny * w + nx] === 1
           }
-          indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
-        }
+        if (near) covered.push(x, y)
       }
+    const cells = covered.length / 2
+    const positions = new Float32Array(cells * 12)
+    const indices = new Uint32Array(cells * 6)
+    for (let k = 0; k < cells; k++) {
+      const x = covered[k * 2] + x0
+      const z = covered[k * 2 + 1] + y0
+      positions.set([x, 0, z, x + 1, 0, z, x + 1, 0, z + 1, x, 0, z + 1], k * 12)
+      const base = k * 4
+      indices.set([base, base + 2, base + 1, base, base + 3, base + 2], k * 6)
+    }
+    this.layerHeight.value = height
     this.mesh.geometry.dispose()
-    this.mesh.geometry = fogGeometry(positions, layers, indices)
+    this.mesh.geometry = fogGeometry(positions, indices)
     this.mesh.visible = this.enabled && indices.length > 0
   }
 
@@ -295,10 +319,11 @@ export function noiseTexture(): THREE.DataTexture {
   return noise
 }
 
-function fogGeometry(positions: number[], layers: number[], indices: number[]) {
-  const geometry = new THREE.BufferGeometry()
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
-  geometry.setAttribute('layer', new THREE.Float32BufferAttribute(layers, 1))
-  geometry.setIndex(indices)
+/** One quad a cell on the floor, drawn once for each layer (the instances), raised in the shader. */
+function fogGeometry(positions: Float32Array, indices: Uint32Array) {
+  const geometry = new THREE.InstancedBufferGeometry()
+  geometry.instanceCount = LAYERS
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+  geometry.setIndex(new THREE.BufferAttribute(indices, 1))
   return geometry
 }

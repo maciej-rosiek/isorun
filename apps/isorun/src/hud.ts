@@ -316,6 +316,8 @@ export class Hud {
   }
   /** What the minimap was last drawn for; empty when it must draw again (a resize, the level map closing, a new cursor). */
   private minimapKey = ''
+  /** What the minimap is to be drawn from, while its drawing waits for the frame to end. */
+  private minimapWaiting: { scene: Scene; cam: Camera; state: GameState; gd: Gamedata | null } | null = null
   /**
    * The heading up the minimap's ground, in radians (camera `mapYaw`): eases
    * toward the map heading in step with the view, so the map turns as
@@ -1162,6 +1164,18 @@ export class Hud {
     const key = `${scene.revision}|${cam.x},${cam.y},${cam.yaw},${this.minimapUp},${this.minimapUpright},${this.minimapTurns}|${state.rev.player}|${gd?.version}`
     if (key === this.minimapKey) return
     this.minimapKey = key
+    const waiting = this.minimapWaiting
+    this.minimapWaiting = { scene, cam, state, gd }
+    if (waiting) return
+    afterFrame(() => {
+      const next = this.minimapWaiting
+      this.minimapWaiting = null
+      if (next && !this.minimapHidden) this.drawMinimap(next.scene, next.cam, next.state, next.gd)
+    })
+  }
+
+  /** The minimap drawn whole; out of the frame (`afterFrame`), as a step's frame has the level to build. */
+  private drawMinimap(scene: Scene, cam: Camera, state: GameState, gd: Gamedata | null) {
     const opts = state.options
     const c = (name: string) => {
       const v = opts[name] as { r: number; g: number; b: number } | undefined
@@ -1557,4 +1571,10 @@ const WOUND_FILL: Record<WoundLevel, number> = {
 function woundBar(wound: WoundLevel): HTMLElement {
   const { top, bottom } = WOUND_COLOURS[wound]
   return h('div', { class: 'wound-bar' }, h('span', { style: { width: WOUND_FILL[wound] * 100 + '%', background: `linear-gradient(${top}, ${bottom})` } }))
+}
+
+/** Run `task` once the frame is drawn, in the time left before the next one, or within 100 ms at the latest. */
+function afterFrame(task: () => void) {
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(task, { timeout: 100 })
+  else window.setTimeout(task, 0)
 }
