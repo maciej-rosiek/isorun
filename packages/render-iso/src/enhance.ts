@@ -225,7 +225,9 @@ function posterize(pixels: Uint8ClampedArray, levels: number) {
 /**
  * A tangent-space normal map for a tile: a rounded dome from the silhouette
  * (so a sprite reads as a body the light wraps around) plus relief from the
- * brightness (so mortar sits below bricks and folds below cloth).
+ * brightness (so mortar sits below bricks and folds below cloth). The blue
+ * channel holds that height, from 0 to 1 over the tile, for the parallax; the
+ * shader rebuilds the normal's z from its x and y.
  */
 function normalMap(pixels: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray<ArrayBuffer> {
   const distance = edgeDistance(pixels, w, h, DOME_RADIUS)
@@ -236,6 +238,7 @@ function normalMap(pixels: Uint8ClampedArray, w: number, h: number): Uint8Clampe
     const dome = Math.sqrt(Math.max(0, 1 - (1 - t) * (1 - t)))
     height[i] = dome * 0.4 + luminance * 0.35
   }
+  const depth = tileDepth(pixels, height)
   const out = new Uint8ClampedArray(w * h * 4)
   const at = (x: number, y: number) => height[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))]
   for (let y = 0; y < h; y++)
@@ -246,10 +249,24 @@ function normalMap(pixels: Uint8ClampedArray, w: number, h: number): Uint8Clampe
       const o = (y * w + x) * 4
       out[o] = ((-dx / len) * 0.5 + 0.5) * 255
       out[o + 1] = ((dy / len) * 0.5 + 0.5) * 255
-      out[o + 2] = ((1 / len) * 0.5 + 0.5) * 255
+      out[o + 2] = depth[y * w + x] * 255
       out[o + 3] = 255
     }
   return out
+}
+
+/** The height spread over 0 to 1 between the lowest and the highest opaque texel of the tile; transparent texels are at 0. */
+function tileDepth(pixels: Uint8ClampedArray, height: Float32Array): Float32Array {
+  const opaque = (i: number) => pixels[i * 4 + 3] >= 128
+  let low = Infinity
+  let high = -Infinity
+  height.forEach((h, i) => {
+    if (!opaque(i)) return
+    low = Math.min(low, h)
+    high = Math.max(high, h)
+  })
+  const range = high - low
+  return height.map((h, i) => (opaque(i) && range > 0 ? (h - low) / range : 0))
 }
 
 /** How many source texels across and down one page of upscaled tiles holds. */

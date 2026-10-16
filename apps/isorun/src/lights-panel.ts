@@ -67,6 +67,7 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
       { label: 'Wrap (clay)', kind: 'number', min: 0, max: 1, step: 0.05, get: (l) => l.shading.wrap, set: (l, v) => (l.shading.wrap = v) },
       { label: 'Flat tones', kind: 'number', min: 0, max: 8, step: 1, get: (l) => l.shading.bands, set: (l, v) => (l.shading.bands = v) },
       { label: 'Relief', kind: 'number', min: 0, max: 2, step: 0.05, get: (l) => l.shading.relief, set: (l, v) => (l.shading.relief = v) },
+      { label: 'Depth', kind: 'number', min: 0, max: 0.15, step: 0.005, get: (l) => l.shading.depth, set: (l, v) => (l.shading.depth = v) },
       { label: 'Sprites', kind: 'number', min: 0.2, max: 1.5, step: 0.05, get: (l) => l.shading.sprites, set: (l, v) => (l.shading.sprites = v) },
     ],
   },

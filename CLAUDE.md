@@ -78,6 +78,10 @@ snapshot commit, without the history.
   a `ClayMaterial` (`shading.ts`, a Phong node material with its own lighting model); its uniforms
   are shared, so clones follow the settings. Sprites (actors, items) use a second material per
   atlas whose colour follows the sprite light (`spriteColour`), so bright sprites keep their detail.
+  The ground and wall material steps into the tile's height (`parallaxUV`, the Shading Depth, 0 by
+  default): the normal page's blue channel is the height (`enhance.ts` `tileDepth`), the normal's z is
+  rebuilt from x and y, and each quad carries its texture rect (`UV_RECT`) so the steps stay on it.
+  The loop has no early exit, as WGSL wants the same path for every pixel after it.
   The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
   the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
   in `lights.ts` are variations of `DIORAMA`.

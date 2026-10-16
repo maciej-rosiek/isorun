@@ -1,5 +1,6 @@
 import * as THREE from 'three/webgpu'
-import { diffuseColor, normalMap, normalView, select, texture, uniform, vec4 } from 'three/tsl'
+import { Fn, If, Loop, attribute, clamp, diffuseColor, dFdx, dFdy, float, frontFacing, mix, normalMap, normalView, normalViewGeometry, positionView, positionViewDirection, select, texture, uniform, uv, vec3, vec4 } from 'three/tsl'
+import { UV_RECT } from './quads.js'
 
 export interface ShadingSettings {
   /** How far the light wraps around a surface: 0 is plain diffuse light, 1 lights even surfaces that face away (a soft, clay look). */
@@ -8,6 +9,8 @@ export interface ShadingSettings {
   bands: number
   /** Strength of the bumps from the tile normal maps. */
   relief: number
+  /** How deep the low parts of the tiles sink (parallax), in tiles; 0 keeps them flat. */
+  depth: number
   /** Light on sprites (monsters, items): below 1 keeps the detail of bright sprites in strong light. */
   sprites: number
 }
@@ -15,12 +18,15 @@ export interface ShadingSettings {
 const wrap = uniform(0)
 const bands = uniform(0)
 const relief = uniform(1)
+const depth = uniform(0)
+const DEPTH_STEPS = 16
 const spriteLight = uniform(1)
 
 export function applyShading(settings: ShadingSettings) {
   wrap.value = settings.wrap
   bands.value = settings.bands
   relief.value = settings.relief
+  depth.value = settings.depth
   spriteLight.value = settings.sprites
 }
 
@@ -51,9 +57,65 @@ export class ClayMaterial extends THREE.MeshPhongNodeMaterial {
   }
 }
 
-/** A clay material with a normal map whose strength follows the relief setting. */
-export function reliefNormal(map: THREE.Texture) {
-  return normalMap(texture(map), relief)
+/**
+ * The normal from the map, whose strength follows the relief setting. The map's blue channel is the height, so
+ * the normal's z comes from its x and y.
+ */
+export function reliefNormal(map: THREE.Texture, at: THREE.Node<'vec2'> = uv()) {
+  const xy = texture(map, at).grad(dFdx(uv()), dFdy(uv())).rg.mul(2).sub(1)
+  const z = float(1).sub(xy.dot(xy)).max(0).sqrt()
+  return normalMap(vec3(xy, z).mul(0.5).add(0.5), relief)
+}
+
+/** The direction to the camera in the tile's texture space (along u, along v, out of the surface), from the screen derivatives of the position and the texture coordinates, as three's tangent frame without tangents. */
+function tangentSpaceView() {
+  const q0 = dFdx(positionView)
+  const q1 = dFdy(positionView)
+  const st0 = dFdx(uv())
+  const st1 = dFdy(uv())
+  const surface = select(frontFacing, normalViewGeometry, normalViewGeometry.negate())
+  const q1perp = q1.cross(surface)
+  const q0perp = surface.cross(q0)
+  const tangent = q1perp.mul(st0.x).add(q0perp.mul(st1.x)).normalize()
+  const bitangent = q1perp.mul(st0.y).add(q0perp.mul(st1.y)).normalize()
+  return vec3(positionViewDirection.dot(tangent), positionViewDirection.dot(bitangent), positionViewDirection.dot(surface)).normalize()
+}
+
+/**
+ * Where the view ray meets the tile's height (parallax occlusion): steps from the top of the tile, half the depth
+ * above the quad so the tile does not shift on average, into it, along the
+ * view, until the ray is under the height in the normal map's blue channel, and stays inside the quad's own rect.
+ * The loop has no early exit: WGSL needs the same path for every pixel after it, for the derivatives and shadows.
+ */
+export function parallaxUV(map: THREE.Texture) {
+  return Fn(() => {
+    const rect = attribute<'vec4'>(UV_RECT, 'vec4')
+    const view = tangentSpaceView()
+    const size = rect.zw.sub(rect.xy)
+    const step = view.xy.div(view.z.max(0.25)).mul(depth).mul(size).div(DEPTH_STEPS).negate().toVar()
+    const at = uv().sub(step.mul(DEPTH_STEPS / 2)).toVar()
+    const layer = float(0).toVar()
+    const sunk = float(0).toVar()
+    const before = float(0).toVar()
+    const searching = float(1).toVar()
+    If(depth.greaterThan(0), () => {
+      Loop(DEPTH_STEPS, () => {
+        If(searching.greaterThan(0), () => {
+          sunk.assign(float(1).sub(texture(map, clamp(at, rect.xy, rect.zw)).level(float(0)).b))
+          If(sunk.lessThanEqual(layer), () => {
+            searching.assign(0)
+          }).Else(() => {
+            before.assign(sunk.sub(layer))
+            at.addAssign(step)
+            layer.addAssign(1 / DEPTH_STEPS)
+          })
+        })
+      })
+    })
+    const after = sunk.sub(layer)
+    const between = after.div(after.sub(before).min(-1e-4)).clamp()
+    return clamp(mix(at, at.sub(step), select(layer.greaterThan(0), between, float(0))), rect.xy, rect.zw)
+  })()
 }
 
 /** The colour of the map scaled by the sprite light. */

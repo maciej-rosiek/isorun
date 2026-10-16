@@ -7,9 +7,13 @@ export const SPRITE_LEAN = 0.3
 /** Atlas texels to keep in from a tile's edges, so smooth filtering and mipmaps do not pick up the next tile in the atlas. */
 export const ATLAS_INSET = 0.5
 
+/** The attribute with the corners of the quad's texture rect (u0, v0, u1, v1), so the parallax stays on its tile. */
+export const UV_RECT = 'uvRect'
+
 export class QuadBatch {
   readonly positions: number[] = []
   readonly uvs: number[] = []
+  readonly uvRects: number[] = []
   readonly colours: number[] = []
   readonly normals: number[] = []
   readonly indices: number[] = []
@@ -36,6 +40,7 @@ export class QuadBatch {
     const normal = outwardNormal(corners, this.lean)
     for (let i = 0; i < 4; i++) this.normals.push(...normal)
     this.uvs.push(...uv)
+    for (let i = 0; i < 4; i++) this.uvRects.push(u0, v0, u1, v1)
     const colour = typeof shade === 'number' ? [shade, shade, shade] : shade
     for (let i = 0; i < 4; i++) this.colours.push(...colour)
     this.indices.push(base, base + 2, base + 1, base, base + 3, base + 2)
@@ -45,6 +50,7 @@ export class QuadBatch {
     const g = new THREE.BufferGeometry()
     g.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3))
     g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uvs, 2))
+    g.setAttribute(UV_RECT, new THREE.Float32BufferAttribute(this.uvRects, 4))
     g.setAttribute('color', new THREE.Float32BufferAttribute(this.colours, 3))
     g.setAttribute('normal', new THREE.Float32BufferAttribute(this.normals, 3))
     g.setIndex(this.indices)

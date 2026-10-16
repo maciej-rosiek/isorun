@@ -1,7 +1,8 @@
 import * as THREE from 'three/webgpu'
 import type { TileRect, TileSource } from '@isorun/scene'
+import { dFdx, dFdy, texture, uv } from 'three/tsl'
 import { EnhancedPage, PAGE_TEXELS, type DrawnSlot, type PaintSettings } from './enhance.js'
-import { ClayMaterial, reliefNormal, spriteColour } from './shading.js'
+import { ClayMaterial, parallaxUV, reliefNormal, spriteColour } from './shading.js'
 import { atlasImage } from './plan.js'
 
 export type TileMaterial = ClayMaterial
@@ -154,10 +155,13 @@ export class AtlasMaterials {
     normal.minFilter = THREE.LinearMipmapLinearFilter
     normal.magFilter = THREE.LinearFilter
     const material = new ClayMaterial({ vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, map: colour })
-    material.normalNode = reliefNormal(normal)
     const sprite = material.clone()
     sprite.alphaTest = material.alphaTest
     sprite.colorNode = spriteColour(colour)
+    sprite.normalNode = reliefNormal(normal)
+    const sunk = parallaxUV(normal)
+    material.colorNode = texture(colour, sunk).grad(dFdx(uv()), dFdy(uv()))
+    material.normalNode = reliefNormal(normal, sunk)
     const page = { enhanced, colour, normal, material: { material, sprite, width: PAGE_TEXELS, height: PAGE_TEXELS } }
     this.pages.push(page)
     return page

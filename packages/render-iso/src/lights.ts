@@ -58,7 +58,7 @@ const DIORAMA: IsoLights = {
   sun: { colour: 0xfff1dc, intensity: 4.85 },
   torch: { colour: 0xffb26a, intensity: 6, distance: 9.5, decay: 1 },
   shadowSoftness: 2.5,
-  shading: { wrap: 0.25, bands: 5, relief: 0.6, sprites: 0.3 },
+  shading: { wrap: 0.25, bands: 5, relief: 0.6, depth: 0, sprites: 0.3 },
   paint: { radius: 0, levels: 0, lift: 1.4, upscale: 'scale2x' },
   walls: { bevel: 0, moss: 0.25, mossColour: 0x707070 },
   ao: { enabled: true, intensity: 1, radius: 0.85 },
@@ -90,7 +90,7 @@ export const LIGHTS = {
     l.background = 0x3a3530
     l.ambient.intensity = 2.5
     l.sun = { colour: 0xfff4e0, intensity: 5.5 }
-    l.shading = { wrap: 0.5, bands: 3, relief: 0.4, sprites: 0.3 }
+    l.shading = { wrap: 0.5, bands: 3, relief: 0.4, depth: 0, sprites: 0.3 }
     l.paint = { radius: 2, levels: 0, lift: 1.6, upscale: 'scale2x' }
     l.walls = { bevel: 0.1, moss: 0.25, mossColour: 0x8a8a7a }
     l.outline = { enabled: true, thickness: 1, strength: 0.5, colour: 0x2a1e16 }
