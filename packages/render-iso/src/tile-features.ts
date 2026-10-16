@@ -48,6 +48,8 @@ export class TileFeatures {
   private readonly leafMaterial = new ClayMaterial({ map: doorTexture() })
   private leafGeometry: THREE.BoxGeometry | null = null
   private builtKey = ''
+  /** Whether a door or stairs has a glowing tile. */
+  glowing = false
   /** Called when a door that was built stands open or shut where it was not before. */
   onDoor: ((x: number, y: number, open: boolean) => void) | null = null
   private builtMaterials: AtlasMaterials | null = null
@@ -66,12 +68,14 @@ export class TileFeatures {
     this.builtMaterials = materials
     const before = new Map([...this.doors].map(([k, d]) => [k, { angle: d.pivot.rotation.y, target: d.target }]))
     this.clear(meshes)
+    this.glowing = false
     const batches = new Map<string, { batch: QuadBatch; material: THREE.Material }>()
     const batchFor = (tile: TileId) => {
       const rect = tiles.tile(tile)
       if (!rect) return null
       const placed = materials.forTile(rect)
       if (!placed) return null
+      if (placed.label && placed.label.glow > 0) this.glowing = true
       let entry = batches.get(placed.rect.atlas)
       if (!entry) batches.set(placed.rect.atlas, (entry = { batch: new QuadBatch(placed.width, placed.height, 0, ATLAS_INSET), material: placed.material }))
       return { batch: entry.batch, rect: placed.rect }

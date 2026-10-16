@@ -34,6 +34,8 @@ interface StaticChunk {
   torches: Torch[]
   /** Where the chunk's torches are drawn (`TorchLayer`). */
   placements: TorchPlacement[]
+  /** Whether a tile of the chunk glows (its label's `glow`), so the screen blooms while the chunk is in view. */
+  glows: boolean
 }
 
 /** Cells from `x0`, `y0` up to (not with) `x1`, `y1`. */
@@ -115,6 +117,8 @@ export class IsoRender3d implements MapRenderer {
   private readonly spriteChunks = new Map<string, StaticChunk>()
   /** The view the sprite chunks were built for. */
   private spritesView = ''
+  private cutAwayInputs = ''
+  private cutAwayCache = ''
   /** What every chunk was built for: a change builds them all again. */
   private chunksKey = ''
   /** What the chunks were built from, to find the cells that changed since: null builds every chunk. */
@@ -136,6 +140,13 @@ export class IsoRender3d implements MapRenderer {
   private readonly meshes = new MeshPool()
   private readonly torchDust = new TorchDust(TORCH_LIGHTS)
   private readonly tileTorches: Torch[] = []
+  /** Goes up whenever `tileTorches` changes. */
+  private tileTorchesVersion = 0
+  private nearest: Torch[] = []
+  private nearestFrom = { x: NaN, z: NaN }
+  private nearestOf = -1
+  /** The scene the torch dust was last placed for. */
+  private dustRevision = -1
   private readonly features = new TileFeatures()
   /** Called for each hop an actor starts. */
   onHop: ((step: ActorStep) => void) | null = null
@@ -350,7 +361,7 @@ export class IsoRender3d implements MapRenderer {
     const now = performance.now() / 1000
     const dt = this.lastFrame ? Math.min(0.1, now - this.lastFrame) : 0
     this.lastFrame = now
-    const staticKey = `${this.staticsRevision(scene)}|${cutAwayKey(scene, this.focus(scene), this.cam.yaw, -this.cam.pitch, this.view)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
+    const staticKey = `${this.staticsRevision(scene)}|${this.cutAway(scene)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
     const changed: CellArea[] = []
     if (staticKey !== this.staticKey) {
       changed.push(...this.buildStatics(scene, this.tiles, this.materials))
@@ -384,7 +395,7 @@ export class IsoRender3d implements MapRenderer {
     this.world.updateMatrixWorld()
     const origin = new THREE.Vector3(0, 0, 0).project(this.camera)
     const pixels = this.pixelRatio()
-    this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing === true && glowShown()))
+    this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing === true && glowShown() && (this.glowInView() || this.actors.glowing || this.features.glowing)))
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
   }
 
@@ -612,9 +623,10 @@ export class IsoRender3d implements MapRenderer {
       this.sun.shadow.needsUpdate = this.sun.castShadow
       this.sunStale = false
     }
-    const from = new THREE.Vector3(this.cam.eyeX + 0.5, 1, this.cam.eyeY + 0.5)
-    const fade = (torch: Torch) => 1 - THREE.MathUtils.smoothstep(Math.hypot(torch.position.x - from.x, torch.position.z - from.z), TORCH_FADE_START, TORCH_FADE_END)
-    const nearest = [...this.tileTorches].sort((a, b) => a.position.distanceToSquared(from) - b.position.distanceToSquared(from)).slice(0, TORCH_LIGHTS)
+    const fromX = this.cam.eyeX + 0.5
+    const fromZ = this.cam.eyeY + 0.5
+    const fade = (torch: Torch) => 1 - THREE.MathUtils.smoothstep(Math.hypot(torch.position.x - fromX, torch.position.z - fromZ), TORCH_FADE_START, TORCH_FADE_END)
+    const nearest = this.nearestTorches()
     const shadows = this.torchLights.filter((light) => light.castShadow).length
     const wanted = assignTorches(this.litTorches.slice(0, shadows), nearest.slice(0, shadows))
     const due = wanted
@@ -624,8 +636,10 @@ export class IsoRender3d implements MapRenderer {
     const shadowed = wanted.map((torch, i) => (i === due?.i || sameTorch(torch, this.litTorches[i]) ? torch : this.litTorches[i]))
     const unshadowed = assignTorches(this.litTorches.slice(shadows), nearest.filter((torch) => !shadowed.some((held) => sameTorch(held, torch))))
     const placed = [...shadowed, ...unshadowed]
+    let moved = this.sceneRevision !== this.dustRevision
     this.torchLights.forEach((light, i) => {
       const torch = placed[i]
+      moved ||= torch !== this.litTorches[i]
       this.litTorches[i] = torch
       if (!torch) {
         light.intensity = 0
@@ -638,7 +652,22 @@ export class IsoRender3d implements MapRenderer {
     })
     for (const light of this.undrawnShadows) if (light.castShadow) light.shadow.needsUpdate = true
     this.undrawnShadows.clear()
+    if (!moved) return
+    this.dustRevision = this.sceneRevision
     this.torchDust.update(this.litTorches.map((torch) => (torch && this.scene && getCell(this.scene, torch.cell.x, torch.cell.y)?.visibility === 'visible' ? torch : null)))
+  }
+
+  /** The torches nearest to the cell the camera looks at, nearest first, as many as there are torch lights: sorted again only when that cell or the torches change. */
+  private nearestTorches(): Torch[] {
+    const x = Math.round(this.cam.eyeX) + 0.5
+    const z = Math.round(this.cam.eyeY) + 0.5
+    if (x !== this.nearestFrom.x || z !== this.nearestFrom.z || this.nearestOf !== this.tileTorchesVersion) {
+      this.nearestFrom = { x, z }
+      this.nearestOf = this.tileTorchesVersion
+      const away = (torch: Torch) => (torch.position.x - x) ** 2 + (torch.position.z - z) ** 2
+      this.nearest = [...this.tileTorches].sort((a, b) => away(a) - away(b)).slice(0, TORCH_LIGHTS)
+    }
+    return this.nearest
   }
 
   private placeAim(scene: Scene) {
@@ -717,6 +746,7 @@ export class IsoRender3d implements MapRenderer {
     this.chunksKey = ''
     this.built = null
     this.tileTorches.length = 0
+    this.tileTorchesVersion++
   }
 
   private dropChunk(chunk: StaticChunk) {
@@ -797,8 +827,35 @@ export class IsoRender3d implements MapRenderer {
     update(this.spriteChunks, sprites, (part) => `${spritesView}|${JSON.stringify(part.sprites.map((sprite) => [sprite.x, sprite.y, sprite.lying, sprite.pile, sprite.layers]))}`, !dirty || turned)
     this.tileTorches.length = 0
     for (const chunk of this.chunks.values()) this.tileTorches.push(...chunk.torches)
+    this.tileTorchesVersion++
     if (changed.length && this.assets) this.torchModels.set(this.assets.torch, [...this.chunks.values()].flatMap((chunk) => chunk.placements))
     return changed
+  }
+
+  /** `cutAwayKey` for the view now, worked out again only when the cells in focus, the view or the level's cells change. */
+  private cutAway(scene: Scene): string {
+    const focus = this.focus(scene)
+    const inputs = `${focus.map((f) => `${f.x},${f.y}`).join(';')}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${this.staticsRevision(scene)}`
+    if (inputs !== this.cutAwayInputs) {
+      this.cutAwayInputs = inputs
+      this.cutAwayCache = cutAwayKey(scene, focus, this.cam.yaw, -this.cam.pitch, this.view)
+    }
+    return this.cutAwayCache
+  }
+
+  /** Whether a chunk with a glowing tile is near enough to the middle of the view to be on the screen. */
+  private glowInView(): boolean {
+    const halfWidth = this.width / 2 / this.view.zoom
+    const halfHeight = this.height / 2 / this.view.zoom / Math.max(0.2, Math.sin(-this.cam.pitch))
+    const reach = Math.hypot(halfWidth, halfHeight) + 1
+    const x = this.cam.eyeX + 0.5
+    const y = this.cam.eyeY + 0.5
+    for (const [id, chunk] of [...this.chunks, ...this.spriteChunks]) {
+      if (!chunk.glows) continue
+      const area = chunkArea(id)
+      if (Math.hypot(Math.max(area.x0 - x, 0, x - area.x1), Math.max(area.y0 - y, 0, y - area.y1)) < reach) return true
+    }
+    return false
   }
 
   /** The floor tile a ground layer shows: under drawn water, the nearest land's floor. */
@@ -809,7 +866,7 @@ export class IsoRender3d implements MapRenderer {
   }
 
   private buildChunk(scene: Scene, tiles: TileSource, materials: AtlasMaterials, part: ChunkPart, key: string): StaticChunk {
-    const chunk: StaticChunk = { key, group: new THREE.Group(), geometries: [], torches: [], placements: [] }
+    const chunk: StaticChunk = { key, group: new THREE.Group(), geometries: [], torches: [], placements: [], glows: false }
     const groundBatches = new Map<string, QuadBatch>()
     const spriteBatches = new Map<string, QuadBatch>()
     let batches = groundBatches
@@ -818,6 +875,7 @@ export class IsoRender3d implements MapRenderer {
       if (!rect) return
       const placed = materials.forTile(rect)
       if (!placed) return
+      if (placed.label && placed.label.glow > 0) chunk.glows = true
       let batch = batches.get(placed.rect.atlas)
       if (!batch) batches.set(placed.rect.atlas, (batch = new QuadBatch(placed.width, placed.height, batches === spriteBatches ? SPRITE_LEAN : 0, ATLAS_INSET)))
       batch.add(corners, placed.rect.sx, placed.rect.sy, rect.w, texelHeight ?? rect.h, shade)

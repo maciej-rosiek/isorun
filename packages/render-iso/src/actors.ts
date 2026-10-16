@@ -108,6 +108,8 @@ function spriteLayers(b: Billboard, tiles: TileSource): { tile: TileId; ox: numb
 class SpriteVisual {
   readonly object = new THREE.Group()
   private readonly geometries: THREE.BufferGeometry[] = []
+  /** Whether a tile of the sprite glows (its label's `glow`). */
+  glows = false
   private readonly look: ActorLook = { tint: new THREE.Color(1, 1, 1), opacity: 1, motion: ACTOR_MOTIONS.none, phase: Math.random() * Math.PI * 2, effects: { ...NO_EFFECTS } }
 
   readonly atlas: AtlasMaterials
@@ -129,6 +131,7 @@ class SpriteVisual {
       if (!rect) continue
       const placed = env.materials.forTile(rect)
       if (!placed) continue
+      if (placed.label && placed.label.glow > 0) this.glows = true
       if (index === 0 && placed.label) this.look.motion = ACTOR_MOTIONS[placed.label.motion]
       let entry = batches.get(placed.rect.atlas)
       if (!entry) batches.set(placed.rect.atlas, (entry = { batch: new QuadBatch(placed.width, placed.height, SPRITE_LEAN, ATLAS_INSET), material: placed.actor }))
@@ -431,6 +434,12 @@ export class ActorLayer {
       if (actor.finished) this.remove(id, actor)
     }
     return steps
+  }
+
+  /** Whether an actor's sprite has a glowing tile. */
+  get glowing(): boolean {
+    for (const actor of this.actors.values()) if (actor.visual.glows) return true
+    return false
   }
 
   /** Whether a shadow of an actor changed since the last call: an actor that casts one moved, came or went. Breathing does not count. */
