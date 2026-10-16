@@ -240,7 +240,7 @@ export class IsoRender3d implements MapRenderer {
   }
 
   mount(target: HTMLCanvasElement | OffscreenCanvas): void {
-    this.renderer = new THREE.WebGPURenderer({ canvas: target, antialias: true })
+    this.renderer = new THREE.WebGPURenderer({ canvas: target, antialias: false })
     this.renderer.outputColorSpace = THREE.SRGBColorSpace
     this.post = new IsoPost(this.renderer, this.world, this.camera)
     this.post.configure(this.lights)
