@@ -223,7 +223,7 @@ export class GameScreen {
     'div',
     { class: 'touch-corner' },
     this.fullscreenButton,
-    h('button', { type: 'button', class: 'touch-settings', 'aria-label': 'Settings', html: SETTINGS_ICON, onclick: () => this.openSettings() }),
+    h('button', { type: 'button', class: 'touch-settings', 'aria-label': 'Settings', html: SETTINGS_ICON, onclick: () => this.openSystemMenu() }),
   )
   private touches = new Map<number, { x: number; y: number }>()
   private pinchSpan: number | null = null
@@ -545,10 +545,10 @@ export class GameScreen {
     return Math.min(paneHeight, landscapeWindow() ? COMPACT_MESSAGE_ROWS.landscape : COMPACT_MESSAGE_ROWS.portrait)
   }
 
-  private openSettings() {
+  private openSystemMenu() {
     this.inputActed()
     if (this.overlays.hasClientOverlay) this.overlays.closeClientOverlay()
-    this.overlays.showSettings()
+    this.overlays.showSystem({ spectating: this.session.watching, inGame: true, chat: this.chatOn, run: (a) => this.runner.execute(a) })
     this.needsRender = true
   }
 
@@ -1769,8 +1769,9 @@ export class GameScreen {
   private onDocPointer(ev: PointerEvent) {
     this.wake()
     this.dock.focusOff()
-    if (!this.popupUp()) return
     const t = ev.target instanceof Element ? ev.target : null
+    if (this.tapAway(ev, t)) return
+    if (!this.popupUp()) return
     if (t && this.chat.root.contains(t)) return
     // the perf pane takes its own taps (it saves the log); a tap on it is not a tap outside the popup
     if (t?.closest('.perf')) return
@@ -1781,6 +1782,16 @@ export class GameScreen {
     clearTimeout(this.tooltipTimer)
     this.hud.hideTooltip()
     this.runner.send(cm.key(27))
+  }
+
+  private tapAway(ev: PointerEvent, target: Element | null): boolean {
+    if (ev.pointerType !== 'touch' || this.session.watching) return false
+    if (!this.overlays.hasClientOverlay && this.ctx.mode !== 'menu') return false
+    if (target?.closest('.popup, .osk, .dock, .touch-bar, .touch-corner, .perf') || (target && this.chat.root.contains(target))) return false
+    ev.preventDefault()
+    ev.stopPropagation()
+    this.back()
+    return true
   }
 
   /** ui.js context_disable: no browser context menu while a popup is up, except on a text input. */

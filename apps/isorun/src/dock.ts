@@ -47,8 +47,9 @@ export const DOCK_BUTTONS: readonly DockButtonDef[] = [
   { id: 'menu', label: 'Menu', about: 'Settings, help, save and exit', icon: 'CMD_GAME_MENU', keys: ['Esc'], pad: 'START' },
 ]
 
-const ICON = { button: 40, action: 44, slot: 48 }
-const COMPACT_ICON: typeof ICON = { button: 30, action: 30, slot: 28 }
+const ICON = { button: 40, action: 44, main: 44, slot: 48 }
+const COMPACT_ICON: typeof ICON = { button: 30, action: 30, main: 44, slot: 28 }
+const MAIN_ACTIONS = new Set(['fight', 'explore'])
 
 export interface DockHooks {
   onAction(a: Action): void
@@ -344,11 +345,12 @@ export class Dock {
     replace(
       this.actionsEl,
       ...actions.map((a) => {
+        const main = MAIN_ACTIONS.has(a.id)
         const canvas = h('canvas', { class: 'tile' })
-        drawIcon(canvas, this.gd, a.icon, this.px('action'))
+        drawIcon(canvas, this.gd, a.icon, this.px(main ? 'main' : 'action'))
         const el = h(
           'button',
-          { type: 'button', class: 'dock-action' + (a.here ? ' here' : ''), dataset: { action: a.id } },
+          { type: 'button', class: 'dock-action' + (a.here ? ' here' : '') + (main ? ' main' : ''), dataset: { action: a.id } },
           canvas,
           a.here ? h('span', { class: 'label' }, a.label) : null,
           a.key.keys.length ? h('span', { class: 'action-key' }, keycaps(a.key.keys)) : null,

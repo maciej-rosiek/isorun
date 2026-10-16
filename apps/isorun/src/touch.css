@@ -166,13 +166,25 @@
   flex: 1;
   min-width: 0;
 }
-.dock.compact .dock-actions > :first-child {
+.dock.compact .dock-actions > :first-child:not(.main),
+.dock.compact .dock-actions > .main:first-child + *,
+.dock.compact .dock-actions > .main:only-child {
   margin-left: auto;
 }
 .dock.compact .dock-action {
   flex: none;
   height: 44px;
   min-width: 44px;
+}
+.dock.compact .dock-action.main,
+.dock.compact:not(.landscape) .dock-action.main {
+  order: 1;
+  position: sticky;
+  right: 0;
+  height: 58px;
+  min-width: 58px;
+  border-color: var(--bronze);
+  box-shadow: 0 0 12px rgba(232, 201, 138, 0.4);
 }
 .dock.compact .dock-action.here {
   height: 44px;
