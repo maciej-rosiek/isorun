@@ -2,7 +2,7 @@ import * as THREE from 'three/webgpu'
 import type { TileRect, TileSource } from '@isorun/scene'
 import { dFdx, dFdy, texture, uv } from 'three/tsl'
 import { EnhancedPage, PAGE_TEXELS, type DrawnSlot, type PaintSettings } from './enhance.js'
-import { ClayMaterial, parallaxUV, reliefNormal, spriteColour } from './shading.js'
+import { ClayMaterial, actorMaterial, parallaxUV, reliefNormal, spriteColour } from './shading.js'
 import { atlasImage } from './plan.js'
 
 export type TileMaterial = ClayMaterial
@@ -10,6 +10,8 @@ export type TileMaterial = ClayMaterial
 export interface AtlasMaterial {
   material: TileMaterial
   sprite: TileMaterial
+  /** The sprite material of the actors, whose flash and fade are per mesh (shading.ts `setActorLook`). */
+  actor: TileMaterial
   width: number
   height: number
 }
@@ -117,6 +119,7 @@ export class AtlasMaterials {
     for (const page of this.pages) {
       page.material.material.dispose()
       page.material.sprite.dispose()
+      page.material.actor.dispose()
       page.colour.dispose()
       page.normal.dispose()
     }
@@ -162,7 +165,7 @@ export class AtlasMaterials {
     const sunk = parallaxUV(normal)
     material.colorNode = texture(colour, sunk).grad(dFdx(uv()), dFdy(uv()))
     material.normalNode = reliefNormal(normal, sunk)
-    const page = { enhanced, colour, normal, material: { material, sprite, width: PAGE_TEXELS, height: PAGE_TEXELS } }
+    const page = { enhanced, colour, normal, material: { material, sprite, actor: actorMaterial(sprite, colour), width: PAGE_TEXELS, height: PAGE_TEXELS } }
     this.pages.push(page)
     return page
   }

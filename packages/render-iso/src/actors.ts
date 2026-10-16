@@ -1,9 +1,9 @@
 import * as THREE from 'three/webgpu'
 import type { Billboard, Scene, TileId, TileSource } from '@isorun/scene'
-import type { AtlasMaterials, TileMaterial } from './materials.js'
+import type { AtlasMaterials } from './materials.js'
 import { groundBasis, isShown, tileFrame } from './plan.js'
 import { ATLAS_INSET, QuadBatch, SPRITE_LEAN, type Point3 } from './quads.js'
-import { ACTOR_SHADOW_LAYER, castShadow as setCastShadow } from './shading.js'
+import { ACTOR_SHADOW_LAYER, setActorLook, castShadow as setCastShadow, type ActorLook } from './shading.js'
 
 export type ActorId = string | number
 
@@ -105,8 +105,8 @@ function spriteLayers(b: Billboard, tiles: TileSource): { tile: TileId; ox: numb
 
 class SpriteVisual {
   readonly object = new THREE.Group()
-  private readonly materials: TileMaterial[] = []
   private readonly geometries: THREE.BufferGeometry[] = []
+  private readonly look: ActorLook = { tint: new THREE.Color(1, 1, 1), opacity: 1 }
 
   readonly atlas: AtlasMaterials
 
@@ -118,18 +118,14 @@ class SpriteVisual {
   ) {
     this.atlas = env.materials
     const layers = spriteLayers(b, env.tiles)
-    const batches = new Map<string, { batch: QuadBatch; material: TileMaterial }>()
+    const batches = new Map<string, { batch: QuadBatch; material: THREE.Material }>()
     for (const [index, layer] of layers.entries()) {
       const rect = env.tiles.tile(layer.tile)
       if (!rect) continue
       const placed = env.materials.forTile(rect)
       if (!placed) continue
       let entry = batches.get(placed.rect.atlas)
-      if (!entry) {
-        const material = placed.sprite.clone()
-        material.alphaTest = placed.sprite.alphaTest
-        batches.set(placed.rect.atlas, (entry = { batch: new QuadBatch(placed.width, placed.height, SPRITE_LEAN, ATLAS_INSET), material }))
-      }
+      if (!entry) batches.set(placed.rect.atlas, (entry = { batch: new QuadBatch(placed.width, placed.height, SPRITE_LEAN, ATLAS_INSET), material: placed.actor }))
       const f = tileFrame(rect, layer.ox, layer.oy, layer.ymax)
       if (f.height <= 0) continue
       const left = f.left - 0.5
@@ -143,27 +139,23 @@ class SpriteVisual {
     for (const { batch, material } of batches.values()) {
       const geometry = batch.geometry()
       this.geometries.push(geometry)
-      this.materials.push(material)
       const mesh = new THREE.Mesh(geometry, material)
+      setActorLook(mesh, this.look)
       setCastShadow(mesh, castShadow, ACTOR_SHADOW_LAYER)
       this.object.add(mesh)
     }
   }
 
   setFlash(amount: number, tint: { r: number; g: number; b: number }) {
-    for (const m of this.materials) m.color.setRGB(1 + amount * tint.r, 1 + amount * (tint.g - 1), 1 + amount * (tint.b - 1))
+    this.look.tint.setRGB(1 + amount * tint.r, 1 + amount * (tint.g - 1), 1 + amount * (tint.b - 1))
   }
 
   setOpacity(opacity: number) {
-    for (const m of this.materials) {
-      m.transparent = opacity < 1
-      m.opacity = opacity
-    }
+    this.look.opacity = opacity
   }
 
   dispose() {
     for (const g of this.geometries) g.dispose()
-    for (const m of this.materials) m.dispose()
   }
 }
 

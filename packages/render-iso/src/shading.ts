@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu'
-import { Fn, If, Loop, attribute, clamp, diffuseColor, dFdx, dFdy, float, frontFacing, mix, normalMap, normalView, normalViewGeometry, positionView, positionViewDirection, select, texture, uniform, uv, vec3, vec4 } from 'three/tsl'
+import { Fn, If, Loop, attribute, clamp, diffuseColor, dFdx, dFdy, float, frontFacing, interleavedGradientNoise, mix, normalMap, normalView, normalViewGeometry, positionView, positionViewDirection, screenCoordinate, select, texture, uniform, uv, vec3, vec4 } from 'three/tsl'
 import { UV_RECT } from './quads.js'
 
 export interface ShadingSettings {
@@ -122,6 +122,35 @@ export function parallaxUV(map: THREE.Texture) {
 export function spriteColour(map: THREE.Texture) {
   const colour = texture(map)
   return vec4(colour.rgb.mul(spriteLight), colour.a)
+}
+
+/** How an actor's sprite is drawn now: tinted for the flash of a hit, and how much of it is left as it fades away (1 is all of it). */
+export interface ActorLook {
+  tint: THREE.Color
+  opacity: number
+}
+
+const UNTINTED = new THREE.Color(1, 1, 1)
+const actorLooks = new WeakMap<THREE.Object3D, ActorLook>()
+const actorTint = uniform(new THREE.Color(1, 1, 1)).onObjectUpdate(({ object }) => (object && actorLooks.get(object)?.tint) ?? UNTINTED)
+const actorOpacity = uniform(1).onObjectUpdate(({ object }) => (object && actorLooks.get(object)?.opacity) ?? 1)
+
+/** Draw the mesh, made with an `actorMaterial`, with this look; the look is read each time the mesh is drawn. */
+export function setActorLook(mesh: THREE.Object3D, look: ActorLook) {
+  actorLooks.set(mesh, look)
+}
+
+/**
+ * One sprite material for every actor on a page: the flash and the fade are per mesh (`setActorLook`), so a hit or
+ * a death never changes the material, and the shader is built once. The fade is a dissolve, which stays opaque.
+ */
+export function actorMaterial(sprite: ClayMaterial, map: THREE.Texture): ClayMaterial {
+  const material = sprite.clone()
+  material.alphaTest = sprite.alphaTest
+  const colour = texture(map)
+  material.colorNode = vec4(colour.rgb.mul(spriteLight).mul(actorTint), colour.a)
+  material.maskNode = interleavedGradientNoise(screenCoordinate.xy).lessThan(actorOpacity)
+  return material
 }
 
 /** The layers the shadow cameras see: only the meshes that cast a shadow are on them, so a shadow map is drawn without going through the rest of the world. The actors have a layer of their own, as the torches' shadows can leave them out. */
