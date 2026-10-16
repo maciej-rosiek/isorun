@@ -1,6 +1,6 @@
 import { Arch, build, Platform } from 'electron-builder'
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -63,6 +63,11 @@ const artifacts = await build({
     },
     appImage: { artifactName: 'Isorun-${arch}.AppImage' },
     toolsets: { appimage: '1.0.3' },
+    afterPack: ({ appOutDir, electronPlatformName }) => {
+      if (electronPlatformName !== 'linux') return
+      renameSync(join(appOutDir, 'isorun'), join(appOutDir, 'isorun-electron'))
+      copyFileSync(join(desktop, 'without-steam-overlay.sh'), join(appOutDir, 'isorun'))
+    },
     win: {
       icon: join(isorun, 'apps/isorun/public/icons/icon-512.png'),
       artifactName: 'Isorun-win-${arch}.${ext}',

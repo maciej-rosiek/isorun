@@ -1,6 +1,6 @@
 {
   "name": "isorun",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "The Isorun game: an isometric WebTiles client for Dungeon Crawl Stone Soup",
   "license": "AGPL-3.0-or-later",
