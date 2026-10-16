@@ -140,6 +140,8 @@ export class IsoRender3d implements MapRenderer {
   private readonly torchModels = new TorchLayer()
   private readonly meshes = new MeshPool()
   private readonly resolution = new DynamicResolution()
+  /** Whether the pipelines of the world were built ahead (`IsoPost.compile`). */
+  private compiled = false
   private readonly torchDust = new TorchDust(TORCH_LIGHTS)
   private readonly tileTorches: Torch[] = []
   /** Goes up whenever `tileTorches` changes. */
@@ -400,6 +402,10 @@ export class IsoRender3d implements MapRenderer {
     const pixels = this.pixelRatio()
     this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing === true && glowShown() && (this.glowInView() || this.actors.glowing || this.features.glowing)))
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
+    if (!this.compiled && this.chunks.size) {
+      this.compiled = true
+      this.post?.compile()
+    }
   }
 
   /** The floor cell under a point of the canvas, in CSS pixels; over a wall, the fog or the void, the floor cell nearest to the point on the screen. */

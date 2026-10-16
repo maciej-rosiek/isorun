@@ -85,13 +85,14 @@ export class IsoPost {
   private readonly vignette = uniform(0)
   private readonly danger = uniform(0)
   private aoNode: GTAONode | null = null
+  private scenePass: THREE.PassNode | null = null
   private aoResolution = 1
   private aoSamples = 16
   private samples = 4
   private shape = ''
 
   constructor(
-    renderer: THREE.WebGPURenderer,
+    private readonly renderer: THREE.WebGPURenderer,
     private readonly world: THREE.Scene,
     private camera: THREE.OrthographicCamera | THREE.PerspectiveCamera,
   ) {
@@ -171,12 +172,18 @@ export class IsoPost {
     this.pipeline.render()
   }
 
+  /** Build the pipelines of everything in the world now, off the main thread, so nothing in it (blood, dust, a new monster) waits for one when it first shows. */
+  compile() {
+    void this.scenePass?.compileAsync(this.renderer)
+  }
+
   dispose() {
     this.pipeline.dispose()
   }
 
   private build(settings: ScreenLightSettings) {
     const scenePass = pass(this.world, this.camera, { samples: this.samples })
+    this.scenePass = scenePass
     this.aoNode = null
     const aoOn = this.aoOn(settings)
     scenePass.setMRT(mrt({ output, normal: vec4(packNormalToRGB(normalViewGeometry), 0), ...(this.emitting ? { emission: vec4(0) } : {}) }))
