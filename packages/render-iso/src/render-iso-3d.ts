@@ -375,7 +375,7 @@ export class IsoRender3d implements MapRenderer {
     this.world.updateMatrixWorld()
     const origin = new THREE.Vector3(0, 0, 0).project(this.camera)
     const pixels = this.pixelRatio()
-    this.post?.setEmission(this.lava.shown || this.starwater.shown)
+    this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing ?? false))
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
   }
 

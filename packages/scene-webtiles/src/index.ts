@@ -11,6 +11,7 @@ import {
   type Liquid,
   type Scene,
   type SceneCell,
+  type SpriteEffect,
   type Visibility,
   type Viewmodel,
   emptyScene,
@@ -1075,6 +1076,33 @@ function decorate(cell: SceneCell, t: CellTiles, bgw: FlagWord, gd: Gamedata) {
   if (icons.length) cell.icons = icons
 }
 
+/** The status icons a renderer shows on the sprite itself, by their tileinfo names. */
+const ICON_EFFECTS: Record<string, SpriteEffect> = {
+  PETRIFIED: 'petrified',
+  PETRIFYING: 'petrified',
+  STICKY_FLAME: 'burning',
+  INNER_FLAME: 'burning',
+  POISON: 'poisoned',
+  MORE_POISON: 'poisoned',
+  MAX_POISON: 'poisoned',
+  CORRODED: 'corroded',
+  BERSERK: 'berserk',
+  GLOW_LIGHT: 'glowing',
+  GLOW_HEAVY: 'glowing',
+  SUMMONED: 'summoned',
+  WATERLOGGED: 'wet',
+}
+
+/** What the badges say has happened to the thing they are on. */
+function spriteEffects(badges: StatusRow['icons'], gd: Gamedata): SpriteEffect[] | undefined {
+  const effects = new Set<SpriteEffect>()
+  for (const b of badges) {
+    const effect = ICON_EFFECTS[gd.icons.name(b.tile) ?? '']
+    if (effect) effects.add(effect)
+  }
+  return effects.size ? [...effects] : undefined
+}
+
 interface StatusRow {
   icons: NonNullable<Billboard['statusIcons']>
   /** How far the shifting row has moved (cell_renderer.js status_shift). */
@@ -1236,6 +1264,7 @@ function addBillboards(scene: Scene, mc: MapCell, cell: SceneCell, gd: Gamedata,
         height: 0.7,
         layers: dollLayers(t, gd),
         statusIcons: badges.length ? badges : undefined,
+        effects: spriteEffects(badges, gd),
         alpha,
       })
     }
@@ -1282,6 +1311,8 @@ function addBillboards(scene: Scene, mc: MapCell, cell: SceneCell, gd: Gamedata,
       if (layers.length > 1) bb.layers = layers
     }
     if (badges.length) bb.statusIcons = badges
+    const effects = spriteEffects(badges, gd)
+    if (effects) bb.effects = effects
     scene.billboards.push(bb)
     newFeatureBadge(cell, bgw, gd, row.shift)
     return
@@ -1309,6 +1340,7 @@ function addBillboards(scene: Scene, mc: MapCell, cell: SceneCell, gd: Gamedata,
       lying: lying || undefined,
       layers: layers.length > 1 ? layers : undefined,
       statusIcons: badges.length ? badges : undefined,
+      effects: spriteEffects(badges, gd),
       alpha,
       name: itemTileName(name) || undefined,
     })

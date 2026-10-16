@@ -3,7 +3,7 @@ import type { Billboard, Scene, TileId, TileSource } from '@isorun/scene'
 import type { AtlasMaterials } from './materials.js'
 import { groundBasis, isShown, tileFrame } from './plan.js'
 import { ATLAS_INSET, QuadBatch, SPRITE_LEAN, type Point3 } from './quads.js'
-import { ACTOR_SHADOW_LAYER, setActorLook, castShadow as setCastShadow, type ActorLook } from './shading.js'
+import { ACTOR_MOTIONS, ACTOR_SHADOW_LAYER, NO_EFFECTS, setActorLook, castShadow as setCastShadow, type ActorLook } from './shading.js'
 
 export type ActorId = string | number
 
@@ -106,7 +106,7 @@ function spriteLayers(b: Billboard, tiles: TileSource): { tile: TileId; ox: numb
 class SpriteVisual {
   readonly object = new THREE.Group()
   private readonly geometries: THREE.BufferGeometry[] = []
-  private readonly look: ActorLook = { tint: new THREE.Color(1, 1, 1), opacity: 1 }
+  private readonly look: ActorLook = { tint: new THREE.Color(1, 1, 1), opacity: 1, motion: ACTOR_MOTIONS.none, phase: Math.random() * Math.PI * 2, effects: { ...NO_EFFECTS } }
 
   readonly atlas: AtlasMaterials
 
@@ -117,6 +117,7 @@ class SpriteVisual {
     readonly castShadow: boolean,
   ) {
     this.atlas = env.materials
+    for (const effect of b.effects ?? []) this.look.effects[effect] = 1
     const layers = spriteLayers(b, env.tiles)
     const batches = new Map<string, { batch: QuadBatch; material: THREE.Material }>()
     for (const [index, layer] of layers.entries()) {
@@ -124,6 +125,7 @@ class SpriteVisual {
       if (!rect) continue
       const placed = env.materials.forTile(rect)
       if (!placed) continue
+      if (index === 0 && placed.label) this.look.motion = ACTOR_MOTIONS[placed.label.motion]
       let entry = batches.get(placed.rect.atlas)
       if (!entry) batches.set(placed.rect.atlas, (entry = { batch: new QuadBatch(placed.width, placed.height, SPRITE_LEAN, ATLAS_INSET), material: placed.actor }))
       const f = tileFrame(rect, layer.ox, layer.oy, layer.ymax)

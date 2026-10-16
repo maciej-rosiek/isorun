@@ -72,6 +72,18 @@ const SECTIONS: { title: string; fields: Field[] }[] = [
     ],
   },
   {
+    title: 'Surfaces',
+    fields: [
+      { label: 'Gloss', kind: 'number', min: 0, max: 2, step: 0.05, get: (l) => l.shading.gloss, set: (l, v) => (l.shading.gloss = v) },
+      { label: 'Rim light', kind: 'number', min: 0, max: 2, step: 0.05, get: (l) => l.shading.rim, set: (l, v) => (l.shading.rim = v) },
+      { label: 'Dirt and wear', kind: 'number', min: 0, max: 1.5, step: 0.05, get: (l) => l.shading.cavity, set: (l, v) => (l.shading.cavity = v) },
+      { label: 'Cell variation', kind: 'number', min: 0, max: 0.3, step: 0.01, get: (l) => l.shading.variation, set: (l, v) => (l.shading.variation = v) },
+      { label: 'Wetness', kind: 'number', min: 0, max: 1, step: 0.05, get: (l) => l.shading.wetness, set: (l, v) => (l.shading.wetness = v) },
+      { label: 'Glow', kind: 'number', min: 0, max: 3, step: 0.05, get: (l) => l.shading.glow, set: (l, v) => (l.shading.glow = v) },
+      { label: 'Sparkle', kind: 'number', min: 0, max: 3, step: 0.05, get: (l) => l.shading.sparkle, set: (l, v) => (l.shading.sparkle = v) },
+    ],
+  },
+  {
     title: 'Painted tiles',
     fields: [
       { label: 'Upscale', kind: 'number', min: 0, max: UPSCALES.length - 1, step: 1, names: UPSCALES, get: (l) => UPSCALES.indexOf(l.paint.upscale), set: (l, v) => (l.paint.upscale = UPSCALES[v] ?? 'scale2x') },

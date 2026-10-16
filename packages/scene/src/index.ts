@@ -229,6 +229,9 @@ export interface SceneCell {
   mf?: number
 }
 
+/** A status a renderer can show on a sprite: turned to stone, on fire, poisoned, corroded, berserk, glowing, summoned, soaked. */
+export type SpriteEffect = 'petrified' | 'burning' | 'poisoned' | 'corroded' | 'berserk' | 'glowing' | 'summoned' | 'wet'
+
 export type BillboardKind = 'monster' | 'item' | 'cloud' | 'doll' | 'projectile' | 'player'
 
 export interface Billboard {
@@ -269,6 +272,8 @@ export interface Billboard {
      */
     full?: true
   }[]
+  /** What crawl's status icons say has happened to it, for a renderer to show on the sprite itself. */
+  effects?: SpriteEffect[]
   /** Opacity 0..1 when the thing is translucent (submerged, invisible-but-known). */
   alpha?: number
   /**

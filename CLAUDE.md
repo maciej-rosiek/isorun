@@ -82,6 +82,19 @@ snapshot commit, without the history.
   by default): the normal page's blue channel is the height (`enhance.ts` `tileDepth`), the normal's z is
   rebuilt from x and y, and each quad carries its texture rect (`UV_RECT`) so the steps stay on it.
   The loop has no early exit, as WGSL wants the same path for every pixel after it.
+  Every tile has a label (`tools/labels`, README there): material, relief and joints, gloss, wet,
+  glow, sparkle, see-through, motion, made by Claude Haiku agents from contact sheets of every
+  tile and found by a hash of the tile's pixels (`tile-labels.ts`, `tile-labels.json`). `enhance.ts`
+  builds from it a floor or wall tile's height (its brightness against the mean over one part, so
+  bricks stand up from their joints) and a third page, the surface (red gloss, green glow, blue
+  sparkle, alpha see-through). `shading.ts` `dressGround`, `dressSprite` and `actorMaterial` read
+  it: Blinn-Phong highlights and a rim light in `ClayLightingModel`, dirt in the hollows and wear
+  on the edges (the height against a blurred mip), a little colour for each cell, wet ground and
+  puddles near water (the memory mask's `wetness`), glowing parts and glints into the `emission`
+  target (the screen blooms it while a glowing tile is placed). An actor hovers or flickers by its
+  label and shows crawl's statuses (`Billboard.effects` from the status icons: petrified, burning,
+  poisoned, corroded, berserk, glowing, summoned, wet). The Surfaces section of the lights menu
+  has their strengths; `setDepthSteps` sets the parallax steps (a quality setting).
   The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
   the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
   in `lights.ts` are variations of `DIORAMA`.

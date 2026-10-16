@@ -1,5 +1,6 @@
 import type { TileRect } from '@isorun/scene'
 import { SCALEFX_SCALE, scalefx } from './scalefx.js'
+import { UNLABELLED, labelOf, tileHash, type Joints, type TileLabel } from './tile-labels.js'
 
 /** Each tile is upscaled four times (by repeating pixels, by Scale2x twice, or by xBR twice), or three times by ScaleFX. */
 export const ENHANCE_SCALE = 4
@@ -11,6 +12,17 @@ const DOME_RADIUS = 10
 const OUTLINE_TRIM = 2
 const OUTLINE_LUMINANCE = 40
 const RELIEF = 1.6
+/** How strongly the height of a floor or a wall tile bends its normals. */
+const TERRAIN_RELIEF = 6
+/** How far the height of each relief level reaches from the middle, on the 0 to 1 scale of the parallax. */
+const RELIEF_AMPLITUDE = [0.08, 0.35, 0.7, 1]
+/** Source texels across a part between the joints: the height is the brightness against the mean over that span. */
+const JOINT_SPAN: Record<Joints, number> = { none: 3, bricks: 4, blocks: 6, cobbles: 4, planks: 3, tiles: 5, cracks: 2 }
+/** Joints between solid parts: their faces are flat and their edges fall off steeply. */
+const SOLID_PARTS: ReadonlySet<Joints> = new Set(['bricks', 'blocks', 'cobbles', 'tiles'])
+/** Gloss of each gloss level, and of a wet surface at least. */
+const GLOSS = [0, 0.3, 0.6, 1]
+const WET_GLOSS = 0.65
 
 export interface PaintSettings {
   /** Kuwahara brush size in upscaled texels: fine noise turns into flat patches with clean edges; 0 for none. */
@@ -223,28 +235,82 @@ function posterize(pixels: Uint8ClampedArray, levels: number) {
 }
 
 /**
- * A tangent-space normal map for a tile: a rounded dome from the silhouette
- * (so a sprite reads as a body the light wraps around) plus relief from the
- * brightness (so mortar sits below bricks and folds below cloth). The blue
- * channel holds that height, from 0 to 1 over the tile, for the parallax; the
- * shader rebuilds the normal's z from its x and y.
+ * The height of a sprite: a rounded dome from the silhouette (so a sprite reads as a body the light wraps around)
+ * plus its brightness (so folds sit below cloth).
  */
-function normalMap(pixels: Uint8ClampedArray, w: number, h: number): Uint8ClampedArray<ArrayBuffer> {
+function spriteHeight(pixels: Uint8ClampedArray, w: number, h: number): Float32Array {
   const distance = edgeDistance(pixels, w, h, DOME_RADIUS)
   const height = new Float32Array(w * h)
   for (let i = 0; i < w * h; i++) {
-    const luminance = (0.299 * pixels[i * 4] + 0.587 * pixels[i * 4 + 1] + 0.114 * pixels[i * 4 + 2]) / 255
     const t = distance[i] / DOME_RADIUS
     const dome = Math.sqrt(Math.max(0, 1 - (1 - t) * (1 - t)))
-    height[i] = dome * 0.4 + luminance * 0.35
+    height[i] = dome * 0.4 + luminance(pixels, i) * 0.35
   }
-  const depth = tileDepth(pixels, height)
+  return height
+}
+
+/**
+ * The height of a floor or a wall tile, 0 to 1 around 0.5, by its label: the brightness against its mean over the
+ * span of one part (a brick, a plank), so the parts stand up from their joints and the noise of single texels and
+ * the light of the whole tile flatten out. Solid parts get flat faces and steep edges. The tile wraps, as floors
+ * and walls repeat.
+ */
+function terrainHeight(pixels: Uint8ClampedArray, w: number, h: number, scale: number, label: TileLabel): Float32Array {
+  const bright = Float32Array.from({ length: w * h }, (_, i) => (label.brightIsHigh ? luminance(pixels, i) : 1 - luminance(pixels, i)))
+  const fine = boxBlur(boxBlur(bright, w, h, Math.max(1, scale >> 1)), w, h, Math.max(1, scale >> 1))
+  const span = JOINT_SPAN[label.joints] * scale
+  const broad = boxBlur(boxBlur(bright, w, h, span >> 1), w, h, span >> 1)
+  const band = fine.map((v, i) => v - broad[i])
+  const spread = Math.sqrt(band.reduce((sum, v) => sum + v * v, 0) / band.length) * 2.5 || 1
+  const solid = SOLID_PARTS.has(label.joints)
+  const amplitude = RELIEF_AMPLITUDE[label.relief] ?? RELIEF_AMPLITUDE[1]
+  return band.map((v) => {
+    const t = Math.max(-1, Math.min(1, v / spread))
+    const shaped = solid ? Math.tanh(t * 2) / Math.tanh(2) : t
+    return 0.5 + shaped * 0.5 * amplitude
+  })
+}
+
+/** A box blur of `radius` texels across and down, wrapping at the edges. */
+function boxBlur(values: Float32Array, w: number, h: number, radius: number): Float32Array {
+  if (radius < 1) return values
+  const across = new Float32Array(w * h)
+  const size = radius * 2 + 1
+  for (let y = 0; y < h; y++) {
+    let sum = 0
+    for (let k = -radius; k <= radius; k++) sum += values[y * w + ((k % w) + w) % w]
+    for (let x = 0; x < w; x++) {
+      across[y * w + x] = sum / size
+      sum += values[y * w + ((x + radius + 1) % w)] - values[y * w + (((x - radius) % w) + w) % w]
+    }
+  }
+  const out = new Float32Array(w * h)
+  for (let x = 0; x < w; x++) {
+    let sum = 0
+    for (let k = -radius; k <= radius; k++) sum += across[(((k % h) + h) % h) * w + x]
+    for (let y = 0; y < h; y++) {
+      out[y * w + x] = sum / size
+      sum += across[((y + radius + 1) % h) * w + x] - across[(((y - radius) % h) + h) % h * w + x]
+    }
+  }
+  return out
+}
+
+function luminance(pixels: Uint8ClampedArray, i: number) {
+  return (0.299 * pixels[i * 4] + 0.587 * pixels[i * 4 + 1] + 0.114 * pixels[i * 4 + 2]) / 255
+}
+
+/**
+ * A tangent-space normal map from a height, bent by `relief`. The blue channel holds the height for the parallax
+ * (`depth`, 0 to 1); the shader rebuilds the normal's z from its x and y.
+ */
+function normalMap(height: Float32Array, depth: Float32Array, w: number, h: number, relief: number): Uint8ClampedArray<ArrayBuffer> {
   const out = new Uint8ClampedArray(w * h * 4)
   const at = (x: number, y: number) => height[Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))]
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      const dx = (at(x + 1, y) - at(x - 1, y)) * RELIEF
-      const dy = (at(x, y + 1) - at(x, y - 1)) * RELIEF
+      const dx = (at(x + 1, y) - at(x - 1, y)) * relief
+      const dy = (at(x, y + 1) - at(x, y - 1)) * relief
       const len = Math.hypot(dx, dy, 1)
       const o = (y * w + x) * 4
       out[o] = ((-dx / len) * 0.5 + 0.5) * 255
@@ -253,6 +319,35 @@ function normalMap(pixels: Uint8ClampedArray, w: number, h: number): Uint8Clampe
       out[o + 3] = 255
     }
   return out
+}
+
+/**
+ * What each texel's surface does, by the tile's label: red its gloss, green how much light it gives (all of it, or
+ * its bright saturated parts: runes, eyes, flames), blue whether it sparkles (its bright texels), alpha whether it is
+ * see-through.
+ */
+function surfaceMap(pixels: Uint8ClampedArray, w: number, h: number, label: TileLabel): Uint8ClampedArray<ArrayBuffer> {
+  const out = new Uint8ClampedArray(w * h * 4)
+  const gloss = Math.max(GLOSS[label.gloss] ?? 0, label.wet ? WET_GLOSS : 0)
+  for (let i = 0; i < w * h; i++) {
+    const r = pixels[i * 4] / 255
+    const g = pixels[i * 4 + 1] / 255
+    const b = pixels[i * 4 + 2] / 255
+    const value = Math.max(r, g, b)
+    const saturation = value > 0 ? (value - Math.min(r, g, b)) / value : 0
+    const light = luminance(pixels, i)
+    const glow = label.glow >= 2 ? smoothstep(0.15, 0.7, value) : label.glow === 1 ? smoothstep(0.55, 0.85, value) * smoothstep(0.3, 0.65, saturation) : 0
+    out[i * 4] = gloss * (0.75 + 0.5 * (light - 0.5)) * 255
+    out[i * 4 + 1] = glow * 255
+    out[i * 4 + 2] = label.sparkle ? smoothstep(0.55, 0.9, light) * 255 : 0
+    out[i * 4 + 3] = label.translucent ? 255 : 0
+  }
+  return out
+}
+
+function smoothstep(edge0: number, edge1: number, x: number) {
+  const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)))
+  return t * t * (3 - 2 * t)
 }
 
 /** The height spread over 0 to 1 between the lowest and the highest opaque texel of the tile; transparent texels are at 0. */
@@ -286,6 +381,9 @@ export interface DrawnSlot extends PageSlot {
   y: number
   colour: ImageData
   normal: ImageData
+  surface: ImageData
+  /** What the tile is, by its pixels; null when no label names it. */
+  label: TileLabel | null
 }
 
 /**
@@ -312,15 +410,26 @@ export class EnhancedPage {
     const slot = this.allocate(rect.w, rect.h)
     if (!slot) return null
     const pixels = atlas.getImageData(rect.sx, rect.sy, rect.w, rect.h)
+    const label = labelOf(tileHash(pixels.data, rect.w, rect.h))
     const data = upscale(pixels.data, rect.w, rect.h, this.paint.upscale)
     const w = rect.w * this.scale
     const h = rect.h * this.scale
     const colour = new Uint8ClampedArray(data.buffer)
-    if (rect.ox !== 0 || rect.oy !== 0 || rect.w !== rect.cell || rect.h !== rect.cell || hasTransparency(colour)) trimOutline(colour, w, h)
+    const sprite = rect.ox !== 0 || rect.oy !== 0 || rect.w !== rect.cell || rect.h !== rect.cell || hasTransparency(colour)
+    if (sprite) trimOutline(colour, w, h)
     if (this.paint.lift !== 1) lift(colour, this.paint.lift)
     if (this.paint.radius > 0) kuwahara(colour, w, h, Math.round(this.paint.radius))
     if (this.paint.levels > 1) posterize(colour, Math.round(this.paint.levels))
-    return { ...slot, x: slot.sx * this.scale, y: slot.sy * this.scale, colour: new ImageData(colour, w, h), normal: new ImageData(normalMap(colour, w, h), w, h) }
+    const surface = surfaceMap(colour, w, h, label ?? UNLABELLED)
+    let normal: Uint8ClampedArray<ArrayBuffer>
+    if (sprite) {
+      const height = spriteHeight(colour, w, h)
+      normal = normalMap(height, tileDepth(colour, height), w, h, RELIEF)
+    } else {
+      const height = terrainHeight(colour, w, h, this.scale, label ?? UNLABELLED)
+      normal = normalMap(height, height, w, h, TERRAIN_RELIEF)
+    }
+    return { ...slot, x: slot.sx * this.scale, y: slot.sy * this.scale, colour: new ImageData(colour, w, h), normal: new ImageData(normal, w, h), surface: new ImageData(surface, w, h), label }
   }
 
   private allocate(w: number, h: number): PageSlot | null {

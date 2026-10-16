@@ -1,8 +1,8 @@
 import * as THREE from 'three/webgpu'
 import type { TileRect, TileSource } from '@isorun/scene'
-import { dFdx, dFdy, texture, uv } from 'three/tsl'
 import { EnhancedPage, PAGE_TEXELS, type DrawnSlot, type PaintSettings } from './enhance.js'
-import { ClayMaterial, actorMaterial, parallaxUV, reliefNormal, remembered, spriteColour, type MemoryMask } from './shading.js'
+import { ClayMaterial, actorMaterial, dressGround, dressSprite, type MemoryMask } from './shading.js'
+import type { TileLabel } from './tile-labels.js'
 import { atlasImage } from './plan.js'
 
 export type TileMaterial = ClayMaterial
@@ -16,15 +16,17 @@ export interface AtlasMaterial {
   height: number
 }
 
-/** A tile on its page: the page's materials, and the tile's rect with the page as its atlas and its place there. */
+/** A tile on its page: the page's materials, the tile's rect with the page as its atlas and its place there, and what the tile is. */
 export interface PlacedTile extends AtlasMaterial {
   rect: TileRect
+  label: TileLabel | null
 }
 
 interface Page {
   enhanced: EnhancedPage
   colour: THREE.DataTexture
   normal: THREE.DataTexture
+  surface: THREE.DataTexture
   material: AtlasMaterial
 }
 
@@ -41,6 +43,8 @@ export class AtlasMaterials {
   private readonly averages = new Map<string, [number, number, number]>()
   /** Tiles drawn on a page since the last upload, uploaded alone: a page is too big to upload again for each tile. */
   private readonly drawn: { page: Page; slot: DrawnSlot }[] = []
+  /** Whether a tile that gives light was placed: the screen then blooms the light it gives. */
+  glowing = false
 
   constructor(
     private readonly tiles: TileSource,
@@ -92,7 +96,8 @@ export class AtlasMaterials {
     }
     if (!page || !slot) return null
     this.drawn.push({ page, slot })
-    const placed = { ...page.material, rect: { ...rect, atlas: pageName(this.pages.indexOf(page)), sx: slot.sx, sy: slot.sy } }
+    const placed = { ...page.material, rect: { ...rect, atlas: pageName(this.pages.indexOf(page)), sx: slot.sx, sy: slot.sy }, label: slot.label }
+    if (slot.label && slot.label.glow > 0) this.glowing = true
     this.placed.set(key, placed)
     return placed
   }
@@ -108,6 +113,7 @@ export class AtlasMaterials {
       const last = !drawn.slice(i + 1).some((d) => d.page === page)
       copyPixels(copier, slot.colour, page.colour, slot, last)
       copyPixels(copier, slot.normal, page.normal, slot, last)
+      copyPixels(copier, slot.surface, page.surface, slot, last)
     })
   }
 
@@ -123,8 +129,10 @@ export class AtlasMaterials {
       page.material.actor.dispose()
       page.colour.dispose()
       page.normal.dispose()
+      page.surface.dispose()
     }
     this.pages.length = 0
+    this.glowing = false
     this.placed.clear()
     this.drawn.length = 0
   }
@@ -153,15 +161,13 @@ export class AtlasMaterials {
     colour.anisotropy = 4
     colour.magFilter = this.paint.upscale === 'pixel' ? THREE.NearestFilter : THREE.LinearFilter
     const normal = pageTexture(enhanced.size)
+    const surface = pageTexture(enhanced.size)
     const material = new ClayMaterial({ vertexColors: true, alphaTest: 0.5, side: THREE.DoubleSide, map: colour })
     const sprite = material.clone()
     sprite.alphaTest = material.alphaTest
-    sprite.colorNode = spriteColour(colour, this.memory)
-    sprite.normalNode = reliefNormal(normal)
-    const sunk = parallaxUV(normal)
-    material.colorNode = remembered(texture(colour, sunk).grad(dFdx(uv()), dFdy(uv())), this.memory)
-    material.normalNode = reliefNormal(normal, sunk)
-    const page = { enhanced, colour, normal, material: { material, sprite, actor: actorMaterial(sprite, colour), width: PAGE_TEXELS, height: PAGE_TEXELS } }
+    dressSprite(sprite, { colour, normal, surface }, this.memory)
+    dressGround(material, { colour, normal, surface }, this.memory)
+    const page = { enhanced, colour, normal, surface, material: { material, sprite, actor: actorMaterial(sprite, { colour, normal, surface }), width: PAGE_TEXELS, height: PAGE_TEXELS } }
     this.pages.push(page)
     return page
   }
