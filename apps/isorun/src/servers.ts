@@ -18,7 +18,7 @@ export const HOME: Page = {
 }
 
 /** the front end's screens that belong to no server; a settings group is its name in lower case (settings-rows.ts) */
-export const MENU_PATH = /^(settings(\/[a-z]+)?|settings\/controls\/gamepad|accounts(\/add(\/server)?)?|watch(\/add)?|whats-new|about)$/
+export const MENU_PATH = /^(settings(\/[a-z]+)?|settings\/controls\/gamepad|accounts(\/add(\/server)?)?|watch(\/add)?|whats-new|about|app)$/
 
 /** an account's Other versions, under Accounts: `/accounts/versions/cdi` */
 export const VERSIONS_PATH = 'accounts/versions'
@@ -57,6 +57,10 @@ export const OFFLINE_SERVER: ServerInfo = { id: 'offline', name: 'Offline', ws: 
  */
 export function offlineOffered(): boolean {
   return import.meta.env.MODE !== 'test' && import.meta.env.VITE_OFFLINE !== 'off'
+}
+
+export function appDownloadsOffered(): boolean {
+  return import.meta.env.VITE_OFFLINE === 'off'
 }
 
 /**

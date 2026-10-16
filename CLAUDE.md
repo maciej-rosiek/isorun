@@ -142,7 +142,8 @@ snapshot commit, without the history.
   https://isorun.maciej-rosiek.workers.dev, deployed by `.github/workflows/isorun-cloudflare.yml` on
   a push to `main`. The offline engine's Worker is not deployed, so `/engine/*` is a 404 there and
   the build has `VITE_OFFLINE=off` (`offlineOffered`): no offline player, and no service worker (one
-  installed before is unregistered).
+  installed before is unregistered). The home screen's Get the app (`appDownloadsOffered`, `showApp`) links
+  the desktop app's packages of the latest release there.
   Visit counts: the page (`src/visits.ts`, not in dev) sends beacons to `/api/visit`
   (`src/visit-beacon.ts`): a visit, each game started, and a beat every 30 s while the tab is
   visible, with the seconds a game was on screen. The `VisitLog` Durable Object

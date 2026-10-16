@@ -7,7 +7,7 @@ import { h, replace } from './dom'
 import { FocusNav, type Focusable } from './focus'
 import { nextHomePlace } from './room/places'
 import { RoomView } from './room/view'
-import { addAccount, addServer, ensureDeviceAccount, removeServer, characterOf, describeCharacter, describePlace, findServer, getChosenAccount, getGames, getLast, getMorgueDir, listAccounts, listServers, loginState, OFFLINE_SERVER, offlineOffered, offlineRuns, morgueUrlFor, removeAccount, sameAccount, setChosenAccount, setLast, setMorgueDir, type Account, type LastCharacter, type MenuRoute, type Route, type ServerInfo } from './servers'
+import { addAccount, addServer, appDownloadsOffered, ensureDeviceAccount, removeServer, characterOf, describeCharacter, describePlace, findServer, getChosenAccount, getGames, getLast, getMorgueDir, listAccounts, listServers, loginState, OFFLINE_SERVER, offlineOffered, offlineRuns, morgueUrlFor, removeAccount, sameAccount, setChosenAccount, setLast, setMorgueDir, type Account, type LastCharacter, type MenuRoute, type Route, type ServerInfo } from './servers'
 import { morgueDirGuesses, parseWhereis, saveWaiting, whereisUrl, type Whereis } from './whereis'
 import type { Session } from './session'
 import { deleteProfileSaves, profileName, type EngineInfo, type EngineNote } from '@isorun/offline'
@@ -49,6 +49,13 @@ const GLIDE_MS = 500
 
 /** the way off a screen (`data-focus`) */
 const BACK = 'back'
+
+const LATEST_RELEASE_DOWNLOAD = 'https://github.com/maciej-rosiek/isorun/releases/latest/download/'
+const APP_DOWNLOADS = [
+  { file: 'Isorun-x86_64.AppImage', label: 'Linux', sub: 'AppImage', hint: 'For a Steam Deck, a ROG Ally or any Linux PC. It updates itself.' },
+  { file: 'Isorun-linux-x64.tar.gz', label: 'Linux', sub: 'folder', hint: 'The same app as a plain folder. It does not update itself.' },
+  { file: 'Isorun-win-x64.zip', label: 'Windows', sub: 'zip', hint: 'Unzip it and run Isorun.exe. It does not update itself.' },
+]
 
 /** the margin glyph for a player on this device, where a server account has `\`: a wall, a place of its own */
 const DEVICE_MARKER = '#'
@@ -728,6 +735,7 @@ export class FrontEnd {
       else this.showAccounts()
     } else if (root === 'whats-new') this.showNews()
     else if (root === 'about') this.showAbout()
+    else if (root === 'app') this.showApp()
     else if (root === 'watch') {
       if (sub === 'add') this.showAddServer('watch')
       else this.showServers('watch')
@@ -1196,6 +1204,7 @@ export class FrontEnd {
     const utilities: Row[] = accountRow ? [accountRow] : []
     // What's new reads here, offline too, and says when there is something unread
     utilities.push({ id: 'news', label: 'What’s new', marker: '!', dot: newsUnread(), hint: newsUnread() ? `What changed in Isorun ${version}, and before.` : 'What changed in Isorun, newest first.', fn: () => this.showNews() })
+    if (appDownloadsOffered()) utilities.push({ id: 'app', label: 'Get the app', marker: '+', hint: 'Isorun as an app for Linux, SteamOS and Windows: offline games, no browser.', fn: () => this.showApp() })
     utilities.push({ id: 'about', label: 'About & credits', marker: '?', hint: 'About Isorun, and the people behind the game.', fn: () => this.showAbout() })
     const onPad = !!this.hooks.padConnected?.()
     rows.push({ id: 'settings', label: 'Settings', marker: '?', hint: 'Graphics, controls, the HUD: kept on this device.' + (onPad ? ' (X)' : ''), fn: () => this.showSettings(() => this.showHome()) })
@@ -1348,6 +1357,17 @@ export class FrontEnd {
   showAbout() {
     this.showDoc({ title: 'About & credits', from: () => this.showHome(), body: () => renderMarkdown(about, { dropTitle: true }) })
     this.at({ kind: 'menu', path: 'about' })
+  }
+
+  showApp() {
+    this.setView('doc', 'app-list')
+    this.docFrom = () => this.showHome()
+    const rows: Row[] = [
+      { id: BACK, label: 'Back', marker: '<', hint: 'Back.', fn: () => this.back() },
+      ...APP_DOWNLOADS.map(({ file, label, sub, hint }) => ({ id: 'app:' + file, label, sub, marker: '+', hint, fn: () => window.location.assign(LATEST_RELEASE_DOWNLOAD + file) })),
+    ]
+    this.list({ cls: 'app-list', title: 'Get the app', lede: 'Isorun as an app: offline games on this device, with no browser. The downloads come from the latest release on GitHub.', rows, focus: 'app:' + APP_DOWNLOADS[0].file })
+    this.at({ kind: 'menu', path: 'app' })
   }
 
   // ------------------------------------------------------------------ watch

@@ -185,6 +185,24 @@ describe('the front end: the home screen', () => {
     vi.restoreAllMocks()
   })
 
+  it('offers the app downloads on the hosted build, each from the latest release', () => {
+    // given
+    vi.stubEnv('VITE_OFFLINE', 'off')
+    const { screen } = make()
+    const assign = vi.fn()
+    vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, assign })
+
+    // when
+    pick(screen, 'Get the app')
+    pick(screen, 'Windows')
+
+    // then
+    expect(labels(screen)).toEqual(['Back', 'Linux', 'Linux', 'Windows'])
+    expect(assign).toHaveBeenCalledWith('https://github.com/maciej-rosiek/isorun/releases/latest/download/Isorun-win-x64.zip')
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
   it('reserves home help space for every row and footer hint as focus changes', () => {
     const { screen } = make()
     const help = screen.root.querySelector('.home-menu-help')!
