@@ -31,9 +31,9 @@ Other commands: `npm test` (vitest), `npm run typecheck` (`tsc -b`),
 so the dev and preview servers include a small proxy that fetches gamedata
 (tile tables and atlases) from the connected server.
 
-The desktop app (Linux and SteamOS, for a Steam Deck or a ROG Ally) is in
-[desktop](desktop/README.md): the game and the offline engine in a self-updating AppImage, from
-the [releases](https://github.com/maciej-rosiek/isorun/releases).
+The desktop app (Linux, SteamOS and Windows; for a Steam Deck or a ROG Ally) is in
+[desktop](desktop/README.md): the game and the offline engine in an Electron window, from the
+[releases](https://github.com/maciej-rosiek/isorun/releases) (on Linux a self-updating AppImage).
 
 ## Packages
 

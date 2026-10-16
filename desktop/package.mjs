@@ -45,7 +45,7 @@ if (publish && !process.env.GH_TOKEN) process.env.GH_TOKEN = execFileSync('gh', 
 
 const artifacts = await build({
   projectDir: appOutsideWorkspace,
-  targets: Platform.LINUX.createTarget('AppImage', Arch.x64),
+  targets: new Map([...Platform.LINUX.createTarget(['AppImage', 'tar.gz'], Arch.x64), ...Platform.WINDOWS.createTarget('zip', Arch.x64)]),
   publish: publish ? 'always' : 'never',
   config: {
     appId: 'io.github.maciej-rosiek.isorun',
@@ -59,7 +59,12 @@ const artifacts = await build({
     linux: {
       category: 'Game',
       icon: join(isorun, 'apps/isorun/public/icons/icon-512.png'),
-      artifactName: 'Isorun-${arch}.AppImage',
+      artifactName: 'Isorun-linux-${arch}.${ext}',
+    },
+    appImage: { artifactName: 'Isorun-${arch}.AppImage' },
+    win: {
+      icon: join(isorun, 'apps/isorun/public/icons/icon-512.png'),
+      artifactName: 'Isorun-win-${arch}.${ext}',
     },
     publish: { provider: 'github', owner: 'maciej-rosiek', repo: 'isorun', releaseType: 'draft' },
   },

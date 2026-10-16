@@ -129,9 +129,9 @@ snapshot commit, without the history.
   ones to `https://isorun.app` from `src/serve.ts` (the built app, `engine/dist` at `/engine/`, the
   gamedata and morgue proxies), so the page has a real https origin: Cache Storage and the service
   worker work as on the web. It loads `/?fullscreen`, so the Quit row shows. `npm run package`
-  (`package.mjs`, electron-builder) builds the app with offline on and writes a Linux AppImage to
-  `desktop/dist/release`; the app is staged in the temp folder, since electron-builder takes in
-  every `node_modules` above its project. The AppImage updates itself from this repository's
+  (`package.mjs`, electron-builder) builds the app with offline on and writes a Linux AppImage, a Linux tar.gz and a
+  Windows zip to `desktop/dist/release`; the app is staged in the temp folder, since electron-builder takes in
+  every `node_modules` above its project. Only the AppImage updates itself, from this repository's
   GitHub releases (electron-updater, `updateInBackground`): `npm run release` uploads a draft
   release `v<version>` (the version of `apps/isorun/package.json`), and publishing the draft
   ships it. The prebuilt Electron does not run on NixOS: test with the nixpkgs `electron`
