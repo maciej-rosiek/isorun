@@ -1,5 +1,6 @@
 import { LIGHTS, QUALITY, isLightsName } from '@isorun/render-iso'
 import { audio } from './audio'
+import { RESOLUTIONS, TORCH_SHADOWS, surfaceDetails } from './graphics'
 import { defaultSettings, getSettings, saveSettings, type Settings } from './servers'
 
 /**
@@ -94,7 +95,12 @@ function percent(v: number) {
 /** Every row, whatever is offered; `SETTING_ROWS` is what the player sees. */
 export const ALL_SETTING_ROWS: readonly SettingRow[] = [
   // Graphics
-  row('Graphics', 'Quality', 'graphics', ['low', 'medium', 'high'], 'How much work each frame does: the pixels drawn, the soft shadows in the corners and the torch shadows. Lower is faster on a weak GPU.', (v) => QUALITY[v].label),
+  row('Graphics', 'Quality', 'graphics', ['low', 'medium', 'high'], 'How much work each frame does: the pixels drawn, the soft shadows in the corners, the edges and the torch shadows. Lower is faster on a weak GPU. The rows under it can change one of them.', (v) => QUALITY[v].label),
+  row('Graphics', 'Surface detail', 'surfaceDetail', surfaceDetails(), 'What the tiles show of their surface. Low: rim light, dirt and wear, and how each cell differs. Medium: the depth of the bricks and stones, gloss, wetness and glowing tiles too. High: sparkle, dust in the torch light and deep liquids too. A phone stops at Medium.', (v) => v[0].toUpperCase() + v.slice(1)),
+  row('Graphics', 'Resolution', 'resolution', RESOLUTIONS, 'How many of the screen\'s pixels the dungeon is drawn with; the rest are filled in when the picture is scaled up. Fewer is much faster on a big screen. Auto takes the Quality\'s.', (v) => (v === 'auto' ? 'Auto' : v + '%')),
+  row('Graphics', 'Ambient occlusion', 'ambientOcclusion', ['auto', 'off', 'low', 'medium', 'high'], 'The soft shadows in the corners and at the foot of the walls. Low draws them with fewer samples, High at the full size of the screen. Auto takes the Quality\'s.', (v) => (v === 'auto' ? 'Auto' : v[0].toUpperCase() + v.slice(1))),
+  row('Graphics', 'Antialiasing', 'antialias', ['auto', 'off', 'on'], 'Smooths the edges of the walls by drawing the scene four times over; it costs about as much as the rest of the scene. Auto takes the Quality\'s.', (v) => (v === 'auto' ? 'Auto' : v === 'on' ? 'On' : 'Off')),
+  row('Graphics', 'Torch shadows', 'torchShadows', TORCH_SHADOWS, 'How many of the wall torches nearest to the middle of the view cast shadows. Auto takes the Quality\'s.', (v) => (v === 'auto' ? 'Auto' : String(v))),
   row('Graphics', 'Animation speed', 'animationSpeed', [1, 1.25, 1.5, 2, 3], 'How fast the player and the monsters walk and fight on the screen. The game itself does not wait for them.', (v) => v + 'x'),
   row('Graphics', 'Travel', 'travel', ['paced', 'fast'], 'Paced: travel and explore wait for every hop, so the walk shows cell by cell. Fast: they go as fast as the server does, and a long way is a jump.', (v) => (v === 'paced' ? 'Paced' : 'Fast')),
   row('Graphics', 'Look', 'look', [...Object.keys(LIGHTS).filter(isLightsName), 'custom'], 'The lights, the colours and the screen effects of the dungeon. Custom is what Tune the look set last.', (v) => (v === 'custom' ? 'Custom' : LIGHTS[v].label)),

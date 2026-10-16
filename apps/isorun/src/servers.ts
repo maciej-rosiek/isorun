@@ -3,7 +3,8 @@ import type { GameLink } from '@isorun/webtiles'
 import bundled from '../data/servers.json'
 import { canQuit } from './quit'
 import { DEFAULT_PROFILE } from '@isorun/offline'
-import { isLightsName, isQualityName, type CameraAngles, type LightsName, type QualityName } from '@isorun/render-iso'
+import { isLightsName, isQualityName, type CameraAngles, type LightsName, type QualityName, type SurfaceDetail } from '@isorun/render-iso'
+import { AMBIENT_OCCLUSION, RESOLUTIONS, TORCH_SHADOWS, defaultSurfaceDetail, surfaceDetails, type AmbientOcclusion, type Resolution, type TorchShadows } from './graphics'
 
 export interface Page {
   /** the tab's title; the name and the rest are set apart by a hyphen, as a game's tab is (gameTitle) */
@@ -524,6 +525,13 @@ export interface Settings {
   hints: HintMode
   /** How much work the dungeon view does a frame (render-iso `QUALITY`). */
   graphics: QualityName
+  /** The graphics settings that take the Quality preset's value while Auto (graphics.ts `qualityFor`). */
+  resolution: Resolution
+  ambientOcclusion: AmbientOcclusion
+  antialias: 'auto' | 'off' | 'on'
+  /** The tiles' surface effects (render-iso `applySurfaceDetail`); a phone starts at Off and stops at Medium (graphics.ts `surfaceDetails`). */
+  surfaceDetail: SurfaceDetail
+  torchShadows: TorchShadows
   /** The dungeon's lights, colours and screen effects (render-iso `LIGHTS`). */
   look: LightsName | 'custom'
   /** How fast the player and the monsters walk and fight on the dungeon view, 1 for the base speed. */
@@ -571,6 +579,11 @@ export const defaultSettings: Settings = {
   minimapCell: 20,
   hints: 'adaptive',
   graphics: 'medium',
+  surfaceDetail: 'medium',
+  resolution: 'auto',
+  ambientOcclusion: 'auto',
+  antialias: 'auto',
+  torchShadows: 'auto',
   look: 'diorama',
   animationSpeed: 1.5,
   arrowKeys: 'aim',
@@ -591,6 +604,12 @@ export function getSettings(): Settings {
   const s = { ...defaultSettings, ...saved }
   s.hints = hintsFrom(saved)
   if (!isQualityName(s.graphics)) s.graphics = defaultSettings.graphics
+  if (!RESOLUTIONS.includes(s.resolution)) s.resolution = defaultSettings.resolution
+  if (s.ambientOcclusion !== 'auto' && !(s.ambientOcclusion in AMBIENT_OCCLUSION)) s.ambientOcclusion = defaultSettings.ambientOcclusion
+  if (!['auto', 'off', 'on'].includes(s.antialias)) s.antialias = defaultSettings.antialias
+  if (saved.surfaceDetail === undefined) s.surfaceDetail = defaultSurfaceDetail()
+  if (!surfaceDetails().includes(s.surfaceDetail)) s.surfaceDetail = defaultSettings.surfaceDetail
+  if (!TORCH_SHADOWS.includes(s.torchShadows)) s.torchShadows = defaultSettings.torchShadows
   if (s.look !== 'custom' && !isLightsName(s.look)) s.look = defaultSettings.look
   if (s.hud !== 'dock' && s.hud !== 'classic') s.hud = defaultSettings.hud
   return s

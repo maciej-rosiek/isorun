@@ -1,6 +1,7 @@
-import { QUALITY, isQualityName, type IsoQuality } from '@isorun/render-iso'
+import { QUALITY, SURFACE_DETAILS, applySurfaceDetail, isQualityName, type IsoQuality, type SurfaceDetail } from '@isorun/render-iso'
 
 const STORE_KEY = 'isorun.quality'
+const SURFACE_KEY = 'isorun.surfaceDetail'
 
 export const DEFAULT_QUALITY: IsoQuality = QUALITY.medium
 
@@ -12,7 +13,9 @@ export function storedQuality(): IsoQuality {
       const { pixelRatio, aoResolution, shadows, torchShadows } = raw
       const label = 'label' in raw && typeof raw.label === 'string' ? raw.label : ''
       const actorTorchShadows = 'actorTorchShadows' in raw && raw.actorTorchShadows === true
-      if (typeof pixelRatio === 'number' && typeof aoResolution === 'number' && typeof shadows === 'boolean' && typeof torchShadows === 'number') return { label, pixelRatio, aoResolution, shadows, torchShadows, actorTorchShadows }
+      const aoSamples = 'aoSamples' in raw && typeof raw.aoSamples === 'number' ? raw.aoSamples : DEFAULT_QUALITY.aoSamples
+      const antialias = 'antialias' in raw && typeof raw.antialias === 'boolean' ? raw.antialias : DEFAULT_QUALITY.antialias
+      if (typeof pixelRatio === 'number' && typeof aoResolution === 'number' && typeof shadows === 'boolean' && typeof torchShadows === 'number') return { label, pixelRatio, aoResolution, aoSamples, antialias, shadows, torchShadows, actorTorchShadows }
     }
   } catch {
     return DEFAULT_QUALITY
@@ -38,7 +41,7 @@ export function qualityPanel(container: HTMLElement, initial: IsoQuality, onChan
     for (const b of presetRow.querySelectorAll<HTMLButtonElement>('button')) {
       const name = b.dataset.preset ?? ''
       const preset = isQualityName(name) ? QUALITY[name] : undefined
-      b.classList.toggle('on', preset !== undefined && preset.pixelRatio === quality.pixelRatio && preset.aoResolution === quality.aoResolution && preset.shadows === quality.shadows && preset.torchShadows === quality.torchShadows && preset.actorTorchShadows === quality.actorTorchShadows)
+      b.classList.toggle('on', preset !== undefined && preset.pixelRatio === quality.pixelRatio && preset.aoResolution === quality.aoResolution && preset.aoSamples === quality.aoSamples && preset.antialias === quality.antialias && preset.shadows === quality.shadows && preset.torchShadows === quality.torchShadows && preset.actorTorchShadows === quality.actorTorchShadows)
     }
     localStorage.setItem(STORE_KEY, JSON.stringify(quality))
     onChange(quality)
@@ -80,14 +83,36 @@ export function qualityPanel(container: HTMLElement, initial: IsoQuality, onChan
     return element
   }
 
+  const surfaceRow = document.createElement('div')
+  surfaceRow.className = 'row'
+  const pickSurface = (level: SurfaceDetail) => {
+    applySurfaceDetail(level)
+    localStorage.setItem(SURFACE_KEY, level)
+    for (const b of surfaceRow.querySelectorAll<HTMLButtonElement>('button')) b.classList.toggle('on', b.dataset.level === level)
+  }
+  for (const level of SURFACE_DETAILS) {
+    const button = document.createElement('button')
+    button.textContent = level[0].toUpperCase() + level.slice(1)
+    button.dataset.level = level
+    button.addEventListener('click', () => pickSurface(level))
+    surfaceRow.append(button)
+  }
+  const surfaceTitle = document.createElement('label')
+  surfaceTitle.textContent = 'Surface detail'
+
   container.append(
     title,
     presetRow,
+    surfaceTitle,
+    surfaceRow,
     slider('Pixel ratio', 0.5, 3, 0.25, () => quality.pixelRatio, (v) => ({ ...quality, pixelRatio: v }), (v) => `${v}x`),
     slider('AO resolution', 0, 1, 0.25, () => quality.aoResolution, (v) => ({ ...quality, aoResolution: v }), (v) => (v > 0 ? `${v * 100}%` : 'off')),
+    slider('AO samples', 4, 16, 4, () => quality.aoSamples, (v) => ({ ...quality, aoSamples: v }), String),
+    toggle('Antialiasing', () => quality.antialias, (v) => ({ ...quality, antialias: v })),
     toggle('Shadows', () => quality.shadows, (v) => ({ ...quality, shadows: v })),
     slider('Torch shadows', 0, 8, 1, () => quality.torchShadows, (v) => ({ ...quality, torchShadows: v }), String),
     toggle('Monster torch shadows', () => quality.actorTorchShadows, (v) => ({ ...quality, actorTorchShadows: v })),
   )
   pick(quality)
+  pickSurface(SURFACE_DETAILS.find((level) => level === localStorage.getItem(SURFACE_KEY)) ?? 'medium')
 }

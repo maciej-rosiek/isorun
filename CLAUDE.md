@@ -155,9 +155,12 @@ snapshot commit, without the history.
   A hop raises dust when the actor lifts off and lands, and leaves footprints that fade
   (`steps.ts`, the Steps menu section).
 - Graphics quality (`quality.ts`, `setQuality`, kept apart from the look): a limit on the pixel
-  ratio, the ambient occlusion's resolution (0 turns it off), shadows on or off, and how many
+  ratio, the ambient occlusion's resolution (0 turns it off) and samples, 4x MSAA on the scene pass
+  (`antialias`, about a third of the GPU time of a full screen; High only), shadows on or off, how many
   torches cast shadows, and whether the monsters cast torch shadows too (High only); presets Low,
-  Medium (the default) and High. The test bed's Graphics box (`testbed/quality-panel.ts`,
+  Medium (the default) and High. The game's Graphics settings add Resolution, Ambient occlusion,
+  Antialiasing and Torch shadows over the preset (Auto takes the preset's; `graphics.ts` `qualityFor`)
+  and Surface detail (`applySurfaceDetail`; a phone starts at Off and stops at Medium). The test bed's Graphics box (`testbed/quality-panel.ts`,
   `localStorage` `isorun.quality`) sits under the Camera box. Shadow maps are drawn only when they
   go stale: the statics are built again, a light moves to another torch, a door swings or an actor
   that casts a shadow moves (not its breath; on Medium that is the sun's map alone). The sun

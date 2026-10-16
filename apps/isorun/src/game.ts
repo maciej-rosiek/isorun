@@ -6,7 +6,8 @@ import { GameAudio } from './audio/director'
 import { combatEvents, linesSince, monsterCell, type Fighter } from './combat'
 import { DamageNumbers } from './damage-numbers'
 import { cellDetails } from './cell-info'
-import { DEFAULT_ANGLES, IsoAssets, IsoCamera, IsoRender3d, LIGHTS, QUALITY, STEP_SECONDS, TURN_DEGREES, stickToDir, type AimIntent } from '@isorun/render-iso'
+import { DEFAULT_ANGLES, IsoAssets, applySurfaceDetail, IsoCamera, IsoRender3d, LIGHTS, STEP_SECONDS, TURN_DEGREES, stickToDir, type AimIntent } from '@isorun/render-iso'
+import { qualityFor } from './graphics'
 import { Render2d } from '@isorun/render-2d'
 import { escapeHtml, h, onDprChange } from './dom'
 import type { Session } from './session'
@@ -562,7 +563,8 @@ export class GameScreen {
     if (r instanceof IsoRender3d) {
       this.iso = r
       const st = this.hooks.settings()
-      r.setQuality(QUALITY[st.graphics])
+      r.setQuality(qualityFor(st, window.devicePixelRatio || 1))
+      applySurfaceDetail(st.surfaceDetail)
       r.setLights(lightsFor(st.look))
       r.setAnimationSpeed(st.animationSpeed)
       r.setCutAwayReach(touchScreen() ? TOUCH_CUT_AWAY_CELLS : 0)
@@ -612,7 +614,8 @@ export class GameScreen {
     const st = this.settings()
     document.documentElement.style.setProperty('--ui-scale', String(st.uiScale))
     this.grid.setTextSize(this.textPx())
-    this.iso?.setQuality(QUALITY[st.graphics])
+    this.iso?.setQuality(qualityFor(st, window.devicePixelRatio || 1))
+    applySurfaceDetail(st.surfaceDetail)
     this.iso?.setLights(lightsFor(st.look))
     this.iso?.setAnimationSpeed(st.animationSpeed)
     this.paceTravel()

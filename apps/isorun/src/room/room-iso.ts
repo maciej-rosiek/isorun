@@ -1,4 +1,5 @@
-import { IsoAssets, IsoRender3d, LIGHTS, QUALITY, type IsoView } from '@isorun/render-iso'
+import { IsoAssets, IsoRender3d, applySurfaceDetail, LIGHTS, type IsoView } from '@isorun/render-iso'
+import { qualityFor } from '../graphics'
 import { lightsFor } from '../lights-panel'
 import type { Camera } from '@isorun/scene'
 import { getSettings } from '../servers'
@@ -44,7 +45,8 @@ export class RoomIso {
   /** The Graphics settings (quality and look), as the game draws them: the settings screen shows its changes on the room behind it. */
   applySettings() {
     const st = getSettings()
-    this.r.setQuality(QUALITY[st.graphics])
+    this.r.setQuality(qualityFor(st, window.devicePixelRatio || 1))
+    applySurfaceDetail(st.surfaceDetail)
     this.r.setLights(lightsFor(st.look))
   }
 

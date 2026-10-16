@@ -514,6 +514,8 @@ export class IsoRender3d implements MapRenderer {
     this.markShadowsStale()
     if (this.renderer) this.renderer.shadowMap.enabled = this.quality.shadows
     this.post?.setAoResolution(this.quality.aoResolution)
+    this.post?.setAoSamples(this.quality.aoSamples)
+    this.post?.setAntialias(this.quality.antialias)
     this.applySize()
   }
 

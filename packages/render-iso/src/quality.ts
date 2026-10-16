@@ -5,6 +5,10 @@ export interface IsoQuality {
   pixelRatio: number
   /** Ambient occlusion: the size of its image, a part of the screen's size; 0 turns it off. */
   aoResolution: number
+  /** Ambient occlusion: the samples per pixel; fewer is faster and grainier. */
+  aoSamples: number
+  /** Whether the scene is drawn with 4x multisampling, which smooths the edges of walls; it writes four times the pixels of the scene's images. */
+  antialias: boolean
   /** Whether lights cast shadows. */
   shadows: boolean
   /** How many of the wall torches nearest to the centre of the view cast shadows, 0 to 8. */
@@ -14,9 +18,9 @@ export interface IsoQuality {
 }
 
 export const QUALITY = {
-  low: { label: 'Low', pixelRatio: 1, aoResolution: 0, shadows: true, torchShadows: 0, actorTorchShadows: false },
-  medium: { label: 'Medium', pixelRatio: 1.5, aoResolution: 0.5, shadows: true, torchShadows: 4, actorTorchShadows: false },
-  high: { label: 'High', pixelRatio: 2, aoResolution: 1, shadows: true, torchShadows: 8, actorTorchShadows: true },
+  low: { label: 'Low', pixelRatio: 1, aoResolution: 0, aoSamples: 8, antialias: false, shadows: true, torchShadows: 0, actorTorchShadows: false },
+  medium: { label: 'Medium', pixelRatio: 1.5, aoResolution: 0.5, aoSamples: 8, antialias: false, shadows: true, torchShadows: 4, actorTorchShadows: false },
+  high: { label: 'High', pixelRatio: 2, aoResolution: 1, aoSamples: 16, antialias: true, shadows: true, torchShadows: 8, actorTorchShadows: true },
 } satisfies Record<string, IsoQuality>
 
 export type QualityName = keyof typeof QUALITY

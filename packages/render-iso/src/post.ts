@@ -48,7 +48,8 @@ const DANGER_COLOUR = vec3(0.45, 0.03, 0.03)
 /**
  * The scene pass with the screen effects on top: GTAO, a painted filter, outlines, bloom, tilt-shift blur and a colour grade; then the overlay materials (`overlayOutput`) as they are.
  * With no effect but GTAO before it, the tilt-shift blurs the scene's own colour and shades the blur with the GTAO after: blurring the shaded image would draw it whole once more
- * into a texture of its own, which on a big screen costs as much as the rest of the effects together.
+ * into a texture of its own, which on a big screen costs as much as the rest of the effects together. The glow of lava and starwater is added after the blur, as it is soft already.
+ * The normal and the overlay outputs are 8-bit, which they need; the scene's colour stays half float.
  */
 export class IsoPost {
   private readonly pipeline: THREE.RenderPipeline
@@ -75,6 +76,8 @@ export class IsoPost {
   private readonly danger = uniform(0)
   private aoNode: GTAONode | null = null
   private aoResolution = 1
+  private aoSamples = 16
+  private samples = 4
   private shape = ''
 
   constructor(
@@ -97,6 +100,20 @@ export class IsoPost {
     if (scale > 0 !== this.aoResolution > 0) this.shape = ''
     this.aoResolution = scale
     if (this.aoNode) this.aoNode.resolutionScale = scale
+  }
+
+  /** The ambient occlusion's samples per pixel. */
+  setAoSamples(samples: number) {
+    this.aoSamples = samples
+    if (this.aoNode) this.aoNode.samples.value = samples
+  }
+
+  /** Whether the scene is drawn with 4x multisampling: the scene's images are made again. */
+  setAntialias(on: boolean) {
+    const samples = on ? 4 : 0
+    if (samples === this.samples) return
+    this.samples = samples
+    this.shape = ''
   }
 
   configure(settings: ScreenLightSettings) {
@@ -149,11 +166,13 @@ export class IsoPost {
   }
 
   private build(settings: ScreenLightSettings) {
-    const scenePass = pass(this.world, this.camera)
+    const scenePass = pass(this.world, this.camera, { samples: this.samples })
     this.aoNode = null
     const aoOn = this.aoOn(settings)
     const needsNormals = aoOn || settings.outline.enabled
     scenePass.setMRT(mrt({ output, overlay: float(0), ...(needsNormals ? { normal: packNormalToRGB(normalViewGeometry) } : {}), ...(this.emitting ? { emission: vec4(0) } : {}) }))
+    scenePass.getTexture('overlay').type = THREE.UnsignedByteType
+    if (needsNormals) scenePass.getTexture('normal').type = THREE.UnsignedByteType
     const colour = scenePass.getTextureNode('output')
     const depthTexture = scenePass.getTextureNode('depth')
     let image: THREE.Node<'vec4'> = colour
@@ -162,11 +181,12 @@ export class IsoPost {
       const normalTexture = scenePass.getTextureNode('normal')
       this.aoNode = ao(depthTexture, sample((uv) => unpackRGBToNormal(normalTexture.sample(uv))), this.camera)
       this.aoNode.resolutionScale = this.aoResolution
+      this.aoNode.samples.value = this.aoSamples
       const occlusion = mix(float(1), this.aoNode.getTextureNode().r, this.aoIntensity)
       shade = (lit) => vec4(lit.rgb.mul(occlusion), lit.a)
       image = shade(colour)
     }
-    const onlyShaded = !settings.painted.enabled && !settings.outline.enabled && !settings.pixelate.enabled && !settings.bloom.enabled && !this.emitting
+    const onlyShaded = !settings.painted.enabled && !settings.outline.enabled && !settings.pixelate.enabled && !settings.bloom.enabled
     if (settings.painted.enabled) image = this.paint(image)
     if (settings.outline.enabled) {
       const normalTexture = scenePass.getTextureNode('normal')
@@ -185,12 +205,12 @@ export class IsoPost {
     }
     if (settings.pixelate.enabled) image = this.pixelate(image)
     if (settings.bloom.enabled) image = image.add(bloom(colour, this.bloomStrength, this.bloomRadius, this.bloomThreshold))
-    if (this.emitting) image = image.add(bloom(scenePass.getTextureNode('emission'), EMISSION_STRENGTH, EMISSION_RADIUS, 0))
     if (settings.tiltShift.enabled) {
       const blurred = onlyShaded ? shade(gaussianBlur(colour, this.blur.mul(BLUR_STEP), BLUR_SIGMA, { resolutionScale: BLUR_RESOLUTION })) : gaussianBlur(image, this.blur.mul(BLUR_STEP), BLUR_SIGMA, { resolutionScale: BLUR_RESOLUTION })
       const away = smoothstep(this.focus, this.focus.add(this.falloff), abs(screenUV.y.sub(0.5)).mul(2))
       image = mix(image, blurred, away)
     }
+    if (this.emitting) image = image.add(bloom(scenePass.getTextureNode('emission'), EMISSION_STRENGTH, EMISSION_RADIUS, 0))
     const graded = saturation(image.rgb, this.saturation)
     const tint = mix(this.shadows.div(luminance(this.shadows)), this.highlights.div(luminance(this.highlights)), smoothstep(0, 0.6, luminance(graded)))
     const corners = float(1).sub(length(screenUV.sub(0.5)).mul(1.414).pow(2).mul(this.vignette))
