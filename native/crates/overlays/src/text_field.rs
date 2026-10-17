@@ -157,7 +157,7 @@ impl Overlays {
         // the average (about an em for DejaVu Sans Mono), plus its padding and border
         let field_w = (size * widgets::ch(font) + font).round() + 8.0;
         let field_h = widgets::normal_line_height(font) + 7.0;
-        let width = (head.size().x.max(field_w) + 2.0 * pad_x + 2.0).max(20.0 * screen.rem()).min(screen.popup_max_w()).ceil();
+        let width = if screen.compact() { screen.popup_max_w() } else { (head.size().x.max(field_w) + 2.0 * pad_x + 2.0).max(20.0 * screen.rem()).min(screen.popup_max_w()).ceil() };
         let height = (2.0 * pad_y + head.size().y + 1.0 + 2.0 * pad_y + field_h + 2.0).ceil();
         let x = screen.rect.center().x - width / 2.0;
         let y = screen.rect.bottom() - 9.0 * screen.rem() - height;

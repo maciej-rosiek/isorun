@@ -59,7 +59,8 @@ impl Overlays {
         let ls = lines(cx.state);
         let galleys: Vec<_> = ls.iter().map(|l| rich::galley(ctx, rich::html(if l.is_empty() { " " } else { l }, &st, 0.0))).collect();
         let natural = galleys.iter().map(|g| g.size().x).fold(0.0, f32::max);
-        let width = (natural + 2.0 * pad_x + 2.0).ceil().clamp(screen.popup_min_w(), screen.popup_max_w());
+        // a phone's screen is full width (touch.css), whatever the text's own width
+        let width = if screen.compact() { screen.popup_max_w() } else { (natural + 2.0 * pad_x + 2.0).ceil().clamp(screen.popup_min_w(), screen.popup_max_w()) };
         let line_h = 1.2 * font;
         let content_h = ls.len() as f32 * line_h + 2.0 * pad_y;
         let height = content_h.min(screen.popup_max_h()) + 2.0;

@@ -195,7 +195,8 @@ impl Overlays {
                 ChipLay { size: Vec2::new(w, inner_h + 2.0 * py + 2.0), caps, default, label }
             })
             .collect();
-        let max_w = (0.94 * screen.w()).min(48.0 * font);
+        // a phone's card is as wide as its screen less the margins, as every popup there
+        let max_w = if screen.compact() { screen.popup_max_w() } else { (0.94 * screen.w()).min(48.0 * font) };
         let text_g = card.text.as_ref().map(|t| rich::galley(ctx, rich::plain(t, &TextStyle::new(ctx, 1.05 * font, Color32::WHITE), max_w - 2.0 * pad_x - 2.0)));
         let lead_g = card.lead.as_ref().filter(|l| !l.is_empty()).map(|l| rich::galley(ctx, rich::plain(l, &TextStyle::new(ctx, 1.05 * font, Color32::WHITE), 0.0)));
         // the chips' rows (flex-wrap, centred)
@@ -249,7 +250,7 @@ impl Overlays {
         let text_h = text_g.as_ref().map_or(0.0, |g| g.size().y + 0.8 * font);
         let slot_h = slot_g.as_ref().map_or(0.0, |g| 0.7 * font + g.size().y.max(1.4 * font));
         let content_w = chips_w.max(text_g.as_ref().map_or(0.0, |g| g.size().x)).max(slot_g.as_ref().map_or(0.0, |g| g.size().x));
-        let width = (content_w + 2.0 * pad_x + 2.0).clamp(22.0 * font, max_w).ceil();
+        let width = if screen.compact() { max_w.ceil() } else { (content_w + 2.0 * pad_x + 2.0).clamp(22.0 * font, max_w).ceil() };
         let height = (text_h + chips_h + slot_h + pad_t + pad_b + 2.0).ceil();
         let rect = Rect::from_center_size(screen.rect.center(), Vec2::new(width, height));
         let rect = Rect::from_min_size(Pos2::new(rect.min.x.round(), rect.min.y.round()), rect.size());

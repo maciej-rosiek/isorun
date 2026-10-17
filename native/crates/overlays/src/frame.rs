@@ -71,8 +71,12 @@ impl Screen {
 
 /// The width a popup takes (CSS shrink-to-fit): its natural width, but no wider than the room
 /// right of its `left: 50%` (half the screen) unless a word does not fit there, and within its
-/// min and max width. All widths are of the border box.
+/// min and max width. All widths are of the border box. A compact screen (a phone) gives every
+/// popup its whole width less the margins (touch.css): half a phone is too narrow to read in.
 pub fn shrink_to_fit(screen: &Screen, natural: f32, min_content: f32, min_w: f32, max_w: f32) -> f32 {
+    if screen.compact() {
+        return max_w.ceil();
+    }
     let avail = screen.w() / 2.0;
     natural.min(min_content.max(avail)).max(min_w).min(max_w).ceil()
 }

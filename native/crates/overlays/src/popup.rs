@@ -1040,7 +1040,7 @@ impl Overlays {
         let st = TextStyle::new(ctx, font, hex(0xdddddd));
         static TAGS: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?is)<(button|a)\b[^>]*>.*?</(button|a)>|<input\b[^>]*>").unwrap());
         let text = TAGS.replace_all(html, "");
-        let width = (screen.popup_min_w().max(400.0)).min(screen.popup_max_w());
+        let width = if screen.compact() { screen.popup_max_w() } else { (screen.popup_min_w().max(400.0)).min(screen.popup_max_w()) };
         let pad = screen.rem();
         let g = rich::galley(ctx, rich::html(&text, &st, width - 2.0 * pad));
         let buttons = dialog_buttons(html);
