@@ -1,0 +1,20 @@
+[package]
+name = "isorun-render2d"
+description = "Crawl's own 2D tile view on egui: the level map (X) and the minimap, batched into one mesh per atlas."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-render = { path = "../render" }
+egui = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+isorun-ui = { path = "../ui" }
+isorun-client = { path = "../client" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-hud = { path = "../hud" }
+eframe = { workspace = true }
+log = "0.4"
