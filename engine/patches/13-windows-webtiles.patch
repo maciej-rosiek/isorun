@@ -7,8 +7,10 @@ tileweb.cc keeps them in the same message queue the WebAssembly build has
 `hangup` control message, or the end of stdin, is a server's SIGHUP: the
 game saves and exits. libw32c.cc gets the headless mode libunix.cc has (no
 console; the screen in memory; keys from the webtiles channel, and the
--headless option, which initfile.cc offered only to Unix), and main.cc skips
-the UTF-8 locale check, which needs nl_langinfo.
+-headless option, which initfile.cc offered only to Unix) and mirrors the
+console text into the tiles text area as libunix.cc does, so CRT popups (the
+skills) reach the client; main.cc skips the UTF-8 locale check, which needs
+nl_langinfo.
 
 Everything is under TARGET_OS_WINDOWS (or WEBTILES_QUEUE, which is
 __EMSCRIPTEN__ elsewhere): the Linux and WebAssembly builds are unchanged.
@@ -124,7 +126,50 @@ Applies after 01-12. GPLv2+, as the files it patches.
      // don't do anything if we were never initted
      if (inbuf == nullptr && outbuf == nullptr && old_outbuf == nullptr)
          return;
-@@ -677,7 +710,7 @@
+@@ -471,6 +504,9 @@
+ void set_cursor_enabled(bool curstype)
+ {
+     CONSOLE_CURSOR_INFO cci;
++#ifdef USE_TILE_WEB
++    tiles.set_text_cursor(curstype);
++#endif
+ 
+     if (curstype == cursor_is_enabled)
+         return;
+@@ -489,6 +525,13 @@
+ 
+ void clear_to_end_of_line()
+ {
++#ifdef USE_TILE_WEB
++    if (_headless_mode)
++    {
++        tiles.clear_to_end_of_line();
++        return;
++    }
++#endif
+     // We shouldn't move cursor pos. We can't use save_cursor_pos because that
+     // requires a valid cursor position to start with.
+     unwind_var<int> save_cursor_x(cx);
+@@ -649,12 +692,18 @@
+ 
+ void textcolour(int c)
+ {
++#ifdef USE_TILE_WEB
++    tiles.textcolour(c);
++#endif
+     FG_COL = static_cast<COLOURS>(c & 0xF);
+     update_text_colours(get_highlight(c));
+ }
+ 
+ void textbackground(int c)
+ {
++#ifdef USE_TILE_WEB
++    tiles.textbackground(c);
++#endif
+     BG_COL = static_cast<COLOURS>(c & 0xF);
+     update_text_colours(get_highlight(c));
+ }
+@@ -677,7 +726,7 @@
  static void cprintf_aux(const char *s)
  {
      // early out -- not initted yet
@@ -133,7 +178,35 @@ Applies after 01-12. GPLv2+, as the files it patches.
      {
          printf("%ls", OUTW(s));
          return;
-@@ -840,8 +873,41 @@
+@@ -688,7 +737,12 @@
+     while (int taken = utf8towc(&c, s))
+     {
+         s += taken;
++#ifdef USE_TILE_WEB
++        // through putwch, which mirrors it into the tiles text, as libunix.cc
++        putwch(c);
++#else
+         writeChar(c);
++#endif
+     }
+ }
+ 
+@@ -717,6 +771,14 @@
+ 
+ void putwch(char32_t c)
+ {
++#ifdef USE_TILE_WEB
++    // a webtiles client sees the console text through the tiles text area,
++    // as libunix.cc mirrors it
++    char32_t buf[2];
++    buf[0] = c;
++    buf[1] = 0;
++    tiles.put_ucs_string(buf);
++#endif
+     if (c == 0)
+         c = ' ';
+     writeChar(c);
+@@ -840,8 +902,41 @@
      return 0;
  }
  
@@ -175,7 +248,7 @@ Applies after 01-12. GPLv2+, as the files it patches.
      INPUT_RECORD ir;
      DWORD nread;
      int key = 0;
-@@ -910,6 +976,21 @@
+@@ -910,6 +1005,21 @@
      if (crawl_state.seen_hups)
          return false;
  
@@ -197,10 +270,28 @@ Applies after 01-12. GPLv2+, as the files it patches.
      INPUT_RECORD ir[10];
      DWORD read_count = 0;
      PeekConsoleInputW(inbuf, ir, ARRAYSZ(ir), &read_count);
-@@ -955,6 +1036,11 @@
+@@ -933,6 +1043,14 @@
+     if (crawl_state.disables[DIS_DELAY])
+         return;
+ 
++#ifdef USE_TILE_WEB
++    tiles.redraw();
++    if (ms)
++    {
++        tiles.send_message("{\"msg\":\"delay\",\"t\":%d}", ms);
++        tiles.flush_messages();
++    }
++#endif
+     Sleep((DWORD)ms);
+ }
+ 
+@@ -955,6 +1073,14 @@
  
  void update_screen()
  {
++#ifdef USE_TILE_WEB
++    tiles.set_need_redraw();
++#endif
 +    if (_headless_mode)
 +    {
 +        _clear_dirty_area();

@@ -1,4 +1,8 @@
-Paints ui popups in headless mode: a webtiles client is watching.
+Paints ui popups in headless mode: a webtiles client is watching. Every
+webtiles build (USE_TILE_WEB): the WebAssembly one, and the native app's,
+which runs crawl headless too (engine/native.sh); its console calls are
+headless no-ops that mirror into the tiles text (libunix.cc, and libw32c.cc
+with 13-windows-webtiles.patch).
 
 Modified for the WebAssembly build of the webtiles binary (engine/README.md).
 GPLv2+, as the file it patches.
@@ -9,7 +13,7 @@ GPLv2+, as the file it patches.
      }
  #endif
  
-+#ifdef __EMSCRIPTEN__
++#ifdef USE_TILE_WEB
 +    // Headless does not mean unwatched. CRT-rendered ui popups
 +    // (the skill menu and friends) reach webtiles clients through the
 +    // console paint below — putwch mirrors every glyph into the tiles text
