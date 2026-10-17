@@ -11,7 +11,7 @@
 
 use eframe::egui_wgpu::RenderState;
 use isorun_client::session::{Session, SessionEvent};
-use isorun_front::{FrontAction, FrontEnd, FrontOptions, GameEnd, GameMenus, MenuAction, SystemOptions};
+use isorun_front::{FrontAction, FrontEnd, FrontOptions, GameEnd, GameMenus, MenuAction};
 use isorun_render::IsoCamera;
 use isorun_ui::view3d::View3d;
 use isorun_webtiles::{key_message, Phase};
@@ -106,7 +106,8 @@ impl Game {
                 }
             });
         }
-        // the Isorun menu over the game: Escape opens it while crawl has nothing of its own up
+        // the settings over the game: Escape opens them while crawl has nothing of its own up; F10 leaves
+        // (the Isorun menu itself is the game screen's)
         let ctx = ui.ctx().clone();
         let mut over = Over::None;
         let mut actions = Vec::new();
@@ -115,10 +116,12 @@ impl Game {
             actions.extend(a);
         } else {
             let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+            if ui.input(|i| i.key_pressed(egui::Key::F10)) {
+                over = Over::Leave;
+            }
             let crawl_menu = !self.session.state.menus.is_empty() || !self.session.state.ui.is_empty() || self.session.state.messages.more;
-            if escape && !crawl_menu {
-                let watching = self.session.state.watching.is_some();
-                self.menus.open_system(SystemOptions { spectating: watching, in_game: true, chat: !self.session.server.offline, can_fullscreen: true, fullscreen: false });
+            if escape && !crawl_menu && !self.menus.tuning() {
+                self.menus.open_settings();
             } else if self.session.playing() && !self.menus.tuning() {
                 for code in isorun_ui::keys::crawl_keys(ui, self.camera.facing()) {
                     self.session.send(key_message(code));
@@ -128,19 +131,12 @@ impl Game {
         actions.extend(self.menus.ui(&ctx));
         for a in actions {
             match a {
-                MenuAction::Keys(k) => {
-                    for c in k.chars() {
-                        self.session.send(key_message(c as i32));
-                    }
-                }
-                MenuAction::Leave => over = Over::Leave,
                 MenuAction::SettingsChanged => {
                     let s = isorun_front::settings::get();
                     isorun_front::settings::apply_graphics(&mut self.view.renderer, &s, ctx.pixels_per_point());
                 }
                 MenuAction::Lights(l) => self.view.renderer.set_lights(l),
-                MenuAction::Fullscreen(f) => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(f)),
-                MenuAction::Resume | MenuAction::Chat => {}
+                MenuAction::Resume => {}
             }
         }
         ctx.request_repaint();

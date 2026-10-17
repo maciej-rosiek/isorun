@@ -24,7 +24,7 @@ the pointer and touch handlers). The game screen only wires it.
 | `cell_menu`, `cell_info` | `cell_menu_rows`, `cell_details`, and `CellMenu` (the egui widget a long press opens) |
 | `osk` | `Osk` (the pad's on-screen keyboard: ops to `OskEdit`s), `OskText`, `Osk::show` (egui) |
 | `back_button` | `BackButton` over a `History` (`WebHistory` on wasm32); `back_pressed` for Android's Back |
-| `combat` | `combat_events(lines, scene, monsters)`: the fight in the message lines; `lines_since` |
+| `combat` | `combat_events(lines, scene, monsters)`: the fight in the message lines; `lines_since(lines, last, turn)` with `LastLine::newest` (found where it stood, by text, turn and channel, not `marker`) |
 | `action_tabs`, `command_menu`, `map_hold`, `pack_tabs`, `focus` | as in the web build |
 
 ## Wiring it into the game screen

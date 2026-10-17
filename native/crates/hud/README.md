@@ -69,7 +69,11 @@ Other calls: `hud.status(text, now)` (the line at the top for three seconds),
 `hud.dock_focus()` and `hud.dock_nav(NavOp, cx)` (L3 and the pad on the dock),
 `hud.damage.landing(Landing, cell, now, enabled)` when the renderer shows a blow
 (`IsoRender3d.act`'s `onShown`), `hud.classic.scroll_log(delta)`, `hud.chat.focus()` (F12),
-`hud.screen_open()`, `hud.close_screen()`.
+`hud.screen_open()`, `hud.close_screen()`, `hud.screen_op(ScreenOp)` (the pad on a screen: Next / Prev /
+Left / Right walk the stops, Select opens an item's actions or runs a command, Quick is Y's first
+action, Describe is X, Cancel closes the item menu then the screen, the bumpers page ten stops).
+A game screen with a router sets `hud.screens_read_keys = false` and hands every key as an op;
+the pad's chips (A, Y, X, B) show under the screen while the pad speaks.
 
 What the dock knows of a character (pins, spells, abilities, what is worn) is kept in storage
 under `isorun.dock`, in the web build's shape.

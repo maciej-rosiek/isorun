@@ -1,6 +1,6 @@
-//! The menus the game screen opens over the game (overlays.ts `showSystem`, `showSettings` and
-//! `settings-panel.ts`): the Isorun menu (Start), the settings groups, a group's page, the gamepad
-//! sheet and Tune the look; drawn as the game draws a menu: a title line, a letter per item, the
+//! The menus the game screen opens over the game (overlays.ts `showSettings`, `showBindings` and
+//! `settings-panel.ts`): the settings groups, a group's page, the gamepad sheet and Tune the look
+//! (the Isorun menu itself is the game screen's, as overlays.ts `showSystem` draws it); drawn as the game draws a menu: a title line, a letter per item, the
 //! value on the right between the arrows that turn it, the hovered line lit. Left and right, A,
 //! Enter or the letter change a value. The front end's settings pages read the same rows
 //! (`settings.rs`), so the two never disagree.
@@ -10,29 +10,11 @@ use crate::paint::*;
 use crate::settings::{self, Settings};
 use egui::{pos2, vec2, Color32, Rect, Sense};
 
-/// What the game is, for the Isorun menu: a player has the game's own commands, a spectator the
-/// way back to the roster.
-#[derive(Clone, Copy, Debug, Default)]
-pub struct SystemOptions {
-    pub spectating: bool,
-    pub in_game: bool,
-    /// Chat is offered (a server game; not on this device).
-    pub chat: bool,
-    pub can_fullscreen: bool,
-    pub fullscreen: bool,
-}
-
 /// What a menu over the game asks of the game screen.
 #[derive(Clone, Debug, PartialEq)]
 pub enum MenuAction {
     /// The menu closed: back to the dungeon.
     Resume,
-    /// Send these keys to crawl (`` ` `` repeat, `?` help, `~` crawl's menu, `S` save and exit).
-    Keys(String),
-    Chat,
-    /// Leave the game (a spectator: back to the roster).
-    Leave,
-    Fullscreen(bool),
     /// A setting changed: read them again (`settings::get`) and apply them.
     SettingsChanged,
     /// Tune the look moved a light: put it on the renderer (the Look is Custom now).
@@ -41,7 +23,6 @@ pub enum MenuAction {
 
 #[derive(Clone, Debug, PartialEq)]
 enum Page {
-    System,
     Settings,
     Group(String),
     Controls,
@@ -60,8 +41,6 @@ struct Item {
 
 #[derive(Clone, Debug, PartialEq)]
 enum Do {
-    Close,
-    Then(MenuAction),
     Open(Page),
     Back,
     Setting,
@@ -73,35 +52,39 @@ enum Do {
 /// The menus over the game. Keep one per game screen.
 pub struct GameMenus {
     page: Option<Page>,
-    opts: SystemOptions,
     cursor: usize,
     /// The row each page was left on, by its label: the same row again when it comes back.
     marks: std::collections::HashMap<String, String>,
     settings: Settings,
     lights: Option<LightsPanel>,
     tips_reset: bool,
-    /// The settings were opened on their own (not from the Isorun menu): their Back closes them.
-    settings_alone: bool,
+    /// The gamepad sheet was opened on its own (the pad's Bindings): its Back closes it.
+    controls_alone: bool,
 }
 
 impl Default for GameMenus {
     fn default() -> Self {
-        GameMenus { page: None, opts: SystemOptions::default(), cursor: 0, marks: Default::default(), settings: settings::get(), lights: None, tips_reset: false, settings_alone: false }
+        GameMenus { page: None, cursor: 0, marks: Default::default(), settings: settings::get(), lights: None, tips_reset: false, controls_alone: false }
     }
 }
 
 impl GameMenus {
-    /// Open the Isorun menu (Start, or Escape in the game's own view).
-    pub fn open_system(&mut self, opts: SystemOptions) {
-        self.opts = opts;
-        self.settings_alone = false;
-        self.go(Page::System);
+    /// Open the settings over the game; their last Back closes them.
+    pub fn open_settings(&mut self) {
+        self.controls_alone = false;
+        self.go(Page::Settings);
     }
 
-    /// Open the settings over the game, on their own.
-    pub fn open_settings(&mut self) {
-        self.settings_alone = true;
-        self.go(Page::Settings);
+    /// Open the gamepad sheet on its own (the pad's Bindings, overlays.ts `showBindings`): its
+    /// Back closes it, where the sheet reached from the Controls page goes back there.
+    pub fn open_controls(&mut self) {
+        self.controls_alone = true;
+        self.go(Page::Controls);
+    }
+
+    /// Put Tune the look away (its Close, Escape, the phone's Back).
+    pub fn close_tuning(&mut self) {
+        self.lights = None;
     }
 
     /// Open Tune the look: every light, colour and screen effect on sliders, shown at once over the game.
@@ -152,36 +135,6 @@ impl GameMenus {
         let item = |label: &str, hint: &str, act: Do| Item { label: label.into(), hint: hint.into(), setting: None, sep: false, off: false, act };
         let mut out = Vec::new();
         match p {
-            Page::System => {
-                let playing = self.opts.in_game && !self.opts.spectating;
-                out.push(item("Resume", "back to the dungeon, where you left it", Do::Close));
-                if playing {
-                    out.push(item("Repeat last command (`)", "do the last thing again", Do::Then(MenuAction::Keys("`".into()))));
-                    out.push(item("Help (?)", "the manual, and what every key does", Do::Then(MenuAction::Keys("?".into()))));
-                    // crawl binds CMD_GAME_MENU to `~` and F1; Escape does nothing in the main view
-                    out.push(item("Crawl menu (F1)", "crawl's own menu: character dump, macros, lookup, quit", Do::Then(MenuAction::Keys("~".into()))));
-                }
-                if self.opts.in_game && self.opts.chat {
-                    out.push(item("Chat (F12)", "talk to whoever is watching", Do::Then(MenuAction::Chat)));
-                }
-                let mut s = item("Settings", "graphics, controls and the gamepad buttons, the HUD, sound", Do::Open(Page::Settings));
-                s.sep = true;
-                out.push(s);
-                if self.opts.can_fullscreen {
-                    let full = self.opts.fullscreen;
-                    out.push(item(if full { "Leave full screen" } else { "Full screen" }, if full { "back to a window; F11 or Escape does the same" } else { "fill the screen; F11 or Escape is the way back" }, Do::Then(MenuAction::Fullscreen(!full))));
-                }
-                // a player saves (crawl's S, which asks first); a spectator goes back to the roster
-                let mut last = if playing {
-                    item("Save and exit (S)", "the game keeps; come back to it whenever", Do::Then(MenuAction::Keys("S".into())))
-                } else if self.opts.spectating {
-                    item("Stop watching", "back to the list of games being played", Do::Then(MenuAction::Leave))
-                } else {
-                    item("Leave game", "back to the front door", Do::Then(MenuAction::Leave))
-                };
-                last.sep = true;
-                out.push(last);
-            }
             Page::Settings => {
                 for (g, h) in settings::SETTING_GROUPS {
                     out.push(item(g, h, Do::Open(Page::Group(g.into()))));
@@ -218,7 +171,6 @@ impl GameMenus {
 
     fn title(&self) -> String {
         match &self.page {
-            Some(Page::System) => "Isorun".into(),
             Some(Page::Settings) => "Settings".into(),
             Some(Page::Group(g)) => g.clone(),
             Some(Page::Controls) => "Gamepad controls".into(),
@@ -228,24 +180,19 @@ impl GameMenus {
 
     fn back(&mut self) -> Option<MenuAction> {
         match self.page.clone() {
-            Some(Page::System) | None => {
+            Some(Page::Settings) | None => {
                 self.close();
                 Some(MenuAction::Resume)
-            }
-            Some(Page::Settings) => {
-                if self.settings_alone {
-                    self.close();
-                    Some(MenuAction::Resume)
-                } else {
-                    self.go(Page::System);
-                    None
-                }
             }
             Some(Page::Group(_)) => {
                 self.go(Page::Settings);
                 None
             }
             Some(Page::Controls) => {
+                if std::mem::take(&mut self.controls_alone) {
+                    self.close();
+                    return Some(MenuAction::Resume);
+                }
                 self.go(Page::Group("Controls".into()));
                 None
             }
@@ -258,14 +205,6 @@ impl GameMenus {
         let it = items.get(i)?;
         self.cursor = i;
         match it.act.clone() {
-            Do::Close => {
-                self.close();
-                Some(MenuAction::Resume)
-            }
-            Do::Then(a) => {
-                self.close();
-                Some(a)
-            }
             Do::Open(p) => {
                 self.go(p);
                 None
@@ -304,7 +243,14 @@ impl GameMenus {
     /// a letter or Enter chooses, Escape goes back. True when the keys were the menu's.
     pub fn keys(&mut self, ctx: &egui::Context) -> (bool, Vec<MenuAction>) {
         let mut out = Vec::new();
-        let Some(p) = self.page.clone() else { return (false, out) };
+        let Some(p) = self.page.clone() else {
+            // Tune the look alone: Escape puts it away (game.ts `onKeyDown`); the rest is the game's
+            if self.lights.is_some() && ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
+                self.lights = None;
+                return (true, out);
+            }
+            return (false, out);
+        };
         let n = self.items(&p).len();
         let events = ctx.input(|i| i.events.clone());
         for e in events {
@@ -397,13 +343,12 @@ impl GameMenus {
         let row_h = size * 1.17 + 0.44 * size;
         let value_w = if matches!(page, Page::Group(_)) { 10.0 * size + 4.0 * size } else { 0.0 };
         let label_w = items.iter().map(|i| galley(ctx, &i.label, &Style::new(size, face.clone(), C7), f32::INFINITY).size().x).fold(0.0, f32::max);
-        let min_w = if matches!(page, Page::System | Page::Settings) { 22.0 * rem } else { 26.0 * rem };
+        let min_w = if page == Page::Settings { 22.0 * rem } else { 26.0 * rem };
         let width = (1.2 * size + 1.5 * size + label_w + 2.0 * size + value_w + 1.2 * size + 0.8 * rem).max(min_w).min(screen.width() * 0.94);
         let hint = items.get(self.cursor).map(|i| i.hint.clone()).unwrap_or_default();
         let hint_g = galley(ctx, &hint, &Style::new(0.82 * rem, face.clone(), INK_DIM), width - 1.6 * rem);
         let footer = match page {
             Page::Group(_) => "[<] [>] or a letter change a setting  [Esc] back",
-            Page::System => "[Esc] resume",
             _ => "[Esc] back",
         };
         let seps = items.iter().filter(|i| i.sep).count() as f32 * 0.3 * size;
@@ -474,7 +419,7 @@ impl GameMenus {
         }
         if page == Page::Controls {
             let mut yy = y + 0.3 * rem;
-            for side in crate::regions::CONTROLS_SHEET {
+            for side in crate::regions::controls_sheet() {
                 for (button, tap, hold) in side.iter() {
                     let k = galley(ctx, button, &Style::new(size, isorun_ui::fonts::bold(), GOLD_BRIGHT), f32::INFINITY);
                     let text = if hold.is_empty() { tap.to_string() } else { format!("{tap}   hold: {hold}") };
@@ -506,21 +451,35 @@ mod tests {
     use super::*;
 
     #[test]
-    fn the_isorun_menu() {
+    fn settings_and_the_sheet_alone() {
         let mut m = GameMenus::default();
-        m.open_system(SystemOptions { in_game: true, chat: true, ..Default::default() });
-        let labels: Vec<String> = m.items(&Page::System).iter().map(|i| i.label.clone()).collect();
-        assert_eq!(labels, ["Resume", "Repeat last command (`)", "Help (?)", "Crawl menu (F1)", "Chat (F12)", "Settings", "Save and exit (S)"]);
-        m.open_system(SystemOptions { in_game: true, spectating: true, ..Default::default() });
-        let labels: Vec<String> = m.items(&Page::System).iter().map(|i| i.label.clone()).collect();
-        assert_eq!(labels, ["Resume", "Settings", "Stop watching"]);
-        // Settings, then back to the menu on the row that led away
-        assert_eq!(m.choose(1, 1), None);
+        m.open_settings();
         assert_eq!(m.page, Some(Page::Settings));
+        // a group, then back to the settings on the row that led away, then closed
+        assert_eq!(m.choose(1, 1), None);
+        assert!(matches!(m.page, Some(Page::Group(_))));
         assert_eq!(m.back(), None);
-        assert_eq!(m.page, Some(Page::System));
+        assert_eq!(m.page, Some(Page::Settings));
         assert_eq!(m.cursor, 1);
-        assert_eq!(m.choose(0, 1), Some(MenuAction::Resume));
+        assert_eq!(m.back(), Some(MenuAction::Resume));
         assert!(!m.is_open());
+        // the sheet on its own closes on Back; reached from Controls it goes back there
+        m.open_controls();
+        assert_eq!(m.title(), "Gamepad controls");
+        assert_eq!(m.back(), Some(MenuAction::Resume));
+        assert!(!m.is_open());
+        m.open_settings();
+        m.go(Page::Controls);
+        assert_eq!(m.back(), None);
+        assert_eq!(m.page, Some(Page::Group("Controls".into())));
+    }
+
+    #[test]
+    fn tune_the_look_closes() {
+        let mut m = GameMenus::default();
+        m.tune_look();
+        assert!(m.tuning());
+        m.close_tuning();
+        assert!(!m.tuning());
     }
 }

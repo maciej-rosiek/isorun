@@ -381,11 +381,12 @@ impl FrontEnd {
             let col_w = if two { (w - 2.0 * m.rem) / 2.0 } else { w };
             let start = ui.cursor().min;
             let mut bottom: f32 = start.y;
-            for (k, side) in CONTROLS_SHEET.iter().enumerate() {
+            for (k, side) in controls_sheet().iter().enumerate() {
                 let x0 = if two { start.x + k as f32 * (col_w + 2.0 * m.rem) } else { start.x };
                 let mut y = if two { start.y } else { bottom + if k > 0 { m.rem } else { 0.0 } };
                 for (button, tap, hold) in side.iter() {
                     let key = galley(&ctx, button, &Style::new(m.rem, m.faces.bold(), GOLD_BRIGHT), f32::INFINITY);
+                    let (tap, hold) = (tap.as_str(), hold.as_str());
                     let text = if hold.is_empty() { tap.to_string() } else { format!("{tap}   hold: {hold}") };
                     let g = galley(&ctx, &text, &m.text(m.rem, INK), col_w - 7.0 * m.rem);
                     p.galley(pos2(x0, y), key, GOLD_BRIGHT);
@@ -458,27 +459,45 @@ fn elide(ctx: &egui::Context, text: &str, style: &Style, width: f32) -> std::syn
 }
 
 /// The gamepad sheet (controls-sheet.ts over bindings.ts `controlSheet`): each half of the pad, top
-/// to bottom: the button, what a tap does, and what a hold does.
-pub const CONTROLS_SHEET: [&[(&str, &str, &str)]; 2] = [
-    &[
-        ("LT", "Explore", "Explore while held"),
-        ("LB", "Actions tab", ""),
-        ("L stick", "Move one step the way it points on the screen", ""),
-        ("L3", "Hotbar", ""),
-        ("D-pad", "Move one step the way it points on the screen", ""),
-        ("Select", "Level map", ""),
-    ],
-    &[
-        ("RT", "Autofight", ""),
-        ("RB", "Commands", ""),
-        ("R stick", "Left / right turn the view; up / down zoom", ""),
-        ("R3", "Reset view", ""),
-        ("A", "Interact", ""),
-        ("B", "Examine", ""),
-        ("X", "Actions", ""),
-        ("Y", "Equipment", ""),
-        ("Start", "Isorun menu", ""),
-    ],
-];
+/// to bottom: the button, what a tap does, and what a hold does (empty when nothing). The rows come
+/// from the input crate's command table, so the sheet can never drift from what the buttons do;
+/// every direction is a step the way it points on the screen.
+pub fn controls_sheet() -> [Vec<(String, String, String)>; 2] {
+    use isorun_input::Button as B;
+    const MOVE: &str = "Move one step the way it points on the screen";
+    const TURN: &str = "Left / right turn the view; up / down zoom";
+    let rows = isorun_input::bindings::control_sheet();
+    let side = |order: &[(B, &str)]| -> Vec<(String, String, String)> {
+        order
+            .iter()
+            .filter_map(|(b, name)| match b {
+                B::LStick | B::DPad => Some((name.to_string(), MOVE.to_string(), String::new())),
+                B::RStick => Some((name.to_string(), TURN.to_string(), String::new())),
+                _ => rows.iter().find(|r| r.button == *b).map(|r| (name.to_string(), r.tap.clone(), r.hold.clone().unwrap_or_default())),
+            })
+            .collect()
+    };
+    [
+        side(&[(B::LT, "LT"), (B::LB, "LB"), (B::LStick, "L stick"), (B::L3, "L3"), (B::DPad, "D-pad"), (B::Select, "Select")]),
+        side(&[(B::RT, "RT"), (B::RB, "RB"), (B::RStick, "R stick"), (B::R3, "R3"), (B::A, "A"), (B::B, "B"), (B::X, "X"), (B::Y, "Y"), (B::Start, "Start")]),
+    ]
+}
 
 pub const CONTROLS_NOTE: &str = "X opens actions as tabs (Spells, Abilities, Evocables, Quiver, Memorise); LB / RB turn them, Y swaps weapons and LT shouts. Select opens the level map, where LB / RB find stairs, Y travels to a branch, L3 finds items and R3 opens the overview. Y opens the inventory: with the HUD on Dock the paper doll and the backpack, where A lists what can be done with an item, Y does the first and X describes it; on Classic the pack, whose pages LB / RB turn. L3 puts the cursor on the dock: the quick slots, the actions and a button for every screen; A uses, Y changes a slot, B goes back. Start opens the Isorun menu, with your character on one tab and the game options on the other; LB / RB or left / right switches its tabs. Commands already on gamepad buttons are omitted. Up / down chooses a command; Page Up / Down pages. A / Start selects, B backs out, Select closes the menu outright. Browsing sends no game commands.";
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_sheet_follows_the_command_table() {
+        let [left, right] = controls_sheet();
+        let row = |side: &[(String, String, String)], b: &str| side.iter().find(|r| r.0 == b).map(|r| (r.1.clone(), r.2.clone()));
+        assert_eq!(left.first().map(|r| r.0.as_str()), Some("LT"));
+        assert_eq!(row(&left, "LT"), Some(("Autoexplore".into(), "Explore at once".into())));
+        assert_eq!(row(&right, "Start"), Some(("Isorun menu".into(), String::new())));
+        assert_eq!(row(&right, "A"), Some(("Interact".into(), String::new())));
+        assert_eq!(right.len(), 9);
+        assert_eq!(left.len(), 6);
+    }
+}

@@ -192,13 +192,41 @@ fn sentences(text: &str) -> Vec<String> {
     out.into_iter().map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).collect()
 }
 
-/// The lines that arrived since `last` was the newest. When `last` is gone
-/// (rolled back by the server, or nothing has been read yet) the lines of the
-/// current `turn` stand in, so a fight is never lost and never older than
-/// the turn it belongs to.
-pub fn lines_since<'a>(lines: &'a [GameMessage], last: Option<&GameMessage>, turn: i64) -> Vec<&'a GameMessage> {
-    if let Some(i) = last.and_then(|l| lines.iter().rposition(|x| x == l)) {
-        return lines[i + 1..].iter().collect();
+/// The line read last and where it stood in the log, for `lines_since`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LastLine {
+    pub line: GameMessage,
+    pub at: usize,
+}
+
+impl LastLine {
+    /// The newest line of `lines`, if any.
+    pub fn newest(lines: &[GameMessage]) -> Option<LastLine> {
+        lines.last().map(|l| LastLine { line: l.clone(), at: lines.len() - 1 })
+    }
+}
+
+/// The same line, whatever its `marker`: the reducer sets that on a line after it
+/// arrives (a new command or turn starting after it), so whole lines stop matching.
+fn same_line(a: &GameMessage, b: &GameMessage) -> bool {
+    a.text == b.text && a.turn == b.turn && a.channel == b.channel
+}
+
+/// The lines that arrived since `last` was the newest (game.ts `linesSince`). The web
+/// finds the line by identity; here it is found where it stood, and by its text, turn
+/// and channel. Repeated lines ("There are monsters nearby!") are equal by value, so the
+/// place it stood is tried first; after a rollback or the log's cap moved the lines, the
+/// newest equal line is. When `last` is gone (rolled back by the server, or nothing has
+/// been read yet) the lines of the current `turn` stand in, so a fight is never lost and
+/// never older than the turn it belongs to.
+pub fn lines_since<'a>(lines: &'a [GameMessage], last: Option<&LastLine>, turn: i64) -> Vec<&'a GameMessage> {
+    if let Some(l) = last {
+        if lines.get(l.at).is_some_and(|x| same_line(x, &l.line)) {
+            return lines[l.at + 1..].iter().collect();
+        }
+        if let Some(i) = lines.iter().rposition(|x| same_line(x, &l.line)) {
+            return lines[i + 1..].iter().collect();
+        }
     }
     lines.iter().filter(|l| l.turn == Some(turn)).collect()
 }

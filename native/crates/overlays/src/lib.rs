@@ -16,12 +16,14 @@ mod input;
 mod level_up;
 mod menu;
 mod newgame;
+mod osk;
 mod popup;
 mod text_field;
 mod tiles;
 
 pub use focus::{Act, FocusInfo, FocusOp, Focusable};
 pub use level_up::LevelUp;
+pub use menu::MenuOp;
 pub use prompt::{derive_mode, parse_prompt, Mode, ParsedPrompt};
 
 use focus::{FocusNav, FocusOptions};
@@ -163,6 +165,10 @@ pub struct Overlays {
     /// the pointer moved this frame: only a move takes the cursor (a row scrolled under a still mouse does not)
     pub(crate) pointer_moved: bool,
     pub(crate) now: f64,
+    /// the pad's on-screen keyboard over the server's text field (osk.ts)
+    pub(crate) osk: isorun_input::osk::Osk,
+    /// who spoke last, as of the last sync: the pad taking over brings the keyboard
+    pub(crate) device: Device,
 }
 
 impl Default for Overlays {
@@ -222,6 +228,8 @@ impl Overlays {
             pointer_at: None,
             pointer_moved: false,
             now: 0.0,
+            osk: Default::default(),
+            device: Device::Keyboard,
         }
     }
 
@@ -333,14 +341,26 @@ impl Overlays {
             self.register_focus("dialog".into(), items, FocusOptions { wrap: true, linear: true, ..Default::default() }, None, false);
         }
         // the server's text prompt: a field of ours, fresh when the prompt is
+        let osk_was_up = self.osk.visible() && self.field.is_some();
         match &st.text_input {
             Some(ti) if !cx.watching => {
                 if self.field.as_ref().is_none_or(|f| f.source != *ti) {
                     let history = ti.history_id.as_ref().map(|h| self.histories.entry(h.clone()).or_default().clone());
                     self.field = Some(text_field::Field::new(ti.clone(), history));
                 }
+                // a prompt comes with the on-screen keyboard up when the pad spoke last, so it has
+                // its keys at once; the keyboard follows the field across rebuilds. After a physical
+                // keyboard or the mouse the field stands alone and takes the typing; X still brings
+                // the keyboard up (`osk_op`). The new game's seed field waits to be asked.
+                let prompt = ti.kind.as_deref() != Some("seed-selection") && cx.device == Device::Pad;
+                if osk_was_up || prompt {
+                    self.osk.attach(osk::target(ti));
+                }
             }
-            _ => self.field = None,
+            _ => {
+                self.field = None;
+                self.osk.detach();
+            }
         }
     }
 
@@ -402,6 +422,10 @@ impl Overlays {
             self.now = ctx.input(|i| i.time);
         }
         let st = cx.state;
+        if cx.device != self.device {
+            self.device = cx.device;
+            self.device_changed();
+        }
         if st.rev.ui != self.last_ui_rev {
             self.last_ui_rev = st.rev.ui;
             self.rebuild(cx);
@@ -517,6 +541,7 @@ impl Overlays {
         if matches!(derive_mode(st), Mode::Yesno | Mode::Prompt) {
             self.draw_card(ctx, cx, &screen);
         }
+        self.draw_osk(ctx, cx);
         let lit = self.nav.current().map(|f| f.key().to_string());
         let mut out = Vec::new();
         if self.level_up.draw(ctx, &screen, cx.tiles, lit.as_deref(), &mut out, self.now) {

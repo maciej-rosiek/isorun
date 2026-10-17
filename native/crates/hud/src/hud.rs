@@ -14,7 +14,7 @@ use crate::grid::console::{fit, game_split, level_map_split, CellRect, GameLayou
 use crate::pack_tabs::is_pack;
 use crate::paint::BoxCache;
 use crate::quick_slots::{abilities_from_menu, quick_slots, slot_choices, spells_from_menu, QuickSlot, SlotRef, SlotSources, TileLayer};
-use crate::screens::{Screen, ScreenData, ScreenEvent, ScreenId};
+use crate::screens::{Screen, ScreenData, ScreenEvent, ScreenId, ScreenOp};
 use crate::{chat::Chat, damage_numbers::DamageNumbers, style};
 use crate::{Action, Device, HudCommand, Mode};
 use egui::{Pos2, Rect};
@@ -152,6 +152,11 @@ pub struct Hud {
     layout: Option<HudLayout>,
     choices: Option<ChoiceFor>,
     fonts_checked: bool,
+    /// the pad's operations on the screen up, carried out in the next `ui`
+    screen_ops: Vec<ScreenOp>,
+    /// the screens read the keyboard themselves; a game screen with a router turns it off and
+    /// hands them `screen_op`s
+    pub screens_read_keys: bool,
 }
 
 impl Default for Hud {
@@ -202,6 +207,8 @@ impl Hud {
             layout: None,
             choices: None,
             fonts_checked: false,
+            screen_ops: vec![],
+            screens_read_keys: true,
         }
     }
 
@@ -247,6 +254,18 @@ impl Hud {
     /// Which screen is up.
     pub fn screen_open(&self) -> Option<ScreenId> {
         self.screen.as_ref().map(|s| s.id)
+    }
+
+    /// One of the pad's operations on the screen that is up (game.ts `pad` on a client overlay,
+    /// the router's overlay ops): carried out in the next `ui`, where the screen's data is.
+    /// Cancel with no item menu open puts the screen away at once.
+    pub fn screen_op(&mut self, op: ScreenOp) {
+        let Some(s) = self.screen.as_ref() else { return };
+        if op == ScreenOp::Cancel && !s.menu_open() && self.screen_ops.is_empty() {
+            self.close_screen();
+            return;
+        }
+        self.screen_ops.push(op);
     }
 
     pub fn close_screen(&mut self) {
@@ -349,12 +368,20 @@ impl Hud {
             let worn = worn_now(p, &items, &self.memory.worn);
             let me = crate::classic::player_billboard(cx.scene);
             let data = ScreenData { player: p, items: &items, worn: &worn, me, checking: self.probe.is_some(), pad: (cx.device == Device::Pad).then_some(cx.pad), weapon: crate::gear::weapon_line(p), quiver: p.quiver_desc.clone() };
-            let events = screen_up.ui(&ctx, &data, cx.tiles, &mut self.boxes, u);
+            screen_up.own_keys = self.screens_read_keys;
+            let mut events = vec![];
+            for op in std::mem::take(&mut self.screen_ops) {
+                events.extend(screen_up.op(op, &data));
+            }
+            events.extend(screen_up.ui(&ctx, &data, cx.tiles, &mut self.boxes, u));
             self.screen = Some(screen_up);
             for e in events {
                 self.screen_event(e, cx);
             }
             output.consumed_keys = true;
+        }
+        if self.screen.is_none() {
+            self.screen_ops.clear();
         }
         output.screen_open = self.screen.is_some();
         output.hide_menu = self.probe.is_some();

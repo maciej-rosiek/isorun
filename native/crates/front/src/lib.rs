@@ -24,4 +24,4 @@ pub mod words;
 pub use front::{FrontAction, FrontEnd, FrontOptions, GameEnd, Intent, PadButton, PadEvent, View};
 pub use lights_panel::{LightsEvent, LightsPanel};
 pub use words::NavDir;
-pub use overlay::{GameMenus, MenuAction, SystemOptions};
+pub use overlay::{GameMenus, MenuAction};

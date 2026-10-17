@@ -60,17 +60,18 @@ impl<'a> Host<'a> {
         Host { p, state, scene, ctx, watching, now, chat }
     }
 
-    fn overlay_send(&mut self, f: impl FnOnce(&mut isorun_overlays::Overlays, &mut OverlayCx)) {
+    fn overlay_send<R>(&mut self, f: impl FnOnce(&mut isorun_overlays::Overlays, &mut OverlayCx) -> R) -> R {
         let mut out = Vec::new();
-        {
+        let r = {
             let mut cx = OverlayCx::new(self.state, &mut self.p.icons, &mut out);
             cx.watching = self.watching;
             cx.device = convert::device(self.p.last_input).1;
-            f(&mut self.p.overlays, &mut cx);
-        }
+            f(&mut self.p.overlays, &mut cx)
+        };
         for m in out {
             self.p.deferred.push(Deferred::Send(m));
         }
+        r
     }
 
     fn client_result(&mut self, (e, stays): (Option<ClientEvent>, bool)) {
@@ -103,21 +104,21 @@ impl RunnerHooks for Host<'_> {
                 o.trigger_popup_action(arg.unwrap_or(0).max(0) as usize, cx);
             }),
             UiOp::System => self.show_system(self.watching),
-            // the controls sheet is a page of the settings (front's GameMenus)
-            UiOp::Bindings => self.p.menus.open_settings(),
+            // the gamepad sheet on its own (front's GameMenus)
+            UiOp::Bindings => self.p.menus.open_controls(),
             UiOp::InstantExplore => self.p.deferred.push(Deferred::ExploreAtOnce),
             UiOp::Keyboard | UiOp::Palette | UiOp::ResetView | UiOp::Levelmap | UiOp::ScrollLog | UiOp::ExploreWhileHeld => {}
         }
     }
 
-    fn osk(&mut self, _op: OskOp, _dir: Option<Dir8>) {
-        // the pad's on-screen keyboard is not drawn yet: the text fields take the keyboard's keys
+    fn osk(&mut self, op: OskOp, dir: Option<Dir8>) {
+        // crawl's text prompt: the overlays' keyboard over its field
+        self.overlay_send(|o, cx| o.osk_op(op, dir, cx));
     }
 
     fn menu(&mut self, op: MenuOp) {
-        if let Some(f) = convert::menu_as_focus(op) {
-            self.overlay_send(|o, cx| o.focus_op(f, cx));
-        }
+        let op = convert::menu_op(op);
+        self.overlay_send(|o, cx| o.menu_op(op, cx));
     }
 
     fn focus(&mut self, op: FocusOp) {
@@ -162,7 +163,25 @@ impl GameHost for Host<'_> {
     }
 
     fn text_entry_focused(&self) -> bool {
-        self.p.chat_capturing
+        // the chat line, or a field of crawl's (its text prompt, a menu's filter): the game screen
+        // hands the keys to it (`Overlays::text_key`), as the web's focused `<input>` takes them
+        self.p.chat_capturing || (!self.watching && self.p.overlays.text_entry(self.state))
+    }
+
+    fn menu_key(&mut self, key: &KeyLike) -> bool {
+        self.overlay_send(|o, cx| o.key_like(key, cx))
+    }
+
+    fn popup_key(&mut self, key: &KeyLike) -> bool {
+        self.overlay_send(|o, cx| o.key_like(key, cx))
+    }
+
+    fn look_panel_open(&self) -> bool {
+        self.p.menus.tuning()
+    }
+
+    fn close_look_panel(&mut self) {
+        self.p.menus.close_tuning();
     }
 
     fn cell_menu_open(&self) -> bool {
@@ -205,7 +224,7 @@ impl GameHost for Host<'_> {
     }
 
     fn client_overlay(&self) -> bool {
-        self.p.client.is_some() || self.p.menus.is_open() || self.p.menus.tuning() || self.p.hud.screen_open().is_some()
+        self.p.client.is_some() || self.p.menus.is_open() || self.p.hud.screen_open().is_some()
     }
 
     fn open_menu(&self) -> Option<OverlayMenu> {
@@ -241,10 +260,29 @@ impl GameHost for Host<'_> {
             return true;
         }
         if self.p.hud.screen_open().is_some() {
-            // the screens read their own keys; the pad's Back and the opener put them away
-            if matches!(op, OverlayOp::Cancel | OverlayOp::Close) {
-                self.p.hud.close_screen();
-            }
+            // the dock's screens (overlays.ts `screenInput`): the cursor walks the stops, A acts,
+            // Y is the stop's quick action, X describes, the bumpers page; the opener and Select
+            // put the screen away whole
+            use isorun_hud::screens::ScreenOp as S;
+            let s = match op {
+                OverlayOp::Close => return {
+                    self.p.hud.close_screen();
+                    true
+                },
+                OverlayOp::Select | OverlayOp::Submit => S::Select,
+                OverlayOp::Cancel => S::Cancel,
+                OverlayOp::Alt => S::Quick,
+                OverlayOp::Keyboard => S::Describe,
+                OverlayOp::Next => S::Next,
+                OverlayOp::Prev => S::Prev,
+                OverlayOp::Left => S::Left,
+                OverlayOp::Right => S::Right,
+                OverlayOp::BumperNext | OverlayOp::PageNext => S::PageNext,
+                OverlayOp::BumperPrev | OverlayOp::PagePrev => S::PagePrev,
+                OverlayOp::First => S::First,
+                OverlayOp::Last => S::Last,
+            };
+            self.p.hud.screen_op(s);
             return true;
         }
         false

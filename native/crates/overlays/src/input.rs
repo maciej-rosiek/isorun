@@ -11,9 +11,8 @@ use crate::menu_nav::{scroll_key_intent, KeyName, NavKey, ScrollKey};
 use crate::prompt::{default_yesno, derive_mode, newgame_back, parse_prompt, Mode};
 use crate::text_field::FieldKey;
 use crate::{OverlayCx, Overlays};
-use egui::{Event, Key, Modifiers};
-use isorun_webtiles::{cm, Keys, MenuFlag};
-use serde_json::Value;
+use isorun_input::keys::{key_inputs, keydown_message, KeyInput, KeyLike};
+use isorun_webtiles::{cm, GameState, Keys, MenuFlag, MenuState};
 
 /// The pad's face buttons and bumpers a key stands for.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -25,213 +24,178 @@ enum Button {
     Rb,
 }
 
-/// The message the official client sends for a key no screen took (keys.ts `keydownMessage`).
-pub fn raw_key(key: Key, m: Modifiers) -> Option<Value> {
-    let ck = |plain: i32, shift: i32, ctrl: i32| {
-        if m.ctrl && !m.shift {
-            ctrl
-        } else if m.shift && !m.ctrl {
-            shift
-        } else {
-            plain
-        }
-    };
-    let code = match key {
-        Key::Escape => 27,
-        Key::Backspace => 8,
-        Key::Tab => {
-            if m.shift {
-                Keys::CK_SHIFT_TAB
-            } else {
-                9
+/// A `KeyLike` as the paging keys read it (menu.js, ui-layouts.js).
+fn nav_key(k: &KeyLike) -> NavKey {
+    let key = match k.key.as_str() {
+        "PageUp" => KeyName::PageUp,
+        "PageDown" => KeyName::PageDown,
+        "Home" => KeyName::Home,
+        "End" => KeyName::End,
+        "ArrowUp" => KeyName::Up,
+        "ArrowDown" => KeyName::Down,
+        "ArrowLeft" => KeyName::Left,
+        "ArrowRight" => KeyName::Right,
+        "Enter" => KeyName::Enter,
+        "Escape" => KeyName::Escape,
+        "+" if k.code == "NumpadAdd" => KeyName::NumpadAdd,
+        "-" if k.code == "NumpadSubtract" => KeyName::NumpadSubtract,
+        s => {
+            let mut c = s.chars();
+            match (c.next(), c.next()) {
+                (Some(ch), None) => KeyName::Char(ch),
+                _ => KeyName::Other,
             }
         }
-        Key::Delete => ck(Keys::CK_DELETE, Keys::CK_SHIFT_DELETE, Keys::CK_CTRL_DELETE),
-        Key::Insert => ck(Keys::CK_INSERT, Keys::CK_SHIFT_INSERT, Keys::CK_CTRL_INSERT),
-        Key::End => ck(Keys::CK_END, Keys::CK_SHIFT_END, Keys::CK_CTRL_END),
-        Key::Home => ck(Keys::CK_HOME, Keys::CK_SHIFT_HOME, Keys::CK_CTRL_HOME),
-        Key::PageUp => ck(Keys::CK_PGUP, Keys::CK_SHIFT_PGUP, Keys::CK_CTRL_PGUP),
-        Key::PageDown => ck(Keys::CK_PGDN, Keys::CK_SHIFT_PGDN, Keys::CK_CTRL_PGDN),
-        Key::ArrowUp => ck(Keys::CK_UP, Keys::CK_SHIFT_UP, Keys::CK_CTRL_UP),
-        Key::ArrowDown => ck(Keys::CK_DOWN, Keys::CK_SHIFT_DOWN, Keys::CK_CTRL_DOWN),
-        Key::ArrowLeft => ck(Keys::CK_LEFT, Keys::CK_SHIFT_LEFT, Keys::CK_CTRL_LEFT),
-        Key::ArrowRight => ck(Keys::CK_RIGHT, Keys::CK_SHIFT_RIGHT, Keys::CK_CTRL_RIGHT),
-        Key::Enter if m.shift => Keys::CK_SHIFT_ENTER,
-        Key::Enter if m.ctrl => Keys::CK_CTRL_ENTER,
-        Key::Enter => return Some(cm::input("\r")),
-        Key::F1 => Keys::f(1),
-        Key::F2 => Keys::f(2),
-        Key::F3 => Keys::f(3),
-        Key::F4 => Keys::f(4),
-        Key::F5 => Keys::f(5),
-        Key::F6 => Keys::f(6),
-        Key::F7 => Keys::f(7),
-        Key::F8 => Keys::f(8),
-        Key::F9 => Keys::f(9),
-        Key::F10 => Keys::f(10),
-        _ if (m.ctrl || m.command) && !m.alt => {
-            // key_conversion.captured_control_keys: Ctrl+these are sent as `which - 64`
-            let name = key.symbol_or_name();
-            let c = name.chars().next()?;
-            if name.chars().count() == 1 && "OQFPWATXSGIDEHJKLYUBNCM1234567890".contains(c.to_ascii_uppercase()) {
-                c.to_ascii_uppercase() as i32 - 64
-            } else {
-                return None;
-            }
-        }
-        _ => return None,
     };
-    Some(cm::key(code))
+    NavKey { key, shift: k.shift, ctrl: k.ctrl || k.meta, alt: k.alt }
 }
 
-/// A typed character as the official client sends it (`{` would open a JSON message: bytes).
-pub fn raw_char(c: char) -> Value {
-    if c == '{' {
-        cm::input_bytes(&[123])
-    } else {
-        cm::input(&c.to_string())
+/// The character a key types, if it types one (no Ctrl, Alt or Meta).
+fn typed(k: &KeyLike) -> Option<char> {
+    if k.ctrl || k.alt || k.meta {
+        return None;
     }
-}
-
-fn nav_key(key: Key, m: Modifiers) -> KeyName {
-    let _ = m;
-    match key {
-        Key::PageUp => KeyName::PageUp,
-        Key::PageDown => KeyName::PageDown,
-        Key::Home => KeyName::Home,
-        Key::End => KeyName::End,
-        Key::ArrowUp => KeyName::Up,
-        Key::ArrowDown => KeyName::Down,
-        Key::ArrowLeft => KeyName::Left,
-        Key::ArrowRight => KeyName::Right,
-        Key::Enter => KeyName::Enter,
-        Key::Escape => KeyName::Escape,
-        Key::Space => KeyName::Char(' '),
-        _ => KeyName::Other,
+    let mut c = k.key.chars();
+    match (c.next(), c.next()) {
+        (Some(ch), None) if !ch.is_control() => Some(ch),
+        _ => None,
     }
 }
 
 impl Overlays {
-    /// Every key of this frame (egui's events): true when the overlays took the keys, so the game
-    /// sends none of them. Up or not, a key answers the level-up banner.
+    /// Every key of this frame, for a screen with no router of its own (the examples): the
+    /// whole of `key` for each. True when the overlays took the keys. Up or not, a key answers
+    /// the level-up banner. The game screen does not call this: its router decides (game.ts
+    /// `onKeyDown`) and hands the overlays `text_key`, `key_like` and the pad's ops.
     pub fn input(&mut self, ctx: &egui::Context, cx: &mut OverlayCx) -> bool {
-        let events = ctx.input(|i| i.events.clone());
+        let (events, modifiers) = ctx.input(|i| (i.events.clone(), i.modifiers));
         let mut took = false;
+        for k in key_inputs(&events, modifiers) {
+            if let KeyInput::Down { key, .. } = k {
+                took |= self.key(&key, cx);
+            }
+        }
         for e in &events {
-            took |= self.key(e, cx);
+            if let egui::Event::Paste(t) = e {
+                took |= self.paste(t, cx);
+            }
         }
         took || Overlays::up(cx.state) && !cx.watching
     }
 
-    /// One key. True when it was the overlays' (sent or acted on here).
-    pub fn key(&mut self, ev: &Event, cx: &mut OverlayCx) -> bool {
+    /// One key with nothing deciding for the overlays: the field's, the keyboard as a pad
+    /// (bindings.ts `screenKey`), the paging keys, else to crawl as the official client sends it
+    /// (keys.ts `keydownMessage`). True when it was the overlays'.
+    pub fn key(&mut self, key: &KeyLike, cx: &mut OverlayCx) -> bool {
         self.sync(cx, None);
-        let is_key = matches!(ev, Event::Key { pressed: true, .. } | Event::Text(_));
-        if is_key {
-            self.level_up.answer(self.now);
-        }
+        self.level_up.answer(self.now);
         if cx.watching || !Overlays::up(cx.state) {
             return false;
         }
+        if self.text_entry(cx.state) {
+            return self.text_key(key, cx);
+        }
         let mode = derive_mode(cx.state);
+        if key.plain() {
+            if let Some(done) = self.screen_key(&key.key, mode, cx) {
+                return done;
+            }
+        }
+        if self.key_like(key, cx) {
+            return true;
+        }
+        if key.key == " " && key.plain() {
+            cx.send(cm::input(" "));
+            return true;
+        }
+        if let Some(msg) = keydown_message(key) {
+            cx.send(msg);
+        }
+        true
+    }
+
+    /// A text field of crawl's has the keys: the server's text prompt, or a menu whose title is
+    /// the filter's field (menu.js title_prompt). The router leaves every key to it then, as the
+    /// web's focused `<input>` takes them (game.ts `isTextEntry`).
+    pub fn text_entry(&self, state: &GameState) -> bool {
+        (derive_mode(state) == Mode::Text && self.field.is_some() && state.text_input.is_some()) || Self::filter_menu(state).is_some()
+    }
+
+    fn filter_menu(state: &GameState) -> Option<&MenuState> {
+        state.menus.last().filter(|m| m.title_prompt.as_ref().is_some_and(|t| !t.raw))
+    }
+
+    /// A key for the text field that has the keys (`text_entry`): true when it took it.
+    pub fn text_key(&mut self, key: &KeyLike, cx: &mut OverlayCx) -> bool {
+        self.sync(cx, None);
+        if cx.watching {
+            return false;
+        }
         // a server text prompt: the field takes every key
-        if mode == Mode::Text && self.field.is_some() {
-            match ev {
-                Event::Key { key, pressed: true, modifiers, .. } => {
-                    let k = match key {
-                        Key::Escape => Some(FieldKey::Escape),
-                        Key::Enter => Some(FieldKey::Enter),
-                        Key::Backspace => Some(FieldKey::Backspace),
-                        Key::ArrowUp => Some(FieldKey::Up),
-                        Key::ArrowDown => Some(FieldKey::Down),
-                        _ => None,
-                    };
-                    if let Some(k) = k {
-                        self.field_key(k, cx);
-                    } else if modifiers.ctrl && *key == Key::U {
-                        if let Some(f) = self.field.as_mut() {
-                            f.text.clear();
-                        }
-                    }
+        if derive_mode(cx.state) == Mode::Text && self.field.is_some() {
+            let k = match key.key.as_str() {
+                "Escape" => Some(FieldKey::Escape),
+                "Enter" => Some(FieldKey::Enter),
+                "Backspace" => Some(FieldKey::Backspace),
+                "ArrowUp" => Some(FieldKey::Up),
+                "ArrowDown" => Some(FieldKey::Down),
+                _ => typed(key).map(FieldKey::Char),
+            };
+            if let Some(k) = k {
+                self.field_key(k, cx);
+            } else if key.ctrl && key.key.eq_ignore_ascii_case("u") {
+                if let Some(f) = self.field.as_mut() {
+                    f.text.clear();
                 }
-                Event::Text(t) => {
-                    for c in t.chars() {
-                        self.field_key(FieldKey::Char(c), cx);
-                    }
-                }
-                Event::Paste(t) => {
-                    for c in t.chars().filter(|c| !c.is_control()) {
-                        self.field_key(FieldKey::Char(c), cx);
-                    }
-                }
-                _ => return false,
             }
             return true;
         }
         // a menu whose title is the filter's field (menu.js title_prompt)
-        if let Some(menu) = cx.state.menus.last().filter(|m| m.title_prompt.as_ref().is_some_and(|t| !t.raw)) {
-            match ev {
-                Event::Key { key: Key::Enter, pressed: true, .. } => {
-                    let t = std::mem::take(&mut self.menu_filter);
-                    cx.send(cm::text_input(&format!("{t}\r")));
-                }
-                Event::Key { key: Key::Escape, pressed: true, .. } => {
-                    self.menu_filter.clear();
-                    cx.send(cm::key(27));
-                }
-                Event::Key { key: Key::Backspace, pressed: true, .. } => {
-                    self.menu_filter.pop();
-                }
-                Event::Text(t) => {
-                    for c in t.chars() {
-                        // macro_mapping: '?' is help, sent as a key even inside the prompt (menu.js:714)
-                        if menu.tag == "macro_mapping" && c == '?' {
-                            cx.send(cm::key(63));
-                        } else {
-                            self.menu_filter.push(c);
-                        }
-                    }
-                }
-                _ => return false,
+        let Some(menu) = Self::filter_menu(cx.state) else { return false };
+        match key.key.as_str() {
+            "Enter" => {
+                let t = std::mem::take(&mut self.menu_filter);
+                cx.send(cm::text_input(&format!("{t}\r")));
             }
-            return true;
+            "Escape" => {
+                self.menu_filter.clear();
+                cx.send(cm::key(27));
+            }
+            "Backspace" => {
+                self.menu_filter.pop();
+            }
+            _ => match typed(key) {
+                // macro_mapping: '?' is help, sent as a key even inside the prompt (menu.js:714)
+                Some('?') if menu.tag == "macro_mapping" => cx.send(cm::key(63)),
+                Some(c) => self.menu_filter.push(c),
+                None => return false,
+            },
         }
-        match ev {
-            Event::Key { key, pressed: true, modifiers, .. } => {
-                let m = *modifiers;
-                if m.is_none() {
-                    if let Some(done) = self.screen_key(*key, mode, cx) {
-                        return done;
-                    }
-                }
-                let nk = NavKey { key: nav_key(*key, m), shift: m.shift, ctrl: m.ctrl || m.command, alt: m.alt };
-                if self.page_key(nk, mode, cx) {
-                    return true;
-                }
-                if *key == Key::Space && m.is_none() {
-                    cx.send(cm::input(" "));
-                    return true;
-                }
-                if let Some(msg) = raw_key(*key, m) {
-                    cx.send(msg);
-                }
-                true
-            }
-            Event::Text(t) => {
-                for c in t.chars() {
-                    // a space came as its key, before its text
-                    if c == ' ' {
-                        continue;
-                    }
-                    let nk = NavKey::plain(KeyName::Char(c));
-                    if !self.page_key(nk, mode, cx) {
-                        cx.send(raw_char(c));
-                    }
-                }
-                true
-            }
-            _ => false,
+        true
+    }
+
+    /// Pasted text into the field that has the keys: true when one took it.
+    pub fn paste(&mut self, text: &str, cx: &mut OverlayCx) -> bool {
+        if !self.text_entry(cx.state) || cx.watching {
+            return false;
         }
+        for c in text.chars().filter(|c| !c.is_control()) {
+            let k = KeyLike { key: c.to_string(), ..Default::default() };
+            self.text_key(&k, cx);
+        }
+        true
+    }
+
+    /// The top menu's or popup's own keys on the client (overlays.ts `menuKey`, `popupKey`): the
+    /// paging keys and characters move a menu's hover and page it, and scroll a popup's text.
+    /// The router calls it where game.ts does; true when taken.
+    pub fn key_like(&mut self, key: &KeyLike, cx: &mut OverlayCx) -> bool {
+        self.sync(cx, None);
+        if cx.watching {
+            return false;
+        }
+        let mode = derive_mode(cx.state);
+        self.page_key(nav_key(key), mode, cx)
     }
 
     /// The paging keys of a menu (menu.js) or a popup's scroller (ui-layouts.js).
@@ -269,23 +233,23 @@ impl Overlays {
     }
 
     /// bindings.ts `screenKey` and the button's action: None leaves the key to the rest.
-    fn screen_key(&mut self, key: Key, mode: Mode, cx: &mut OverlayCx) -> Option<bool> {
+    fn screen_key(&mut self, key: &str, mode: Mode, cx: &mut OverlayCx) -> Option<bool> {
         let crt_menu = cx.state.menus.last().is_some_and(|m| m.kind.as_deref() == Some("crt"));
         let focus = mode.is_focus(crt_menu);
         let cursor = focus || mode == Mode::Menu;
         // a yes/no's Enter and Space are its default answer: they go to crawl as they are
-        if !cursor || (mode == Mode::Yesno && matches!(key, Key::Enter | Key::Space)) {
+        if !cursor || (mode == Mode::Yesno && matches!(key, "Enter" | " ")) {
             return None;
         }
         let scrolls = self.popup_scrolls(cx);
         let multi = cx.state.menus.last().is_some_and(|m| m.flags & MenuFlag::MULTISELECT != 0);
         let button = match key {
-            Key::Enter => Some(if mode == Mode::Menu && multi { Button::Start } else { Button::A }),
-            Key::Escape => Some(Button::B),
-            Key::Space if !scrolls => Some(Button::A),
-            Key::PageUp if focus && !scrolls => Some(Button::Lb),
-            Key::PageDown if focus && !scrolls => Some(Button::Rb),
-            Key::ArrowUp | Key::ArrowDown | Key::ArrowLeft | Key::ArrowRight => {
+            "Enter" => Some(if mode == Mode::Menu && multi { Button::Start } else { Button::A }),
+            "Escape" => Some(Button::B),
+            " " if !scrolls => Some(Button::A),
+            "PageUp" if focus && !scrolls => Some(Button::Lb),
+            "PageDown" if focus && !scrolls => Some(Button::Rb),
+            "ArrowUp" | "ArrowDown" | "ArrowLeft" | "ArrowRight" => {
                 self.direction(key, mode, crt_menu, cx);
                 return Some(true);
             }
@@ -295,20 +259,20 @@ impl Overlays {
         Some(true)
     }
 
-    fn direction(&mut self, key: Key, mode: Mode, crt_menu: bool, cx: &mut OverlayCx) {
+    fn direction(&mut self, key: &str, mode: Mode, crt_menu: bool, cx: &mut OverlayCx) {
         if mode == Mode::Menu && !crt_menu {
             let op = match key {
-                Key::ArrowUp => MenuOp::Prev,
-                Key::ArrowDown => MenuOp::Next,
-                Key::ArrowLeft => MenuOp::Left,
+                "ArrowUp" => MenuOp::Prev,
+                "ArrowDown" => MenuOp::Next,
+                "ArrowLeft" => MenuOp::Left,
                 _ => MenuOp::Right,
             };
             return self.menu_op(op, cx);
         }
         let op = match key {
-            Key::ArrowUp => FocusOp::Prev,
-            Key::ArrowDown => FocusOp::Next,
-            Key::ArrowLeft => FocusOp::Left,
+            "ArrowUp" => FocusOp::Prev,
+            "ArrowDown" => FocusOp::Next,
+            "ArrowLeft" => FocusOp::Left,
             _ => FocusOp::Right,
         };
         self.focus_op(op, cx);
@@ -460,14 +424,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn raw_keys_as_the_official_client() {
-        assert_eq!(raw_key(Key::Escape, Modifiers::NONE), Some(cm::key(27)));
-        assert_eq!(raw_key(Key::Enter, Modifiers::NONE), Some(cm::input("\r")));
-        assert_eq!(raw_key(Key::ArrowUp, Modifiers::SHIFT), Some(cm::key(Keys::CK_SHIFT_UP)));
-        assert_eq!(raw_key(Key::F, Modifiers::CTRL), Some(cm::key(6)));
-        assert_eq!(raw_key(Key::Z, Modifiers::CTRL), None);
-        assert_eq!(raw_char('{'), cm::input_bytes(&[123]));
-        assert_eq!(raw_char('a'), cm::input("a"));
+    fn keys_as_the_paging_reads_them() {
+        let k = |key: &str| KeyLike { key: key.into(), ..Default::default() };
+        assert_eq!(nav_key(&k("PageDown")).key, KeyName::PageDown);
+        assert_eq!(nav_key(&k(">")).key, KeyName::Char('>'));
+        assert_eq!(nav_key(&k("F5")).key, KeyName::Other);
+        assert_eq!(typed(&k("a")), Some('a'));
+        assert_eq!(typed(&k("Enter")), None);
+        assert_eq!(typed(&KeyLike { key: "u".into(), ctrl: true, ..Default::default() }), None);
     }
 
     #[test]

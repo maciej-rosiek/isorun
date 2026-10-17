@@ -16,7 +16,8 @@ and the part of `context.ts` that reads crawl's prompts. It draws:
 - **the CRT screens** (the skills screen), with a cursor over the rows the scraper finds;
 - **the prompt card**: a yes/no (A Yes, B No, Enter crawl's default as the chip says), a choice
   prompt (a row of chips the cursor walks), the letter picker of `=`;
-- **the text field** of crawl's text prompts (history, the prompts' own hotkeys: textinput.js);
+- **the text field** of crawl's text prompts (history, the prompts' own hotkeys: textinput.js),
+  with the input crate's on-screen keyboard over it when the pad speaks (osk.ts; `osk_op`);
 - **the level-up banner** with the gains read off the `player` message, and crawl's stat-gain
   prompt as three cards;
 - the `show_dialog` html's buttons.
@@ -35,13 +36,20 @@ cx.device = Device::Pad;                     // who spoke last (key caps or pad 
 cx.touch = true;                             // a coarse pointer: round close buttons
 cx.ui_scale = 1.0;
 overlays.ui(ctx, &mut cx);                   // draw what crawl has up, answer the mouse
-let took = overlays.input(ctx, &mut cx);     // this frame's keys: true when they were the overlays'
+// keys: the game screen's router decides (game.ts `onKeyDown`) and hands the overlays theirs:
+overlays.key_like(&key, &mut cx);            // a menu's / popup's own paging keys (GameHost menu_key, popup_key)
+if overlays.text_entry(&state) { overlays.text_key(&key, &mut cx); }  // crawl's text field or a menu filter
+overlays.menu_op(MenuOp::Examine, &mut cx);  // the pad's menu ops (bindings.ts), focus_op for the rest
+overlays.osk_op(OskOp::Type, None, &mut cx); // the pad's on-screen keyboard over crawl's text prompt
 for m in out { session.send(m) }             // send what they asked
 ```
 
+A screen without a router (the example) calls `overlays.input(ctx, &mut cx)`, which runs `key`
+(the whole path: the field, the keyboard as a pad, paging, else to crawl) for each of egui's keys.
+
 - `Overlays::up(&state)` / `Overlays::mode(&state)`: whether something of crawl's is up, the mode
   (`prompt::Mode`, context.ts `deriveMode`).
-- `key(&egui::Event, cx) -> bool`: one key (`input` calls it for every event of the frame). On a
+- `key(&KeyLike, cx) -> bool`: one key with nothing deciding for the overlays. On a
   screen the keyboard is a pad (bindings.ts `screenKey`): Enter is A, Escape B, Space A (pages text
   to read), the arrows the d-pad, PgUp / PgDn the bumpers. Keys nothing takes go to crawl as the
   official client sends them (`input::raw_key`, keys.ts `keydownMessage`). A key also answers the
@@ -63,8 +71,7 @@ The shared look (the popup panel, key caps, cards, buttons) is `isorun_ui::widge
 - The client's own overlays of overlays.ts (the command palette, the Isorun menu, the settings,
   the controls sheet, X's action tabs, the dock's screens) belong to the HUD and the front end; the
   pack's page tabs (pack-tabs.ts) too.
-- The on-screen keyboard (osk.ts) for typing with a pad, and the pad's button glyphs (glyphs.ts):
-  a chip names its button in text (`(A)`) until they are ported.
+- The pad's button glyphs (glyphs.ts): a chip names its button in text (`(A)`).
 - `--more--` has no overlay: the message pane (the HUD) shows it.
 
 ## Try it

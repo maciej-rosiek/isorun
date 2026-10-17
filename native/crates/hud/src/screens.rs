@@ -48,6 +48,30 @@ pub enum ScreenEvent {
     Close,
 }
 
+/// What the pad (or a key the router reads as one) does on a screen (overlays.ts `screenInput`,
+/// the client overlay ops): the cursor walks the stops by rows and columns, A acts, Y is the
+/// stop's quick action and X describes; on an open item menu up and down walk its rows.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScreenOp {
+    Next,
+    Prev,
+    Left,
+    Right,
+    /// A, Enter, Space: open the item's menu, run a command, fill an empty place
+    Select,
+    /// Y: the item's first action (put on, take off, use)
+    Quick,
+    /// X: describe the item
+    Describe,
+    /// B, Escape: the open menu goes, else the screen
+    Cancel,
+    /// the bumpers: ten stops on or back (overlays.ts `pageNext`)
+    PageNext,
+    PagePrev,
+    First,
+    Last,
+}
+
 fn place_label(p: DollPlace) -> &'static str {
     match p {
         DollPlace::Helmet => "Head",
@@ -253,6 +277,10 @@ pub struct Screen {
     stops: Vec<Stop2>,
     /// the player's figure, grown smooth once (screens.ts `figureCanvas`)
     figure: Option<(Vec<u32>, egui::TextureHandle)>,
+    /// the screen reads the keyboard itself (`keys`); off where a router hands it `op`s
+    pub own_keys: bool,
+    /// the panel as last drawn
+    panel: Option<Rect>,
 }
 
 /// What the screens are drawn from.
@@ -313,48 +341,118 @@ fn panel_style(u: f32, paper: bool, char_block: bool) -> BoxStyle {
 
 impl Screen {
     pub fn new(id: ScreenId) -> Screen {
-        Screen { id, menu: None, focus: None, stops: vec![], figure: None }
+        Screen { id, menu: None, focus: None, stops: vec![], figure: None, own_keys: true, panel: None }
     }
 
-    /// Keys while the screen is up: the arrows walk the stops (or the open menu), Enter opens or
-    /// runs, Escape closes the menu or the screen. True when the screen took them.
+    /// Keys while the screen is up, for a HUD that reads its own keys (the examples): the arrows
+    /// walk the stops (or the open menu), Enter opens or runs, Escape closes the menu or the
+    /// screen. The game screen routes its keys and the pad through its router to `op` instead.
     pub fn keys(&mut self, ui: &egui::Ui, data: &ScreenData) -> Vec<ScreenEvent> {
-        let mut out = vec![];
         let pressed = |k: egui::Key| ui.input(|i| i.key_pressed(k));
-        if let Some(m) = &mut self.menu {
-            if pressed(egui::Key::ArrowDown) {
-                m.focus = (m.focus + 1) % m.rows.len();
-            }
-            if pressed(egui::Key::ArrowUp) {
-                m.focus = (m.focus + m.rows.len() - 1) % m.rows.len();
-            }
-            if pressed(egui::Key::Escape) {
-                self.menu = None;
-                return out;
-            }
-            if pressed(egui::Key::Enter) || pressed(egui::Key::Space) {
-                let m = self.menu.take().unwrap();
-                out.push(menu_event(&m, m.focus));
-            }
-            return out;
-        }
-        if pressed(egui::Key::Escape) {
-            out.push(ScreenEvent::Close);
-            return out;
-        }
-        let dirs = [(egui::Key::ArrowLeft, -1i32, 0i32), (egui::Key::ArrowRight, 1, 0), (egui::Key::ArrowUp, 0, -1), (egui::Key::ArrowDown, 0, 1)];
-        for (k, dx, dy) in dirs {
+        let keys = [
+            (egui::Key::ArrowDown, ScreenOp::Next),
+            (egui::Key::ArrowUp, ScreenOp::Prev),
+            (egui::Key::ArrowLeft, ScreenOp::Left),
+            (egui::Key::ArrowRight, ScreenOp::Right),
+            (egui::Key::Enter, ScreenOp::Select),
+            (egui::Key::Space, ScreenOp::Select),
+            (egui::Key::Escape, ScreenOp::Cancel),
+        ];
+        let mut out = vec![];
+        for (k, op) in keys {
             if pressed(k) {
-                self.step(dx, dy);
+                out.extend(self.op(op, data));
             }
         }
-        if pressed(egui::Key::Enter) {
-            if let Some(f) = self.focus.clone() {
-                if let Some(e) = self.activate(&f, data) {
-                    out.push(e);
+        out
+    }
+
+    /// One operation of the pad's on the screen; what it asks of the HUD comes back.
+    pub fn op(&mut self, op: ScreenOp, data: &ScreenData) -> Vec<ScreenEvent> {
+        let mut out = vec![];
+        // an item's menu is up: it takes the moves, A and B (screens.ts `input`)
+        if let Some(m) = &mut self.menu {
+            let n = m.rows.len().max(1);
+            match op {
+                ScreenOp::Next => m.focus = (m.focus + 1) % n,
+                ScreenOp::Prev => m.focus = (m.focus + n - 1) % n,
+                ScreenOp::Select => {
+                    let m = self.menu.take().unwrap();
+                    out.push(menu_event(&m, m.focus));
+                }
+                ScreenOp::Cancel => self.menu = None,
+                _ => {}
+            }
+            return out;
+        }
+        match op {
+            ScreenOp::Cancel => out.push(ScreenEvent::Close),
+            ScreenOp::Next => self.step(0, 1),
+            ScreenOp::Prev => self.step(0, -1),
+            ScreenOp::Left => self.step(-1, 0),
+            ScreenOp::Right => self.step(1, 0),
+            ScreenOp::PageNext | ScreenOp::PagePrev | ScreenOp::First | ScreenOp::Last => {
+                if self.stops.is_empty() {
+                    return out;
+                }
+                let at = self.focus.as_ref().and_then(|f| self.stops.iter().position(|s| &s.id == f)).unwrap_or(0);
+                let last = self.stops.len() - 1;
+                let to = match op {
+                    ScreenOp::PageNext => (at + 10).min(last),
+                    ScreenOp::PagePrev => at.saturating_sub(10),
+                    ScreenOp::First => 0,
+                    _ => last,
+                };
+                self.focus = Some(self.stops[to].id.clone());
+            }
+            ScreenOp::Select => {
+                if let Some(f) = self.focus.clone() {
+                    out.extend(self.activate(&f, data));
+                }
+            }
+            ScreenOp::Quick | ScreenOp::Describe => {
+                let item = self.focus.as_deref().and_then(|f| f.strip_prefix("item:")).and_then(|l| data.items.iter().find(|i| i.letter == l));
+                if let Some(item) = item {
+                    let id = if op == ScreenOp::Describe { Some(ItemActionId::Describe) } else { item_actions(item, data.worn.get(&item.letter).copied()).first().map(|a| a.id) };
+                    if let Some(id) = id {
+                        out.push(ScreenEvent::Act(item.clone(), id));
+                    }
                 }
             }
         }
+        out
+    }
+
+    /// An item's menu is open on the screen.
+    pub fn menu_open(&self) -> bool {
+        self.menu.is_some()
+    }
+
+    /// The stop the cursor is on (its id: `item:<letter>`, `place:<place>`, `cmd:<key>`).
+    pub fn focused(&self) -> Option<&str> {
+        self.focus.as_deref()
+    }
+
+    /// The pad's buttons for the stop the cursor is on, for the screen's foot (overlays.ts
+    /// `paintScreenPad`): A, and Y and X where the stop has them, and B.
+    pub fn pad_chips(&self, data: &ScreenData) -> Vec<(Glyph, String)> {
+        let mut out = vec![];
+        if self.menu.is_some() {
+            out.push((Glyph::A, "Select".to_string()));
+            out.push((Glyph::B, "Back".to_string()));
+            return out;
+        }
+        let item = self.focus.as_deref().and_then(|f| f.strip_prefix("item:")).and_then(|l| data.items.iter().find(|i| i.letter == l));
+        if self.focus.is_some() {
+            out.push((Glyph::A, if item.is_some() { "Actions" } else { "Select" }.to_string()));
+        }
+        if let Some(item) = item {
+            if let Some(a) = item_actions(item, data.worn.get(&item.letter).copied()).first() {
+                out.push((Glyph::Y, a.label.clone()));
+            }
+            out.push((Glyph::X, "Describe".to_string()));
+        }
+        out.push((Glyph::B, "Close".to_string()));
         out
     }
 
@@ -430,9 +528,17 @@ impl Screen {
                 ScreenId::Inventory => self.inventory(ui, data, tiles, boxes, u, screen),
                 ScreenId::Character => self.character(ui, data, tiles, boxes, u, screen),
             };
-            let mut keyed = self.keys(ui, data);
-            events.append(&mut keyed);
+            if self.own_keys {
+                let mut keyed = self.keys(ui, data);
+                events.append(&mut keyed);
+            }
         });
+        // the pad's buttons under the panel, while the pad speaks
+        if let (Some(kind), Some(panel)) = (data.pad, self.panel) {
+            let chips = self.pad_chips(data);
+            let p = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("hud-screen-pad")));
+            pad_footer(&p, panel.center().x, panel.bottom() + 8.0 * u, u, kind, &chips);
+        }
         events
     }
 }
@@ -488,6 +594,25 @@ fn footer(painter: &Painter, boxes: &mut BoxCache, centre_x: f32, top: f32, u: f
     4.0 * u + 20.0 * u
 }
 
+/// The pad's chips under a screen (styles.css `.screen-pad`): each button's glyph and what it does.
+fn pad_footer(painter: &Painter, centre_x: f32, top: f32, u: f32, kind: PadKind, chips: &[(Glyph, String)]) {
+    let ctx = painter.ctx();
+    let em = 18.0 * u;
+    let st = TextStyle::new(Face::Caps600, 12.0 * u, hex(0xc9b98f)).spacing(0.06).line(1.0);
+    let gap = 18.0 * u;
+    let laid: Vec<_> = chips.iter().map(|(g, t)| (*g, crate::glyphs::glyph_size(*g, em), st.galley(ctx, t, None))).collect();
+    let total: f32 = laid.iter().map(|(_, gs, l)| gs.x + 6.0 * u + l.size().x).sum::<f32>() + gap * laid.len().saturating_sub(1) as f32;
+    let mut x = centre_x - total / 2.0;
+    let mid = top + em / 2.0;
+    for (g, gs, l) in laid {
+        crate::glyphs::paint_glyph(painter, g, kind, egui::pos2(x, mid - gs.y / 2.0), em, hex(0xefe4cc).to_color32());
+        x += gs.x + 6.0 * u;
+        let w = l.size().x;
+        painter.galley(egui::pos2(x, mid - l.size().y / 2.0), l, Color32::WHITE);
+        x += w + gap;
+    }
+}
+
 impl Screen {
     #[allow(clippy::too_many_arguments)]
     fn inventory(&mut self, ui: &mut egui::Ui, data: &ScreenData, tiles: &mut TileIcons, boxes: &mut BoxCache, u: f32, screen: Rect) -> Vec<ScreenEvent> {
@@ -512,6 +637,7 @@ impl Screen {
         let width = body_w + 2.0;
         let top = screen.top() + screen.height() * 0.05;
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
+        self.panel = Some(rect);
         // a click on the panel is the panel's, not the world's
         ui.interact(rect, ui.scope_id().with("inv-panel"), Sense::click());
         let (body, closed) = frame(ui, boxes, rect, "Inventory", u);
@@ -870,6 +996,7 @@ impl Screen {
         let height = 1.0 + title_h + content_h + footer_h + 6.0 * u + 1.0;
         let top = screen.top() + screen.height() * 0.05;
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
+        self.panel = Some(rect);
         ui.interact(rect, ui.scope_id().with("char-panel"), Sense::click());
         let (bodyp, closed) = frame(ui, boxes, rect, "Character", u);
         if closed {
@@ -1086,5 +1213,42 @@ mod tests {
         let host = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 600.0));
         let a = Rect::from_min_size(egui::pos2(900.0, 550.0), egui::vec2(50.0, 50.0));
         assert_eq!(beside(host, a, egui::vec2(200.0, 100.0), 10.0), egui::pos2(690.0, 500.0));
+    }
+
+    #[test]
+    fn the_pad_walks_and_acts_on_a_screen() {
+        let items = pack(&[item(0, "a +0 hand axe", obj::WEAPONS, 7), item(1, "a potion of curing", obj::POTIONS, 2)]);
+        let player = PlayerState::default();
+        let worn = BTreeMap::new();
+        let data = ScreenData { player: &player, items: &items, worn: &worn, me: None, checking: false, pad: Some(PadKind::Xbox), weapon: String::new(), quiver: String::new() };
+        let mut s = Screen::new(ScreenId::Inventory);
+        let at = |x: f32, y: f32| Rect::from_min_size(egui::pos2(x, y), egui::vec2(50.0, 50.0));
+        s.stops = vec![
+            Stop2 { id: "place:helmet".into(), rect: at(0.0, 0.0), row: 0, col: 0 },
+            Stop2 { id: "item:a".into(), rect: at(100.0, 0.0), row: 0, col: 4 },
+            Stop2 { id: "item:b".into(), rect: at(160.0, 0.0), row: 0, col: 5 },
+        ];
+        s.focus = Some("item:a".into());
+        s.op(ScreenOp::Right, &data);
+        assert_eq!(s.focused(), Some("item:b"));
+        s.op(ScreenOp::First, &data);
+        assert_eq!(s.focused(), Some("place:helmet"));
+        s.op(ScreenOp::PageNext, &data);
+        assert_eq!(s.focused(), Some("item:b"));
+        // X describes, Y takes the first action, both without a menu
+        assert_eq!(s.op(ScreenOp::Describe, &data), vec![ScreenEvent::Act(items[1].clone(), ItemActionId::Describe)]);
+        assert!(matches!(s.op(ScreenOp::Quick, &data).as_slice(), [ScreenEvent::Act(_, _)]));
+        // A opens the item's menu, which then takes the moves; B puts it away, B again the screen
+        assert!(s.op(ScreenOp::Select, &data).is_empty());
+        assert!(s.menu.is_some());
+        s.op(ScreenOp::Next, &data);
+        assert_eq!(s.menu.as_ref().unwrap().focus, 1);
+        assert!(s.op(ScreenOp::Cancel, &data).is_empty());
+        assert!(s.menu.is_none());
+        assert_eq!(s.op(ScreenOp::Cancel, &data), vec![ScreenEvent::Close]);
+        // A on an empty place asks for what goes there
+        s.op(ScreenOp::First, &data);
+        assert!(matches!(s.op(ScreenOp::Select, &data).as_slice(), [ScreenEvent::Fill(DollPlace::Helmet, _)]));
+        assert_eq!(s.pad_chips(&data).first().map(|c| c.1.as_str()), Some("Select"));
     }
 }

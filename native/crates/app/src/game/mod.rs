@@ -32,7 +32,7 @@ use isorun_front::{GameMenus, MenuAction};
 use isorun_hud::{Hud, HudCommand, HudCx};
 use isorun_input::action_tabs::{action_tab, action_tab_of, ActionTabId, OKAY_THEN, SHOUT_KEY};
 use isorun_input::bindings::{bar_labels, contextual_label, level_map as level_map_action, SeqItem, UiOp};
-use isorun_input::combat::{combat_events, lines_since, monster_cell, CombatEvent, Fighter};
+use isorun_input::combat::{combat_events, lines_since, monster_cell, CombatEvent, Fighter, LastLine};
 use isorun_input::context::{derive_context, derive_mode, Context, Layer, Mode};
 use isorun_input::gamepad::{pad_key_input, GamepadInput};
 use isorun_input::gamepad_hints::{GamepadHints, HintMode};
@@ -182,7 +182,7 @@ pub struct GameScreen {
     exploring_at_once: bool,
     swung: Option<(i32, i32, f64)>,
     /// the newest message line the fight was read up to, and where it stood in the log
-    last_combat_line: Option<(GameMessage, usize)>,
+    last_combat_line: Option<LastLine>,
     /// the blows given to the renderer, by token: what lands when each shows
     landings: HashMap<u64, Landing>,
     next_token: u64,
@@ -234,7 +234,12 @@ impl GameScreen {
         let parts = Parts {
             view,
             overlays: Overlays::new(),
-            hud: Hud::new(),
+            hud: {
+                let mut h = Hud::new();
+                // the router hands the screens their keys and the pad's ops
+                h.screens_read_keys = false;
+                h
+            },
             icons: TileIcons::default(),
             menus: GameMenus::default(),
             client: None,
@@ -311,7 +316,7 @@ impl GameScreen {
             settings_from_system: false,
         };
         // the game's messages so far (the front end's connection carried the lobby): the fight starts from here
-        s.last_combat_line = s.session.state.messages.lines.last().cloned().map(|l| (l, s.session.state.messages.lines.len() - 1));
+        s.last_combat_line = LastLine::newest(&s.session.state.messages.lines);
         if s.session.gamedata.is_some() && !s.session.loading() {
             s.loading = None;
         }
@@ -660,6 +665,21 @@ impl GameScreen {
         f(&mut self.router, &mut io);
     }
 
+    /// A call into the overlays with the frame's state; what they send goes to crawl.
+    fn overlay_keys(&mut self, now: f64, f: impl FnOnce(&mut Overlays, &mut OverlayCx) -> bool) {
+        let mut out = Vec::new();
+        {
+            let mut cx = OverlayCx::new(&self.session.state, &mut self.parts.icons, &mut out);
+            cx.device = convert::device(self.parts.last_input).1;
+            if f(&mut self.parts.overlays, &mut cx) {
+                self.parts.pointer_live = false;
+            }
+        }
+        for m in out {
+            self.send(m, now);
+        }
+    }
+
     /// The input of the frame: the keys, the pad, the pointer and the fingers.
     fn input(&mut self, ui: &mut egui::Ui, view_rect: egui::Rect, now: f64, dt: f32) {
         let ctx = ui.ctx().clone();
@@ -669,53 +689,20 @@ impl GameScreen {
         if events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_))) {
             self.parts.overlays.level_up.answer(time);
         }
-        // the Isorun menu and the settings take the keyboard whole while they are up
-        let menus_keys = self.parts.menus.is_open() || self.parts.menus.tuning();
+        // the settings take the keyboard whole while they are up; Tune the look leaves the keys to
+        // the game but for Escape, which the router gives it (`look_panel_open`)
+        let menus_keys = self.parts.menus.is_open();
         if menus_keys {
             let (_, actions) = self.parts.menus.keys(&ctx);
             self.parts.deferred.push(Deferred::MenuActions(actions));
         }
-        // the HUD's screens and the chat take their own keys
-        let hud_keys = self.parts.hud.screen_open().is_some() || self.parts.chat_capturing;
-        // crawl's own screens over the game take the keys (overlays.rs `key`), but for Isorun's own keys
-        let crawl_up = Overlays::up(&self.session.state) && !watching && self.parts.client.is_none() && !hud_keys && !menus_keys && !self.parts.overlays.level_up.choosing();
+        // the chat takes its own keys; the HUD's screens get theirs from the router (`client_overlay_input`)
+        let hud_keys = self.parts.chat_capturing;
         self.route(now, |r, io| r.tick(io));
-        if !menus_keys && crawl_up {
-            for e in &events {
-                let ours = match e {
-                    egui::Event::Key { key, pressed: true, modifiers: m, .. } => {
-                        let f = matches!(key, egui::Key::F2 | egui::Key::F3 | egui::Key::F4 | egui::Key::F5 | egui::Key::F12) && !m.any();
-                        let view = m.alt && !m.ctrl && matches!(key, egui::Key::ArrowLeft | egui::Key::ArrowRight | egui::Key::ArrowUp | egui::Key::ArrowDown);
-                        f || view
-                    }
-                    _ => false,
-                };
-                if ours {
-                    for k in key_inputs(std::slice::from_ref(e), modifiers) {
-                        if let KeyInput::Down { key, repeat } = k {
-                            self.route(now, |r, io| {
-                                r.key_down(&key, repeat, io);
-                            });
-                        }
-                    }
-                    continue;
-                }
-                if matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::Text(_)) {
-                    self.route(now, |r, io| r.input_from(InputDevice::Keyboard, io.host));
-                }
-                let mut out = Vec::new();
-                {
-                    let mut cx = OverlayCx::new(&self.session.state, &mut self.parts.icons, &mut out);
-                    cx.device = convert::device(self.parts.last_input).1;
-                    if self.parts.overlays.key(e, &mut cx) {
-                        self.parts.pointer_live = false;
-                    }
-                }
-                for m in out {
-                    self.send(m, now);
-                }
-            }
-        } else if !menus_keys && !hud_keys {
+        // every key goes down the router (game.ts `onKeyDown`): it decides what is Isorun's, what
+        // is a screen's pad button, and hands crawl's menus and popups their own keys
+        // (`Overlays::key_like`); a key it leaves while a field of crawl's has the keys is the field's
+        if !menus_keys && !hud_keys {
             for k in key_inputs(&events, modifiers) {
                 if pad_key_input(&mut self.pad, &k, now) {
                     continue;
@@ -729,11 +716,20 @@ impl GameScreen {
                                 continue;
                             }
                         }
-                        self.route(now, |r, io| {
-                            r.key_down(&key, repeat, io);
-                        });
+                        let mut took = false;
+                        self.route(now, |r, io| took = r.key_down(&key, repeat, io));
+                        if !took && !watching && self.parts.overlays.text_entry(&self.session.state) {
+                            self.overlay_keys(now, |o, cx| o.text_key(&key, cx));
+                        }
                     }
                     KeyInput::Up { key } => self.route(now, |r, io| r.key_up(&key, io)),
+                }
+            }
+            if !watching {
+                for e in &events {
+                    if let egui::Event::Paste(t) = e {
+                        self.overlay_keys(now, |o, cx| o.paste(t, cx));
+                    }
                 }
             }
         }
@@ -920,8 +916,8 @@ impl GameScreen {
     fn track_combat(&mut self, now: f64) {
         let st = &self.session.state;
         let lines = &st.messages.lines;
-        let fresh: Vec<GameMessage> = fresh_lines(lines, self.last_combat_line.as_ref(), st.player.turn).into_iter().cloned().collect();
-        self.last_combat_line = lines.last().cloned().map(|l| (l, lines.len() - 1));
+        let fresh: Vec<GameMessage> = lines_since(lines, self.last_combat_line.as_ref(), st.player.turn).into_iter().cloned().collect();
+        self.last_combat_line = LastLine::newest(lines);
         let scene = self.session.scene.clone();
         self.audio.on_state(st, &scene, &fresh);
         if fresh.is_empty() {
@@ -1661,19 +1657,8 @@ impl GameScreen {
     fn menu_actions(&mut self, ctx: &egui::Context, actions: Vec<MenuAction>) -> Option<Outcome> {
         for a in actions {
             match a {
-                MenuAction::Keys(k) => {
-                    for c in k.chars() {
-                        self.runner.outbox.push(cm::input(&c.to_string()));
-                    }
-                }
-                MenuAction::Leave => {
-                    self.save_view();
-                    return Some(Outcome::Leave);
-                }
                 MenuAction::SettingsChanged => self.apply_settings(ctx),
                 MenuAction::Lights(l) => self.parts.view.renderer.set_lights(l),
-                MenuAction::Fullscreen(f) => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(f)),
-                MenuAction::Chat => self.parts.hud.chat.focus(),
                 MenuAction::Resume => {
                     if std::mem::take(&mut self.settings_from_system) {
                         self.parts.show_system();
@@ -1738,26 +1723,6 @@ fn pointer_over_panel_at(ctx: &egui::Context, p: egui::Pos2) -> bool {
     ctx.layer_id_at(p).is_some_and(|l| l.order != egui::Order::Background)
 }
 
-/// The lines since the one read last (combat.rs `lines_since`, game.ts `linesSince`). The web
-/// build finds the line by identity; here it is found where it stood, and by its text, turn and
-/// channel, not its `marker`, which the reducer sets on a line after it arrives (a new command
-/// or turn starting after it). Repeated lines ("There are monsters nearby!") are the same by
-/// value, so the place it stood is tried first; after a rollback or the log's cap moved the
-/// lines, the newest equal line is.
-fn fresh_lines<'a>(lines: &'a [GameMessage], last: Option<&(GameMessage, usize)>, turn: i64) -> Vec<&'a GameMessage> {
-    let same = |a: &GameMessage, b: &GameMessage| a.text == b.text && a.turn == b.turn && a.channel == b.channel;
-    if let Some((l, at)) = last {
-        if lines.get(*at).is_some_and(|x| same(x, l)) {
-            return lines[at + 1..].iter().collect();
-        }
-        if let Some(i) = lines.iter().rposition(|x| same(x, l)) {
-            return lines[i + 1..].iter().collect();
-        }
-    }
-    let _ = lines_since;
-    lines.iter().filter(|l| l.turn == Some(turn)).collect()
-}
-
 fn fighter(f: Fighter) -> isorun_audio::Fighter {
     match f {
         Fighter::Player => isorun_audio::Fighter::Player,
@@ -1819,38 +1784,5 @@ fn front_pad(ev: &isorun_input::PadEvent) -> Option<isorun_front::PadEvent> {
             _ => return None,
         })),
         _ => None,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn line(text: &str, turn: i64) -> GameMessage {
-        GameMessage { text: text.into(), turn: Some(turn), channel: Some(0), marker: None }
-    }
-
-    #[test]
-    fn fresh_lines_after_a_repeated_line_and_a_marker() {
-        let mut lines = vec![line("There are monsters nearby!", 5), line("There are monsters nearby!", 5)];
-        let last = (lines[1].clone(), 1);
-        // the reducer marks the line read last, and the same line comes again, then the fight
-        lines[1].marker = Some(isorun_webtiles::Marker::Command);
-        lines.push(line("There are monsters nearby!", 5));
-        lines.push(line("You hit the bat for 3.", 5));
-        let fresh: Vec<&str> = fresh_lines(&lines, Some(&last), 6).iter().map(|l| l.text.as_str()).collect();
-        assert_eq!(fresh, ["There are monsters nearby!", "You hit the bat for 3."]);
-    }
-
-    #[test]
-    fn fresh_lines_after_the_log_moved() {
-        let lines = vec![line("a", 1), line("b", 2), line("c", 3)];
-        // the line read last now stands one place earlier (the cap dropped the oldest)
-        let last = (line("b", 2), 2);
-        let fresh: Vec<&str> = fresh_lines(&lines, Some(&last), 3).iter().map(|l| l.text.as_str()).collect();
-        assert_eq!(fresh, ["c"]);
-        // nothing read yet: the lines of this turn
-        let fresh: Vec<&str> = fresh_lines(&lines, None, 3).iter().map(|l| l.text.as_str()).collect();
-        assert_eq!(fresh, ["c"]);
     }
 }

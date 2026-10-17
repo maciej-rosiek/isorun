@@ -115,26 +115,27 @@ pub fn focus_op(op: isorun_input::focus::FocusOp) -> isorun_overlays::FocusOp {
     }
 }
 
-/// The overlays' menu ops are not public (their `MenuOp` is not exported), so a menu op goes
-/// down the focus path, which in a menu is the same `menu_op`; the ops that have no focus twin
-/// take their nearest one.
-pub fn menu_as_focus(op: isorun_input::bindings::MenuOp) -> Option<isorun_overlays::FocusOp> {
+/// A menu op of the pad's as the overlays take it (one to one).
+pub fn menu_op(op: isorun_input::bindings::MenuOp) -> isorun_overlays::MenuOp {
     use isorun_input::bindings::MenuOp as M;
-    use isorun_overlays::FocusOp as O;
-    Some(match op {
+    use isorun_overlays::MenuOp as O;
+    match op {
         M::Next => O::Next,
         M::Prev => O::Prev,
-        M::PageNext | M::SectionNext => O::PageNext,
-        M::PagePrev | M::SectionPrev => O::PagePrev,
+        M::PageNext => O::PageNext,
+        M::PagePrev => O::PagePrev,
+        M::SectionNext => O::SectionNext,
+        M::SectionPrev => O::SectionPrev,
         M::First => O::First,
         M::Last => O::Last,
-        M::Select | M::Toggle => O::Select,
+        M::Select => O::Select,
         M::AltSelect => O::AltSelect,
+        M::Examine => O::Examine,
+        M::Toggle => O::Toggle,
         M::Cancel => O::Cancel,
         M::Left => O::Left,
         M::Right => O::Right,
-        M::Examine => return None,
-    })
+    }
 }
 
 pub fn focus_info(f: isorun_overlays::FocusInfo) -> isorun_input::focus::FocusInfo {

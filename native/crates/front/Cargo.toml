@@ -12,6 +12,7 @@ isorun-webtiles = { path = "../webtiles" }
 isorun-render = { path = "../render" }
 isorun-client = { path = "../client" }
 isorun-ui = { path = "../ui" }
+isorun-input = { path = "../input" }
 eframe = { workspace = true }
 egui = { workspace = true }
 serde = { workspace = true }

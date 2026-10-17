@@ -46,10 +46,13 @@ Input: the keyboard (arrows and the vim keys, Enter / Space, Escape, Tab, Page U
 Home / End, Y, Ctrl+S in the rc file, F11), the mouse and touch (rows, the setting arrows, a
 drag on the scenery turns the room), and the pad through `FrontEnd::pad`.
 
-Over the game, `GameMenus` (`overlay.rs`) is the Isorun menu (Start), the settings groups and
-pages, the gamepad sheet and Tune the look (`LightsPanel`): `open_system(SystemOptions)`,
-`open_settings()`, `tune_look()`, `keys(ctx)` / `pad(ev)` while `is_open()`, and `ui(ctx)`,
-which returns `MenuAction`s (keys for crawl, Leave, Fullscreen, SettingsChanged, Lights).
+Over the game, `GameMenus` (`overlay.rs`) is the settings groups and pages, the gamepad sheet
+and Tune the look (`LightsPanel`): `open_settings()`, `open_controls()` (the sheet on its own, as
+the pad's Bindings opens it: its Back closes it), `tune_look()` / `close_tuning()` (Escape and
+Back put it away), `keys(ctx)` / `pad(ev)` while `is_open()`, and `ui(ctx)`, which returns
+`MenuAction`s (Resume, SettingsChanged, Lights). The Isorun menu (Start) is the game screen's.
+The gamepad sheet (`regions::controls_sheet`) is built from the input crate's command table
+(`bindings::control_sheet`).
 
 The pieces stand on their own too: `settings` (the rows, `quality_for`, `apply_graphics`, the
 store in `isorun.settings`), `room::RoomView` (a place drawn by `IsoRenderer` with a slowly
@@ -60,15 +63,13 @@ words), `focus` (the cursor's grid), `visits`.
 
     ISORUN_DATA_DIR=/tmp/front ISORUN_PROFILE=front cargo run -p isorun-front --example front -- [--size 390x844] [--touch] [--open settings]
 
-Play on this device reaches a game in a stand-in game view; Escape there opens the Isorun
-menu. `tools/web-front.mjs` screenshots the web build's screens by address for comparison.
+Play on this device reaches a game in a stand-in game view; Escape there opens the settings,
+F10 leaves. `tools/web-front.mjs` screenshots the web build's screens by address for comparison.
 
 ## Not yet
 
 - The on-screen keyboard for a pad (X on a text field): the input crate's `Osk` is the one to
   use; the fields here take the keyboard.
-- The gamepad sheet is a fixed table of bindings.ts `controlSheet`; the binding tables live in
-  the input crate.
 - Needed from `isorun-client`: `Settings::resolution` and `torch_shadows` read only text, but
   the web build stores numbers (85, 4), which makes `servers::get_settings` fall back to every
   default; `settings::client_settings` converts. There is no public way to delete an offline
