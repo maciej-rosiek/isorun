@@ -33,6 +33,9 @@ const RESUME_QUIET: f64 = 0.6;
 const COMPACT_MESSAGE_ROWS: (i32, i32) = (2, 4);
 /// the most the view's centre is lifted over the compact dock, of the view's height
 const MAX_CENTRE_LIFT: f32 = 0.15;
+/// how much less the centre is lifted on a phone held upright, of the view's height: a tall
+/// screen has room over the dock to spare, and the player stands better a little lower on it
+const PORTRAIT_LIFT_DROP: f32 = 0.09;
 /// DejaVu Sans Mono's advance per point of size
 const MONO_ADVANCE: f32 = 0.602;
 
@@ -236,7 +239,7 @@ impl Hud {
         let view_cells = if map_view { level_map_split(&grid, &cells, hide_sidebar, hide_messages) } else { cells.view };
         let view = grid.rect(view_cells);
         let clear = grid.rect(cells.clear);
-        let centre_lift = if compact && !map_view { ((view.height() - clear.height()) / 2.0).min(view.height() * MAX_CENTRE_LIFT) } else { 0.0 };
+        let centre_lift = if compact && !map_view { centre_lift(view.height(), clear.height(), style::landscape_window(screen.size())) } else { 0.0 };
         let free = if map_view { view_cells } else { cells.clear };
         let column = CellRect { h: cells.sidebar.h, ..cells.sidebar };
         let prompts = if dock_on && cells.sidebar.w > 0 { column } else { free };
@@ -783,5 +786,32 @@ impl Hud {
         if let Some(e) = self.dock.nav(op, &v) {
             self.dock_event(e, cx);
         }
+    }
+}
+
+/// How far the view's centre is lifted over a compact dock's panes: to the middle of the room above
+/// them, but by no more than [`MAX_CENTRE_LIFT`] of the view, and upright by [`PORTRAIT_LIFT_DROP`]
+/// of it less (the player stands lower on a tall phone, still over the dock).
+pub fn centre_lift(view_h: f32, clear_h: f32, landscape: bool) -> f32 {
+    let lift = ((view_h - clear_h) / 2.0).min(view_h * MAX_CENTRE_LIFT);
+    if landscape {
+        lift
+    } else {
+        (lift - view_h * PORTRAIT_LIFT_DROP).max(0.0)
+    }
+}
+
+#[cfg(test)]
+mod centre_lift_tests {
+    use super::centre_lift;
+
+    #[test]
+    fn upright_the_centre_is_lifted_less_and_never_below_the_middle() {
+        // a 915px tall phone with 600px clear over the dock: 137px lifted on its side, 55 upright
+        assert_eq!(centre_lift(915.0, 600.0, true).round(), 137.0);
+        assert_eq!(centre_lift(915.0, 600.0, false).round(), 55.0);
+        // little dock: little lift, and none upright
+        assert_eq!(centre_lift(915.0, 875.0, true), 20.0);
+        assert_eq!(centre_lift(915.0, 875.0, false), 0.0);
     }
 }
