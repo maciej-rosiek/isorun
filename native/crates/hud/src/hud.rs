@@ -10,7 +10,7 @@ use crate::dock_actions::{dock_actions, hostiles_in_view, underfoot, DockContext
 use crate::dock_memory::{load_dock_memory, save_dock_memory, DockMemory};
 use crate::gear::{equip_slot_of, item_action_keys, item_title, pack_items, worn_from_menu, worn_now, DollPlace, EquipSlot, ItemActionId, KeyStep, PackItem};
 use crate::glyphs::PadKind;
-use crate::grid::console::{fit, game_split, level_map_split, CellRect, GameLayout, Grid, STAT_WIDTH};
+use crate::grid::console::{classic_split, fit, game_split, level_map_split, CellRect, GameLayout, Grid, STAT_WIDTH};
 use crate::pack_tabs::is_pack;
 use crate::paint::BoxCache;
 use crate::quick_slots::{abilities_from_menu, quick_slots, slot_choices, spells_from_menu, QuickSlot, SlotRef, SlotSources, TileLayer};
@@ -235,7 +235,7 @@ impl Hud {
         let dock_height = if dock_on { self.dock.height(ctx, &frame, &self.view) } else { 0.0 };
         let pane = st.messages.pane_height as i32;
         let msg_rows = if compact { pane.min(if style::landscape_window(screen.size()) { COMPACT_MESSAGE_ROWS.0 } else { COMPACT_MESSAGE_ROWS.1 }) } else { pane };
-        let cells = game_split(&grid, msg_rows, STAT_WIDTH, if dock_on { (dock_height / grid.ch).ceil() as i32 } else { 0 });
+        let cells = if settings.hud == "dock" { game_split(&grid, msg_rows, STAT_WIDTH, if dock_on { (dock_height / grid.ch).ceil() as i32 } else { 0 }) } else { classic_split(&grid, msg_rows, STAT_WIDTH) };
         let view_cells = if map_view { level_map_split(&grid, &cells, hide_sidebar, hide_messages) } else { cells.view };
         let view = grid.rect(view_cells);
         let clear = grid.rect(cells.clear);

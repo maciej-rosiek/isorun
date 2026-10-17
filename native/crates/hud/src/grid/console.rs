@@ -110,14 +110,28 @@ pub fn game_split(grid: &Grid, msg_rows: i32, stat_width: i32, dock_rows: i32) -
     let dock = 0.max(dock_rows.min(grid.rows - MIN_VIEW_ROWS));
     let msgs = 2.max((msg_rows + 1).min(grid.rows - dock - 4));
     let clear_h = grid.rows - dock - msgs;
+    GameLayout {
+        view: CellRect { x: 0, y: 0, w: grid.cols, h: grid.rows },
+        clear: CellRect { x: 0, y: 0, w: left_w, h: clear_h },
+        messages: CellRect { x: 0, y: clear_h, w: left_w, h: msgs },
+        sidebar: CellRect { x: left_w, y: 0, w: side, h: grid.rows - dock },
+        stats: CellRect { x: 0, y: 0, w: side, h: STATS_ROWS.min(grid.rows) },
+    }
+}
+
+/// `game_split` for the classic panes, whose stats pane stands on the view (the dock has none).
+pub fn classic_split(grid: &Grid, msg_rows: i32, stat_width: i32) -> GameLayout {
+    let side = 0.max(stat_width.min(grid.cols - MIN_VIEW_COLS));
+    let msgs = 2.max((msg_rows + 1).min(grid.rows - 4));
+    let clear_h = grid.rows - msgs;
     // A screen too narrow for the column beside the view but tall (a phone held upright): the
     // stats pane takes the top, as wide as it is meant to be or the screen, and a narrower
     // column (the minimap, the monster list) stands under it at the right, lower, over the view; the
     // messages keep the whole width. A column of a few cells beside the view read as nothing.
-    if side < stat_width && grid.rows >= STATS_ROWS + MIN_VIEW_ROWS + msgs + dock + 8 {
+    if side < stat_width && grid.rows >= STATS_ROWS + MIN_VIEW_ROWS + msgs + 8 {
         let column = (grid.cols / 2).min(stat_width / 2);
         let below = STATS_ROWS.min(grid.rows);
-        // the column starts a third of the way down what is left, clear of the player in the middle
+        // the column starts two fifths of the way down what is left, clear of the player in the middle
         let top = below + (clear_h - below) * 2 / 5;
         return GameLayout {
             view: CellRect { x: 0, y: 0, w: grid.cols, h: grid.rows },
@@ -127,13 +141,7 @@ pub fn game_split(grid: &Grid, msg_rows: i32, stat_width: i32, dock_rows: i32) -
             stats: CellRect { x: 0, y: 0, w: grid.cols.min(stat_width), h: below },
         };
     }
-    GameLayout {
-        view: CellRect { x: 0, y: 0, w: grid.cols, h: grid.rows },
-        clear: CellRect { x: 0, y: 0, w: left_w, h: clear_h },
-        messages: CellRect { x: 0, y: clear_h, w: left_w, h: msgs },
-        sidebar: CellRect { x: left_w, y: 0, w: side, h: grid.rows - dock },
-        stats: CellRect { x: 0, y: 0, w: side, h: STATS_ROWS.min(grid.rows) },
-    }
+    game_split(grid, msg_rows, stat_width, 0)
 }
 
 /// The level map (`X`) as game.js `toggle_full_window_dungeon_view` lays it out: the map keeps to
@@ -163,7 +171,8 @@ mod tests {
     fn narrow_screens_lose_the_column() {
         let g = fit(390.0, 844.0, 16.0, 0.602);
         assert!(g.cols >= MIN_COLS);
-        let l = game_split(&g, 5, STAT_WIDTH, 0);
+        assert_eq!(game_split(&g, 5, STAT_WIDTH, 0).sidebar.w, (g.cols - 34).max(0).min(42));
+        let l = classic_split(&g, 5, STAT_WIDTH);
         // the stats across the top, the column under them, the messages the whole width
         assert_eq!(l.stats, CellRect { x: 0, y: 0, w: g.cols.min(42), h: 13 });
         assert_eq!((l.sidebar.w, l.sidebar.x + l.sidebar.w, l.sidebar.y + l.sidebar.h), ((g.cols / 2).min(21), g.cols, l.messages.y));
@@ -171,6 +180,6 @@ mod tests {
         assert_eq!(l.messages.w, g.cols);
         // a short narrow window keeps the old split
         let s = fit(390.0, 420.0, 16.0, 0.602);
-        assert_eq!(game_split(&s, 5, STAT_WIDTH, 0).sidebar.w, (s.cols - 34).max(0).min(42));
+        assert_eq!(classic_split(&s, 5, STAT_WIDTH).sidebar.w, (s.cols - 34).max(0).min(42));
     }
 }
