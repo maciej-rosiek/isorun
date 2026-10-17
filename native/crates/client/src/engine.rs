@@ -1012,6 +1012,9 @@ mod native {
         let save_dir = save_dir(&b.slot(), user);
         std::fs::create_dir_all(&save_dir).map_err(|e| e.to_string())?;
         let morgue = save_dir.join("morgue");
+        // made here, so crawl finds it there: crawl makes a missing folder from the root down,
+        // and an Android app may not read the folders above its own (14-android-webtiles.patch)
+        let _ = std::fs::create_dir_all(&morgue);
         let crawl_sock = run_dir.join("crawl.sock");
         #[cfg(unix)]
         let (socket, peer, sock_arg) = {

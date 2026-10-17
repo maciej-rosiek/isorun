@@ -5,7 +5,10 @@ parts that need SDL or its Java side (the external storage path, the on-screen
 keyboard and tab icon commands, and syscalls.cc's reading of the APK's assets
 through JNI, which only the SDL app has: the console program reads its data as
 plain files). The app runs it from its native library
-folder and gives it its data folder (CRAWL_DIR).
+folder and gives it its data folder (CRAWL_DIR). dir_exists keeps stat
+(HAVE_STAT), which the SDL app has: opendir fails on the folders above the
+app's own, which an app may not read, and so crawl could make no folder
+(its morgue's) and stopped at the start of a game.
 
 Everything is under __ANDROID__: the Linux, Windows and WebAssembly builds are
 unchanged. Applies after 01-13. GPLv2+, as the files it patches.
@@ -74,13 +77,17 @@ unchanged. Applies after 01-13. GPLv2+, as the files it patches.
      jni_keyboard_control(1);
 --- a/crawl-ref/source/syscalls.cc
 +++ b/crawl-ref/source/syscalls.cc
-@@ -27,7 +27,7 @@
+@@ -27,7 +27,12 @@
  #include "random.h"
  #include "unicode.h"
  
--#ifdef __ANDROID__
-+#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ #ifdef __ANDROID__
++// stat, not opendir, tells whether a folder is there (dir_exists): an app
++// may not read the folders above its own (/data), and _create_dirs asks of
++// each one on the way to a new folder (the morgue's, the caches')
  #define HAVE_STAT
++#endif
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
  #include "player.h"
  #include <errno.h>
 @@ -289,7 +289,7 @@
