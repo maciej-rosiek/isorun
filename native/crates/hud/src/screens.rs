@@ -618,24 +618,46 @@ impl Screen {
     fn inventory(&mut self, ui: &mut egui::Ui, data: &ScreenData, tiles: &mut TileIcons, boxes: &mut BoxCache, u: f32, screen: Rect) -> Vec<ScreenEvent> {
         let mut events = vec![];
         let ctx = ui.ctx().clone();
-        let place = 84.0 * u;
-        let sock = 72.0 * u;
         let doll = paper_doll(data.items, data.worn);
         let on_doll: Vec<&str> = doll.values().map(|i| i.letter.as_str()).collect();
         let pack: Vec<&PackItem> = data.items.iter().filter(|i| !on_doll.contains(&i.letter.as_str())).collect();
-        let rows = BACKPACK_MIN_ROWS.max(pack.len().div_ceil(BACKPACK_COLUMNS));
+        // touch.css `@media (max-width: 600px)`: the panels one over the other, the backpack six
+        // wide, and the whole screen made smaller until it fits the phone
+        let stacked = screen.width() < 600.0;
+        let cols = if stacked { 6 } else { BACKPACK_COLUMNS };
+        let min_rows = if stacked { 4 } else { BACKPACK_MIN_ROWS };
+        let rows = min_rows.max(pack.len().div_ceil(cols));
+        // the sizes at u = 1: the doll's panel, the backpack's and the lines around them
+        let size_at = |u: f32| {
+            let doll_w = 84.0 * u * 4.4 + 16.0 * u;
+            let doll_h = 6.0 * 84.0 * u + 5.0 * 8.0 * u;
+            let grid_w = cols as f32 * 72.0 * u + (cols - 1) as f32 * 6.0 * u;
+            let grid_h = rows as f32 * 72.0 * u + (rows - 1) as f32 * 6.0 * u;
+            let title_h = 12.0 * u + 28.0 * 1.1 * u + 10.0 * u + 1.0;
+            let around = 1.0 + title_h + 18.0 * u + 12.0 * u + (4.0 * u + 19.0 * u) + 6.0 * u + 24.0 * u + 6.0 * u + 1.0;
+            let (w, h) = if stacked {
+                (22.0 * u + (doll_w.max(grid_w) + 28.0 * u + 2.0) + 22.0 * u, around + (doll_h + 28.0 * u + 2.0) + 22.0 * u + (grid_h + 28.0 * u + 2.0))
+            } else {
+                (22.0 * u + (doll_w + 28.0 * u + 2.0) + 22.0 * u + (grid_w + 28.0 * u + 2.0) + 22.0 * u, around + doll_h.max(grid_h) + 28.0 * u + 2.0)
+            };
+            (w + 2.0, h)
+        };
+        let u = if stacked {
+            let (w, h) = size_at(1.0);
+            u.min((screen.width() - 8.0) / w).min((screen.height() * 0.95 - 8.0) / h)
+        } else {
+            u
+        };
+        let place = 84.0 * u;
+        let sock = 72.0 * u;
         let doll_w = place * 4.4 + 16.0 * u;
         let doll_h = 6.0 * place + 5.0 * 8.0 * u;
-        let grid_w = BACKPACK_COLUMNS as f32 * sock + 7.0 * 6.0 * u;
+        let grid_w = cols as f32 * sock + (cols - 1) as f32 * 6.0 * u;
         let grid_h = rows as f32 * sock + (rows - 1) as f32 * 6.0 * u;
-        let panel_h = doll_h.max(grid_h) + 28.0 * u + 2.0;
-        let body_w = 22.0 * u + (doll_w + 28.0 * u + 2.0) + 22.0 * u + (grid_w + 28.0 * u + 2.0) + 22.0 * u;
-        let title_h = 12.0 * u + 28.0 * 1.1 * u + 10.0 * u + 1.0;
+        let (paper_h, bag_h) = if stacked { (doll_h + 28.0 * u + 2.0, grid_h + 28.0 * u + 2.0) } else { (doll_h.max(grid_h) + 28.0 * u + 2.0, doll_h.max(grid_h) + 28.0 * u + 2.0) };
         let summary_h = 4.0 * u + 19.0 * u;
-        let footer_h = 24.0 * u;
-        let height = 1.0 + title_h + 18.0 * u + panel_h + 12.0 * u + summary_h + 6.0 * u + footer_h + 6.0 * u + 1.0;
-        let width = body_w + 2.0;
-        let top = screen.top() + screen.height() * 0.05;
+        let (width, height) = size_at(u);
+        let top = if stacked { screen.top() + ((screen.height() - height) / 2.0).clamp(4.0, screen.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
         self.panel = Some(rect);
         // a click on the panel is the panel's, not the world's
@@ -645,8 +667,15 @@ impl Screen {
             events.push(ScreenEvent::Close);
         }
         let painter = ui.painter().clone();
-        let paper = Rect::from_min_size(body + egui::vec2(22.0 * u, 18.0 * u), egui::vec2(doll_w + 28.0 * u + 2.0, panel_h));
-        let bag = Rect::from_min_size(egui::pos2(paper.right() + 22.0 * u, paper.top()), egui::vec2(grid_w + 28.0 * u + 2.0, panel_h));
+        let (paper, bag) = if stacked {
+            let inner = width - 2.0 - 44.0 * u;
+            let paper = Rect::from_min_size(body + egui::vec2(22.0 * u + (inner - (doll_w + 28.0 * u + 2.0)) / 2.0, 18.0 * u), egui::vec2(doll_w + 28.0 * u + 2.0, paper_h));
+            let bag = Rect::from_min_size(egui::pos2(body.x + 22.0 * u + (inner - (grid_w + 28.0 * u + 2.0)) / 2.0, paper.bottom() + 22.0 * u), egui::vec2(grid_w + 28.0 * u + 2.0, bag_h));
+            (paper, bag)
+        } else {
+            let paper = Rect::from_min_size(body + egui::vec2(22.0 * u, 18.0 * u), egui::vec2(doll_w + 28.0 * u + 2.0, paper_h));
+            (paper, Rect::from_min_size(egui::pos2(paper.right() + 22.0 * u, paper.top()), egui::vec2(grid_w + 28.0 * u + 2.0, bag_h)))
+        };
         boxes.paint_box(&painter, "inv-paper", paper, &panel_style(u, true, false));
         boxes.paint_box(&painter, "inv-bag", bag, &panel_style(u, false, false));
         let mut stops = vec![];
@@ -710,8 +739,8 @@ impl Screen {
 
         // the backpack: a grid of sockets, the empty ones faint
         let gl = bag.min + egui::vec2(15.0 * u, 15.0 * u);
-        for i in 0..rows * BACKPACK_COLUMNS {
-            let (r, c) = (i / BACKPACK_COLUMNS, i % BACKPACK_COLUMNS);
+        for i in 0..rows * cols {
+            let (r, c) = (i / cols, i % cols);
             let srect = Rect::from_min_size(gl + egui::vec2(c as f32 * (sock + 6.0 * u), r as f32 * (sock + 6.0 * u)), Vec2::splat(sock));
             let Some(item) = pack.get(i) else {
                 let st = socket_style(u, None, false, false);
@@ -723,7 +752,9 @@ impl Screen {
             let resp = ui.interact(srect, ui.scope_id().with(("bag", i)), Sense::click());
             let hot = resp.hovered() || self.focus.as_deref() == Some(&format!("item:{}", item.letter));
             self.item_socket(&painter, boxes, tiles, srect, item, false, hot, u);
-            stops.push(Stop2 { id: format!("item:{}", item.letter), rect: srect, row: r, col: 4 + c });
+            // stacked, the backpack's rows come after the doll's six
+            let (row, col) = if stacked { (6 + r, c) } else { (r, 4 + c) };
+            stops.push(Stop2 { id: format!("item:{}", item.letter), rect: srect, row, col });
             if hot && self.menu.is_none() {
                 hover_tip = Some((self.item_cards(item, data, &doll, &on_doll), srect));
             }
@@ -740,7 +771,7 @@ impl Screen {
         }
 
         // the summary under the panels
-        let sy = paper.bottom() + 12.0 * u + 4.0 * u;
+        let sy = paper.bottom().max(bag.bottom()) + 12.0 * u + 4.0 * u;
         let mut x = body.x + 22.0 * u + 6.0 * u;
         let p = data.player;
         for (k, v) in [("AC", p.ac), ("EV", p.ev), ("SH", p.sh)] {
