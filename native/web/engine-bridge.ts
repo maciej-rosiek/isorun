@@ -1,17 +1,16 @@
 /**
  * The offline engine for the native app's web build: what `client::engine` (engine.rs, `web`)
  * calls through `globalThis.isorunEngine`. The engine is the WebAssembly crawl of engine/dist,
- * run in a Web Worker by packages/offline's worker.ts (bundled beside this as engine-worker.js),
- * with the saves in IndexedDB, as the TypeScript build runs it: the same save folders, notes and
- * rc files, so both builds on one origin share them.
+ * run in a Web Worker by ./engine/worker.ts (bundled beside this as engine-worker.js), with the
+ * saves in IndexedDB: the save folders, notes and rc files the TypeScript client kept, so the saves
+ * it made on this origin play on.
  *
  * The engine base is `/engine/` on the page's origin (the dev server and the Worker serve
  * engine/dist there), or the page's `?engine=<url>`.
  */
-import { channelOf, type EngineInfo } from '../../packages/offline/src/channels.js'
-import { browserSaveBook } from '../../packages/offline/src/saves.js'
-import { RC_PATH } from '../../packages/offline/src/rc.js'
-import type { FromWorker, ToWorker } from '../../packages/offline/src/worker.js'
+import { RC_PATH, channelOf, type EngineInfo } from './engine/channels.js'
+import { browserSaveBook } from './engine/saves.js'
+import type { FromWorker, ToWorker } from './engine/worker.js'
 
 const base = new URL(new URLSearchParams(location.search).get('engine') ?? '/engine/', location.href).href
 const saves = browserSaveBook()
@@ -42,7 +41,7 @@ interface Handle {
   retire(): void
 }
 
-/** How long a retired engine is given to save (server.ts STOP_SAVE_MS). */
+/** How long a retired engine is given to save. */
 const RETIRE_MS = 3000
 
 function launch(saveDir: string, argsJson: string, rc: string, onOutput: (t: string) => void, onExit: (c: number) => void, onError: (m: string) => void): Handle {

@@ -20,7 +20,7 @@ mkdirSync(OUT, { recursive: true })
 const MOUNTS = [
   ['/native/', process.env.DIST ?? join(ROOT, 'native/web/dist')],
   ['/engine/', join(ROOT, 'engine/dist')],
-  ['/', join(ROOT, 'apps/isorun/public')],
+  ['/', join(ROOT, 'native/assets')],
 ]
 const TYPES = { '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.html': 'text/html', '.data': 'application/octet-stream', '.bin': 'application/octet-stream' }
 

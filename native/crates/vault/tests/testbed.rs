@@ -1,5 +1,5 @@
-//! The isometric test bed's level (`apps/isorun/testbed/iso.des`) built from its packed atlas
-//! (`apps/isorun/public/iso/atlas.json`), as the native test bed builds it.
+//! The isometric test bed's level (`native/crates/client/assets/iso.des`) built from its packed atlas
+//! (`atlas.json` beside it), as the native test bed builds it.
 
 use std::path::PathBuf;
 
@@ -12,8 +12,8 @@ fn repo(path: &str) -> String {
 }
 
 fn testbed() -> (Vault, PackedAtlas) {
-    let vault = parse_des(&repo("apps/isorun/testbed/iso.des")).unwrap();
-    let atlas = PackedAtlas::from_json(&repo("apps/isorun/public/iso/atlas.json")).unwrap();
+    let vault = parse_des(&repo("native/crates/client/assets/iso.des")).unwrap();
+    let atlas = PackedAtlas::from_json(&repo("native/crates/client/assets/atlas.json")).unwrap();
     (vault, atlas)
 }
 

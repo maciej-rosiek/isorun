@@ -1,9 +1,9 @@
 //! The sound files, embedded in the binary (desktop and Android); the web fetches them instead.
 macro_rules! files {
     ($($path:literal,)*) => {
-        /// Every file under `apps/isorun/public/audio`, by its path without the `.ogg`.
+        /// Every file under `native/assets/audio`, by its path without the `.ogg`.
         pub(crate) static FILES: &[(&str, &[u8])] = &[
-            $(($path, include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../../apps/isorun/public/audio/", $path, ".ogg"))),)*
+            $(($path, include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/../../assets/audio/", $path, ".ogg"))),)*
         ];
     };
 }

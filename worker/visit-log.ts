@@ -1,4 +1,4 @@
-import { parseVisitBeacon, type VisitBeacon } from '../src/visit-beacon'
+import { parseVisitBeacon, type VisitBeacon } from './visit-beacon'
 
 type SqlValue = string | number | null
 type SqlRow = Record<string, unknown>

@@ -132,7 +132,7 @@ mod tests {
     use isorun_webtiles::{reduce, GameState};
 
     fn msgs() -> Vec<serde_json::Value> {
-        serde_json::from_str(include_str!("../../../../apps/isorun/test/fixtures/skills-crt.json")).unwrap()
+        serde_json::from_str(include_str!("../../../fixtures/skills-crt.json")).unwrap()
     }
 
     fn lines_after(n: usize) -> Vec<String> {

@@ -12,9 +12,9 @@ fn root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../..")
 }
 
-/// The checked-in copy of one gamedata version's scripts (packages/scene-webtiles/test/fixtures).
+/// The checked-in copy of one gamedata version's scripts (native/fixtures).
 pub fn fixture_dir() -> PathBuf {
-    root().join("packages/scene-webtiles/test/fixtures")
+    root().join("native/fixtures")
 }
 
 static GD: Lazy<Gamedata> = Lazy::new(|| {
@@ -32,7 +32,7 @@ pub fn gd() -> &'static Gamedata {
 }
 
 static MESSAGES: Lazy<Vec<Value>> = Lazy::new(|| {
-    let text = std::fs::read_to_string(root().join("packages/webtiles/test/fixtures/cdi-0.34-watch.ndjson")).unwrap();
+    let text = std::fs::read_to_string(root().join("native/fixtures/cdi-0.34-watch.ndjson")).unwrap();
     text.trim().lines().map(|l| serde_json::from_str::<Value>(l).unwrap()["m"].clone()).collect()
 });
 

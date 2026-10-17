@@ -10,7 +10,7 @@
 #   ANDROID_NDK_HOME      an NDK (r26 or newer)
 #   rustup targets aarch64-linux-android, x86_64-linux-android
 # Signed with the release key when ISORUN_KEYSTORE and ISORUN_KEYSTORE_PASSWORD are set
-# (mobile/README.md), with the debug key otherwise. SKIP_ENGINE=1 reuses the staged crawl builds.
+# (native/android/README.md), with the debug key otherwise. SKIP_ENGINE=1 reuses the staged crawl builds.
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -25,7 +25,7 @@ BIN=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
 STAGE=$HERE/build/stage
 rm -rf "$STAGE"
 mkdir -p "$STAGE/jniLibs" "$STAGE/assets" "$STAGE/res/mipmap-xxxhdpi" "$OUT"
-cp "$ROOT/apps/isorun/public/icons/icon-512.png" "$STAGE/res/mipmap-xxxhdpi/ic_launcher.png"
+cp "$NATIVE/assets/icons/icon-512.png" "$STAGE/res/mipmap-xxxhdpi/ic_launcher.png"
 
 for arch in "$@"; do
     case $arch in
@@ -57,9 +57,9 @@ mkdir -p "$STAGE/assets/engine"
 (cd "$engine" && tar --exclude ./crawl -cf - .) | (cd "$STAGE/assets/engine" && tar -xf -)
 (cd "$STAGE/assets/engine" && find . -type f ! -name engine.json ! -name files.txt | sed 's#^\./##' | sort > files.txt)
 
-# the game's version, as the Capacitor app has it (mobile/android/app/build.gradle), so one
-# orders after the other: 0.1.5 -> 105
-version=$(sed -n 's/^  "version": "\(.*\)",/\1/p' "$ROOT/apps/isorun/package.json" | head -1)
+# the game's version (native/Cargo.toml's workspace version), and the version code from it, as
+# the Capacitor app it replaced had them, so one orders after the other: 0.1.5 -> 105
+version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$NATIVE/Cargo.toml" | head -1)
 code=$(echo "$version" | awk -F. '{ print $1 * 10000 + $2 * 100 + $3 }')
 (cd "$HERE" && gradle --no-daemon -q assembleRelease -PisorunVersion="$version" -PisorunVersionCode="$code")
 cp "$HERE/app/build/outputs/apk/release/app-release.apk" "$OUT/Isorun.apk"

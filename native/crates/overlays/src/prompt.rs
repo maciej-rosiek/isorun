@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn menu_yesno_prompts() {
-        let m = crate::menu_nav::tests::fixture_menu(include_str!("../../../../apps/isorun/test/fixtures/menus/menu-prompt-1.json"));
+        let m = crate::menu_nav::tests::fixture_menu(include_str!("../../../fixtures/menus/menu-prompt-1.json"));
         let mut st = state(MouseMode::YESNO, &[]);
         st.menus.push(m);
         let p = parse_prompt(&st).unwrap();

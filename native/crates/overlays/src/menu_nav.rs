@@ -416,7 +416,7 @@ pub(crate) mod tests {
     use super::*;
     use isorun_webtiles::{reduce, GameState};
 
-    /// A menu recorded from a real server (apps/isorun/test/fixtures/menus), through the reducer.
+    /// A menu recorded from a real server (native/fixtures/menus), through the reducer.
     pub fn fixture_menu(json: &str) -> MenuState {
         let v: serde_json::Value = serde_json::from_str(json).unwrap();
         let mut st = GameState::default();
@@ -425,16 +425,16 @@ pub(crate) mod tests {
         st.menus.last().unwrap().clone()
     }
     pub fn pickup() -> MenuState {
-        fixture_menu(include_str!("../../../../apps/isorun/test/fixtures/menus/menu-pickup-1.json"))
+        fixture_menu(include_str!("../../../fixtures/menus/menu-pickup-1.json"))
     }
     pub fn use_item() -> MenuState {
-        fixture_menu(include_str!("../../../../apps/isorun/test/fixtures/menus/menu-use_item-1.json"))
+        fixture_menu(include_str!("../../../fixtures/menus/menu-use_item-1.json"))
     }
     fn inventory() -> MenuState {
-        fixture_menu(include_str!("../../../../apps/isorun/test/fixtures/menus/menu-inventory-1.json"))
+        fixture_menu(include_str!("../../../fixtures/menus/menu-inventory-1.json"))
     }
     fn travel() -> MenuState {
-        fixture_menu(include_str!("../../../../apps/isorun/test/fixtures/menus/menu-travel-1.json"))
+        fixture_menu(include_str!("../../../fixtures/menus/menu-travel-1.json"))
     }
     fn key(k: KeyName) -> NavKey {
         NavKey::plain(k)

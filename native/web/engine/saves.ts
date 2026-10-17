@@ -59,14 +59,3 @@ export function browserSaveBook(storage: Storage = localStorage, idb: IDBFactory
     },
   }
 }
-
-/** Forget the notes of the save directories `mine` picks (deleteProfileSaves). */
-export function forgetSaveNotes(mine: (dir: string) => boolean, storage: Storage | undefined = globalThis.localStorage) {
-  if (!storage) return
-  try {
-    for (let i = storage.length - 1; i >= 0; i--) {
-      const k = storage.key(i)
-      if (k?.startsWith(KEY) && mine(k.slice(KEY.length))) storage.removeItem(k)
-    }
-  } catch {}
-}

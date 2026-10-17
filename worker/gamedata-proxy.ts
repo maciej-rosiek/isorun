@@ -1,16 +1,11 @@
-import type { Plugin } from 'vite'
-import type { IncomingMessage, ServerResponse } from 'node:http'
-import { ATLASES } from '@isorun/gamedata'
-
 /**
- * The one gamedata proxy, in two shells.
+ * The gamedata proxy of the hosted page (index.ts).
  *
  * WebTiles servers serve their version-specific gamedata (enums.js,
  * tileinfo-*.js, atlases) without CORS headers, so the browser cannot fetch
- * it directly: every shell needs something same-origin in front of it. The
- * route and the rules live here so dev, preview and production cannot drift;
- * `worker/index.ts` (Cloudflare) and `gamedataProxy()` (Vite) are only
- * adapters over `serveGamedata`.
+ * it directly: the web build needs something same-origin in front of it
+ * (client::servers `gamedata_base_for`). The desktop and Android apps fetch
+ * from the server itself.
  *
  * URL shape: /gamedata-proxy/<host>/gamedata/<version>/<file>
  * Upstream:  https://<host>/gamedata/<version>/<file>
@@ -22,18 +17,20 @@ export const GAMEDATA_PROXY_PREFIX = '/gamedata-proxy/'
  * file or character dump (`game_ended` `dump`), and the `<player>.where` beside
  * them, are plain-text files the server publishes without CORS headers. The exit
  * screen shows a dump in place rather than in a new tab; the home screen reads
- * the `.where` to know whether a save is still waiting (whereis.ts).
+ * the `.where` to know whether a save is still waiting.
  *
  * URL shape: /morgue-proxy/<host>/<path>.txt|.where
  * Upstream:  https://<host>/<path>.txt|.where
  */
 export const MORGUE_PROXY_PREFIX = '/morgue-proxy/'
 
+/** The atlases the client loads (native/crates/gamedata `ATLASES`). */
+const ATLASES = ['floor', 'wall', 'feat', 'main', 'player', 'gui', 'icons'] as const
+
 /**
  * What may be proxied. Not an allow-list of hosts: a player can add any
- * server (platforms.md "Server picker"), so the host stays open and the
- * *shape* is what is pinned. Only a hex version segment and only the file
- * names the loader asks for (@isorun/gamedata `loadGamedata`) get through,
+ * server, so the host stays open and the *shape* is what is pinned. Only a hex version segment and only the file
+ * names the loader asks for (native/crates/gamedata) get through,
  * which leaves nothing here worth pointing at a host that is not a WebTiles
  * server.
  */
@@ -161,50 +158,4 @@ export async function serveMorgue(pathname: string, fetchImpl: typeof fetch = fe
       'Cache-Control': pathname.endsWith('.where') ? 'public, max-age=15' : 'public, max-age=300',
     },
   })
-}
-
-/**
- * Dev/preview middleware: the same proxies, in front of Vite's own serving.
- * Fetched gamedata is kept in memory so a reload is instant; a morgue is
- * fetched each time, as a dump changes with every save.
- */
-export function gamedataProxy(): Plugin {
-  const cache = new Map<string, { type: string; body: Buffer }>()
-  const handler = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
-    const pathname = (req.url || '').split('?')[0]
-    if (pathname.startsWith(MORGUE_PROXY_PREFIX)) {
-      const r = await serveMorgue(pathname)
-      if (!r) return next()
-      res.statusCode = r.status
-      r.headers.forEach((v, k) => res.setHeader(k, v))
-      res.end(Buffer.from(await r.arrayBuffer()))
-      return
-    }
-    if (!pathname.startsWith(GAMEDATA_PROXY_PREFIX)) return next()
-    if (!gamedataUpstream(pathname)) return next()
-    const hit = cache.get(pathname)
-    if (hit) {
-      res.setHeader('Content-Type', hit.type)
-      res.setHeader('Access-Control-Allow-Origin', '*')
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
-      res.end(hit.body)
-      return
-    }
-    const r = await serveGamedata(pathname)
-    if (!r) return next()
-    const body = Buffer.from(await r.arrayBuffer())
-    res.statusCode = r.status
-    r.headers.forEach((v, k) => res.setHeader(k, v))
-    if (r.ok) cache.set(pathname, { type: r.headers.get('Content-Type') || 'text/javascript', body })
-    res.end(body)
-  }
-  return {
-    name: 'isorun-gamedata-proxy',
-    configureServer(server) {
-      server.middlewares.use(handler)
-    },
-    configurePreviewServer(server) {
-      server.middlewares.use(handler)
-    },
-  }
 }

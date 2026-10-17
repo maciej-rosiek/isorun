@@ -9,7 +9,7 @@
    "player",
    "wall"
   ],
-  "des": "apps/isorun/testbed/iso.des"
+  "des": "native/crates/client/assets/iso.des"
  },
  "license": "DCSS tile art (rltiles) is CC0; see ATTRIBUTION.md",
  "cell": 32,

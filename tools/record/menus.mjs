@@ -2,7 +2,7 @@
 /**
  * Menu collector: spectates players on a WebTiles server in turn and writes
  * every menu they open, from its `menu` message to the `close_menu`, as a
- * fixture (apps/isorun/test/fixtures/menus/<tag>-<n>.json). The menu tests
+ * fixture (native/fixtures/menus/<tag>-<n>.json). The menu tests
  * pin the rooms they draw to these.
  *
  *   node tools/record/menus.mjs wss://crawl.dcss.io/socket <minutes> <outdir> [secs per player] [per tag]

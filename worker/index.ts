@@ -1,5 +1,5 @@
-import { GAMEDATA_PROXY_PREFIX, MORGUE_PROXY_PREFIX, serveGamedata, serveMorgue } from '../gamedata-proxy'
-import { VISIT_PATH } from '../src/visit-beacon'
+import { GAMEDATA_PROXY_PREFIX, MORGUE_PROXY_PREFIX, serveGamedata, serveMorgue } from './gamedata-proxy'
+import { VISIT_PATH } from './visit-beacon'
 
 export { VisitLog } from './visit-log'
 

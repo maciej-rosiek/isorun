@@ -103,7 +103,7 @@ struct CatalogueCommand {
 
 fn catalogue() -> &'static [CatalogueCommand] {
     static C: std::sync::OnceLock<Vec<CatalogueCommand>> = std::sync::OnceLock::new();
-    C.get_or_init(|| serde_json::from_str(include_str!("../../../../../apps/isorun/data/commands.json")).unwrap_or_default())
+    C.get_or_init(|| serde_json::from_str(include_str!("../../../../assets/commands.json")).unwrap_or_default())
 }
 
 fn mode_name(m: CommandCategory) -> &'static str {

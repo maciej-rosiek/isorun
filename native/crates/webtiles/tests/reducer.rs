@@ -1,5 +1,5 @@
 //! The reducer, replaying recorded sessions from a public server
-//! (`packages/webtiles/test/fixtures`) and pinned cases; the port of reducer.test.ts.
+//! (`native/fixtures`) and pinned cases; the port of reducer.test.ts.
 
 use std::path::PathBuf;
 
@@ -7,7 +7,7 @@ use isorun_webtiles::*;
 use serde_json::{json, Value};
 
 fn fixture_path(name: &str) -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../packages/webtiles/test/fixtures").join(name)
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures").join(name)
 }
 
 fn load_fixture(name: &str) -> Vec<Value> {

@@ -278,7 +278,7 @@ fn gives_the_start_menu_its_own_commands_with_none_of_the_pads_own() {
 
 #[test]
 fn recorded_pickup_a_marks_and_once_one_is_marked_start_sends_enter() {
-    let fixture: serde_json::Value = serde_json::from_str(include_str!("../../../../apps/isorun/test/fixtures/menus/menu-pickup-1.json")).unwrap();
+    let fixture: serde_json::Value = serde_json::from_str(include_str!("../../../fixtures/menus/menu-pickup-1.json")).unwrap();
     let mut st = initial_state();
     st.phase = Phase::Playing;
     st.input_mode = MouseMode::COMMAND;

@@ -18,7 +18,7 @@ NATIVE=$(cd "$HERE/.." && pwd)
 ROOT=$(cd "$NATIVE/.." && pwd)
 OUT=${OUT:-$NATIVE/target/release-packages}
 VERSION=$(sed -n 's/^version = "\(.*\)"/\1/p' "$NATIVE/Cargo.toml" | head -1)
-ICON=$ROOT/apps/isorun/public/icons/icon-512.png
+ICON=$NATIVE/assets/icons/icon-512.png
 mkdir -p "$OUT"
 
 # The folder every package holds: the app, the engine, the licence.

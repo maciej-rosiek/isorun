@@ -926,7 +926,7 @@ fn orb_texture(ctx: &egui::Context) -> egui::TextureHandle {
     if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return t;
     }
-    let img = image::load_from_memory_with_format(include_bytes!("../../../../apps/isorun/public/orb.png"), image::ImageFormat::Png).map(|i| i.to_rgba8()).ok();
+    let img = image::load_from_memory_with_format(include_bytes!("../../../assets/orb.png"), image::ImageFormat::Png).map(|i| i.to_rgba8()).ok();
     let colour = match img {
         Some(i) => egui::ColorImage::from_rgba_unmultiplied([i.width() as usize, i.height() as usize], i.as_raw()),
         None => egui::ColorImage::filled([1, 1], Color32::TRANSPARENT),

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
-import { parseVisitBeacon, visitUrl, type VisitBeacon } from '../src/visit-beacon'
-import { VisitLog } from '../worker/visit-log'
+import { parseVisitBeacon, visitUrl, type VisitBeacon } from '../visit-beacon'
+import { VisitLog } from '../visit-log'
 
 function sqliteState() {
   const db = new DatabaseSync(':memory:')

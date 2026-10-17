@@ -1,15 +1,17 @@
 #!/usr/bin/env node
 /**
- * Pack the front room's tiles (apps/isorun/src/room/antechamber.des) from a
- * pinned DCSS gamedata version into one small atlas the menu draws without
- * a server: apps/isorun/public/room/atlas.png and atlas.json.
+ * Pack the test bed's tiles (native/crates/client/assets/iso.des) from a
+ * pinned DCSS gamedata version into one small atlas the test bed draws
+ * without a server: native/crates/client/assets/atlas.png and atlas.json.
+ * Any other des file packs the same way.
  *
  *   node tools/build/pack-room.mjs <images dir> [des] [out dir] [tileinfo dir]
  *
  * `images dir` holds the pinned version's floor.png, wall.png, feat.png, player.png and
- * main.png (fetch them once with the curl lines the README of
- * apps/isorun/public/room gives; they are not committed). The tileinfo
- * modules come from the checked-in fixture of the same version by default.
+ * main.png (fetch them once: for f in floor wall feat main player; do curl -fsSO
+ * https://crawl.dcss.io/gamedata/<ROOM_GAMEDATA_VERSION>/$f.png; done; they are not
+ * committed). The tileinfo modules come from the checked-in fixture of the same
+ * version (native/fixtures/gamedata) by default.
  * Nothing here talks to the network: an ordinary build never runs this, it
  * ships what this wrote.
  *
@@ -31,7 +33,7 @@ const ROOM_GAMEDATA_HOST = 'crawl.dcss.io'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(here, '..', '..')
-const [imagesDir, desPath = path.join(root, 'apps/isorun/src/room/antechamber.des'), outDir = path.join(root, 'apps/isorun/public/room'), tileinfoDir = path.join(root, 'packages/scene-webtiles/test/fixtures/gamedata', ROOM_GAMEDATA_VERSION)] = process.argv.slice(2)
+const [imagesDir, desPath = path.join(root, 'native/crates/client/assets/iso.des'), outDir = path.join(root, 'native/crates/client/assets'), tileinfoDir = path.join(root, 'native/fixtures/gamedata', ROOM_GAMEDATA_VERSION)] = process.argv.slice(2)
 if (!imagesDir) {
   console.error('usage: node tools/build/pack-room.mjs <images dir> [des] [out dir] [tileinfo dir]')
   process.exit(2)

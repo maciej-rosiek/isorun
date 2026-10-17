@@ -2,7 +2,7 @@
 /**
  * Merge the labels of the contact sheets (tools/labels/README.md) into
  * tools/labels/labels.json, by tile name, and into the renderer's
- * packages/render-iso/src/tile-labels.json, by the pixel hash of every
+ * native/crates/render/src/tile-labels.json, by the pixel hash of every
  * variant (rltiles.mjs `tileHash`).
  *
  *   node tools/labels/merge.mjs <sheets dir> <labels dir>
@@ -78,6 +78,6 @@ for (const { label, hashes } of Object.values(byName)) {
 const names = Object.fromEntries(Object.entries(byName).map(([n, v]) => [n, v.label]))
 fs.writeFileSync(path.join(here, 'labels.json'), JSON.stringify({ gamedata: index.gamedata, fields: ['material', 'relief', 'bright_is_high', 'joints', 'gloss', 'wet', 'glow', 'sparkle', 'translucent', 'motion'], materials: MATERIALS, joints: JOINTS, motions: MOTIONS, tiles: names }, null, 0).replace(/\],"/g, '],\n"') + '\n')
 const runtime = { gamedata: index.gamedata, materials: MATERIALS, joints: JOINTS, motions: MOTIONS, labels: [...palette.keys()].map((k) => k.split(',').map(Number)), tiles }
-fs.writeFileSync(path.join(root, 'packages/render-iso/src/tile-labels.json'), JSON.stringify(runtime) + '\n')
+fs.writeFileSync(path.join(root, 'native/crates/render/src/tile-labels.json'), JSON.stringify(runtime) + '\n')
 console.log(`${Object.keys(byName).length} base tiles labelled, ${palette.size} distinct labels, ${Object.keys(tiles).length} tile hashes`)
 for (const p of problems) console.log(`problem: ${p}`)

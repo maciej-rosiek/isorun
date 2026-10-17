@@ -88,7 +88,7 @@ pub struct PlaceEntry {
     pub cycle: bool,
 }
 
-const PLACES_JSON: &str = include_str!("../../../../apps/isorun/src/room/places.json");
+const PLACES_JSON: &str = include_str!("../../../assets/room/places.json");
 
 macro_rules! place_files {
     ($($id:literal),*) => {
@@ -96,8 +96,8 @@ macro_rules! place_files {
         pub fn place_files(id: &str) -> Option<(&'static str, &'static [u8])> {
             match id {
                 $($id => Some((
-                    include_str!(concat!("../../../../apps/isorun/public/room/places/", $id, ".json")),
-                    include_bytes!(concat!("../../../../apps/isorun/public/room/places/", $id, ".png")),
+                    include_str!(concat!("../../../assets/room/places/", $id, ".json")),
+                    include_bytes!(concat!("../../../assets/room/places/", $id, ".png")),
                 )),)*
                 _ => None,
             }

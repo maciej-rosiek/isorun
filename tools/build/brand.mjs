@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 /**
- * The brand, built from the Orb of Zot's tile (apps/isorun/public/orb.png,
+ * The brand, built from the Orb of Zot's tile (native/assets/orb.png,
  * cut from the pinned gamedata's main.png) and the title screen's face
  * (assets/fonts/GrenzeGotisch-Bold.ttf, OFL; see ATTRIBUTION.md):
  *
  *   assets/logo.svg                    the README's wordmark: the orb beside the name, as the title screen sets it
- *   apps/isorun/public/favicon.svg     the orb on a dark rounded square
- *   apps/isorun/public/steam/art/*.png  Steam artwork: icon (the orb), logo, hero, grid, portrait (the wordmark)
- *   apps/isorun/public/icons/*.png      the web app manifest's icons and the home-screen icon (the orb)
+ *   native/assets/favicon.svg          the orb on a dark rounded square (the web page's icon)
+ *   native/assets/steam/art/*.png      Steam artwork: icon (the orb), logo, hero, grid, portrait (the wordmark)
+ *   native/assets/icons/*.png          the app icons (the desktop packages, the APK, the web page) (the orb)
  *
  *   node tools/build/brand.mjs
  *
@@ -22,7 +22,7 @@ import { fileURLToPath } from 'node:url'
 import opentype from 'opentype.js'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
-const pub = path.join(root, 'apps/isorun/public')
+const pub = path.join(root, 'native/assets')
 const art = path.join(pub, 'steam/art')
 const tmp = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'isorun-brand-'))
 const run = (cmd, args) => execFileSync(cmd, args, { stdio: ['ignore', 'pipe', 'inherit'] })
@@ -55,7 +55,7 @@ const orb = (x, y, s, glow = true) => `<image x="${x}" y="${y}" width="${s}" hei
 
 // ---------------------------------------------------------------- the wordmark
 // the title screen's lockup: the orb, then the name in Grenze Gotisch Bold, the orb's bright core as tall as the O
-// (the same numbers as .frame.home-list .brand .head .place and its ::before in apps/isorun/src/styles.css)
+// (the same numbers as the home screen's brand: native/crates/front)
 const INK = '#e9e2d0'
 const FONT = path.join(root, 'assets/fonts/GrenzeGotisch-Bold.ttf')
 const ORB_EM = 0.71, ORB_DROP = 0.055, ORB_GAP = 0.16
@@ -140,8 +140,8 @@ render(path.join(icons, 'maskable-512.png'), square, 512)
 render(path.join(icons, 'apple-touch-icon.png'), square, 180)
 for (const f of [
   'assets/logo.svg',
-  'apps/isorun/public/favicon.svg',
-  ...fs.readdirSync(art).map((f) => `apps/isorun/public/steam/art/${f}`),
-  ...fs.readdirSync(icons).map((f) => `apps/isorun/public/icons/${f}`),
+  'native/assets/favicon.svg',
+  ...fs.readdirSync(art).map((f) => `native/assets/steam/art/${f}`),
+  ...fs.readdirSync(icons).map((f) => `native/assets/icons/${f}`),
 ]) console.log(`${f}  ${fs.statSync(path.join(root, f)).size} bytes`)
 fs.rmSync(tmp, { recursive: true, force: true })

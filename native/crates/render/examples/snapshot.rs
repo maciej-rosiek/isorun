@@ -73,9 +73,10 @@ fn main() {
     let args: Vec<String> = std::env::args().collect();
     let out = args.get(1).cloned().unwrap_or_else(|| "snapshot.png".into());
     let (w, h) = (1280u32, 800u32);
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../../apps/isorun");
-    let packed = Arc::new(load(&format!("{root}/public/iso")));
-    let des = std::fs::read_to_string(format!("{root}/testbed/iso.des")).unwrap();
+    // the test bed's level and atlas, as the client crate embeds them
+    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../client/assets");
+    let packed = Arc::new(load(root));
+    let des = std::fs::read_to_string(format!("{root}/iso.des")).unwrap();
     let scene = Arc::new(testbed(&packed, &des));
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).expect("adapter");
@@ -83,7 +84,7 @@ fn main() {
     let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
     device.on_uncaptured_error(std::sync::Arc::new(|e| panic!("wgpu: {e}")));
     let mut r = IsoRenderer::new(device.clone(), queue.clone());
-    let glb = std::fs::read(format!("{root}/public/iso/models/torch_mounted.glb")).unwrap();
+    let glb = std::fs::read(format!("{root}/torch_mounted.glb")).unwrap();
     r.set_torch_model(&glb).unwrap();
     r.set_tiles(packed.clone());
     let detail = match std::env::var("DETAIL").as_deref() {

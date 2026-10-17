@@ -15,7 +15,7 @@ fn repo() -> PathBuf {
 
 pub fn fixture_dir() -> PathBuf {
     repo()
-        .join("packages/scene-webtiles/test/fixtures/gamedata")
+        .join("native/fixtures/gamedata")
         .join(FIXTURE_SHA)
 }
 

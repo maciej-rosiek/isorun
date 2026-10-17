@@ -56,7 +56,7 @@ fn main() -> eframe::Result {
             }
             "skills" if since > 3.0 => {
                 // the skills screen as a server sent it (the native engine paints no CRT popup while headless)
-                let msgs: Vec<serde_json::Value> = serde_json::from_str(include_str!("../../../../apps/isorun/test/fixtures/skills-crt.json")).unwrap();
+                let msgs: Vec<serde_json::Value> = serde_json::from_str(include_str!("../../../fixtures/skills-crt.json")).unwrap();
                 for m in msgs.iter().take(2) {
                     isorun_webtiles::reduce(&mut state, m);
                 }

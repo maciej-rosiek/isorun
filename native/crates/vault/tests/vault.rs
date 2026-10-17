@@ -12,7 +12,7 @@ use once_cell::sync::Lazy;
 const VERSION: &str = "acd3d60e20f899c1c8a546953d6ffa0f6c7fe0c8";
 
 static GD: Lazy<Gamedata> = Lazy::new(|| {
-    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../packages/scene-webtiles/test/fixtures/gamedata").join(VERSION);
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../fixtures/gamedata").join(VERSION);
     let files: HashMap<String, String> =
         isorun_gamedata::script_files().into_iter().filter_map(|f| std::fs::read_to_string(dir.join(f)).ok().map(|t| (f.to_string(), t))).collect();
     Gamedata::from_files(&files, VERSION).unwrap()
