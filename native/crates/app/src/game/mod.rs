@@ -1609,7 +1609,6 @@ impl GameScreen {
             cx.ui_scale = self.client_settings.ui_scale.max(0.5);
             cx.hide_menu = Some(&probing);
             cx.back = Some(&mut on_back);
-            cx.bottom = self.parts.touch_bar_h;
             self.parts.overlays.ui(ctx, &mut cx);
         }
         for m in out {
