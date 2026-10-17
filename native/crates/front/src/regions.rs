@@ -20,6 +20,12 @@ impl FrontEnd {
     fn region(&mut self, ui: &mut egui::Ui, rect: Rect, salt: &str, panel: bool, pad: egui::Vec2, scroll: Option<f32>, content: &mut dyn FnMut(&mut Self, &mut egui::Ui, f32)) -> (f32, f32, f32) {
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.spacing_mut().item_spacing = vec2(0.0, 0.0);
+        // `scrollbar-width: thin`, a faint thumb on no track
+        let sb = &mut child.spacing_mut().scroll;
+        *sb = egui::style::ScrollStyle::thin();
+        sb.bar_width = 4.0;
+        child.visuals_mut().widgets.inactive.bg_fill = rgba(191, 191, 191, 0.25);
+        child.visuals_mut().extreme_bg_color = Color32::TRANSPARENT;
         let mut area = egui::ScrollArea::vertical().id_salt(salt).max_height(rect.height()).auto_shrink([false, true]);
         if let Some(off) = scroll {
             area = area.vertical_scroll_offset(off);
@@ -42,7 +48,7 @@ impl FrontEnd {
         if let Some(s) = shape {
             bg.set(s, egui::Shape::rect_filled(Rect::from_min_size(rect.min, vec2(rect.width(), shown)), 0.0, PANEL));
         }
-        (shown, out.state.offset().y, out.content_size.y)
+        (shown, out.state.clamped_offset().y, out.content_size.y)
     }
 
     // ------------------------------------------------------------------ documents
@@ -53,7 +59,7 @@ impl FrontEnd {
         let pad = vec2(1.2 * m.rem, 0.9 * m.rem);
         let body = body.clone();
         let (shown, offset, _) = self.region(ui, rect, "doc", true, pad, scroll, &mut |f, ui, w| {
-            ui.set_width(w);
+            let _ = w;
             match &body {
                 DocBody::Markdown(src) => {
                     let blocks = markdown::parse(src, true);
@@ -250,7 +256,7 @@ impl FrontEnd {
             let text = format!("{held} new · press Y to bring them in");
             let g = galley(&ctx, &text, &m.text(m.action(), GOLD_BRIGHT), f32::INFINITY);
             let r = Rect::from_min_size(pos2(rect.left(), rect.top() + shown + 0.4 * m.rem), vec2(g.size().x + m.label_inset() + m.rem, 44.0f32.max(g.size().y + 1.4 * m.rem)));
-            let resp = ui.interact(r, egui::Id::new("roster-held"), Sense::click());
+            let resp = ui.interact(r, egui::Id::NULL.with("roster-held"), Sense::click());
             if resp.hovered() {
                 highlight(ui.painter(), r);
                 ui.painter().rect_stroke(r, 0.0, egui::Stroke::new(1.0, GOLD), egui::StrokeKind::Inside);
@@ -302,7 +308,11 @@ impl FrontEnd {
                     p.galley(pos2(ax, rr.center().y - at.size().y / 2.0), at, GOLD_BRIGHT);
                 }
                 // the value between the angle brackets, which turn it each its own way under the mouse
-                let vr = Rect::from_min_max(pos2(rr.right() - m.rem - value_w, rr.top()), pos2(rr.right() - m.rem, rr.bottom()));
+                // too narrow for a column of values: the value hugs the right, as wide as it reads
+                let vsize0 = if m.w <= 520.0 { 0.9 * m.rem } else { m.note() };
+                let value_w = if narrow { (galley(&ctx, &r.value(&s), &m.text(vsize0, C7), f32::INFINITY).size().x + 2.0 * arrow_w + 0.4 * m.rem).min(value_w) } else { value_w };
+                let right = if narrow { rr.right() } else { rr.right() - m.rem };
+                let vr = Rect::from_min_max(pos2(right - value_w, rr.top()), pos2(right, rr.bottom()));
                 let vsize = if m.w <= 520.0 { 0.9 * m.rem } else { m.note() };
                 let vcol = if off { C8 } else if focused { GOLD_BRIGHT } else if resp.hovered() { INK } else { C7 };
                 let val = galley(&ctx, &r.value(&s), &m.text(vsize, vcol), vr.width() - 2.0 * arrow_w);
@@ -310,7 +320,7 @@ impl FrontEnd {
                 let mut arrow_hit = false;
                 for (d, ch) in [(-1, "<"), (1, ">")] {
                     let ar = if d < 0 { Rect::from_min_size(pos2(vr.left(), vr.center().y - 22.0), vec2(arrow_w, 44.0)) } else { Rect::from_min_size(pos2(vr.right() - arrow_w, vr.center().y - 22.0), vec2(arrow_w, 44.0)) };
-                    let ares = ui.interact(ar, egui::Id::new(("arrow", r.key, d)), Sense::click());
+                    let ares = ui.interact(ar, egui::Id::NULL.with(("arrow", r.key, d)), Sense::click());
                     let ac = if off { Color32::from_gray(0x44) } else if ares.hovered() || focused { GOLD_BRIGHT } else { INK_DIM };
                     if ares.hovered() && !off {
                         p.rect_stroke(ar, 0.0, egui::Stroke::new(1.0, GOLD), egui::StrokeKind::Inside);
@@ -406,7 +416,7 @@ impl FrontEnd {
         let font = egui::FontId::new(m.note(), m.faces.text());
         let mut out = None;
         egui::ScrollArea::both().id_salt("rc-scroll").max_height(box_rect.height() - 1.6 * m.rem).auto_shrink([false, false]).show(&mut child, |ui| {
-            let edit = egui::TextEdit::multiline(&mut rc.text).id(egui::Id::new("rc-text")).font(font.clone()).text_color(colour).frame(egui::Frame::NONE).code_editor().desired_width(f32::INFINITY).interactive(ready).lock_focus(true);
+            let edit = egui::TextEdit::multiline(&mut rc.text).id(egui::Id::NULL.with("rc-text")).font(font.clone()).text_color(colour).frame(egui::Frame::NONE).code_editor().desired_width(f32::INFINITY).interactive(ready).lock_focus(true);
             out = Some(ui.add(edit));
         });
         if let Some(resp) = out {

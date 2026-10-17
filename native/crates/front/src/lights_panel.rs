@@ -280,7 +280,7 @@ impl LightsPanel {
         let screen = ctx.content_rect();
         let width = 22.0 * 15.0;
         let frame = egui::Frame::NONE.fill(egui::Color32::from_rgba_unmultiplied(17, 17, 17, 235)).stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(0x33))).inner_margin(10.0);
-        egui::Area::new(egui::Id::new("look-panel")).order(egui::Order::Foreground).fixed_pos(egui::pos2(screen.right() - width, screen.top())).show(ctx, |ui| {
+        egui::Area::new(egui::Id::NULL.with("look-panel")).order(egui::Order::Foreground).fixed_pos(egui::pos2(screen.right() - width, screen.top())).show(ctx, |ui| {
             frame.show(ui, |ui| {
                 ui.set_width(width - 20.0);
                 ui.set_height(screen.height() - 20.0);

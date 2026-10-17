@@ -8,7 +8,7 @@ use crate::words::{self, RcState};
 use isorun_client::servers::{self, Account, LoginState, ServerInfo};
 use isorun_webtiles::{game_link_rows, game_link_version, game_version_rows, GameLink};
 
-/// What a browser that cannot run the offline engine is asked to do (never natively).
+/// The margin glyph for a player on this device, where a server account has `\`: a wall, a place of its own.
 const DEVICE_MARKER: &str = "#";
 
 /// Who waits in a game, when the server is the one saying so.
@@ -352,7 +352,7 @@ impl FrontEnd {
         let chosen = servers::get_chosen_account();
         let offline = servers::offline_offered();
         let mut rows = vec![Row::back("Back to the front.")];
-        let mut account_row = |f: &mut FrontEnd, rows: &mut Vec<Row>, a: &Account| {
+        let account_row = |f: &mut FrontEnd, rows: &mut Vec<Row>, a: &Account| {
             let Some(server) = servers::find_server(&a.server_id) else { return };
             let is_chosen = servers::same_account(Some(a), chosen.as_ref());
             let mut r = Row::new(format!("account:{}/{}", a.server_id, a.username), if server.offline { a.username.clone() } else { format!("{} · {}", a.username, server.name) }, if server.offline { DEVICE_MARKER } else { "\\" }, format!("Play as {} on {}.", a.username, server.host), Act::ChooseAccount(a.clone()));

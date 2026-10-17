@@ -15,7 +15,6 @@
 //! drag on it, and the menus stand still.
 
 use crate::focus::{focus_move, focus_slots, FocusDir, FocusSlot};
-use crate::paint::*;
 use crate::room::{next_home_place, RoomView};
 use crate::settings::{self, Settings};
 use crate::whereis::{self, Whereis};
@@ -136,8 +135,6 @@ pub enum View {
 /// The way off a screen.
 pub const BACK: &str = "back";
 
-/// The margin glyph for a player on this device, where a server account has `\`: a wall, a place of its own.
-const DEVICE_MARKER: &str = "#";
 
 /// How long a server has to answer for an rc file before the editor says it did not.
 const RC_SECONDS: f64 = 10.0;
@@ -1141,6 +1138,9 @@ impl FrontEnd {
     /// The cursor landed on a row: the message line says what it is, unless the row says it already.
     pub(crate) fn on_cursor(&mut self, s: &Screen) {
         let Some(c) = self.cursor.clone() else { return };
+        if self.view == View::Rc && self.rc.as_ref().is_some_and(|r| r.leaving) {
+            return self.say("Your changes are not saved. Back again leaves without them; Save keeps them.", None);
+        }
         let mut said = None;
         for r in s.rows.iter().chain(s.utilities.iter()) {
             if r.id == c {
@@ -1393,6 +1393,57 @@ impl FrontEnd {
         self.set_view(View::Home);
         if !had {
             self.want = self.marks.get(&View::Home).cloned();
+        }
+    }
+
+    /// Open the screen an address names (menu.ts `open`, the web build's paths: `settings`,
+    /// `settings/graphics`, `settings/controls/gamepad`, `accounts`, `accounts/add`,
+    /// `accounts/add/server`, `watch`, `watch/add`, `whats-new`, `about`, `app`, `app/steam`,
+    /// `login/<server>`, `register/<server>`). A name it does not know is the home screen.
+    pub fn open(&mut self, path: &str) {
+        let parts: Vec<String> = path.trim_matches('/').split('/').map(|p| p.to_lowercase()).collect();
+        let part = |i: usize| parts.get(i).map(String::as_str).unwrap_or("");
+        match (part(0), part(1), part(2)) {
+            ("settings", "", _) => self.show_settings(Some(View::Home)),
+            ("settings", "controls", "gamepad") => {
+                self.settings_from = Some(View::Home);
+                self.settings_group = Some("Controls".into());
+                self.set_view(View::Controls);
+            }
+            ("settings", g, _) => match settings::SETTING_GROUPS.iter().find(|(n, _)| n.to_lowercase() == g) {
+                Some((n, _)) => {
+                    self.settings_from = Some(View::Home);
+                    self.show_settings_group(n)
+                }
+                None => self.show_settings(Some(View::Home)),
+            },
+            ("accounts", "add", "server") => {
+                self.servers_mode_watch = false;
+                self.perform(Act::AddServer)
+            }
+            ("accounts", "add", _) => self.show_servers(false, None),
+            ("accounts", _, _) => self.show_accounts(None),
+            ("watch", "add", _) => {
+                self.servers_mode_watch = true;
+                self.perform(Act::AddServer)
+            }
+            ("watch", _, _) => self.show_servers(true, None),
+            ("whats-new", _, _) => self.show_news(),
+            ("about", _, _) => self.perform(Act::About),
+            ("app", "steam", _) => self.perform(Act::Steam),
+            ("app", _, _) => self.show_app(),
+            ("login" | "register", server, _) => match servers::find_server(server) {
+                Some(sv) => {
+                    self.adding = Some(sv);
+                    if part(0) == "register" {
+                        self.show_register()
+                    } else {
+                        self.show_login()
+                    }
+                }
+                None => self.show_home(),
+            },
+            _ => self.show_home(),
         }
     }
 

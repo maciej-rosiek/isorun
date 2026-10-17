@@ -6,7 +6,8 @@
 //!     ISORUN_PROFILE=front ISORUN_DATA_DIR=/tmp/front cargo run -p isorun-front --example front
 //!
 //! `--size WxH` opens the window at that size (a phone's: 390x844, 844x390); `--touch` lays it
-//! out for touch (no mouse legend).
+//! out for touch (no mouse legend); `--open <path>` opens a screen by the web build's address
+//! (`settings/graphics`, `accounts`, `whats-new`, ...).
 
 use eframe::egui_wgpu::RenderState;
 use isorun_client::session::{Session, SessionEvent};
@@ -52,7 +53,7 @@ impl Game {
         if matches!(st.phase, Phase::Playing | Phase::Watching) {
             self.started = true;
         }
-        if self.started && st.phase == Phase::Lobby {
+        if self.started && matches!(st.phase, Phase::Lobby | Phase::Ended) {
             return Over::Lobby;
         }
         if !self.tiles_set {
@@ -83,6 +84,27 @@ impl Game {
             let g = ui.fonts_mut(|f| f.layout_job(isorun_ui::text::formatted(l, 15.0)));
             ui.painter().galley(egui::pos2(rect.left() + 8.0, y), g, egui::Color32::WHITE);
             y += 18.0;
+        }
+        // crawl's own menus and popups, plainly: the stand-in only needs them readable
+        let menu = self.session.state.menus.iter().filter(|m| !m.hidden).last().cloned();
+        if let Some(m) = menu {
+            egui::Window::new(isorun_webtiles::formatted_string_to_text(&m.title.text)).id(egui::Id::NULL.with("crawl-menu")).collapsible(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).default_size([620.0, 520.0]).show(ui.ctx(), |ui| {
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for item in m.items.iter().flatten() {
+                        ui.label(isorun_ui::text::formatted(&item.text, 14.0));
+                    }
+                });
+            });
+        }
+        if let Some(p) = self.session.state.ui.iter().filter(|p| !p.hidden).last() {
+            let text: Vec<String> = ["title", "prompt", "body", "text", "footer"].iter().filter_map(|k| p.data.get(*k).and_then(|v| v.as_str())).filter(|t| !t.is_empty()).map(str::to_string).collect();
+            egui::Window::new("").id(egui::Id::NULL.with("crawl-popup")).title_bar(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).max_width(700.0).show(ui.ctx(), |ui| {
+                for t in &text {
+                    for l in t.lines() {
+                        ui.label(isorun_ui::text::formatted(l, 14.0));
+                    }
+                }
+            });
         }
         // the Isorun menu over the game: Escape opens it while crawl has nothing of its own up
         let ctx = ui.ctx().clone();
@@ -166,7 +188,8 @@ fn main() -> eframe::Result {
     let args: Vec<String> = std::env::args().collect();
     let size = args.iter().position(|a| a == "--size").and_then(|i| args.get(i + 1)).and_then(|s| s.split_once('x')).and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?))).unwrap_or((1600.0, 1000.0));
     let touch = args.iter().any(|a| a == "--touch");
-    let options = eframe::NativeOptions { viewport: egui::ViewportBuilder::default().with_title("Isorun front end").with_inner_size([size.0, size.1]), wgpu_options: isorun_ui::wgpu_options(), ..Default::default() };
+    let open = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned();
+    let options = eframe::NativeOptions { viewport: egui::ViewportBuilder::default().with_title("Isorun front end").with_inner_size([size.0, size.1]), wgpu_options: isorun_ui::wgpu_options(), persist_window: false, ..Default::default() };
     eframe::run_native(
         "Isorun front end",
         options,
@@ -175,7 +198,10 @@ fn main() -> eframe::Result {
             let rs = cc.wgpu_render_state.clone().expect("wgpu");
             isorun_front::settings::set_phone(touch && size.0.min(size.1) < 560.0);
             let opts = FrontOptions { mouse: !touch, testbed: false, ..Default::default() };
-            let front = FrontEnd::new(&cc.egui_ctx, rs.clone(), opts);
+            let mut front = FrontEnd::new(&cc.egui_ctx, rs.clone(), opts);
+            if let Some(path) = &open {
+                front.open(path);
+            }
             Ok(Box::new(App { rs, front, game: None }))
         }),
     )

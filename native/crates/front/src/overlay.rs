@@ -390,7 +390,7 @@ impl GameMenus {
         let bold = ctx.pixels_per_point() <= 1.5;
         let face = if bold { isorun_ui::fonts::bold() } else { egui::FontFamily::Monospace };
         let items = self.items(&page);
-        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::new("game-menus"));
+        let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::NULL.with("game-menus"));
         let painter = ctx.layer_painter(layer);
         // the pause menu takes the screen: the world dims behind it
         radial(&painter, screen, screen.center(), &[(0.0, rgba(3, 2, 6, 0.5)), (1.0, rgba(3, 2, 6, 0.86))]);
@@ -429,7 +429,7 @@ impl GameMenus {
                 y += 0.3 * size;
             }
             let r = Rect::from_min_size(pos2(rect.left() + 0.4 * rem, y), vec2(width - 0.8 * rem, row_h));
-            let resp = egui::Area::new(egui::Id::new(("game-menu-row", i))).order(egui::Order::Foreground).fixed_pos(r.min).show(ctx, |ui| ui.allocate_exact_size(r.size(), Sense::click()).1).inner;
+            let resp = egui::Area::new(egui::Id::NULL.with(("game-menu-row", i))).order(egui::Order::Foreground).fixed_pos(r.min).show(ctx, |ui| ui.allocate_exact_size(r.size(), Sense::click()).1).inner;
             let focused = i == self.cursor;
             if focused {
                 painter.rect_filled(r, 0.0, rgba(255, 212, 92, 0.2));
@@ -459,7 +459,7 @@ impl GameMenus {
                 let v = galley(ctx, &value, &Style::new(size, face.clone(), vcol), f32::INFINITY);
                 painter.galley(pos2(val_r.center().x - v.size().x / 2.0, r.center().y - v.size().y / 2.0), v, vcol);
                 for (d, g, ar) in [(-1, lt, lt_r), (1, gt, gt_r)] {
-                    let ares = egui::Area::new(egui::Id::new(("game-menu-arrow", i, d))).order(egui::Order::Foreground).fixed_pos(ar.min).show(ctx, |ui| ui.allocate_exact_size(ar.size(), Sense::click()).1).inner;
+                    let ares = egui::Area::new(egui::Id::NULL.with(("game-menu-arrow", i, d))).order(egui::Order::Foreground).fixed_pos(ar.min).show(ctx, |ui| ui.allocate_exact_size(ar.size(), Sense::click()).1).inner;
                     let c = if ares.hovered() && !it.off { Color32::WHITE } else { acol };
                     painter.galley(pos2(ar.center().x - g.size().x / 2.0, r.center().y - g.size().y / 2.0), g, c);
                     if ares.clicked() && !it.off {

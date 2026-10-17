@@ -89,7 +89,6 @@ pub(crate) struct Clicks {
     pub hovered: Option<String>,
     /// A setting's arrow: its key and the way it turns.
     pub turn: Option<(String, i32)>,
-    pub drag: f32,
 }
 
 impl FrontEnd {
@@ -102,6 +101,8 @@ impl FrontEnd {
         self.keys(ui, s);
         let s = &self.screen();
         self.settle_cursor(s);
+        // the row under the cursor may read differently now (Play became Continue): the line follows it
+        self.on_cursor(s);
         // the room, its veil, the shade the menus stand on
         let background = ui.painter().clone();
         background.rect_filled(rect, 0.0, Color32::from_rgb(0x03, 0x03, 0x05));
@@ -120,7 +121,7 @@ impl FrontEnd {
             radial(&background, rect, pos2(rect.center().x, rect.top() + rect.height() * 0.45), &[(0.0, rgba(5, 4, 9, 0.12)), (0.62, rgba(4, 3, 8, 0.45)), (1.0, rgba(2, 2, 4, 0.75))]);
         }
         // a drag on the scenery looks around the room; a press that never moves does nothing
-        let scenery = ui.interact(rect, egui::Id::new("room-scenery"), Sense::drag());
+        let scenery = ui.interact(rect, egui::Id::NULL.with("room-scenery"), Sense::drag());
         if scenery.dragged() {
             let total = scenery.drag_delta().x;
             if ui.input(|i| i.pointer.press_origin().zip(i.pointer.interact_pos()).is_some_and(|(a, b)| (a - b).length() >= crate::room::DRAG_SLOP)) {
@@ -206,7 +207,7 @@ impl FrontEnd {
                     if let Some(r) = &mut self.rc {
                         r.editing = false;
                     }
-                    ui.memory_mut(|m| m.surrender_focus(egui::Id::new("rc-text")));
+                    ui.memory_mut(|m| m.surrender_focus(egui::Id::NULL.with("rc-text")));
                 }
                 if key == egui::Key::S && modifiers.command {
                     self.save_rc();
@@ -286,19 +287,36 @@ impl FrontEnd {
         let footer_h = 0.75 * m.rem + self.utilities_height(&ctx, s, m, width);
         let notices_h: f32 = notices.iter().map(|g| g.size().y + gap).sum();
         let below = notices_h + rows_h + gap + help_h + gap + footer_h;
-        let air = (full.height() - below - head.height).max(0.0);
-        let top = full.top() + air / 2.0;
-        head.paint(ui, pos2(full.left(), top), m);
-        let mut y = full.bottom() - below;
-        for (g, n) in notices.iter().zip(&s.notices) {
-            self.paint_notice(ui, n, g.clone(), pos2(full.left(), y), m, width, clicks);
-            y += g.size().y + gap;
+        let total = head.height + gap + below;
+        let mut draw = |f: &mut Self, ui: &mut egui::Ui, origin: egui::Pos2, height: f32| {
+            let air = (height - below - head.height).max(gap);
+            head.paint(ui, pos2(origin.x, origin.y + air / 2.0), m);
+            let mut y = origin.y + (height - below).max(head.height + gap);
+            for (g, n) in notices.iter().zip(&s.notices) {
+                f.paint_notice(ui, n, g.clone(), pos2(origin.x, y), m, width, clicks);
+                y += g.size().y + gap;
+            }
+            y = f.paint_rows(ui, s, m, pos2(origin.x, y), width, clicks);
+            y += gap;
+            f.paint_help(ui, m, pos2(origin.x, y), width, help_h);
+            y += help_h + gap + 0.75 * m.rem;
+            f.paint_utilities(ui, s, m, pos2(origin.x, y), width, clicks);
+        };
+        if total <= full.height() {
+            draw(self, ui, full.min, full.height());
+        } else {
+            // a window too short for the whole title screen: it scrolls, the head on top
+            let scroll_to = std::mem::take(&mut self.scroll_to_cursor);
+            egui::ScrollArea::vertical().id_salt("home-scroll").max_height(full.height()).show(ui, |ui| {
+                let (r, _) = ui.allocate_exact_size(vec2(full.width(), total), Sense::hover());
+                draw(self, ui, r.min, total);
+                if scroll_to {
+                    if let Some(c) = self.cursor_rect {
+                        ui.scroll_to_rect(c, None);
+                    }
+                }
+            });
         }
-        y = self.paint_rows(ui, s, m, pos2(full.left(), y), width, clicks);
-        y += gap;
-        self.paint_help(ui, m, pos2(full.left(), y), width, help_h);
-        y += help_h + gap + 0.75 * m.rem;
-        self.paint_utilities(ui, s, m, pos2(full.left(), y), width, clicks);
     }
 
     fn home_head(&self, ctx: &egui::Context, s: &Screen, m: &Metrics, width: f32) -> Head {
@@ -481,7 +499,9 @@ impl FrontEnd {
 
     fn rows_height(&self, ctx: &egui::Context, s: &Screen, m: &Metrics, width: f32) -> f32 {
         let main_w = width - self.beside_width(ctx, s, m);
-        s.rows.iter().map(|r| self.row_height(ctx, r, m, main_w) + 0.3 * m.rem).sum::<f32>() - if s.rows.is_empty() { 0.0 } else { 0.3 * m.rem }
+        let under = m.phone && s.rows.iter().map(|r| r.also.len()).max().unwrap_or(0) >= 2;
+        let beside_h = 44.0f32.max(m.note() * 1.6);
+        s.rows.iter().map(|r| self.row_height(ctx, r, m, main_w) + 0.3 * m.rem + if under && !r.also.is_empty() { beside_h } else { 0.0 }).sum::<f32>() - if s.rows.is_empty() { 0.0 } else { 0.3 * m.rem }
     }
 
     /// The width the columns beside the rows take (each as wide as its widest label).
@@ -522,15 +542,22 @@ impl FrontEnd {
             } else {
                 self.paint_row(ui, r, rect, m, clicks, 0.0);
             }
-            // what stands beside the row, a column each; a phone puts two or more on a line under it
-            let mut bx = at.x + main_w + 0.2 * m.rem;
+            // what stands beside the row, a column each; a phone puts two or more on a line under it,
+            // lined up with the text, so the name keeps the width it needs
+            let beside_h = 44.0f32.max(m.note() * 1.6);
+            let under = m.phone && cols >= 2;
+            let mut bx = if under { at.x + m.label_inset() - 0.5 * m.rem } else { at.x + main_w + 0.2 * m.rem };
             for (k, a) in r.also.iter().enumerate() {
-                let w = col_w.get(k).copied().unwrap_or(0.0);
-                let br = Rect::from_min_size(pos2(bx, rect.top() + (rect.height() - 44.0f32.max(m.note() * 1.6)) / 2.0), vec2(w, 44.0f32.max(m.note() * 1.6)));
+                let w = if under { galley(&ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem } else { col_w.get(k).copied().unwrap_or(0.0) };
+                let top = if under { rect.bottom() } else { rect.top() + (rect.height() - beside_h) / 2.0 };
+                let br = Rect::from_min_size(pos2(bx, top), vec2(w, beside_h));
                 self.paint_beside(ui, a, br, m, clicks);
                 bx += w + 0.2 * m.rem;
             }
             y += h;
+            if under && !r.also.is_empty() {
+                y += beside_h;
+            }
         }
         y
     }
@@ -539,7 +566,7 @@ impl FrontEnd {
     /// and its `@` when it stands here.
     pub(crate) fn paint_row(&mut self, ui: &mut egui::Ui, r: &Row, rect: Rect, m: &Metrics, clicks: &mut Clicks, _indent: f32) {
         let ctx = ui.ctx().clone();
-        let id = egui::Id::new(("row", &r.id));
+        let id = egui::Id::NULL.with(("row", &r.id));
         let resp = ui.interact(rect, id, Sense::click());
         let focused = self.current() == Some(r.id.as_str());
         if focused {
@@ -598,7 +625,7 @@ impl FrontEnd {
     }
 
     fn paint_beside(&mut self, ui: &mut egui::Ui, a: &Beside, rect: Rect, m: &Metrics, clicks: &mut Clicks) {
-        let resp = ui.interact(rect, egui::Id::new(("beside", &a.id)), Sense::click());
+        let resp = ui.interact(rect, egui::Id::NULL.with(("beside", &a.id)), Sense::click());
         let focused = self.current() == Some(a.id.as_str());
         if resp.clicked() {
             clicks.chosen = Some((a.id.clone(), a.act.clone()));
@@ -649,7 +676,7 @@ impl FrontEnd {
             .font(egui::FontId::new(m.note(), m.faces.text()))
             .text_color(C15)
             .frame(egui::Frame::NONE)
-            .vertical_align(egui::Align::Center)
+            .align(egui::Align2::LEFT_CENTER)
             .desired_width(input_rect.width());
         let resp = ui.put(input_rect, edit);
         let line = if resp.has_focus() { C7 } else { rgba(191, 191, 191, 0.25) };
@@ -666,7 +693,7 @@ impl FrontEnd {
         if !focused && resp.has_focus() && self.cursor.as_deref() != Some(r.id.as_str()) && !resp.gained_focus() {
             resp.surrender_focus();
         }
-        let whole = ui.interact(Rect::from_min_max(rect.min, pos2(rect.right(), input_rect.top())), egui::Id::new(("field", &r.id)), Sense::click());
+        let whole = ui.interact(Rect::from_min_max(rect.min, pos2(rect.right(), input_rect.top())), egui::Id::NULL.with(("field", &r.id)), Sense::click());
         if whole.clicked() {
             clicks.chosen = Some((r.id.clone(), Act::None));
             resp.request_focus();
@@ -795,7 +822,7 @@ impl FrontEnd {
             }
             let rect = Rect::from_min_size(pos2(at.x + x, y), vec2(*w, h));
             x += w + m.rem;
-            let resp = ui.interact(rect, egui::Id::new(("utility", &u.id)), Sense::click());
+            let resp = ui.interact(rect, egui::Id::NULL.with(("utility", &u.id)), Sense::click());
             if resp.clicked() {
                 clicks.chosen = Some((u.id.clone(), u.act.clone()));
             }
@@ -842,7 +869,7 @@ impl FrontEnd {
 
 /// The id a field's text box has.
 pub(crate) fn field_id(f: Field) -> egui::Id {
-    egui::Id::new(("front-field", f))
+    egui::Id::NULL.with(("front-field", f))
 }
 
 /// The title screen's head: the orb and the wordmark, the line under it, Xom's word.
@@ -888,7 +915,7 @@ impl Head {
 
 /// The Orb of Zot's tile (`public/orb.png`), as a texture, once.
 fn orb_texture(ctx: &egui::Context) -> egui::TextureHandle {
-    let id = egui::Id::new("isorun-orb");
+    let id = egui::Id::NULL.with("isorun-orb");
     if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(id)) {
         return t;
     }
