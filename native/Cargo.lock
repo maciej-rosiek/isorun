@@ -1449,8 +1449,24 @@ version = "0.1.5"
 dependencies = [
  "eframe",
  "egui",
- "egui-wgpu",
  "env_logger",
+ "isorun-client",
+ "isorun-render",
+ "isorun-scene",
+ "isorun-ui",
+ "isorun-webtiles",
+ "log",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+ "wgpu",
+]
+
+[[package]]
+name = "isorun-client"
+version = "0.1.5"
+dependencies = [
  "image",
  "isorun-gamedata",
  "isorun-render",
@@ -1462,7 +1478,6 @@ dependencies = [
  "libc",
  "log",
  "pollster 0.4.0",
- "regex",
  "serde",
  "serde_json",
  "tungstenite",
@@ -1517,6 +1532,22 @@ dependencies = [
  "once_cell",
  "regex",
  "serde_json",
+]
+
+[[package]]
+name = "isorun-ui"
+version = "0.1.5"
+dependencies = [
+ "eframe",
+ "egui",
+ "env_logger",
+ "isorun-client",
+ "isorun-render",
+ "isorun-scene",
+ "isorun-webtiles",
+ "log",
+ "serde_json",
+ "wgpu",
 ]
 
 [[package]]

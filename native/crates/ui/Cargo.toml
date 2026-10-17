@@ -1,0 +1,20 @@
+[package]
+name = "isorun-ui"
+description = "Isorun's UI toolkit on egui: the fonts, the web build's colours and text styles, crawl's formatted text, the isometric view as an egui widget, and a harness that plays an offline game around a component under test."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-render = { path = "../render" }
+isorun-client = { path = "../client" }
+eframe = { workspace = true }
+egui = { workspace = true }
+wgpu = "30"
+serde_json = { workspace = true }
+log = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11"

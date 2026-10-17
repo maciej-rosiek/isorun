@@ -31,9 +31,23 @@ pub fn data_dir() -> Option<std::path::PathBuf> {
             return ANDROID_DIR.get().cloned();
         }
         #[cfg(not(target_os = "android"))]
-        eframe::storage_dir("Isorun")
+        native_data_dir()
     })
     .clone()
+}
+
+/// The platform's folder for an app's data: `$XDG_DATA_HOME/isorun` (or `~/.local/share/isorun`) on
+/// Linux, `%APPDATA%\\Isorun` on Windows, `~/Library/Application Support/Isorun` on macOS.
+#[cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))]
+fn native_data_dir() -> Option<std::path::PathBuf> {
+    let env = |k: &str| std::env::var_os(k).filter(|v| !v.is_empty()).map(std::path::PathBuf::from);
+    if cfg!(windows) {
+        return env("APPDATA").map(|d| d.join("Isorun"));
+    }
+    if cfg!(target_os = "macos") {
+        return env("HOME").map(|h| h.join("Library/Application Support/Isorun"));
+    }
+    env("XDG_DATA_HOME").or_else(|| env("HOME").map(|h| h.join(".local/share"))).map(|d| d.join("isorun"))
 }
 
 #[cfg(target_os = "android")]

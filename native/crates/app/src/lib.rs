@@ -2,17 +2,11 @@
 //! eframe (egui and wgpu) for the desktop, Android and the web.
 
 pub mod app;
-pub mod engine;
-pub mod fonts;
-pub mod input;
-pub mod platform;
-pub mod servers;
-pub mod session;
-pub mod testbed;
-pub mod tiles;
-pub mod view3d;
 
-use std::sync::Arc;
+use isorun_client::servers;
+#[cfg(target_os = "android")]
+use isorun_client::platform;
+
 
 /// The command line (natively) or the page's query words (on the web).
 pub fn launch_args() -> Vec<String> {
@@ -27,19 +21,11 @@ pub fn launch_args() -> Vec<String> {
     }
 }
 
-/// The wgpu device Isorun asks for: the adapter's own limits, as the renderer's atlas pages and
-/// shadow maps want more than the defaults.
-pub fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
-    let mut setup = eframe::egui_wgpu::WgpuSetupCreateNew::without_display_handle();
-    setup.device_descriptor = Arc::new(|adapter| wgpu::DeviceDescriptor { label: Some("isorun"), required_limits: adapter.limits(), ..Default::default() });
-    eframe::egui_wgpu::WgpuConfiguration { wgpu_setup: eframe::egui_wgpu::WgpuSetup::CreateNew(setup), ..Default::default() }
-}
-
 #[cfg(not(target_arch = "wasm32"))]
 pub fn native_options() -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_title(servers::APP_NAME).with_inner_size([1600.0, 1000.0]).with_min_inner_size([320.0, 240.0]),
-        wgpu_options: wgpu_options(),
+        wgpu_options: isorun_ui::wgpu_options(),
         ..Default::default()
     }
 }
@@ -72,7 +58,7 @@ pub fn start() {
     wasm_bindgen_futures::spawn_local(async {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("isorun").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
-        let options = eframe::WebOptions { wgpu_options: wgpu_options(), ..Default::default() };
+        let options = eframe::WebOptions { wgpu_options: isorun_ui::wgpu_options(), ..Default::default() };
         let _ = eframe::WebRunner::new().start(canvas, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc))))).await;
     });
 }

@@ -485,7 +485,18 @@ mod native {
             args.push("-rc".into());
             args.push(rc_path.display().to_string());
             let log = std::fs::File::create(run_dir.join("crawl.log")).ok();
-            let mut child = Command::new(&i.crawl)
+            let mut command = Command::new(&i.crawl);
+            // crawl hangs up with the app, as with a server: it saves and stops, and holds no save
+            // locked for the next start
+            #[cfg(any(target_os = "linux", target_os = "android"))]
+            unsafe {
+                use std::os::unix::process::CommandExt;
+                command.pre_exec(|| {
+                    libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGHUP);
+                    Ok(())
+                });
+            }
+            let mut child = command
                 .args(&args)
                 .current_dir(&i.dir)
                 // crawl's webtiles want a UTF-8 locale; C.UTF-8 is there on every glibc and bionic

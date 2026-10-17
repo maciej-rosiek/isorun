@@ -1,15 +1,16 @@
 //! The app: the home screen (servers, the test bed), a server's lobby and the game, drawn with
 //! egui over the isometric view.
 
-use crate::input::{self, Delta};
-use crate::servers::{self, ServerInfo, Settings};
-use crate::session::{GamedataStatus, Session, SessionEvent};
-use crate::testbed;
-use crate::view3d::View3d;
+use isorun_ui::keys::{self as input, Delta};
+use isorun_ui::text::formatted;
+use isorun_client::servers::{self, ServerInfo, Settings};
+use isorun_client::session::{GamedataStatus, Session, SessionEvent};
+use isorun_client::testbed;
+use isorun_ui::view3d::View3d;
 use eframe::egui_wgpu::RenderState;
 use isorun_render::{IsoCamera, SurfaceDetail};
 use isorun_scene::Scene;
-use isorun_webtiles::{cm, formatted_string_to_spans, game_link_rows, key_message, Phase};
+use isorun_webtiles::{cm, game_link_rows, key_message, Phase};
 use std::sync::Arc;
 
 type Wake = Arc<dyn Fn() + Send + Sync>;
@@ -40,50 +41,16 @@ pub struct IsorunApp {
     torch_loaded: bool,
 }
 
-/// The terminal's sixteen colours, as the web client's CSS has them.
-pub const TERM_COLOURS: [egui::Color32; 16] = [
-    egui::Color32::from_rgb(0x00, 0x00, 0x00),
-    egui::Color32::from_rgb(0x40, 0x40, 0xff),
-    egui::Color32::from_rgb(0x00, 0x80, 0x00),
-    egui::Color32::from_rgb(0x00, 0x80, 0x80),
-    egui::Color32::from_rgb(0x80, 0x00, 0x00),
-    egui::Color32::from_rgb(0x80, 0x00, 0x80),
-    egui::Color32::from_rgb(0x80, 0x80, 0x00),
-    egui::Color32::from_rgb(0xc0, 0xc0, 0xc0),
-    egui::Color32::from_rgb(0x80, 0x80, 0x80),
-    egui::Color32::from_rgb(0x80, 0x80, 0xff),
-    egui::Color32::from_rgb(0x00, 0xff, 0x00),
-    egui::Color32::from_rgb(0x00, 0xff, 0xff),
-    egui::Color32::from_rgb(0xff, 0x00, 0x00),
-    egui::Color32::from_rgb(0xff, 0x00, 0xff),
-    egui::Color32::from_rgb(0xff, 0xff, 0x00),
-    egui::Color32::from_rgb(0xff, 0xff, 0xff),
-];
-
-/// A crawl formatted string as an egui layout.
-pub fn formatted(text: &str, size: f32) -> egui::text::LayoutJob {
-    let mut job = egui::text::LayoutJob::default();
-    for span in formatted_string_to_spans(text) {
-        let colour = span.fg.map(|c| TERM_COLOURS[c as usize & 15]).unwrap_or(TERM_COLOURS[7]);
-        let mut format = egui::TextFormat { font_id: egui::FontId::monospace(size), color: colour, ..Default::default() };
-        if let Some(bg) = span.bg {
-            format.background = TERM_COLOURS[bg as usize & 15];
-        }
-        job.append(&span.text, 0.0, format);
-    }
-    job
-}
-
 impl IsorunApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let rs = cc.wgpu_render_state.clone().expect("Isorun draws with wgpu");
         let ctx = cc.egui_ctx.clone();
         let wake: Wake = Arc::new(move || ctx.request_repaint());
-        crate::fonts::install(&cc.egui_ctx);
+        isorun_ui::install(&cc.egui_ctx);
         let settings = servers::get_settings();
         let mut view = View3d::new(&rs);
         apply_settings(&mut view, &settings);
-        let mut app = IsorunApp { rs, view, camera: IsoCamera::default(), screen: Screen::Home, settings, wake, last: crate::platform::seconds(), error: None, torch_loaded: false };
+        let mut app = IsorunApp { rs, view, camera: IsoCamera::default(), screen: Screen::Home, settings, wake, last: isorun_client::platform::seconds(), error: None, torch_loaded: false };
         if let Some(view) = servers::get_saved_view() {
             app.camera.set_angles(view.angles);
             if let Some(z) = view.zoom {
@@ -135,7 +102,7 @@ impl IsorunApp {
         egui::CentralPanel::default().show(ui, |ui| {
             ui.vertical_centered(|ui| {
                 ui.add_space(40.0);
-                ui.label(egui::RichText::new("ISORUN").font(egui::FontId::new(64.0, crate::fonts::title())).color(egui::Color32::from_rgb(0xe8, 0xc8, 0x7a)));
+                ui.label(egui::RichText::new("ISORUN").font(egui::FontId::new(64.0, isorun_ui::fonts::title())).color(egui::Color32::from_rgb(0xe8, 0xc8, 0x7a)));
                 ui.label(egui::RichText::new("Dungeon Crawl Stone Soup, isometric").italics());
                 ui.add_space(24.0);
                 if let Some(e) = &self.error {
@@ -241,7 +208,7 @@ impl IsorunApp {
         let rect = ui.available_rect_before_wrap();
         let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
         self.camera_input(ui, &response);
-        let now = crate::platform::seconds();
+        let now = isorun_client::platform::seconds();
         let dt = (now - self.last).clamp(0.0, 0.1) as f32;
         self.last = now;
         self.camera.update(dt, player.0, player.1);
@@ -310,6 +277,7 @@ impl IsorunApp {
 
     fn server(&mut self, ui: &mut egui::Ui) {
         let Screen::Server(s) = &mut self.screen else { return };
+        s.session.flush_scene();
         for e in s.session.poll() {
             match e {
                 SessionEvent::Open => s.status = "Connected".into(),
