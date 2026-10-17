@@ -70,6 +70,9 @@ impl IsorunApp {
         let front_opts = FrontOptions { mouse: !touch, testbed: has("--testbed-link"), can_fullscreen, ..Default::default() };
         let front = FrontEnd::new(&cc.egui_ctx, rs.clone(), front_opts);
         let engine = SoundEngine::new();
+        // the sounds are the hosted page's (public/audio), at its root, while this page is at /native/
+        #[cfg(target_arch = "wasm32")]
+        engine.set_base("/audio/");
         // natively the sound may start at once; the web waits for the first key or click
         #[cfg(not(target_arch = "wasm32"))]
         engine.unlock();
@@ -229,6 +232,12 @@ impl eframe::App for IsorunApp {
         isorun_front::settings::set_phone(phone);
         self.front.options.can_fullscreen = can_fullscreen(phone);
         self.opts.can_fullscreen = can_fullscreen(phone);
+        // the web's sound starts with the player's first key, click or touch (the browsers let a
+        // page make a sound only after a gesture); unlock does nothing the second time
+        #[cfg(target_arch = "wasm32")]
+        if ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::PointerButton { pressed: true, .. } | egui::Event::Touch { .. }))) {
+            self.engine.unlock();
+        }
         match &mut self.screen {
             Screen::Game(game) => {
                 let Some(outcome) = game.ui(ui) else { return };
