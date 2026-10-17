@@ -116,8 +116,7 @@ pub fn rule_colour(dock: bool) -> Color32 {
 pub fn layer<R>(ctx: &egui::Context, id: egui::Id, rect: Rect, f: impl FnOnce(&mut egui::Ui, egui::Response) -> R) -> R {
     let area = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(rect.min).constrain(false).show(ctx, |ui| {
         ui.set_clip_rect(ctx.content_rect());
-        let (r, resp) = ui.allocate_exact_size(rect.size(), Sense::click_and_drag());
-        debug_assert_eq!(r.min, rect.min);
+        let (_, resp) = ui.allocate_exact_size(rect.size(), Sense::click_and_drag());
         f(ui, resp)
     });
     ctx.move_to_top(area.response.layer_id);

@@ -209,6 +209,7 @@ impl Overlays {
         let mut hovered_id: Option<String> = None;
         let mut clicked_id: Option<String> = None;
         let pointer_live = self.pointer_live && self.pointer_moved;
+        let follow = self.newgame_lit.clone();
         frame::layer(ctx, egui::Id::unique(("isorun-newgame", key)), rect, |ui, _| {
             let pt = ui.painter().clone();
             widgets::paint_panel(&pt, rect, &PanelLook::newgame(u));
@@ -242,8 +243,11 @@ impl Overlays {
             }
             // the choices, scrolling when the screen is short
             let choices = Rect::from_min_size(Pos2::new(rect.left() + 1.0, y), Vec2::new(choices_w, if compact { (cols_h - details_h.min(0.24 * screen.h()) - 1.0).max(40.0) } else { cols_h }));
-            new_scroll = frame::wheel(ui, choices, choices_h, scroll);
-            let cp = pt.with_clip_rect(choices);
+            // the main grid is the scrolling body; the sub grid (random, recommended) stays under it
+            let sub_total = if sub.buttons.is_empty() { 0.0 } else { sub_h + 1.0 };
+            let main_view = Rect::from_min_size(choices.min, Vec2::new(choices.width(), (choices.height() - sub_total).max(0.0)));
+            new_scroll = frame::wheel(ui, main_view, main_h, scroll);
+            let mut cp = pt.with_clip_rect(main_view);
             let mut lays: Vec<ButtonLay> = Vec::new();
             let mut gy = choices.top() - new_scroll;
             let mut index = 0;
@@ -252,6 +256,8 @@ impl Overlays {
                     continue;
                 }
                 if sub_grid {
+                    cp = pt.with_clip_rect(choices);
+                    gy = main_view.bottom();
                     widgets::rule(&cp, choices.left()..=choices.right(), gy, palette::RULE);
                     gy += 1.0;
                 }
@@ -275,8 +281,17 @@ impl Overlays {
                 }
                 gy += rows.iter().sum::<f32>() + 6.0 * u * (rows.len() as f32 - 1.0).max(0.0) + 28.0 * u;
             }
+            // the cursor moved to a button out of view: bring it in (FocusNav's scrollIntoView, nearest)
+            if let Some(l) = lit.as_ref().filter(|id| **id != follow).and_then(|id| lays.iter().find(|l| &l.id == id && !l.sub)) {
+                if l.rect.top() < main_view.top() {
+                    new_scroll -= main_view.top() - l.rect.top();
+                } else if l.rect.bottom() > main_view.bottom() {
+                    new_scroll += l.rect.bottom() - main_view.bottom();
+                }
+                new_scroll = new_scroll.clamp(0.0, (main_h - main_view.height()).max(0.0));
+            }
             for l in &lays {
-                if !choices.contains(l.rect.center()) {
+                if !(if l.sub { choices } else { main_view }).contains(l.rect.center()) {
                     continue;
                 }
                 let resp = ui.interact(l.rect, egui::Id::unique(("isorun-ng", &l.id)), egui::Sense::click());
@@ -328,6 +343,7 @@ impl Overlays {
         if !top {
             return;
         }
+        self.newgame_lit = lit.clone().unwrap_or_default();
         let index_of = |id: &str| self.nav.items().iter().position(|f| f.key() == id).map(|i| i as i32);
         if let Some(id) = clicked_id {
             if let Some(i) = index_of(&id) {

@@ -160,7 +160,104 @@ pub fn html(html: &str, st: &TextStyle, wrap: f32) -> LayoutJob {
 
 /// Lay a job out.
 pub fn galley(ctx: &egui::Context, job: LayoutJob) -> Arc<egui::Galley> {
+    let job = prewrap(job);
     ctx.fonts_mut(|f| f.layout_job(job))
+}
+
+/// `white-space: pre-wrap` as the browser does it, for text in DejaVu Sans Mono (one size): a line
+/// breaks after a run of spaces, which hangs at its end, so the next line starts with the word;
+/// a word longer than the line overflows it. (egui's own wrapping carries the spaces over to the
+/// next line, which indents it.) Other text is left to egui.
+pub fn prewrap(mut job: LayoutJob) -> LayoutJob {
+    let width = job.wrap.max_width;
+    if !width.is_finite() || job.sections.is_empty() {
+        return job;
+    }
+    let size = job.sections[0].format.font_id.size;
+    let mono = |f: &egui::FontFamily| matches!(f, egui::FontFamily::Monospace) || *f == isorun_ui::fonts::bold();
+    if job.sections.iter().any(|s| s.format.font_id.size != size || !mono(&s.format.font_id.family) || s.leading_space != 0.0) {
+        return job;
+    }
+    let cols = ((width + 0.01) / isorun_ui::widgets::ch(size)).floor().max(1.0) as usize;
+    // where to insert breaks, as byte offsets into the text
+    let mut breaks = Vec::new();
+    for (line_start, line) in line_spans(&job.text) {
+        let chars: Vec<(usize, char)> = line.char_indices().collect();
+        let mut start = 0; // char index where the current visual line starts
+        let mut i = 0;
+        let mut last_break: Option<usize> = None; // char index after a run of spaces
+        while i < chars.len() {
+            if chars[i].1 == ' ' {
+                while i < chars.len() && chars[i].1 == ' ' {
+                    i += 1;
+                }
+                last_break = Some(i);
+                continue;
+            }
+            // a character that does not fit: break at the last run of spaces on this line
+            if i - start >= cols {
+                if let Some(b) = last_break.filter(|&b| b > start) {
+                    breaks.push(line_start + chars.get(b).map_or(line.len(), |c| c.0));
+                    start = b;
+                    last_break = None;
+                    continue;
+                }
+            }
+            i += 1;
+        }
+    }
+    if breaks.is_empty() {
+        job.wrap.max_width = f32::INFINITY;
+        return job;
+    }
+    let mut text = String::with_capacity(job.text.len() + breaks.len());
+    let mut last = 0;
+    for &b in &breaks {
+        text.push_str(&job.text[last..b]);
+        text.push('\n');
+        last = b;
+    }
+    text.push_str(&job.text[last..]);
+    let shift = |x: usize| x + breaks.iter().filter(|&&b| b < x || (b == x && x > 0 && false)).count();
+    for s in job.sections.iter_mut() {
+        let (a, b) = (s.byte_range.start.0, s.byte_range.end.0);
+        // a break at a section's start belongs before it
+        let na = a + breaks.iter().filter(|&&k| k <= a).count();
+        let nb = b + breaks.iter().filter(|&&k| k < b).count();
+        let _ = shift;
+        s.byte_range = na.min(nb).into()..nb.into();
+    }
+    // breaks at a section boundary land in no section when counted `<=` for the start and `<` for
+    // the end: give the newline to the section before
+    job.text = text;
+    fix_gaps(&mut job);
+    job.wrap.max_width = f32::INFINITY;
+    job
+}
+
+/// Lines of a text with the byte offset each starts at.
+fn line_spans(text: &str) -> Vec<(usize, &str)> {
+    let mut out = Vec::new();
+    let mut at = 0;
+    for l in text.split('\n') {
+        out.push((at, l));
+        at += l.len() + 1;
+    }
+    out
+}
+
+/// Close any gap between consecutive sections (a newline inserted at their boundary).
+fn fix_gaps(job: &mut LayoutJob) {
+    let n = job.sections.len();
+    for k in 0..n {
+        let next = if k + 1 < n { job.sections[k + 1].byte_range.start.0 } else { job.text.len() };
+        if job.sections[k].byte_range.end.0 < next {
+            job.sections[k].byte_range.end = next.into();
+        }
+    }
+    if let Some(first) = job.sections.first_mut() {
+        first.byte_range.start = 0.into();
+    }
 }
 
 /// The width a job takes unwrapped: its longest line (`max-content`).
@@ -180,6 +277,17 @@ pub fn recolour(mut job: LayoutJob, f: impl Fn(Color32) -> Color32) -> LayoutJob
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prewrap_hangs_spaces() {
+        let st = TextStyle { size: 10.0, line_height: 12.0, colour: Color32::WHITE, family: egui::FontFamily::Monospace, bold: false };
+        let w = isorun_ui::widgets::ch(10.0) * 10.0;
+        let j = prewrap(formatted("<red>abc def</red> ghijkl mno", &st, w));
+        assert_eq!(j.text, "abc def \nghijkl mno");
+        assert_eq!(j.sections.last().unwrap().byte_range.end.0, j.text.len());
+        let long = prewrap(plain("abcdefghijklmn x", &st, w));
+        assert_eq!(long.text, "abcdefghijklmn \nx");
+    }
 
     #[test]
     fn server_html_spans() {

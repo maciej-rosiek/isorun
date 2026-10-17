@@ -125,6 +125,8 @@ pub struct Overlays {
     pub(crate) card: Option<card::Card>,
     /// newgame: the server's `button_focus` at the last build
     newgame_focus: String,
+    /// the new-game stop last drawn lit: a move to another brings it into view
+    pub(crate) newgame_lit: String,
     // menus
     /// the hover each menu (by its stack place) was moved to here, and the server's hover then:
     /// ours holds until the server moves its own
@@ -194,6 +196,7 @@ impl Overlays {
             prompt_focus_opts: FocusOptions::default(),
             card: None,
             newgame_focus: String::new(),
+            newgame_lit: String::new(),
             hover: HashMap::new(),
             scroll: HashMap::new(),
             menu_geom: MenuGeom::default(),
@@ -403,11 +406,12 @@ impl Overlays {
             self.last_ui_rev = st.rev.ui;
             self.rebuild(cx);
         }
+        // the player's numbers first: the stat-gain cards opened by the prompt read them
+        self.level_up.sync(&st.player, st.messages.more, self.now);
         let mode = derive_mode(st);
         self.update_prompt(mode, cx);
         let crt_menu = st.menus.last().is_some_and(|m| m.kind.as_deref() == Some("crt"));
         self.sync_focus(mode, crt_menu);
-        self.level_up.sync(&st.player, st.messages.more, self.now);
         self.run_timers(cx);
     }
 

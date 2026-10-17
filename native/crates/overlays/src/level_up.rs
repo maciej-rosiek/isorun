@@ -263,6 +263,9 @@ impl LevelUp {
     /// Draw the banner (and the cards); the messages a click sends go to `out`. `lit` is the stop
     /// the cursor is on. Returns true while it is up.
     pub fn draw(&mut self, ctx: &egui::Context, screen: &Screen, icons: &mut TileIcons, lit: Option<&str>, out: &mut Vec<serde_json::Value>, now: f64) -> bool {
+        if self.open.is_some() && self.baseline.is_none() {
+            self.baseline = self.current;
+        }
         let Some(b) = &self.open else { return false };
         let rem = screen.rem();
         let fade = match b.leaving {
@@ -341,8 +344,10 @@ impl LevelUp {
             y += kicker.size().y;
             gradient_text(&p, &level_g, Pos2::new(cx - level_g.size().x / 2.0, y - level_g.size().y * 0.09), fade);
             y += level_g.size().y * 0.82 + 0.5 * rem;
-            let rule = widgets::linear_gradient(ui.ctx(), 90, &[(0.0, Color32::TRANSPARENT), (0.3, rgba(243, 214, 140, 1.0)), (0.5, widgets::hex(0xfff3cf)), (0.7, rgba(243, 214, 140, 1.0)), (1.0, Color32::TRANSPARENT)]);
-            widgets::paint_texture(&p, Rect::from_center_size(Pos2::new(cx, y + 1.0), Vec2::new(22.0 * rem, 2.0)), 0.0, rule);
+            // the rule fades in and out at its ends, with a glow (`box-shadow: 0 0 10px`)
+            let rule_r = Rect::from_center_size(Pos2::new(cx, y + 1.0), Vec2::new(22.0 * rem, 2.0));
+            p.add(egui::epaint::Shadow { offset: [0, 0], blur: 10, spread: 0, color: rgba(255, 200, 100, 0.35 * fade) }.as_shape(rule_r.shrink2(Vec2::new(4.0 * rem, 0.0)), egui::CornerRadius::ZERO));
+            widgets::hgradient(&p, rule_r, &[(0.0, Color32::TRANSPARENT), (0.3, alpha(rgba(243, 214, 140, 1.0))), (0.5, alpha(widgets::hex(0xfff3cf))), (0.7, alpha(rgba(243, 214, 140, 1.0))), (1.0, Color32::TRANSPARENT)]);
             y += 2.0 + 0.9 * rem;
             // the gains, chips side by side
             let gw: f32 = gain_gs.iter().map(|(g, _)| g.size().x + 1.5 * rem + 2.0).sum::<f32>() + gain_gs.len().saturating_sub(1) as f32 * 0.6 * rem;
@@ -528,8 +533,22 @@ fn stat_card(ui: &mut egui::Ui, r: Rect, s: &Stat, now_val: i64, gain: i64, focu
     p.add(egui::epaint::Shadow { offset: [0, 0], blur: 18, spread: 0, color: accent(0.25) }.as_shape(Rect::from_center_size(ec, Vec2::splat(2.0 * er)), egui::CornerRadius::same(er as u8)));
     widgets::paint_texture(&p, Rect::from_center_size(ec, Vec2::splat(2.0 * er)), er, widgets::radial_gradient(ctx, (0.5, 0.5), 1.0, &[(0.0, accent(0.28)), (0.7, rgba(0, 0, 0, 0.6)), (1.0, rgba(0, 0, 0, 0.6))]));
     p.circle_stroke(ec, er - 1.0, egui::Stroke::new(2.0, accent(0.55)));
-    if let Some(id) = icons.gamedata().and_then(|g| g.gd.gui.id(s.icon)) {
-        crate::tiles::paint(icons, &p, &[crate::tiles::Tile::id(id as i64)], Rect::from_center_size(ec, Vec2::splat(64.0)));
+    if let Some(tex) = screen_icon(ctx, icons, s.icon) {
+        // `mix-blend-mode: screen; clip-path: circle(42%)`: the icon's black is no colour at all, and
+        // only the disc of it shows
+        let r = Rect::from_center_size(ec, Vec2::splat(64.0));
+        let mut mesh = egui::Mesh::with_texture(tex.id());
+        mesh.vertices.push(egui::epaint::Vertex { pos: ec, uv: Pos2::new(0.5, 0.5), color: Color32::WHITE });
+        let n = 32u32;
+        for i in 0..=n {
+            let a = i as f32 / n as f32 * std::f32::consts::TAU;
+            let d = Vec2::angled(a) * 0.42;
+            mesh.vertices.push(egui::epaint::Vertex { pos: ec + d * r.width(), uv: Pos2::new(0.5 + d.x, 0.5 + d.y), color: Color32::WHITE });
+            if i > 0 {
+                mesh.add_triangle(0, i, i + 1);
+            }
+        }
+        p.add(egui::Shape::mesh(mesh));
     }
     y += 2.0 * er + 0.45 * rem;
     let name = ctx.fonts_mut(|f| f.layout_no_wrap(s.name.into(), FontId::new(1.7 * rem, FontFamily::Name("title".into())), accent(1.0)));
@@ -606,4 +625,39 @@ mod tests {
         lu.end_choice(5.0);
         assert!(!lu.choosing());
     }
+}
+
+/// A gui tile as a texture of its own whose black is transparent (the CSS `screen` blend over the
+/// dark emblem), made once per tile.
+fn screen_icon(ctx: &egui::Context, icons: &TileIcons, name: &str) -> Option<egui::TextureHandle> {
+    let key = egui::Id::unique(("isorun-screen-icon", name));
+    if let Some(t) = ctx.data(|d| d.get_temp::<egui::TextureHandle>(key)) {
+        return Some(t);
+    }
+    let gd = icons.gamedata()?;
+    let id = gd.gd.gui.id(name)?;
+    let rect = gd.gd.tile(id, None)?;
+    let img = gd.atlases.get(&rect.atlas)?;
+    let (w, h) = (rect.cell.max(32) as usize, rect.cell.max(32) as usize);
+    let mut rgba = vec![0u8; w * h * 4];
+    for y in 0..rect.h as usize {
+        for x in 0..rect.w as usize {
+            let (dx, dy) = (x as i64 + rect.ox as i64, y as i64 + rect.oy as i64);
+            if dx < 0 || dy < 0 || dx >= w as i64 || dy >= h as i64 {
+                continue;
+            }
+            let si = (((rect.sy as usize + y) * img.width as usize) + rect.sx as usize + x) * 4;
+            let di = (dy as usize * w + dx as usize) * 4;
+            let px = &img.rgba[si..si + 4];
+            let a = px[0].max(px[1]).max(px[2]) as u32 * px[3] as u32 / 255;
+            // un-premultiply by the brightness: screen over black keeps the colour, over grey adds it
+            for c in 0..3 {
+                rgba[di + c] = if a > 0 { ((px[c] as u32 * 255) / a.max(1)).min(255) as u8 } else { 0 };
+            }
+            rgba[di + 3] = a as u8;
+        }
+    }
+    let t = ctx.load_texture(format!("screen-icon:{name}"), egui::ColorImage::from_rgba_unmultiplied([w, h], &rgba), egui::TextureOptions::NEAREST);
+    ctx.data_mut(|d| d.insert_temp(key, t.clone()));
+    Some(t)
 }

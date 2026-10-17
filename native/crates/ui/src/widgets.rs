@@ -179,6 +179,31 @@ pub fn paint_texture(painter: &Painter, rect: Rect, radius: f32, tex: TextureId)
     painter.add(RectShape::filled(rect, CornerRadius::same(radius.round() as u8), Color32::WHITE).with_texture(tex, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))));
 }
 
+/// A horizontal gradient as a mesh of vertex colours: for thin things (a rule a pixel or two
+/// tall), which a textured rect does not fill.
+pub fn hgradient(painter: &Painter, rect: Rect, stops: &[Stop]) {
+    let mut mesh = egui::Mesh::default();
+    let mut ts: Vec<f32> = stops.iter().map(|s| s.0).collect();
+    for i in 0..=16 {
+        ts.push(i as f32 / 16.0);
+    }
+    ts.sort_by(f32::total_cmp);
+    ts.dedup();
+    for (k, &t) in ts.iter().enumerate() {
+        let c = lerp_colour(stops, t);
+        let colour = Color32::from_rgba_unmultiplied(c[0] as u8, c[1] as u8, c[2] as u8, c[3] as u8);
+        let x = rect.left() + rect.width() * t;
+        mesh.colored_vertex(Pos2::new(x, rect.top()), colour);
+        mesh.colored_vertex(Pos2::new(x, rect.bottom()), colour);
+        if k > 0 {
+            let b = 2 * k as u32;
+            mesh.add_triangle(b - 2, b - 1, b);
+            mesh.add_triangle(b - 1, b, b + 1);
+        }
+    }
+    painter.add(egui::Shape::mesh(mesh));
+}
+
 // --------------------------------------------------------------------------------------- panels
 
 /// One layer of a panel's background.
@@ -387,8 +412,7 @@ pub fn card(painter: &Painter, rect: Rect, title: &str, title_font: FontId, titl
     painter.galley(Pos2::new(rect.left() + pad, top), galley, title_colour);
     let y = top + h + pad * 0.5;
     // a rule that fades out at both ends (the tooltip cards' and the level-up banner's)
-    let tex = linear_gradient(ctx, 90, &[(0.0, Color32::TRANSPARENT), (0.3, palette::GOLD), (0.7, palette::GOLD), (1.0, Color32::TRANSPARENT)]);
-    paint_texture(painter, Rect::from_min_max(Pos2::new(rect.left() + pad, y), Pos2::new(rect.right() - pad, y + 1.0)), 0.0, tex);
+    hgradient(painter, Rect::from_min_max(Pos2::new(rect.left() + pad, y), Pos2::new(rect.right() - pad, y + 1.0)), &[(0.0, Color32::TRANSPARENT), (0.3, palette::GOLD), (0.7, palette::GOLD), (1.0, Color32::TRANSPARENT)]);
     Rect::from_min_max(Pos2::new(rect.left() + pad, y + pad * 0.5), Pos2::new(rect.right() - pad, rect.bottom() - pad))
 }
 

@@ -1,7 +1,8 @@
 //! The overlays over an offline game: crawl's menus, popups, prompts and the level-up banner, as
 //! the game screen will drive them. Play with the keyboard and the mouse.
 //!
-//! `OVERLAYS_FAKE=levelup` announces a level a few seconds in (with a recorded `player` change),
+//! `OVERLAYS_FAKE=levelup` announces a level a few seconds in (with a recorded `player` change;
+//! `levelup-hold` keeps announcing it),
 //! `OVERLAYS_FAKE=statgain` puts crawl's stat-gain prompt up, `OVERLAYS_FAKE=yesno` a yes/no and
 //! `OVERLAYS_FAKE=letters` the letter picker, `OVERLAYS_FAKE=skills` the skills screen recorded from a server, to see them without playing to them.
 //! `OVERLAYS_SCALE` sets the UI scale.
@@ -29,15 +30,15 @@ fn main() -> eframe::Result {
         let mut state = game.session.state.clone();
         let since = now - started_at;
         match fake.as_str() {
-            "levelup" if since > 4.0 && !faked => {
-                faked = true;
-                let mut p = state.player.clone();
-                overlays.level_up.sync(&p, false, now);
-                p.xl += 1;
-                p.hp_max += 7;
-                p.mp_max += 1;
-                overlays.messages(&[GameMessage { text: format!("You have reached level {}!", p.xl), channel: Some(11), ..Default::default() }]);
-                overlays.level_up.sync(&p, false, now);
+            "levelup" | "levelup-hold" if since > 4.0 => {
+                // the `player` message of the new level, and its announcement (again and again with -hold, so it stays up)
+                state.player.xl += 1;
+                state.player.hp_max += 7;
+                state.player.mp_max += 1;
+                if !faked || fake == "levelup-hold" {
+                    faked = true;
+                    overlays.messages(&[GameMessage { text: format!("You have reached level {}!", state.player.xl), channel: Some(11), ..Default::default() }]);
+                }
             }
             "statgain" if since > 3.0 => {
                 state.input_mode = MouseMode::PROMPT;
@@ -91,3 +92,4 @@ fn main() -> eframe::Result {
         took
     })
 }
+
