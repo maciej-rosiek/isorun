@@ -427,7 +427,7 @@ fn targeting_table(ctx: &Context) -> Table {
 /// while Enter, `.` and `5` select it, which `do_look_around` turns into travel. So A
 /// describes, named for what the cursor rests on, travel moves to X and help sits on Y,
 /// the three the server prints itself ("Press: ? - help, v - describe, . - travel"). The
-/// bumpers cycle monsters (`-`/`+`), the triggers the items in view (`/`/`*`).
+/// bumpers cycle monsters (`-`/`+`), the triggers the items in view (`;`/`'`).
 fn examine_table(ctx: &Context) -> Table {
     use Button::*;
     let mut t = Table::default()
@@ -435,8 +435,11 @@ fn examine_table(ctx: &Context) -> Table {
         .with(B, esc())
         .with(X, situational(k(".", "Travel here")))
         .with(Y, situational(k("?", "Help")))
-        .with(LT, k("/", "Previous item"))
-        .with(RT, k("*", "Next item"))
+        // `;` and `'`, crawl's other keys for these (cmd-keys.h): `/` and `*` are the Shift and
+        // Ctrl prefixes in targeting too while `use_modifier_prefix_keys` is on (the default;
+        // cio.cc `unmangle_direction_keys`), so they asked for a key with "SHIFT" or "CTRL"
+        .with(LT, k(";", "Previous item"))
+        .with(RT, k("'", "Next item"))
         .with(Select, palette(CommandCategory::Targeting));
     // the monsters in view, one way and the other; with none there is nothing to cycle
     if ctx.monsters_in_view > 0 {

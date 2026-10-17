@@ -526,8 +526,9 @@ fn look_a_sends_v_x_travels_y_helps_b_cancels_bumpers_cycle_monsters_triggers_ob
     assert_eq!(seq_of(t.get(Button::B)), key(Keys::ESC));
     assert_eq!(seq_of(t.get(Button::LB)), text("-"));
     assert_eq!(seq_of(t.get(Button::RB)), text("+"));
-    assert_eq!(seq_of(t.get(Button::LT)), text("/"));
-    assert_eq!(seq_of(t.get(Button::RT)), text("*"));
+    // not `/` and `*`: crawl's Shift and Ctrl prefixes in targeting (use_modifier_prefix_keys)
+    assert_eq!(seq_of(t.get(Button::LT)), text(";"));
+    assert_eq!(seq_of(t.get(Button::RT)), text("'"));
     assert_eq!(binding_table(&look(ctx())).get(Button::LB), None);
 }
 
