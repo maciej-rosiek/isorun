@@ -58,6 +58,7 @@ fn main() -> eframe::Result {
                 holding: None,
                 panel: None,
                 inspect: None,
+                chat: !game.session.server.offline,
                 client_overlay: false,
                 screen_of: &screen_of,
                 out: &mut out,

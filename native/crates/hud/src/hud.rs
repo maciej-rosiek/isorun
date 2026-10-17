@@ -64,6 +64,8 @@ pub struct HudCx<'a> {
     pub panel: Option<Rect>,
     /// the card about the cell under the pointer
     pub inspect: Option<(&'a [InspectLine], &'a [String])>,
+    /// the chat box is on: not on a game on this device, with no one to talk to (game.ts `chatOn`)
+    pub chat: bool,
     /// a client overlay of the game screen's is up (game.ts `overlays.hasClientOverlay`)
     pub client_overlay: bool,
     /// where on the screen a cell's actor stands, for the damage numbers
@@ -285,7 +287,7 @@ impl Hud {
             device: cx.device,
             pad: cx.pad,
             spectating: watching,
-            dock: layout.dock,
+            dock: cx.settings.hud == "dock",
             hints: cx.settings.hints != "off",
             prompts: cx.prompts,
             menu_prompts: cx.menu_prompts,
@@ -334,7 +336,7 @@ impl Hud {
         }
 
         // the chat at the foot of the sidebar's column
-        let in_game = matches!(st.phase, Phase::Playing | Phase::Watching);
+        let in_game = cx.chat && matches!(st.phase, Phase::Playing | Phase::Watching);
         self.chat.ui(&ctx, st, layout.sidebar, in_game, st.lobby.username.is_some(), cx.out);
         if self.chat.capturing(&ctx) {
             output.consumed_keys = true;
@@ -381,7 +383,7 @@ impl Hud {
     fn slot_sources<'a>(&'a self, st: &GameState) -> SlotSources<'a> {
         let p = &st.player;
         let items = pack_items(&p.inv);
-        let quiver_available = p.extra.get("quiver_available").and_then(|v| v.as_bool()).unwrap_or(!p.quiver_desc.is_empty());
+        let quiver_available = p.extra.get("quiver_available").is_some_and(isorun_webtiles::truthy);
         let quiver = if quiver_available { formatted_string_to_text(&p.quiver_desc) } else { String::new() };
         let consumables = action_panel_items(st).iter().filter_map(|c| items.iter().find(|i| i.item.slot == c.item.slot).cloned()).collect();
         let quiver_item = items.iter().find(|i| i.item.slot == p.quiver_item).cloned();

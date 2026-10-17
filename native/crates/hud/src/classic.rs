@@ -229,7 +229,7 @@ impl Classic {
         let st = inp.state;
         self.paint_trapped(&painter, inp, tiles);
         // the stats pane
-        if let Some(rect) = self.layout.stats.filter(|_| !inp.dock) {
+        if let Some(rect) = self.layout.stats {
             if st.rev.player != self.last_player_rev {
                 self.last_player_rev = st.rev.player;
                 let (rows, prev) = stats_rows(&st.player, &st.options, self.bars, self.cells.stats.w as usize, self.portrait_cols);
@@ -301,7 +301,7 @@ impl Classic {
         }
         let px = grid.ch * STATUS_BADGE_ROWS;
         let right = mm.left() - grid.cw;
-        let strip_left = self.layout.stats.filter(|_| !inp.dock).map_or(self.layout.free.left(), |s| s.right() + grid.cw);
+        let strip_left = self.layout.stats.map_or(self.layout.free.left(), |s| s.right() + grid.cw);
         let cols = (((right - strip_left) / px).floor() as usize).max(1).min(badges.len());
         let pad = (px * 0.1).round();
         for (i, b) in badges.iter().enumerate() {

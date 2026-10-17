@@ -138,6 +138,8 @@ fn class_word(base: Option<i64>) -> &'static str {
 const BACKPACK_COLUMNS: usize = 8;
 const BACKPACK_MIN_ROWS: usize = 7;
 const PACK_LETTERS: usize = 52;
+/// the character sheet's line height: the body's `normal` in DejaVu Sans Mono
+const LINE: f32 = 1.17;
 
 fn colour(col: i64) -> C {
     style::term(col)
@@ -776,7 +778,7 @@ impl Screen {
         let ctx = ui.ctx().clone();
         let p = data.player;
         let body = 15.0 * u;
-        let ink = |c: C| TextStyle::new(Face::Mono, body, c).line(1.4);
+        let ink = |c: C| TextStyle::new(Face::Mono, body, c).line(LINE);
         // the blocks' rows, laid out to measure
         let h3 = TextStyle::new(Face::Caps700, 14.0 * u, GOLD).spacing(0.14).upper().line(1.2);
         let mods = |n: i64| if n > 0 { format!(" +{n}") } else if n < 0 { format!(" {n}") } else { String::new() };
@@ -844,9 +846,9 @@ impl Screen {
         let line_h = |l: &Line, w: f32| -> f32 {
             match l {
                 Line::Head(_) => 14.0 * 1.2 * u,
-                Line::Stat(..) => 3.0 * u * 2.0 + body * 1.4 + 1.0,
+                Line::Stat(..) => 3.0 * u * 2.0 + body * LINE + 1.0,
                 Line::Text(t, _) => 2.0 * u * 2.0 + ink(INK).galley(&ctx, &formatted_string_to_text(t), Some(w)).size().y,
-                Line::Status(_, _, d) => 3.0 * u * 2.0 + ink(INK_DIM).galley(&ctx, d, Some(w * 0.6)).size().y.max(body * 1.4),
+                Line::Status(_, _, d) => 3.0 * u * 2.0 + ink(INK_DIM).galley(&ctx, d, Some(w * 0.6)).size().y.max(body * LINE),
             }
         };
         let block_h = |lines: &[Line], w: f32| -> f32 {
@@ -883,7 +885,7 @@ impl Screen {
         boxes.paint_box(&painter, "char-figure", fig, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.2)), s(rgba(0, 0, 0, 0.5), 0.7)])], border: Border::all(1.0, hex(0x4b3b1d)), insets: vec![inset(0.0, 0.0, 20.0, 0.0, hex(0x000000))], ..Default::default() }.round(90.0 * u));
         self.paint_figure(&painter, tiles, data.me, Rect::from_center_size(fig.center(), Vec2::splat(160.0 * u)), u, false);
         let nx = fig.right() + 22.0 * u;
-        let name_lines_h = name_g.size().y + 4.0 * u + title_g.size().y + species_g.size().y + body * 1.4 + 8.0 * u + body * 1.4;
+        let name_lines_h = name_g.size().y + 4.0 * u + title_g.size().y + species_g.size().y + body * LINE + 8.0 * u + body * LINE;
         let mut ny = fig.center().y - name_lines_h / 2.0;
         let nh = name_g.size().y;
         crate::paint::shadowed_galley(&painter, egui::pos2(nx, ny), name_g, GOLD_BRIGHT.to_color32(), &[(0.0, 2.0, 6.0, Color32::BLACK)]);
@@ -909,7 +911,7 @@ impl Screen {
         let gh = god_g.size().y;
         painter.galley(egui::pos2(nx, ny), god_g, Color32::WHITE);
         ny += gh + 8.0 * u;
-        let track = Rect::from_min_size(egui::pos2(nx, ny + (body * 1.4 * 0.9 - 9.0 * u) / 2.0), egui::vec2(240.0 * u, 9.0 * u));
+        let track = Rect::from_min_size(egui::pos2(nx, ny + (body * LINE * 0.9 - 9.0 * u) / 2.0), egui::vec2(240.0 * u, 9.0 * u));
         painter.rect_filled(track, 4.0 * u, hex(0x090705).to_color32());
         let fill = Rect::from_min_size(track.min + egui::vec2(1.0, 1.0), egui::vec2((track.width() - 2.0) * (p.progress.clamp(0, 100) as f32 / 100.0), track.height() - 2.0));
         if fill.width() > 0.0 {
@@ -939,7 +941,7 @@ impl Screen {
                         ly += hh + 8.0 * u;
                     }
                     Line::Stat(key, v, drained, gold) => {
-                        let rh = 3.0 * u * 2.0 + body * 1.4;
+                        let rh = 3.0 * u * 2.0 + body * LINE;
                         let kg = ink(INK_DIM).galley(&ctx, key, None);
                         let vc = if *drained {
                             DANGER
@@ -948,12 +950,12 @@ impl Screen {
                         } else {
                             INK
                         };
-                        let vg = TextStyle::new(Face::MonoBold, body, vc).line(1.4).galley(&ctx, v, None);
+                        let vg = TextStyle::new(Face::MonoBold, body, vc).line(LINE).galley(&ctx, v, None);
                         painter.galley(egui::pos2(il, ly + 3.0 * u), kg, Color32::WHITE);
                         let vx = il + iw - vg.size().x;
                         if *gold {
                             let coin = body * 0.8;
-                            paint_coin(&painter, boxes, egui::pos2(vx - coin - 0.35 * body, ly + 3.0 * u + (body * 1.4 - coin) / 2.0), coin);
+                            paint_coin(&painter, boxes, egui::pos2(vx - coin - 0.35 * body, ly + 3.0 * u + (body * LINE - coin) / 2.0), coin);
                         }
                         painter.galley(egui::pos2(vx, ly + 3.0 * u), vg, Color32::WHITE);
                         // the dotted rule under the row
@@ -977,9 +979,9 @@ impl Screen {
                         ly += gh + 4.0 * u;
                     }
                     Line::Status(light, c, desc) => {
-                        let lg = TextStyle::new(Face::MonoBold, body, *c).line(1.4).galley(&ctx, light, None);
+                        let lg = TextStyle::new(Face::MonoBold, body, *c).line(LINE).galley(&ctx, light, None);
                         let lw = lg.size().x;
-                        let dg = TextStyle::new(Face::Mono, body * 0.9, INK_DIM).line(1.4).galley(&ctx, desc, Some(iw - lw - 10.0 * u));
+                        let dg = TextStyle::new(Face::Mono, body * 0.9, INK_DIM).line(LINE).galley(&ctx, desc, Some(iw - lw - 10.0 * u));
                         let rh = lg.size().y.max(dg.size().y);
                         painter.galley(egui::pos2(il, ly + 3.0 * u), lg, Color32::WHITE);
                         painter.galley(egui::pos2(il + lw + 10.0 * u, ly + 3.0 * u), dg, Color32::WHITE);
