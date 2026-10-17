@@ -10,11 +10,12 @@ client's gamedata are assets under `engine/`, listed in `engine/files.txt`; the 
 into its files (`files/engine`) on the first start and whenever the APK carries another build,
 and `client::engine` runs crawl from there.
 
-It is `io.github.maciejrosiek.isorun`, the Capacitor app's id (`mobile/`), with the same version
-code (the game's version in `apps/isorun/package.json`) and the same release key, so it installs
-over the Capacitor app (whose saves it does not read: they are in the WebView's IndexedDB).
-Releases carry it as `Isorun-native.apk` beside the Capacitor app's `Isorun.apk` until it is
-complete.
+While it is a preview it is `io.github.maciejrosiek.isorun.native`, named "Isorun native": it
+installs beside the Capacitor app (`mobile/`), never over it, since it does not read that app's
+saves (they are in the WebView's IndexedDB). It has the same version code (the game's version in
+`apps/isorun/package.json`) and the same release key, so when it replaces the Capacitor app it
+takes that app's id, `io.github.maciejrosiek.isorun`, and installs over it. Releases carry it as
+`Isorun-native.apk` beside the Capacitor app's `Isorun.apk` until then.
 
 ## Build
 
