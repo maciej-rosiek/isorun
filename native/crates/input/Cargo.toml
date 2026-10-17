@@ -1,0 +1,37 @@
+[package]
+name = "isorun-input"
+description = "Isorun's input, the controller-first heart of the client: keys and pad buttons to crawl's messages, the binding tables, the runner that sends them, the pad's poller, touch gestures, the touch bar, the cell menu and the on-screen keyboard."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# Read real gamepads with gilrs on the desktop and Android. On Linux it links libudev, so the
+# build needs libudev's development files (`libudev-dev`, or a `libudev.pc` on PKG_CONFIG_PATH).
+gilrs = ["dep:gilrs"]
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-render = { path = "../render" }
+isorun-client = { path = "../client" }
+isorun-ui = { path = "../ui" }
+egui = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+fancy-regex = "0.14"
+log = "0.4"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gilrs = { version = "0.11", optional = true }
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+web-sys = { version = "0.3", features = ["Window", "Navigator", "Gamepad", "GamepadButton", "GamepadMappingType", "History", "MediaQueryList"] }
+js-sys = "0.3"
+
+[dev-dependencies]
+eframe = { workspace = true }
+env_logger = "0.11"
