@@ -84,3 +84,56 @@ impl Overlays {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use isorun_ui::tiles::TileIcons;
+    use isorun_webtiles::{GameState, MouseMode};
+
+    fn prompt(tag: &str) -> GameState {
+        let mut st = GameState::default();
+        st.input_mode = MouseMode::PROMPT;
+        st.text_input = Some(TextInputState { tag: Some(tag.into()), ..Default::default() });
+        st.rev.ui += 1;
+        st
+    }
+
+    #[test]
+    fn the_pad_types_into_a_text_prompt() {
+        let st = prompt("stash_search");
+        let mut tiles = TileIcons::default();
+        let mut out = Vec::new();
+        let mut o = Overlays::new();
+        {
+            let mut cx = OverlayCx::new(&st, &mut tiles, &mut out);
+            cx.device = Device::Pad;
+            // the prompt comes with the keyboard up when the pad spoke last
+            o.osk_op(OskOp::Type, None, &mut cx);
+            assert!(o.osk_visible());
+            assert_eq!(o.field.as_ref().unwrap().text, "1");
+            o.osk_op(OskOp::Move, Some(2), &mut cx);
+            o.osk_op(OskOp::Type, None, &mut cx);
+            o.osk_op(OskOp::Backspace, None, &mut cx);
+            assert_eq!(o.field.as_ref().unwrap().text, "1");
+            o.osk_op(OskOp::Submit, None, &mut cx);
+            assert!(!o.osk_visible());
+        }
+        assert_eq!(out.last(), Some(&isorun_webtiles::cm::text_input("1\r")));
+    }
+
+    #[test]
+    fn a_keyboard_prompt_waits_for_the_reveal() {
+        let st = prompt("travel_depth");
+        let mut tiles = TileIcons::default();
+        let mut out = Vec::new();
+        let mut o = Overlays::new();
+        let mut cx = OverlayCx::new(&st, &mut tiles, &mut out);
+        // after the keyboard the field stands alone; the first press brings the keys and types nothing
+        o.osk_op(OskOp::Type, None, &mut cx);
+        assert!(o.osk_visible());
+        assert_eq!(o.field.as_ref().unwrap().text, "");
+        // the travel prompt's own keys stand over the letters, and type as its hotkeys
+        assert_eq!(o.osk.focused(), Some('<'));
+    }
+}

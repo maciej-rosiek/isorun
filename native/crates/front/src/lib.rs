@@ -14,6 +14,7 @@ pub mod ping;
 pub mod overlay;
 pub mod regions;
 pub mod room;
+mod osk;
 mod screens;
 pub mod settings;
 pub mod splash;

@@ -44,7 +44,10 @@ offline player, Register, and the documents.
 
 Input: the keyboard (arrows and the vim keys, Enter / Space, Escape, Tab, Page Up / Down,
 Home / End, Y, Ctrl+S in the rc file, F11), the mouse and touch (rows, the setting arrows, a
-drag on the scenery turns the room), and the pad through `FrontEnd::pad`.
+drag on the scenery turns the room), and the pad through `FrontEnd::pad`. A or X on a field (log
+in, a new player, add a server, register) or in the rc file brings up the input crate's on-screen
+keyboard (`osk.rs`, menu.ts `openOsk` / `typeText`): Y or Start submits the form, B or Escape
+puts it away; in the rc file it types at the caret, with a New line key.
 
 Over the game, `GameMenus` (`overlay.rs`) is the settings groups and pages, the gamepad sheet
 and Tune the look (`LightsPanel`): `open_settings()`, `open_controls()` (the sheet on its own, as
@@ -68,8 +71,6 @@ F10 leaves. `tools/web-front.mjs` screenshots the web build's screens by address
 
 ## Not yet
 
-- The on-screen keyboard for a pad (X on a text field): the input crate's `Osk` is the one to
-  use; the fields here take the keyboard.
 - Needed from `isorun-client`: `Settings::resolution` and `torch_shadows` read only text, but
   the web build stores numbers (85, 4), which makes `servers::get_settings` fall back to every
   default; `settings::client_settings` converts. There is no public way to delete an offline

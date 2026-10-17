@@ -437,6 +437,8 @@ pub struct FrontEnd {
     pub(crate) deleting: Option<Account>,
     pub(crate) versions_of: Option<Account>,
     pub(crate) rc: Option<RcEdit>,
+    /// the pad's on-screen keyboard over a field or the rc file
+    pub(crate) osk: crate::osk::FrontOsk,
     pub(crate) servers_from: View,
     pub(crate) servers_mode_watch: bool,
     pub(crate) watch_on: Option<ServerInfo>,
@@ -507,6 +509,7 @@ impl FrontEnd {
             deleting: None,
             versions_of: None,
             rc: None,
+            osk: Default::default(),
             servers_from: View::Accounts,
             servers_mode_watch: false,
             watch_on: None,
@@ -1028,6 +1031,7 @@ impl FrontEnd {
         // chosen account's warm while one is up
         let screen = self.screen();
         self.draw(ui, &screen);
+        self.draw_osk(ui.ctx());
         if self.session.as_ref().is_some_and(|s| !s.closed) || self.retry_at.is_some() || !self.where_reads.is_empty() || self.doc_request.is_some() {
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
         }
@@ -1038,6 +1042,10 @@ impl FrontEnd {
     /// settings on the home screen, Y brings the roster's arrivals in, the shoulders walk the
     /// sections, and Start confirms like Enter.
     pub fn pad(&mut self, ev: PadEvent) {
+        // the on-screen keyboard takes the pad while it is up (menu.ts `pad`)
+        if self.osk_pad(ev) {
+            return;
+        }
         match ev {
             PadEvent::Look { dx, dy } => {
                 if matches!(self.view, View::Doc | View::News) {
@@ -1048,11 +1056,19 @@ impl FrontEnd {
             }
             PadEvent::Dir(d) => self.nav(d),
             PadEvent::Press(b) => match b {
-                PadButton::A => self.activate(),
+                // a field or the rc file is gone into with the on-screen keyboard from a pad
+                PadButton::A => {
+                    if !self.open_osk() {
+                        self.activate();
+                    }
+                }
                 PadButton::B => self.back(),
                 PadButton::X => {
+                    // nothing to type into on the front screen: X is the settings there, as it opens the keyboard everywhere else
                     if self.view == View::Home {
                         self.show_settings(Some(View::Home));
+                    } else {
+                        self.open_osk();
                     }
                 }
                 PadButton::Y => self.take_arrivals(),
@@ -1306,6 +1322,7 @@ impl FrontEnd {
     }
 
     pub(crate) fn back(&mut self) {
+        self.close_osk();
         match self.view {
             View::Home | View::Boot => {}
             View::Settings => {

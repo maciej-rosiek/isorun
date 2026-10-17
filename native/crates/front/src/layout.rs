@@ -201,6 +201,13 @@ impl FrontEnd {
         let events = ui.input(|i| i.events.clone());
         for e in events {
             let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
+            // the on-screen keyboard is up: Escape puts it away, the rest is the field's
+            if self.osk_visible() {
+                if key == egui::Key::Escape {
+                    self.close_osk();
+                }
+                continue;
+            }
             // in the rc box every key is the text's but the one out of it, and Ctrl+S
             if self.rc.as_ref().is_some_and(|r| r.editing) && self.view == View::Rc {
                 if key == egui::Key::Escape {
