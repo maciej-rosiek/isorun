@@ -413,13 +413,14 @@ pub struct Settings {
     pub minimap_cell: u32,
     pub hints: String,
     pub graphics: String,
+    #[serde(with = "text_or_number")]
     pub resolution: String,
     #[serde(rename = "ambientOcclusion")]
     pub ambient_occlusion: String,
     pub antialias: String,
     #[serde(rename = "surfaceDetail")]
     pub surface_detail: String,
-    #[serde(rename = "torchShadows")]
+    #[serde(rename = "torchShadows", with = "text_or_number")]
     pub torch_shadows: String,
     pub look: String,
     #[serde(rename = "animationSpeed")]
@@ -482,6 +483,28 @@ pub fn default_surface_detail() -> &'static str {
         "off"
     } else {
         "medium"
+    }
+}
+
+/// A setting the web build keeps as a word (`"auto"`) or a number (`0.75`, `2`): one string here,
+/// written back as the number it holds, so the two builds read each other's settings.
+mod text_or_number {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(v: &str, s: S) -> Result<S::Ok, S::Error> {
+        match v.parse::<f64>() {
+            Ok(n) if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e15 => s.serialize_i64(n as i64),
+            Ok(n) if n.is_finite() => s.serialize_f64(n),
+            _ => s.serialize_str(v),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(d: D) -> Result<String, D::Error> {
+        Ok(match serde_json::Value::deserialize(d)? {
+            serde_json::Value::String(s) => s,
+            serde_json::Value::Number(n) => n.to_string(),
+            other => other.to_string(),
+        })
     }
 }
 
@@ -548,4 +571,20 @@ pub fn save_view(view: &SavedView) {
         v["zoom"] = z.into();
     }
     save(CAMERA_KEY, &v);
+}
+
+#[cfg(test)]
+mod settings_tests {
+    use super::*;
+
+    #[test]
+    fn numbers_and_words_both_read() {
+        let s: Settings = serde_json::from_value(serde_json::json!({ "resolution": 0.75, "torchShadows": 2, "look": "dusk" })).unwrap();
+        assert_eq!((s.resolution.as_str(), s.torch_shadows.as_str(), s.look.as_str()), ("0.75", "2", "dusk"));
+        let back = serde_json::to_value(&s).unwrap();
+        assert_eq!(back["resolution"], serde_json::json!(0.75));
+        assert_eq!(back["torchShadows"], serde_json::json!(2));
+        let auto: Settings = serde_json::from_value(serde_json::json!({ "resolution": "auto" })).unwrap();
+        assert_eq!(serde_json::to_value(&auto).unwrap()["resolution"], "auto");
+    }
 }

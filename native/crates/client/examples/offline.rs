@@ -1,8 +1,8 @@
 //! Plays an offline game with no window: logs in, starts the game, sends keys and renders the
 //! scene into a PNG. `cargo run -p isorun-app --example offline -- out.png [keys]`.
 
-use isorun_app::session::{Session, SessionEvent};
-use isorun_app::servers;
+use isorun_client::session::{Session, SessionEvent};
+use isorun_client::servers;
 use isorun_webtiles::{cm, key_message, Phase};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -57,7 +57,7 @@ fn main() {
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).expect("adapter");
     let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
     let mut r = isorun_render::IsoRenderer::new(device.clone(), queue.clone());
-    r.set_torch_model(isorun_app::testbed::TORCH_GLB).unwrap();
+    r.set_torch_model(isorun_client::testbed::TORCH_GLB).unwrap();
     r.set_tiles(gd);
     r.set_scene(s.scene.clone());
     let mut camera = isorun_render::IsoCamera::default();
