@@ -507,16 +507,21 @@ impl Classic {
             let ellipsis = i == rows - 1 && rows < groups.len() + if invis.is_empty() { 0 } else { 1 };
             draws.push(RowDraw { arrow, group: group.iter().take(MONSTER_LIST_MAX_SPRITES).copied().collect(), name: job, invis: false, ellipsis });
         }
+        // the dock's list may reach left of its narrow column (a phone's), to six tenths of the
+        // screen; a name longer than that is cut short rather than run off the edge
+        let max_w = if inp.dock { side.width().max(0.6 * (side.right() - grid.ox)) } else { side.width() };
         let laid: Vec<(f32, std::sync::Arc<egui::Galley>)> = draws
             .iter()
             .map(|d| {
-                let g = ui.ctx().fonts_mut(|f| f.layout_job(d.name.clone()));
                 let sprites = if d.invis { 1 } else { d.group.len().max(1) };
-                let mut wdt = 1.2 * em + 0.4 * em + sprites as f32 * w + 0.4 * em + g.size().x + 0.4 * em;
+                let mut fixed = 1.2 * em + 0.4 * em + sprites as f32 * w + 0.4 * em + 0.4 * em;
                 if d.ellipsis {
-                    wdt += 0.4 * em + 3.0 * grid.cw;
+                    fixed += 0.4 * em + 3.0 * grid.cw;
                 }
-                (wdt.min(side.width()), g)
+                let mut job = d.name.clone();
+                job.wrap = egui::text::TextWrapping::truncate_at_width((max_w - fixed).max(3.0 * grid.cw));
+                let g = ui.ctx().fonts_mut(|f| f.layout_job(job));
+                ((fixed + g.size().x).min(max_w), g)
             })
             .collect();
         // with the dock the list is as wide as its widest row, at the column's right edge
