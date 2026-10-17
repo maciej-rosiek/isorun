@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-feature android:name="android.hardware.vulkan.level" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+    <uses-feature android:name="android.hardware.gamepad" android:required="false" />
+
+    <!-- hasCode=false: no Java at all; extractNativeLibs: crawl (libcrawl.so) is run from the
+         native library folder, which needs it unpacked -->
+    <application
+        android:label="Isorun"
+        android:icon="@mipmap/ic_launcher"
+        android:hasCode="false"
+        android:extractNativeLibs="true"
+        android:appCategory="game"
+        android:isGame="true">
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="unspecified"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:configChanges="orientation|screenSize|screenLayout|keyboard|keyboardHidden|navigation|uiMode|density|smallestScreenSize">
+            <meta-data android:name="android.app.lib_name" android:value="isorun_app" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

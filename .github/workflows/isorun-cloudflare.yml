@@ -1,7 +1,7 @@
 name: Deploy Isorun to Cloudflare
 
 # The hosted game (https://isorun.maciej-rosiek.workers.dev): the static build, the gamedata proxy
-# and the visit counts in one Worker. The offline engine is not hosted, so the build offers no offline play. Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and
+# and the visit counts in one Worker, and the native app's web build at /native/ (native/web). The offline engine is not hosted, so the build offers no offline play. Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and
 # CLOUDFLARE_ACCOUNT_ID repository secrets, and ISORUN_STATS_KEY for the /stats page.
 
 on:
@@ -30,6 +30,24 @@ jobs:
       - run: npm run build
         env:
           VITE_OFFLINE: 'off'
+      # the native app's web build (native/web), served beside the TypeScript build at /native/;
+      # a failure there leaves the page deployed without it
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: web
+      - name: wasm-bindgen
+        id: bindgen
+        run: echo "version=$(grep -A1 '^name = "wasm-bindgen"$' native/Cargo.lock | sed -n 's/version = "\(.*\)"/\1/p')" >> "$GITHUB_OUTPUT"
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
+      - name: Native web build
+        continue-on-error: true
+        run: native/web/build.sh apps/isorun/dist/native
       - name: Deploy
         run: |
           printf 'STATS_KEY=%s\n' "$STATS_KEY" > .stats-secrets.env

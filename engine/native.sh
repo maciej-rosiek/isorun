@@ -53,6 +53,7 @@ python3 -c 'import yaml' 2>/dev/null || { echo "python3 needs PyYAML (pip instal
 # and builds its host tools (tilegen) with the host's compiler.
 exe=crawl
 strip=strip
+fake_curses=
 set --
 case $target in
     host) ;;
@@ -73,12 +74,17 @@ case $target in
         bin=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
         cross=$arch-linux-android
         # crawl's own Android port (ANDROID=) is the SDL app; this is the
-        # plain Unix build with the NDK's clang, a console program run by the
-        # app. bionic has no nl_langinfo before API 26 and no
-        # pthread_cancel; crawl uses neither in a webtiles build.
+        # plain Unix build with the NDK's clang, a console program the app
+        # runs (14-android-webtiles.patch). It only ever runs headless, and
+        # the NDK has no ncurses: curses is the WebAssembly build's no-op
+        # stand-in (wasm/fake-curses.h), as there. API 26 has nl_langinfo.
         set -- CROSSHOST=$cross "GXX=$bin/$cross$api-clang++" "GCC=$bin/$cross$api-clang" \
             "AR=$bin/llvm-ar" "RANLIB=$bin/llvm-ranlib" "STRIP=$bin/llvm-strip" \
-            "EXTERNAL_LDFLAGS=-static-libstdc++"
+            NO_NCURSES=YesPlease \
+            "EXTERNAL_DEFINES=-DCURSES_INCLUDE_FILE='\"wasm/fake-curses.h\"'" \
+            "EXTERNAL_FLAGS=-isystem wasm/include" \
+            "EXTERNAL_LDFLAGS=-static-libstdc++ -llog"
+        fake_curses=1
         strip=$bin/llvm-strip
         ;;
     *) echo "unknown target $target" >&2; exit 1 ;;
@@ -142,6 +148,10 @@ done
 [ -z "${keep:-}" ] || rm -rf "$keep"
 
 cd "$src/crawl-ref/source"
+if [ -n "$fake_curses" ]; then
+    rm -rf wasm
+    cp -R "$ENGINE/wasm" wasm
+fi
 # status-icon-sizes first, by hand, as build.sh does: upstream's rule names
 # `$(RLTILES)status-icon-sizes.h` (no slash), so under -j a copy can look for
 # it before anything wrote it

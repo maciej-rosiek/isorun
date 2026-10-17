@@ -1,0 +1,189 @@
+name: Build the Isorun native app
+
+# The native app (native/: Rust, egui and wgpu) beside the TypeScript one: the workspace's tests,
+# and its packages with the offline engine built natively (engine/native.sh):
+#   Isorun-native-linux-x86_64.tar.gz, Isorun-native-x86_64.AppImage (+ .zsync)   native/desktop
+#   Isorun-native-win-x64.zip                                                      native/desktop
+#   Isorun-native.apk                                                              native/android
+# kept as the run's artifacts. A published release, or a manual run with "upload", adds them to
+# the release (its tag; v<version of apps/isorun/package.json> for a manual run). The APK is
+# signed with the release key from the ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD
+# secrets (mobile/README.md), or the debug key without them. The web build is deployed with the
+# hosted page, at /native/ (isorun-cloudflare.yml).
+
+on:
+  push:
+    branches: [main]
+    paths: ['native/**', 'engine/native.sh', 'engine/patches/**', '.github/workflows/isorun-native.yml']
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Add the packages to the release v<version>
+        type: boolean
+        default: false
+
+concurrency:
+  group: isorun-native-${{ github.event_name }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+  # crawl's make; the runners have 4 cores
+  JOBS: 4
+
+jobs:
+  test:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: test
+      - run: cargo test --workspace --no-fail-fast
+        working-directory: native
+      # the web build compiles (crates that only build natively would break it)
+      - run: cargo check -p isorun-app --lib --target wasm32-unknown-unknown
+        working-directory: native
+        env:
+          RUSTFLAGS: --cfg getrandom_backend="wasm_js"
+
+  linux:
+    # the oldest glibc a runner has, so the binaries run on more systems (SteamOS among them)
+    runs-on: ubuntu-22.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq libpng-dev zlib1g-dev libsqlite3-dev libncursesw5-dev pkg-config python3-yaml zsync
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: linux
+      - name: Engine
+        run: engine/native.sh stable
+      - name: Smoke test of the engine
+        run: |
+          cd native
+          ISORUN_DATA_DIR=$RUNNER_TEMP/smoke ISORUN_ENGINE_DIR=$GITHUB_WORKSPACE/engine/dist/native/host/engine \
+            cargo run -q -p isorun-client --example offline_smoke
+      - name: Packages
+        run: native/desktop/package.sh linux
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isorun-native-linux
+          path: |
+            native/target/release-packages/Isorun-native-linux-x86_64.tar.gz
+            native/target/release-packages/Isorun-native-x86_64.AppImage
+            native/target/release-packages/Isorun-native-x86_64.AppImage.zsync
+
+  windows:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq g++-mingw-w64-x86-64-posix gcc-mingw-w64-x86-64-posix libpng-dev zlib1g-dev pkg-config python3-yaml zip
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-gnu
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: windows
+      - name: Engine
+        run: engine/native.sh stable --target windows
+      - name: Package
+        run: native/desktop/package.sh windows
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isorun-native-windows
+          path: native/target/release-packages/Isorun-native-win-x64.zip
+
+  android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-35 build-tools;35.0.0 ndk;27.2.12479018
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Tools
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq libpng-dev zlib1g-dev pkg-config python3-yaml
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android,x86_64-linux-android
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          key: android
+      - name: Release key
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the APK is signed with the debug key."
+            exit 0
+          fi
+          # a secret pasted on a phone often carries a line break, or spaces in the base64
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/isorun.keystore"
+          password=$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '\r\n')
+          if ! keytool -list -keystore "$RUNNER_TEMP/isorun.keystore" -storepass "$password" > /dev/null; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD does not open the keystore in ANDROID_KEYSTORE_BASE64."
+            exit 1
+          fi
+          echo "ISORUN_KEYSTORE=$RUNNER_TEMP/isorun.keystore" >> "$GITHUB_ENV"
+          echo "::add-mask::$password"
+          echo "ISORUN_KEYSTORE_PASSWORD=$password" >> "$GITHUB_ENV"
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      - name: APK
+        run: |
+          export ANDROID_NDK_HOME=$ANDROID_SDK_ROOT/ndk/27.2.12479018
+          native/android/build.sh aarch64 x86_64
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isorun-native-android
+          path: native/target/release-packages/Isorun-native.apk
+
+  release:
+    if: github.event_name == 'release' || inputs.upload
+    needs: [test, linux, windows, android]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: packages
+          merge-multiple: true
+      - name: Add to the release
+        run: |
+          tag=${{ github.event.release.tag_name }}
+          if [ -z "$tag" ]; then
+            tag=v$(node -p "require('./apps/isorun/package.json').version")
+          fi
+          gh release upload "$tag" packages/* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}

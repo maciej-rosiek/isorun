@@ -1,0 +1,50 @@
+Builds the webtiles binary for Android as a console program, for the native
+app (native/android): crawl's own Android port is its SDL app, whose code
+sits under __ANDROID__; a webtiles build there (USE_TILE_WEB) leaves out the
+parts that need SDL or its Java side (the external storage path, the on-screen
+keyboard and tab icon commands). The app runs it from its native library
+folder and gives it its data folder (CRAWL_DIR).
+
+Everything is under __ANDROID__: the Linux, Windows and WebAssembly builds are
+unchanged. Applies after 01-13. GPLv2+, as the files it patches.
+
+--- a/crawl-ref/source/initfile.cc
++++ b/crawl-ref/source/initfile.cc
+@@ -96,7 +96,7 @@
+ #include <unistd.h>
+ #endif
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ #include "SDL_system.h"
+ #endif
+ 
+@@ -4715,7 +4715,7 @@
+         SysEnv.crawl_dir = SAVE_DIR_PATH;
+ #endif
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     if (SysEnv.crawl_dir.empty())
+     {
+         SysEnv.crawl_dir = SDL_AndroidGetExternalStoragePath();
+--- a/crawl-ref/source/main.cc
++++ b/crawl-ref/source/main.cc
+@@ -2071,7 +2071,7 @@
+         add_entry(new CmdMenuEntry("Show options file in finder",
+             MEL_ITEM, 'O', CMD_REVEAL_OPTIONS));
+ #endif
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+         add_entry(new CmdMenuEntry("Toggle on-screen keyboard",
+             MEL_ITEM, CK_F12, CMD_TOGGLE_KEYBOARD));
+ #endif
+@@ -2478,7 +2478,7 @@
+         debug_terp_dlua(clua);
+         break;
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     case CMD_TOGGLE_TAB_ICONS:
+         tiles.toggle_tab_icons();
+         break;
