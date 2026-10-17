@@ -61,7 +61,8 @@ impl IsorunApp {
         });
         let args = crate::launch_args();
         let has = |a: &str| args.iter().any(|x| x == a || x.starts_with(&format!("{a}=")) && !x.ends_with("=0"));
-        let touch = isorun_input::touch::touch_screen();
+        // `--touch` lays the game out for a touch screen (the touch bar, the corner buttons), as a phone's
+        let touch = isorun_input::touch::touch_screen() || args.iter().any(|a| a == "--touch");
         let size = cc.egui_ctx.content_rect().size();
         isorun_front::settings::set_phone(touch && size.x.min(size.y) < 560.0);
         let front_opts = FrontOptions { mouse: !touch, testbed: has("--testbed-link"), ..Default::default() };
@@ -70,7 +71,7 @@ impl IsorunApp {
         // natively the sound may start at once; the web waits for the first key or click
         #[cfg(not(target_arch = "wasm32"))]
         engine.unlock();
-        let opts = GameOptions { perf: has("--perf"), audio_trace: has("--audio-trace"), can_fullscreen: !cfg!(target_arch = "wasm32") || true };
+        let opts = GameOptions { perf: has("--perf"), audio_trace: has("--audio-trace"), can_fullscreen: true, touch: touch || has("--touch") };
         #[cfg(all(not(target_arch = "wasm32"), feature = "gilrs"))]
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]

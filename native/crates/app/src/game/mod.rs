@@ -39,7 +39,7 @@ use isorun_input::gamepad_hints::{GamepadHints, HintMode};
 use isorun_input::keys::{key_inputs, KeyInput};
 use isorun_input::map_hold::MapHold;
 use isorun_input::router::{InputDevice, InputRouter, Io, RouterSettings};
-use isorun_input::runner::{Env, LastStep, Runner, RunnerHooks};
+use isorun_input::runner::{Env, Runner, RunnerHooks};
 use isorun_input::touch::{touch_screen, Gestures, TOUCH_CUT_AWAY_CELLS};
 use isorun_input::Action;
 use isorun_overlays::{OverlayCx, Overlays};
@@ -81,6 +81,8 @@ pub struct GameOptions {
     /// the sounds played go to the log (`--audio-trace`, the web's `?audio-trace`)
     pub audio_trace: bool,
     pub can_fullscreen: bool,
+    /// a touch screen: the touch bar, the corner buttons, the walls cut away round the player
+    pub touch: bool,
 }
 
 /// A turn to one of X's tabs under way (game.ts `actionTurn`).
@@ -166,7 +168,8 @@ pub struct GameScreen {
     travel_delay_sent: Option<i64>,
     exploring_at_once: bool,
     swung: Option<(i32, i32, f64)>,
-    last_combat_line: Option<GameMessage>,
+    /// the newest message line the fight was read up to, and where it stood in the log
+    last_combat_line: Option<(GameMessage, usize)>,
     /// the blows given to the renderer, by token: what lands when each shows
     landings: HashMap<u64, Landing>,
     next_token: u64,
@@ -197,7 +200,7 @@ impl GameScreen {
         let client_settings = isorun_front::settings::client_settings(&settings);
         let mut view = View3d::new(&rs);
         isorun_front::settings::apply_graphics(&mut view.renderer, &settings, ctx.pixels_per_point());
-        let touch = touch_screen();
+        let touch = touch_screen() || opts.touch;
         view.renderer.set_cut_away_reach(if touch { TOUCH_CUT_AWAY_CELLS } else { 0 });
         let mut camera = IsoCamera::default();
         if let Some(v) = isorun_client::servers::get_saved_view() {
@@ -289,7 +292,7 @@ impl GameScreen {
             touch,
         };
         // the game's messages so far (the front end's connection carried the lobby): the fight starts from here
-        s.last_combat_line = s.session.state.messages.lines.last().cloned();
+        s.last_combat_line = s.session.state.messages.lines.last().cloned().map(|l| (l, s.session.state.messages.lines.len() - 1));
         if s.session.gamedata.is_some() && !s.session.loading() {
             s.loading = None;
         }
@@ -727,8 +730,24 @@ impl GameScreen {
             }
             self.route(now, |r, io| r.pad(&ev, io));
         }
+        // a press outside a popup of crawl's closes it (ui.js popup_clickoutside_handler: "for crawl we
+        // really need to send a 'close popup' message to the server"), and a right click closes it
+        // wherever it lands, the mirror of the right click that opened a describe; a tap outside a
+        // menu or one of our windows on a touch screen is Back (game.ts `tapAway`)
+        let mut swallowed = false;
+        if let Some((pos, button)) = ctx.input(|i| i.pointer.press_origin().filter(|_| i.pointer.any_pressed()).map(|p| (p, if i.pointer.secondary_pressed() { 2 } else { 0 }))) {
+            let outside = !pointer_over_panel_at(&ctx, pos);
+            let touch = events.iter().any(|e| matches!(e, egui::Event::Touch { .. }));
+            if touch && !watching && (self.parts.client.is_some() || self.ctx.mode == Mode::Menu) && outside {
+                swallowed = true;
+                self.route(now, |r, io| r.back(io));
+            } else if !watching && self.parts.client.is_none() && !menus_keys && matches!(self.ctx.mode, Mode::Popup | Mode::Dialog) && mouse_control(&self.session.state) && (outside || button == 2) {
+                swallowed = true;
+                self.send(cm::key(27), now);
+            }
+        }
         // the pointer and the fingers over the view; none while a screen of ours or a panel covers it
-        let covered = self.parts.client.is_some() || self.parts.hud.screen_open().is_some() || menus_keys || pointer_over_panel(&ctx);
+        let covered = swallowed || self.parts.client.is_some() || self.parts.hud.screen_open().is_some() || menus_keys || pointer_over_panel(&ctx);
         self.gestures.view = view_rect;
         self.gestures.level_map = self.parts.map_shown;
         self.gestures.cell_menu_open = self.parts.cell_menu.is_some();
@@ -872,8 +891,8 @@ impl GameScreen {
     fn track_combat(&mut self, now: f64) {
         let st = &self.session.state;
         let lines = &st.messages.lines;
-        let fresh: Vec<GameMessage> = lines_since(lines, self.last_combat_line.as_ref(), st.player.turn).into_iter().cloned().collect();
-        self.last_combat_line = lines.last().cloned();
+        let fresh: Vec<GameMessage> = fresh_lines(lines, self.last_combat_line.as_ref(), st.player.turn).into_iter().cloned().collect();
+        self.last_combat_line = lines.last().cloned().map(|l| (l, lines.len() - 1));
         let scene = self.session.scene.clone();
         self.audio.on_state(st, &scene, &fresh);
         if fresh.is_empty() {
@@ -881,6 +900,7 @@ impl GameScreen {
         }
         self.parts.overlays.messages(&fresh);
         let events = combat_events(&fresh, &scene, &st.map.monsters);
+        log::debug!("{} fresh lines, {} fight events", fresh.len(), events.len());
         let width = self.parts.view.rect.width().max(1.0);
         for e in events {
             let audio_event = match e {
@@ -1551,25 +1571,56 @@ impl GameScreen {
             self.parts.pointer_live = false;
             self.execute(&a, now);
         }
-        // the full screen and menu buttons in the top-left corner
-        let corner = egui::Rect::from_min_size(screen.min + egui::vec2(8.0, 8.0), egui::vec2(40.0, 40.0));
-        let resp = egui::Area::new(egui::Id::unique("isorun-touch-corner")).order(egui::Order::Middle).fixed_pos(corner.min).show(ui.ctx(), |ui| {
-            let (r, resp) = ui.allocate_exact_size(corner.size(), egui::Sense::click());
-            let p = ui.painter();
-            p.circle_filled(r.center(), 20.0, egui::Color32::from_rgba_unmultiplied(25, 22, 19, 235));
-            p.circle_stroke(r.center(), 20.0, egui::Stroke::new(1.0, egui::Color32::from_rgb(0x8a, 0x6a, 0x3a)));
-            let c = r.center();
-            let gold = egui::Color32::from_rgb(0xd8, 0xa8, 0x5a);
-            p.circle_stroke(c, 4.5, egui::Stroke::new(1.6, gold));
-            for i in 0..8 {
-                let a = i as f32 * std::f32::consts::FRAC_PI_4;
-                let d = egui::vec2(a.cos(), a.sin());
-                p.line_segment([c + d * 8.0, c + d * 11.0], egui::Stroke::new(1.6, gold));
+        // the full screen and menu (the system menu) buttons in the top-left corner (touch.css `.touch-corner`)
+        let ctx = ui.ctx().clone();
+        let mut x = screen.left() + 8.0;
+        let full = self.opts.can_fullscreen;
+        let mut pressed = None;
+        for (i, kind) in [(0, "full"), (1, "menu")] {
+            if kind == "full" && !full {
+                continue;
             }
-            resp
-        });
-        if resp.inner.clicked() {
-            self.open_system();
+            let r = egui::Rect::from_min_size(egui::pos2(x, screen.top() + 8.0), egui::vec2(40.0, 40.0));
+            x += 48.0;
+            let resp = egui::Area::new(egui::Id::unique(("isorun-touch-corner", i))).order(egui::Order::Middle).fixed_pos(r.min).show(&ctx, |ui| {
+                let (r, resp) = ui.allocate_exact_size(r.size(), egui::Sense::click());
+                let p = ui.painter();
+                // radial-gradient(circle at 50% 30%, rgba(40, 36, 31, 0.92), rgba(10, 9, 8, 0.92) 80%), a bronze rim, a soft drop shadow
+                p.circle_filled(r.center() + egui::vec2(0.0, 2.0), 22.0, egui::Color32::from_black_alpha(90));
+                p.circle_filled(r.center(), 20.0, egui::Color32::from_rgba_unmultiplied(10, 9, 8, 235));
+                p.circle_filled(r.center() - egui::vec2(0.0, 4.0), 13.0, egui::Color32::from_rgba_unmultiplied(40, 36, 31, 120));
+                p.circle_stroke(r.center(), 20.0, egui::Stroke::new(1.0, egui::Color32::from_rgb(0x6b, 0x55, 0x38)));
+                let c = r.center();
+                let bronze = egui::Stroke::new(1.8, egui::Color32::from_rgb(0xd8, 0xa8, 0x5a));
+                if kind == "full" {
+                    // FULLSCREEN_ICON: the four corners
+                    for (sx, sy) in [(-1.0, -1.0), (1.0, -1.0), (-1.0, 1.0), (1.0, 1.0)] {
+                        let k = c + egui::vec2(8.0 * sx, 8.0 * sy);
+                        p.line_segment([k, k - egui::vec2(5.0 * sx, 0.0)], bronze);
+                        p.line_segment([k, k - egui::vec2(0.0, 5.0 * sy)], bronze);
+                    }
+                } else {
+                    // SETTINGS_ICON: a ring and eight spokes
+                    p.circle_stroke(c, 3.0, bronze);
+                    for i in 0..8 {
+                        let a = i as f32 * std::f32::consts::FRAC_PI_4;
+                        let d = egui::vec2(a.cos(), a.sin());
+                        p.line_segment([c + d * 7.0, c + d * 10.0], bronze);
+                    }
+                }
+                resp
+            });
+            if resp.inner.clicked() {
+                pressed = Some(kind);
+            }
+        }
+        match pressed {
+            Some("full") => {
+                let on = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!on));
+            }
+            Some(_) => self.open_system(),
+            None => {}
         }
     }
 
@@ -1638,8 +1689,31 @@ impl GameScreen {
 
 /// The pointer is over a panel of the screen's (a menu, the dock, a popup): not over the view.
 fn pointer_over_panel(ctx: &egui::Context) -> bool {
-    let Some(p) = ctx.pointer_latest_pos() else { return false };
+    ctx.pointer_latest_pos().is_some_and(|p| pointer_over_panel_at(ctx, p))
+}
+
+fn pointer_over_panel_at(ctx: &egui::Context, p: egui::Pos2) -> bool {
     ctx.layer_id_at(p).is_some_and(|l| l.order != egui::Order::Background)
+}
+
+/// The lines since the one read last (combat.rs `lines_since`, game.ts `linesSince`). The web
+/// build finds the line by identity; here it is found where it stood, and by its text, turn and
+/// channel, not its `marker`, which the reducer sets on a line after it arrives (a new command
+/// or turn starting after it). Repeated lines ("There are monsters nearby!") are the same by
+/// value, so the place it stood is tried first; after a rollback or the log's cap moved the
+/// lines, the newest equal line is.
+fn fresh_lines<'a>(lines: &'a [GameMessage], last: Option<&(GameMessage, usize)>, turn: i64) -> Vec<&'a GameMessage> {
+    let same = |a: &GameMessage, b: &GameMessage| a.text == b.text && a.turn == b.turn && a.channel == b.channel;
+    if let Some((l, at)) = last {
+        if lines.get(*at).is_some_and(|x| same(x, l)) {
+            return lines[at + 1..].iter().collect();
+        }
+        if let Some(i) = lines.iter().rposition(|x| same(x, l)) {
+            return lines[i + 1..].iter().collect();
+        }
+    }
+    let _ = lines_since;
+    lines.iter().filter(|l| l.turn == Some(turn)).collect()
 }
 
 fn fighter(f: Fighter) -> isorun_audio::Fighter {
@@ -1703,5 +1777,38 @@ fn front_pad(ev: &isorun_input::PadEvent) -> Option<isorun_front::PadEvent> {
             _ => return None,
         })),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line(text: &str, turn: i64) -> GameMessage {
+        GameMessage { text: text.into(), turn: Some(turn), channel: Some(0), marker: None }
+    }
+
+    #[test]
+    fn fresh_lines_after_a_repeated_line_and_a_marker() {
+        let mut lines = vec![line("There are monsters nearby!", 5), line("There are monsters nearby!", 5)];
+        let last = (lines[1].clone(), 1);
+        // the reducer marks the line read last, and the same line comes again, then the fight
+        lines[1].marker = Some(isorun_webtiles::Marker::Command);
+        lines.push(line("There are monsters nearby!", 5));
+        lines.push(line("You hit the bat for 3.", 5));
+        let fresh: Vec<&str> = fresh_lines(&lines, Some(&last), 6).iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(fresh, ["There are monsters nearby!", "You hit the bat for 3."]);
+    }
+
+    #[test]
+    fn fresh_lines_after_the_log_moved() {
+        let lines = vec![line("a", 1), line("b", 2), line("c", 3)];
+        // the line read last now stands one place earlier (the cap dropped the oldest)
+        let last = (line("b", 2), 2);
+        let fresh: Vec<&str> = fresh_lines(&lines, Some(&last), 3).iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(fresh, ["c"]);
+        // nothing read yet: the lines of this turn
+        let fresh: Vec<&str> = fresh_lines(&lines, None, 3).iter().map(|l| l.text.as_str()).collect();
+        assert_eq!(fresh, ["c"]);
     }
 }

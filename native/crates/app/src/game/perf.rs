@@ -454,6 +454,7 @@ impl PerfOverlay {
         let parts: Vec<String> = r.sections.iter().map(|s| format!("{} {:.1}/{:.1}", s.name, s.p50, s.p95)).collect();
         let mut line = format!("{:>8.1}s {} f{} drop{} body {:.1}/{:.1}{worst} | {} | rtt {:.0}", now / 1000.0, format_verdict(&v), r.frames, r.dropped, r.body.p50, r.body.p95, parts.join(" "), n.rtt.p50);
         line.truncate(260);
+        log::debug!("perf {line}");
         self.log.push(line);
         while self.log.iter().map(|l| l.len() + 1).sum::<usize>() > LOG_BYTES {
             self.log.remove(0);
