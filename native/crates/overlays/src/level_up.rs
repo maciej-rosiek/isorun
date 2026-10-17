@@ -275,7 +275,7 @@ impl LevelUp {
         let height_at = |rem: f32| {
             let narrow = screen.w() <= 760.0;
             let pad = if narrow { (rem, rem, rem) } else { (1.5 * rem, 3.0 * rem, 1.8 * rem) };
-            let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + 2.6 * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
+            let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + if screen.w() <= 760.0 { 4.0 * 1.3 } else { 2.6 } * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
             let mut h = pad.0 + 0.95 * rem * 1.3 + level_size_at(rem) * 1.1 * 0.82 + 0.5 * rem + 2.0 + 0.9 * rem + 1.9 * rem + pad.2;
             if choosing_now {
                 h += 0.4 * rem + 1.6 * rem * 1.3 + rem + card_h + 1.2 * rem + 1.7 * 0.9 * rem;
@@ -318,9 +318,23 @@ impl LevelUp {
         let card_w = if screen.w() <= 760.0 { ((screen.w() - 2.0 * rem - 1.2 * rem) / 3.0).max(60.0) } else { 14.5 * rem };
         let card_gap = if screen.w() <= 760.0 { 0.6 * rem } else { 1.1 * rem };
         let ask_g = choosing.as_ref().map(|_| ctx.fonts_mut(|f| f.layout_no_wrap(format!("Raise an attribute by {}", self.gain()), FontId::new(1.6 * rem, display.clone()), widgets::hex(0xefe4cc))));
-        let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + 2.6 * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
-        let gains_h = 1.9 * rem;
+        let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + if screen.w() <= 760.0 { 4.0 * 1.3 } else { 2.6 } * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
         let pad = if screen.w() <= 760.0 { (rem, rem, rem) } else { (1.5 * rem, 3.0 * rem, 1.8 * rem) };
+        // the gains' chips in rows that fit the panel (a phone's is narrow)
+        let chips_w = (22.0 * rem).max(if choosing.is_some() { 3.0 * card_w + 2.0 * card_gap } else { 0.0 });
+        let mut chip_rows: Vec<Vec<usize>> = vec![vec![]];
+        let mut row_w = 0.0;
+        for (i, (g, _)) in gain_gs.iter().enumerate() {
+            let cw = g.size().x + 1.5 * rem + 2.0;
+            if !chip_rows.last().unwrap().is_empty() && row_w + 0.6 * rem + cw > chips_w {
+                chip_rows.push(vec![]);
+                row_w = 0.0;
+            }
+            row_w += if chip_rows.last().unwrap().is_empty() { cw } else { 0.6 * rem + cw };
+            chip_rows.last_mut().unwrap().push(i);
+        }
+        let chip_h = rem * 1.3 + 0.5 * rem + 2.0;
+        let gains_h = 1.9 * rem + (chip_rows.len() as f32 - 1.0) * (chip_h + 0.4 * rem);
         let mut h = pad.0 + kicker.size().y + level_g.size().y * 0.82 + 0.5 * rem + 2.0 + 0.9 * rem + gains_h + pad.2;
         if choosing.is_some() {
             h += 0.4 * rem + ask_g.as_ref().map_or(0.0, |g| g.size().y) + rem + card_h + 1.2 * rem + 1.7 * 0.9 * rem;
@@ -367,10 +381,12 @@ impl LevelUp {
             widgets::hgradient(&p, rule_r, &[(0.0, Color32::TRANSPARENT), (0.3, alpha(rgba(243, 214, 140, 1.0))), (0.5, alpha(widgets::hex(0xfff3cf))), (0.7, alpha(rgba(243, 214, 140, 1.0))), (1.0, Color32::TRANSPARENT)]);
             y += 2.0 + 0.9 * rem;
             // the gains, chips side by side
-            let gw: f32 = gain_gs.iter().map(|(g, _)| g.size().x + 1.5 * rem + 2.0).sum::<f32>() + gain_gs.len().saturating_sub(1) as f32 * 0.6 * rem;
+            for (row_i, row) in chip_rows.iter().enumerate() {
+            let gw: f32 = row.iter().map(|&i| gain_gs[i].0.size().x + 1.5 * rem + 2.0).sum::<f32>() + row.len().saturating_sub(1) as f32 * 0.6 * rem;
             let mut x = cx - gw / 2.0;
-            for (g, tone) in &gain_gs {
-                let r = Rect::from_min_size(Pos2::new(x, y), Vec2::new(g.size().x + 1.5 * rem + 2.0, g.size().y + 0.5 * rem + 2.0));
+            let ry = y + row_i as f32 * (chip_h + 0.4 * rem);
+            for (g, tone) in row.iter().map(|&i| &gain_gs[i]) {
+                let r = Rect::from_min_size(Pos2::new(x, ry), Vec2::new(g.size().x + 1.5 * rem + 2.0, g.size().y + 0.5 * rem + 2.0));
                 let border = match *tone {
                     "hp" => rgba(255, 110, 90, 0.45),
                     "mp" => rgba(110, 160, 255, 0.45),
@@ -380,6 +396,7 @@ impl LevelUp {
                 p.rect_stroke(r, r.height() / 2.0, egui::Stroke::new(1.0, alpha(border)), egui::StrokeKind::Inside);
                 p.galley(r.center() - g.size() / 2.0, g.clone(), Color32::WHITE);
                 x = r.right() + 0.6 * rem;
+            }
             }
             y += gains_h;
             if let (Some((options, pad_kind)), Some(ask)) = (&choosing, &ask_g) {
@@ -584,7 +601,9 @@ fn stat_card(ui: &mut egui::Ui, r: Rect, s: &Stat, now_val: i64, gain: i64, focu
     x += arrow.size().x + 0.5 * rem;
     p.galley(Pos2::new(x, base - to.size().y), to.clone(), Color32::WHITE);
     y += 1.35 * rem * 1.2 + 0.45 * rem;
-    let eff = rich::galley(ctx, rich::plain(s.effect, &TextStyle::new(ctx, 0.85 * rem, widgets::hex(0xb9ae9a)).line(1.3 * 0.85 * rem), r.width() - 2.0 * rem));
+    // a phone's narrow card gives its words more of its width (and four lines of its height)
+    let side = if r.width() < 10.0 * rem { 0.5 * rem } else { rem };
+    let eff = rich::galley(ctx, rich::plain(s.effect, &TextStyle::new(ctx, 0.85 * rem, widgets::hex(0xb9ae9a)).line(1.3 * 0.85 * rem), r.width() - 2.0 * side));
     p.galley(Pos2::new(cx - eff.size().x / 2.0, y), eff, widgets::hex(0xb9ae9a));
     if !pad {
         let cap = KeycapLook::level_up(rem);
