@@ -1,0 +1,21 @@
+[package]
+name = "isorun-hud"
+description = "Isorun's HUD on egui: the dock (orbs, status chips, defences and attributes, quick slots, the square's actions, the screen buttons, the compact dock), the classic HUD's panes on the console grid (stats, messages, monster list, action panel, prompts), the tooltip cards, the inventory and character screens, damage numbers and the chat."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-scene-webtiles = { path = "../scene-webtiles" }
+isorun-client = { path = "../client" }
+isorun-ui = { path = "../ui" }
+egui = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+log = "0.4"
+
+[dev-dependencies]
+eframe = { workspace = true }
