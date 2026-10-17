@@ -87,6 +87,12 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
     painter.rect_filled(egui::Rect::from_min_max(split.left_bottom(), bar.max), 0.0, egui::Color32::from_rgba_unmultiplied(10, 9, 8, 247));
     painter.hline(bar.x_range(), bar.top(), egui::Stroke::new(1.0, BRONZE_DIM));
     let mut tapped = None;
+    // the bar is a layer of its own over the dock: its buttons take the taps, and the rest of
+    // the bar keeps them from the dock's buttons under it (a tap on one of the bar's went to the
+    // quick slot under it)
+    let ectx = ui.ctx().clone();
+    egui::Area::new(egui::Id::unique("isorun-touch-bar-area")).order(egui::Order::Foreground).fixed_pos(bar.min).show(&ectx, |ui| {
+    ui.interact(bar, egui::Id::unique("isorun-touch-bar-block"), egui::Sense::click());
     for (r, row) in rows.iter().enumerate() {
         // wrap-reverse: the first row is the bottom one
         let y = bar.bottom() - pad - h - r as f32 * (h + gap);
@@ -113,5 +119,6 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
             }
         }
     }
+    });
     (tapped, Some(bar))
 }
