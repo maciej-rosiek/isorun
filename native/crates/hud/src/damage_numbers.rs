@@ -144,7 +144,12 @@ impl DamageNumbers {
     fn show_taken(&mut self, said: Option<i64>, at: (i32, i32), now: f64) -> bool {
         match self.claim_drops(said, now) {
             Some(taken) => {
-                let f = taken_floater(taken, self.hp_max);
+                // a blow that did no harm reads as one on a monster does: "0", not "-0"
+                let f = if taken <= 0 {
+                    Floater { text: "0".into(), tone: Tone::Miss, scale: 0.9, shake: false }
+                } else {
+                    taken_floater(taken, self.hp_max)
+                };
                 self.spawn(at, f, now);
                 true
             }
@@ -303,6 +308,9 @@ mod tests {
         d.landing(Landing::Hit { on_player: true, tier: 1, amount: Some(3) }, (0, 0), 0.3, true);
         assert_eq!(d.alive[1].f.text, "-3");
         d.health(11, 20, (0, 0), 0.35, true);
+        // a blow the line says did nothing shows "0", never "-0"
+        d.landing(Landing::Hit { on_player: true, tier: 1, amount: Some(0) }, (0, 0), 0.32, true);
+        assert_eq!(d.alive.last().unwrap().f.text, "0");
         // a blow with no amount and no drop yet waits a moment for one
         d.landing(Landing::Hit { on_player: true, tier: 1, amount: None }, (0, 0), 0.36, true);
         assert_eq!(d.waiting.len(), 0);
