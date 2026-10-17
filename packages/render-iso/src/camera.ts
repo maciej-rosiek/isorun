@@ -48,7 +48,8 @@ export class IsoCamera {
   /** The camera follows the player more slowly, for a travel of many steps. */
   slowFollow = false
 
-  constructor(angles: CameraAngles = DEFAULT_ANGLES) {
+  constructor(angles: CameraAngles = DEFAULT_ANGLES, zoom: number = DEFAULT_VIEW.zoom) {
+    this.zoomTarget = this.zoom = clampZoom(zoom)
     this.yawTarget = this.yaw = angles.rotation * DEG
     this.tiltTarget = this.tilt = angles.tilt
     this.perspectiveTarget = angles.perspective
@@ -57,6 +58,11 @@ export class IsoCamera {
   /** The angles the camera goes to. */
   get angles(): CameraAngles {
     return { rotation: this.yawTarget / DEG, tilt: this.tiltTarget, perspective: this.perspectiveTarget }
+  }
+
+  /** The zoom it eases to, in pixels a cell. */
+  get zoomGoal(): number {
+    return this.zoomTarget
   }
 
   /** The compass direction that is up on the screen, once the camera ends its turn. */
@@ -94,7 +100,7 @@ export class IsoCamera {
   }
 
   zoomBy(factor: number) {
-    this.zoomTarget = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, this.zoomTarget * factor))
+    this.zoomTarget = clampZoom(this.zoomTarget * factor)
   }
 
   /** Move the view with the map under a pointer that moved this many CSS pixels; the view goes back to the player when the player moves. */
@@ -144,6 +150,10 @@ export class IsoCamera {
   private elevation() {
     return Math.min(ELEVATION_MAX_DEGREES * DEG, Math.max(ELEVATION_MIN_DEGREES * DEG, elevationFor(this.zoom) + this.tilt * DEG))
   }
+}
+
+function clampZoom(zoom: number) {
+  return Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, zoom))
 }
 
 /** The camera looks lower the closer it is, for a film-like view, and higher when it is far. */

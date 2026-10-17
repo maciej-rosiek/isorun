@@ -630,15 +630,23 @@ export function saveSettings(s: Settings) {
 
 const CAMERA_KEY = 'isorun.camera'
 
-/** The camera's angles when the game was last left. */
-export function getSavedAngles(): CameraAngles | null {
-  const v = load<Partial<CameraAngles> | null>(CAMERA_KEY, null)
-  if (!v || typeof v.rotation !== 'number' || typeof v.tilt !== 'number' || !isFinite(v.rotation) || !isFinite(v.tilt)) return null
-  return { rotation: v.rotation, tilt: v.tilt, perspective: typeof v.perspective === 'number' ? v.perspective : 0 }
+/** How the camera looked when the game was last left: its angles and its zoom. */
+export interface SavedView {
+  angles: CameraAngles
+  /** Missing in what an older version saved. */
+  zoom?: number
 }
 
-export function saveAngles(angles: CameraAngles) {
-  save(CAMERA_KEY, angles)
+/** The camera's angles and zoom when the game was last left. */
+export function getSavedView(): SavedView | null {
+  const v = load<(Partial<CameraAngles> & { zoom?: unknown }) | null>(CAMERA_KEY, null)
+  if (!v || typeof v.rotation !== 'number' || typeof v.tilt !== 'number' || !isFinite(v.rotation) || !isFinite(v.tilt)) return null
+  const angles = { rotation: v.rotation, tilt: v.tilt, perspective: typeof v.perspective === 'number' ? v.perspective : 0 }
+  return typeof v.zoom === 'number' && isFinite(v.zoom) && v.zoom > 0 ? { angles, zoom: v.zoom } : { angles }
+}
+
+export function saveView(view: SavedView) {
+  save(CAMERA_KEY, { ...view.angles, zoom: view.zoom })
 }
 
 // ------------------------------------------------------------------- servers

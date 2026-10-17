@@ -13,7 +13,7 @@ snapshot commit, without the history.
 - Every package has a README; `CONTRIBUTING.md` is the short guide.
 - The client (`apps/isorun`, `npm run dev`, then `/`): `game.ts` draws the game with `IsoRender3d`
   and an `IsoCamera` (`packages/render-iso/src/camera.ts`: follow spring, 45-degree turns, tilt,
-  zoom, drag; its angles kept in `isorun.camera`). Directions are screen-relative (`runner.ts`
+  zoom, drag; its angles and zoom kept in `isorun.camera`, saved when a turn or zoom comes to rest). Directions are screen-relative (`runner.ts`
   `absolute` rotates by the camera's `facing`); `runner.heading` is the way the player last stepped,
   what the contextual action calls "ahead". The level map (X) opens in 2D (`Render2d`) on its own
   canvas over the iso view. Fights come from the message lines (`combat.ts` `combatEvents`, read on

@@ -25,7 +25,7 @@ import { isPadActivity, type Button, type GamepadInput, type PadEvent } from './
 import { gamepadHints, type PadHintEvidence } from './gamepad-hints'
 import { isPack, openPackKeys } from './pack-tabs'
 import { OKAY_THEN, SHOUT_KEY, SWAP_WEAPONS_KEY, actionNeighbour, actionTab, actionTabOf, type ActionTabId } from './action-tabs'
-import { getSavedAngles, saveAngles, saveSettings, type Settings } from './servers'
+import { getSavedView, saveSettings, saveView, type Settings } from './servers'
 import { type SettingGroup } from './settings-rows'
 import { PerfOverlay, type LogContext } from './perf'
 import { MapHold } from './map-hold'
@@ -103,7 +103,12 @@ export class GameScreen {
   private mapShown = false
   private mapHold = new MapHold()
   private session: Session
-  private view = new IsoCamera(getSavedAngles() ?? undefined)
+  private view = (() => {
+    const saved = getSavedView()
+    return new IsoCamera(saved?.angles, saved?.zoom)
+  })()
+  /** The angles and zoom last written down, so a view that comes to rest is saved once. */
+  private savedView = ''
   private runner: Runner
   private hud: Hud
   private chat: Chat
@@ -553,8 +558,14 @@ export class GameScreen {
     this.needsRender = true
   }
 
-  /** Remember the camera's angles so the next session starts with the same view. */
-  private saveView = () => saveAngles(this.view.angles)
+  /** Remember the camera's angles and zoom so the next session starts with the same view. */
+  private saveView = () => {
+    const view = { angles: this.view.angles, zoom: this.view.zoomGoal }
+    const key = JSON.stringify(view)
+    if (key === this.savedView) return
+    this.savedView = key
+    saveView(view)
+  }
 
   /** The dungeon view, on the screen's canvas, with what the session has so far. */
   private makeDungeon(): MapRenderer {
@@ -884,7 +895,10 @@ export class GameScreen {
   /** The camera moves on toward the player; true while it still moves. */
   private advancePresentation(dt: number): boolean {
     const p = this.iso?.playerShown() ?? this.session.scene.player
-    return this.view.update(dt, p.x, p.y)
+    const moving = this.view.update(dt, p.x, p.y)
+    // saved as soon as a turn or zoom ends, as an app that is killed never sees pagehide
+    if (!moving) this.saveView()
+    return moving
   }
 
   /**

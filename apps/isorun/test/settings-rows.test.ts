@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach } from 'vitest'
-import { defaultSettings, getSavedAngles, getSettings, saveAngles, saveSettings } from '../src/servers'
+import { defaultSettings, getSavedView, getSettings, saveSettings, saveView } from '../src/servers'
 import { settingsPanel } from '../src/settings-panel'
 import { adjustSetting, ALL_SETTING_ROWS, groupAtDefaults, resetGroup, settingGroups, MINIMAP_CELLS, MINIMAP_TILES, rowHint, rowOff, SETTING_ROWS, settingValue } from '../src/settings-rows'
 
@@ -40,11 +40,16 @@ describe('what is written down', () => {
     expect(JSON.parse(store.get('isorun.settings')!)).toEqual({ hints: 'contextual' })
   })
 
-  it('keeps the camera angles the game was left with, and nothing else', () => {
-    expect(getSavedAngles()).toBeNull()
-    saveAngles({ rotation: 135, tilt: 10, perspective: 25 })
-    expect(JSON.parse(store.get('isorun.camera')!)).toEqual({ rotation: 135, tilt: 10, perspective: 25 })
-    expect(getSavedAngles()).toEqual({ rotation: 135, tilt: 10, perspective: 25 })
+  it('keeps the camera angles and zoom the game was left with, and nothing else', () => {
+    expect(getSavedView()).toBeNull()
+    saveView({ angles: { rotation: 135, tilt: 10, perspective: 25 }, zoom: 90 })
+    expect(JSON.parse(store.get('isorun.camera')!)).toEqual({ rotation: 135, tilt: 10, perspective: 25, zoom: 90 })
+    expect(getSavedView()).toEqual({ angles: { rotation: 135, tilt: 10, perspective: 25 }, zoom: 90 })
+  })
+
+  it('reads the angles an older version saved without a zoom', () => {
+    store.set('isorun.camera', JSON.stringify({ rotation: 135, tilt: 10, perspective: 0 }))
+    expect(getSavedView()).toEqual({ angles: { rotation: 135, tilt: 10, perspective: 0 } })
   })
 })
 
