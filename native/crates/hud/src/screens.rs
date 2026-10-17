@@ -400,6 +400,11 @@ fn panel_style(u: f32, paper: bool, char_block: bool) -> BoxStyle {
 }
 
 impl Screen {
+    /// The panel as last drawn (a tap outside it closes the screen).
+    pub fn panel(&self) -> Option<egui::Rect> {
+        self.panel
+    }
+
     pub fn new(id: ScreenId) -> Screen {
         Screen { id, menu: None, focus: None, stops: vec![], figure: None, own_keys: true, panel: None, scroll: 0.0, scrolled_to: None }
     }
