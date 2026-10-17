@@ -10,12 +10,10 @@ client's gamedata are assets under `engine/`, listed in `engine/files.txt`; the 
 into its files (`files/engine`) on the first start and whenever the APK carries another build,
 and `client::engine` runs crawl from there.
 
-While it is a preview it is `io.github.maciejrosiek.isorun.native`, named "Isorun native": it
-installs beside the Capacitor app (`mobile/`), never over it, since it does not read that app's
-saves (they are in the WebView's IndexedDB). It has the same version code (the game's version in
-`apps/isorun/package.json`) and the same release key, so when it replaces the Capacitor app it
-takes that app's id, `io.github.maciejrosiek.isorun`, and installs over it. Releases carry it as
-`Isorun-native.apk` beside the Capacitor app's `Isorun.apk` until then.
+It is `io.github.maciejrosiek.isorun`, the Capacitor app's id (`mobile/`), with the same version
+code (the game's version in `apps/isorun/package.json`) and the same release key, so it installs
+over the Capacitor app and replaces it; releases carry it as `Isorun.apk`. It does not read the
+Capacitor app's saves (they are in the WebView's IndexedDB).
 
 ## Build
 
@@ -25,7 +23,7 @@ takes that app's id, `io.github.maciejrosiek.isorun`, and installs over it. Rele
 It needs the Android SDK (`ANDROID_HOME`, platform 35), an NDK r26 or newer
 (`ANDROID_NDK_HOME`), `gradle` 8.9 or newer, a JDK 17 or 21, and the Rust targets
 `aarch64-linux-android` and `x86_64-linux-android`. The APK is
-`native/target/release-packages/Isorun-native.apk`. It is signed with the release key of
+`native/target/release-packages/Isorun.apk`. It is signed with the release key of
 `mobile/README.md` (`ISORUN_KEYSTORE`, `ISORUN_KEYSTORE_PASSWORD`, `ISORUN_KEY_ALIAS`,
 `ISORUN_KEY_PASSWORD`) when they are set, and with the debug key otherwise.
 

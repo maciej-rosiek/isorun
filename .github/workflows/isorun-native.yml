@@ -47,6 +47,8 @@ jobs:
         with:
           workspaces: native
           key: test
+      # the sound (ALSA) and the gamepads (libudev)
+      - run: sudo apt-get update -q && sudo apt-get install -yq libasound2-dev libudev-dev pkg-config
       - run: cargo test --workspace --no-fail-fast
         working-directory: native
       # the web build compiles (crates that only build natively would break it)
@@ -64,7 +66,7 @@ jobs:
       - name: Tools
         run: |
           sudo apt-get update -q
-          sudo apt-get install -yq libpng-dev zlib1g-dev libsqlite3-dev libncursesw5-dev pkg-config python3-yaml zsync
+          sudo apt-get install -yq libpng-dev zlib1g-dev libsqlite3-dev libncursesw5-dev libasound2-dev libudev-dev pkg-config python3-yaml zsync
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:

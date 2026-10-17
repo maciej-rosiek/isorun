@@ -2,11 +2,10 @@ name: Build the Isorun native Android app
 
 # The native app's APK (native/android: the Rust app as a NativeActivity, crawl cross-compiled with
 # the NDK), built on every push to main and kept as the run's artifact. A published release, or
-# a manual run with "upload", gets it as Isorun-native.apk, beside the Capacitor app's Isorun.apk
-# (isorun-android.yml), so Obtainium can offer it without moving players to an unfinished app.
-# Signed with the Capacitor app's release key (the ANDROID_KEYSTORE_BASE64 and
-# ANDROID_KEYSTORE_PASSWORD secrets, mobile/README.md; the debug key without them), but under its
-# own id while it is a preview (native/android/app/build.gradle.kts): it installs beside that app.
+# a manual run with "upload", gets it as Isorun.apk: it replaces the Capacitor app
+# (isorun-android.yml, now run by hand only). The Capacitor app's id and release key (the
+# ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD secrets, mobile/README.md; the debug key
+# without them), so it installs over that app.
 
 on:
   push:
@@ -16,7 +15,7 @@ on:
   workflow_dispatch:
     inputs:
       upload:
-        description: Add Isorun-native.apk to the release v<version>
+        description: Add Isorun.apk to the release v<version>
         type: boolean
         default: false
 
@@ -83,8 +82,8 @@ jobs:
           native/android/build.sh aarch64 x86_64
       - uses: actions/upload-artifact@v4
         with:
-          name: Isorun-native-android
-          path: native/target/release-packages/Isorun-native.apk
+          name: Isorun-android
+          path: native/target/release-packages/Isorun.apk
       - name: Add to the release
         if: github.event_name == 'release' || inputs.upload
         run: |
@@ -92,6 +91,6 @@ jobs:
           if [ -z "$tag" ]; then
             tag=v$(node -p "require('./apps/isorun/package.json').version")
           fi
-          gh release upload "$tag" native/target/release-packages/Isorun-native.apk --clobber
+          gh release upload "$tag" native/target/release-packages/Isorun.apk --clobber
         env:
           GH_TOKEN: ${{ github.token }}

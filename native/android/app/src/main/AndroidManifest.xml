@@ -8,7 +8,7 @@
     <!-- hasCode=false: no Java at all; extractNativeLibs: crawl (libcrawl.so) is run from the
          native library folder, which needs it unpacked -->
     <application
-        android:label="Isorun native"
+        android:label="Isorun"
         android:icon="@mipmap/ic_launcher"
         android:hasCode="false"
         android:extractNativeLibs="true"

@@ -191,7 +191,8 @@ snapshot commit, without the history.
   proxies and the visit beacon go to the hosted page, `hostedBase`) and copies the stable channel of
   `engine/dist` beside it; `npm run package` makes `dist/release/Isorun.apk` (needs a JDK 21 and the
   Android SDK). `.github/workflows/isorun-android.yml` builds the engine and the APK
-  on GitHub and adds the APK to a release when it is published; the release key is the
+  on GitHub, by hand only now: the native app (`native/android`, `isorun-native-android.yml`)
+  replaces it, with the same id and key, and releases carry it as `Isorun.apk`; the release key is the
   `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets. The engine needs a WebView with
   JSPI (137+).
 - Hosting: the `isorun` Worker (`wrangler.jsonc`, `apps/isorun/worker/index.ts`) at

@@ -2,14 +2,13 @@ name: Build the Isorun Android app
 
 # The Android app (mobile/): the game and the stable offline engine in an APK. Builds the engine
 # (engine/build.sh stable), then the APK (mobile/package.mjs), kept as the run's artifact. A run
-# for a published release, or a manual run with "upload", adds Isorun.apk to the release
+# Replaced by the native app (isorun-native-android.yml), which releases carry as Isorun.apk:
+# this one runs by hand only. A manual run with "upload" adds Isorun.apk to the release
 # v<version> of apps/isorun/package.json. Signed with the release key from the
 # ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD repository secrets (mobile/README.md);
 # without them, with the debug key.
 
 on:
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       upload:

@@ -5,7 +5,7 @@
 #
 #   native/android/build.sh [aarch64] [x86_64]     # default: aarch64 x86_64
 #
-# Writes native/target/release-packages/Isorun-native.apk. Needs:
+# Writes native/target/release-packages/Isorun.apk. Needs:
 #   ANDROID_HOME          the SDK (platforms;android-35, build-tools), with `gradle` on PATH
 #   ANDROID_NDK_HOME      an NDK (r26 or newer)
 #   rustup targets aarch64-linux-android, x86_64-linux-android
@@ -62,5 +62,5 @@ mkdir -p "$STAGE/assets/engine"
 version=$(sed -n 's/^  "version": "\(.*\)",/\1/p' "$ROOT/apps/isorun/package.json" | head -1)
 code=$(echo "$version" | awk -F. '{ print $1 * 10000 + $2 * 100 + $3 }')
 (cd "$HERE" && gradle --no-daemon -q assembleRelease -PisorunVersion="$version" -PisorunVersionCode="$code")
-cp "$HERE/app/build/outputs/apk/release/app-release.apk" "$OUT/Isorun-native.apk"
-ls -la "$OUT/Isorun-native.apk"
+cp "$HERE/app/build/outputs/apk/release/app-release.apk" "$OUT/Isorun.apk"
+ls -la "$OUT/Isorun.apk"
