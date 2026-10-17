@@ -355,13 +355,22 @@
   color: var(--ink-dim);
 }
 
+/* A phone's popups, menus, describe screens and prompt cards take its whole width less the
+   margins: half a phone (the room right of a popup's left: 50%) is too narrow to read in. */
 @media (max-width: 899px), (max-height: 559px) {
   .popup {
     min-width: 0;
+    width: calc(100vw - 16px);
     max-width: calc(100vw - 16px);
   }
   .popup.menu.game {
     min-width: min(26rem, calc(100vw - 16px));
+  }
+  .prompt-card {
+    width: calc(100vw - 16px);
+    min-width: 0;
+    max-width: calc(100vw - 16px);
+    box-sizing: border-box;
   }
   .popup.newgame {
     --u: 0.7px;

@@ -4,6 +4,8 @@
  * or the same row again, is the way back.
  */
 
+import { androidApp } from './servers'
+
 /** whether the page is full screen now, by its own request */
 export function isFullscreen(): boolean {
   return typeof document !== 'undefined' && document.fullscreenElement !== null
@@ -12,9 +14,11 @@ export function isFullscreen(): boolean {
 /**
  * Whether to offer full screen: the browser allows it (an iPhone does not),
  * and the window is not already full screen without the page asking, as a
- * kiosk browser is (quit.ts), where there is nothing to leave.
+ * kiosk browser is (quit.ts), where there is nothing to leave. The Android app
+ * is always full screen: nothing to offer there either.
  */
 export function canFullscreen(): boolean {
+  if (androidApp()) return false
   if (typeof document === 'undefined' || !document.fullscreenEnabled) return false
   if (isFullscreen()) return true
   return typeof window.matchMedia !== 'function' || !window.matchMedia('(display-mode: fullscreen)').matches

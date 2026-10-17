@@ -4,7 +4,7 @@
  * compared with. Needs the dev server (`npx vite --port 5173` in apps/isorun) and a built engine.
  *
  *   node native/tools/web-play.mjs <out.png> [--url URL] [--size 1600x1000] [--new "b a c"]
- *        [--keys "o . i"] [--wait 2500] [--shots] [--home]
+ *        [--keys "o . i"] [--wait 2500] [--shots] [--home] [--mobile]
  *
  * --home       screenshot the title screen and stop (no game)
  * --new        the keys that make a character (species, background, weapon), default "b a c"
@@ -32,7 +32,9 @@ const shots = args.includes('--shots')
 const js = opt('--eval', null)
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome' })
-const page = await browser.newPage({ viewport: { width, height } })
+// --mobile: a phone's page (isMobile, hasTouch), as touch.ts tells one
+const mobile = args.includes('--mobile')
+const page = await browser.newPage({ viewport: { width, height }, ...(mobile ? { isMobile: true, hasTouch: true, deviceScaleFactor: 1 } : {}) })
 page.on('pageerror', (e) => console.error('pageerror: ' + e.message))
 await page.goto(url)
 await page.waitForTimeout(6000)

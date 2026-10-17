@@ -55,6 +55,8 @@ const RIGHT_BUTTON = 2
 const TOUCH_CUT_AWAY_CELLS = 6
 const COMPACT_MESSAGE_ROWS = { portrait: 4, landscape: 2 }
 const MAX_CENTRE_LIFT = 0.15
+/** how much less the centre is lifted on a phone held upright, of the view's height: the player stands a little lower there */
+const PORTRAIT_LIFT_DROP = 0.09
 const FULLSCREEN_ICON = '<svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>'
 const SETTINGS_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>'
 /** How much the view zooms per css pixel of wheel scroll, and per second at full right stick. */
@@ -554,7 +556,7 @@ export class GameScreen {
     const px = this.grid.px(view)
     this.viewPx = px
     this.renderer.resize(px.width, px.height, window.devicePixelRatio || 1)
-    this.iso?.setCentreLift(compactWindow() && !mapView ? Math.min((px.height - this.grid.px(cells.clear).height) / 2, px.height * MAX_CENTRE_LIFT) : 0)
+    this.iso?.setCentreLift(compactWindow() && !mapView ? centreLift(px.height, this.grid.px(cells.clear).height, landscapeWindow()) : 0)
     // what rides the view's edges keeps clear of the panes
     const free = mapView ? view : cells.clear
     const columnAboveChat = { ...cells.sidebar, h: Math.max(0, cells.sidebar.h - chatRows) }
@@ -2747,3 +2749,13 @@ function aimIntent(scene: Scene, dir: Dir8): AimIntent {
 const WHEEL_TURN_PIXELS = 60
 
 export { keyMessage }
+
+/**
+ * How far the view's centre is lifted over a compact dock's panes: to the middle of the room
+ * above them, by no more than MAX_CENTRE_LIFT of the view, and upright by PORTRAIT_LIFT_DROP of
+ * it less (the player stands lower on a tall phone, still over the dock).
+ */
+export function centreLift(viewHeight: number, clearHeight: number, landscape: boolean): number {
+  const lift = Math.min((viewHeight - clearHeight) / 2, viewHeight * MAX_CENTRE_LIFT)
+  return landscape ? lift : Math.max(0, lift - viewHeight * PORTRAIT_LIFT_DROP)
+}
