@@ -775,13 +775,68 @@ mod native {
     #[cfg(unix)]
     struct UnixSocket {
         socket: std::os::unix::net::UnixDatagram,
-        crawl: PathBuf,
+        crawl: Peer,
+    }
+
+    /// Where crawl's socket is: a socket file, or (Android) a name in the abstract namespace.
+    #[cfg(unix)]
+    #[derive(Clone)]
+    enum Peer {
+        Path(PathBuf),
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        Abstract(std::os::unix::net::SocketAddr),
+    }
+
+    #[cfg(unix)]
+    impl Peer {
+        fn send(&self, socket: &std::os::unix::net::UnixDatagram, bytes: &[u8]) -> std::io::Result<usize> {
+            match self {
+                Peer::Path(p) => socket.send_to(bytes, p),
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                Peer::Abstract(a) => socket.send_to_addr(bytes, a),
+            }
+        }
+        /// Whether crawl has bound it: its file is there, or a connect to the name is taken.
+        fn bound(&self) -> bool {
+            match self {
+                Peer::Path(p) => p.exists(),
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                Peer::Abstract(a) => std::os::unix::net::UnixDatagram::unbound().and_then(|s| s.connect_addr(a)).is_ok(),
+            }
+        }
+    }
+
+    /// Whether crawl's channel is in the abstract namespace: on Android, whose SELinux policy
+    /// refuses a socket file in the shell's data folder (EACCES on the emulator) and may in an
+    /// app's; ISORUN_SOCKET=abstract or =fs chooses elsewhere (Linux).
+    #[cfg(unix)]
+    fn abstract_socket() -> bool {
+        match std::env::var("ISORUN_SOCKET").as_deref() {
+            Ok("abstract") => cfg!(any(target_os = "linux", target_os = "android")),
+            Ok("fs") => false,
+            _ => cfg!(target_os = "android"),
+        }
+    }
+
+    /// An abstract socket name as crawl binds it (15-abstract-socket.patch): the whole of
+    /// sun_path after its leading zero, padded with zeros, since crawl's sends name the server
+    /// with sizeof(sockaddr_un) and so the padded name.
+    #[cfg(any(target_os = "linux", target_os = "android"))]
+    fn abstract_addr(name: &str) -> std::io::Result<std::os::unix::net::SocketAddr> {
+        #[cfg(target_os = "android")]
+        use std::os::android::net::SocketAddrExt;
+        #[cfg(target_os = "linux")]
+        use std::os::linux::net::SocketAddrExt;
+        let mut padded = [0u8; 107];
+        let n = name.len().min(padded.len());
+        padded[..n].copy_from_slice(&name.as_bytes()[..n]);
+        std::os::unix::net::SocketAddr::from_abstract_name(padded)
     }
 
     #[cfg(unix)]
     impl Socket for UnixSocket {
         fn send(&self, bytes: &[u8]) -> std::io::Result<()> {
-            self.socket.send_to(bytes, &self.crawl).map(|_| ())
+            self.crawl.send(&self.socket, bytes).map(|_| ())
         }
         fn reader(&self) -> std::io::Result<Box<dyn FnMut(&mut [u8]) -> std::io::Result<usize> + Send>> {
             let r = self.socket.try_clone()?;
@@ -959,13 +1014,28 @@ mod native {
         let morgue = save_dir.join("morgue");
         let crawl_sock = run_dir.join("crawl.sock");
         #[cfg(unix)]
-        let socket = {
-            let socket = std::os::unix::net::UnixDatagram::bind(run_dir.join("srv.sock")).map_err(|e| format!("socket: {e}"))?;
+        let (socket, peer, sock_arg) = {
+            let (socket, peer, arg) = if abstract_socket() {
+                #[cfg(any(target_os = "linux", target_os = "android"))]
+                {
+                    let tag = format!("isorun-{}-{n}", std::process::id());
+                    let own = abstract_addr(&format!("{tag}-srv")).map_err(|e| format!("socket: {e}"))?;
+                    let socket = std::os::unix::net::UnixDatagram::bind_addr(&own).map_err(|e| format!("socket: {e}"))?;
+                    let name = format!("{tag}-crawl");
+                    (socket, Peer::Abstract(abstract_addr(&name).map_err(|e| format!("socket: {e}"))?), format!("@{name}"))
+                }
+                #[cfg(not(any(target_os = "linux", target_os = "android")))]
+                unreachable!()
+            } else {
+                let socket = std::os::unix::net::UnixDatagram::bind(run_dir.join("srv.sock")).map_err(|e| format!("socket {}: {e}", run_dir.join("srv.sock").display()))?;
+                (socket, Peer::Path(crawl_sock.clone()), crawl_sock.display().to_string())
+            };
             let _ = socket.set_write_timeout(Some(Duration::from_secs(2)));
-            socket
+            (socket, peer, arg)
         };
         // on Windows the name is only a token: the channel is the pipes
-        let sock_arg = if cfg!(windows) { "pipe".to_string() } else { crawl_sock.display().to_string() };
+        #[cfg(windows)]
+        let sock_arg = "pipe".to_string();
         let mut args: Vec<String> = vec!["-headless".into(), "-name".into(), user.into(), "-webtiles-socket".into(), sock_arg, "-await-connection".into()];
         args.extend(extra);
         for opt in [format!("save_dir={}", save_dir.display()), format!("morgue_dir={}", morgue.display())] {
@@ -1012,7 +1082,10 @@ mod native {
         let stdin = child.stdin.take();
         let start = Instant::now();
         // the pipes are there from the start; crawl's socket once it has bound it
-        let ready = || cfg!(windows) || crawl_sock.exists();
+        #[cfg(unix)]
+        let ready = || peer.bound();
+        #[cfg(windows)]
+        let ready = || true;
         while !ready() {
             if start.elapsed() > Duration::from_secs(20) {
                 let _ = child.kill();
@@ -1026,7 +1099,7 @@ mod native {
             std::thread::sleep(Duration::from_millis(10));
         }
         #[cfg(unix)]
-        let socket: Box<dyn Socket> = Box::new(UnixSocket { socket, crawl: crawl_sock.clone() });
+        let socket: Box<dyn Socket> = Box::new(UnixSocket { socket, crawl: peer });
         #[cfg(windows)]
         let (socket, stdin): (Box<dyn Socket>, Option<std::process::ChildStdin>) = {
             let input = stdin.ok_or("crawl's input")?;

@@ -1,0 +1,35 @@
+The webtiles socket in the abstract namespace (Linux, Android): a
+-webtiles-socket name that starts with '@' is bound with no file. The
+native app's Android build uses it (engine.rs): Android's SELinux policy
+refuses a socket file in the shell's data folder (EACCES on the emulator),
+and an abstract name needs no file permission at all. The name fills
+sun_path, padded with zeros, as the sends to the server use
+sizeof(sockaddr_un); the server binds its own name the same way. Any other
+name is a socket file, as upstream has it. Applies after 01-14. GPLv2+, as
+the file it patches.
+
+--- a/crawl-ref/source/tileweb.cc
++++ b/crawl-ref/source/tileweb.cc
+@@ -253,8 +253,21 @@
+     if (m_sock < 0)
+         die("Can't open the webtiles socket!");
+     sockaddr_un addr;
++    memset(&addr, 0, sizeof(addr));
+     addr.sun_family = AF_UNIX;
+-    strcpy(addr.sun_path, m_sock_name.c_str());
++    // A name that starts with '@' is in the abstract namespace (Linux,
++    // Android): no file is made, so no file permission is asked for, which
++    // Android's SELinux policy may refuse for a socket file. The name is
++    // the whole of sun_path, padded with zeros, as the sends name the other
++    // side (sizeof(sockaddr_un)); the server binds its own the same way.
++    if (m_sock_name.size() > 1 && m_sock_name[0] == '@'
++        && m_sock_name.size() < sizeof(addr.sun_path))
++    {
++        memcpy(addr.sun_path + 1, m_sock_name.c_str() + 1,
++               m_sock_name.size() - 1);
++    }
++    else
++        strcpy(addr.sun_path, m_sock_name.c_str());
+     if (::bind(m_sock, (sockaddr*) &addr, sizeof(sockaddr_un)))
+         die("Can't bind the webtiles socket!");
+ 

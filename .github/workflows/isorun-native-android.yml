@@ -99,6 +99,12 @@ jobs:
           cp native/target/x86_64-linux-android/release/examples/offline_smoke "$kit/"
           cp engine/dist/native/android-x86_64/engine/crawl "$kit/libcrawl.so"
           (cd engine/dist/native/android-x86_64 && tar --exclude ./engine/crawl -cf - ./engine) | (cd "$kit" && tar -xf -)
+          # the APK again, debuggable and with offline_smoke as libsmoke.so, for run-as
+          cp "$kit/offline_smoke" native/android/build/stage/jniLibs/x86_64/libsmoke.so
+          version=$(node -p "require('./apps/isorun/package.json').version")
+          code=$(echo "$version" | awk -F. '{ print $1 * 10000 + $2 * 100 + $3 }')
+          (cd native/android && gradle --no-daemon -q assembleRelease -PisorunVersion="$version" -PisorunVersionCode="$code" -PisorunDebuggable=true)
+          cp native/android/app/build/outputs/apk/release/app-release.apk "$kit/Isorun-smoke.apk"
       - uses: actions/upload-artifact@v4
         with:
           name: smoke-kit

@@ -41,6 +41,9 @@ android {
     buildTypes {
         getByName("release") {
             isMinifyEnabled = false
+            // -PisorunDebuggable: the CI's smoke build, whose smoke test runs in the app's own
+            // domain with run-as (native/android/smoke.sh)
+            isDebuggable = providers.gradleProperty("isorunDebuggable").isPresent
             signingConfig = if (keystore.isNullOrEmpty()) signingConfigs.getByName("debug") else signingConfigs.getByName("release")
         }
     }
