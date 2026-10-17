@@ -28,7 +28,7 @@ use eframe::egui_wgpu::RenderState;
 use host::{Deferred, Host};
 use isorun_audio::{AudioFrame, AudioSettings, GameAudio, RendererView, SoundEngine};
 use isorun_client::session::{GamedataStatus, Session, SessionEvent};
-use isorun_front::{GameMenus, MenuAction, SystemOptions};
+use isorun_front::{GameMenus, MenuAction};
 use isorun_hud::{Hud, HudCommand, HudCx};
 use isorun_input::action_tabs::{action_tab, action_tab_of, ActionTabId, OKAY_THEN, SHOUT_KEY};
 use isorun_input::bindings::{bar_labels, contextual_label, level_map as level_map_action, SeqItem, UiOp};
@@ -129,6 +129,19 @@ pub struct Parts {
     pub dock_on: bool,
     pub level_map: LevelMap,
     pub aim: Option<isorun_scene::Dir8>,
+    /// what the Isorun menu opens with (the game and the window), and the tab and rows it was left on
+    pub system_opts: client::SystemOpts,
+    pub system_at: (usize, [usize; 2]),
+    /// the player left from the Isorun menu (a spectator's Stop watching)
+    pub leave: bool,
+}
+
+impl Parts {
+    /// Open the Isorun menu where it was left (overlays.ts `showSystem`).
+    pub fn show_system(&mut self) {
+        self.menus.close();
+        self.client = Some(ClientMenu::system(self.system_opts, self.system_at.0, self.system_at.1));
+    }
 }
 
 pub struct GameScreen {
@@ -187,6 +200,8 @@ pub struct GameScreen {
     torch_loaded: bool,
     level_map_was: bool,
     touch: bool,
+    /// the settings over the game were opened from the Isorun menu: their Back goes back to it
+    settings_from_system: bool,
 }
 
 fn now_ms() -> f64 {
@@ -236,6 +251,9 @@ impl GameScreen {
             dock_on: false,
             level_map: LevelMap::new(),
             aim: None,
+            system_opts: client::SystemOpts::default(),
+            system_at: (0, [0; 2]),
+            leave: false,
         };
         let perf = perf::PerfOverlay::new(opts.perf);
         let mut s = GameScreen {
@@ -290,6 +308,7 @@ impl GameScreen {
             torch_loaded: false,
             level_map_was: false,
             touch,
+            settings_from_system: false,
         };
         // the game's messages so far (the front end's connection carried the lobby): the fight starts from here
         s.last_combat_line = s.session.state.messages.lines.last().cloned().map(|l| (l, s.session.state.messages.lines.len() - 1));
@@ -460,6 +479,11 @@ impl GameScreen {
         self.parts.dock_on = layout.dock;
         self.parts.view.renderer.set_centre_lift(layout.centre_lift);
         self.parts.chat_capturing = self.parts.hud.chat.capturing(&ctx);
+        let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+        self.parts.system_opts = client::SystemOpts { spectating: self.session.watching(), chat: self.chat_on(), can_fullscreen: self.opts.can_fullscreen, fullscreen };
+        if let Some(ClientMenu { kind: client::Kind::System { tab, .. }, tab_focus, .. }) = &self.parts.client {
+            self.parts.system_at = (*tab, *tab_focus);
+        }
         if self.started && self.tiles_set {
             self.input(ui, layout.view, now, dt);
         }
@@ -551,6 +575,10 @@ impl GameScreen {
 
         // 6. what went out
         self.flush_outbox(now);
+        if std::mem::take(&mut self.parts.leave) {
+            self.save_view();
+            return Some(Outcome::Leave);
+        }
         let actions = self.parts.menus.ui(&ctx);
         if let Some(o) = self.menu_actions(&ctx, actions) {
             return Some(o);
@@ -804,6 +832,7 @@ impl GameScreen {
                     Deferred::Hud(c) => self.hud_command(c, now),
                     Deferred::DockScreen(id) => self.hud_call(ctx, now, |hud, cx| hud.dock_button(id, cx)),
                     Deferred::DockNav(op) => self.hud_call(ctx, now, |hud, cx| hud.dock_nav(op, cx)),
+                    Deferred::Fullscreen(on) => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on)),
                     Deferred::ExploreAtOnce => {
                         self.exploring_at_once = true;
                         self.pace_travel();
@@ -1625,8 +1654,7 @@ impl GameScreen {
     }
 
     fn open_system(&mut self) {
-        self.parts.client = None;
-        self.parts.menus.open_system(SystemOptions { spectating: self.session.watching(), in_game: true, chat: self.chat_on(), can_fullscreen: self.opts.can_fullscreen, fullscreen: false });
+        self.parts.show_system();
     }
 
     /// What the Isorun menu asked of the game.
@@ -1646,7 +1674,11 @@ impl GameScreen {
                 MenuAction::Lights(l) => self.parts.view.renderer.set_lights(l),
                 MenuAction::Fullscreen(f) => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(f)),
                 MenuAction::Chat => self.parts.hud.chat.focus(),
-                MenuAction::Resume => {}
+                MenuAction::Resume => {
+                    if std::mem::take(&mut self.settings_from_system) {
+                        self.parts.show_system();
+                    }
+                }
             }
         }
         None
@@ -1661,6 +1693,16 @@ impl GameScreen {
             }
             ClientEvent::Fire(Run::Interact(alt)) => self.route(now, |r, io| r.contextual(alt, io)),
             ClientEvent::Fire(Run::Send(m)) => self.send(m, now),
+            ClientEvent::Fire(Run::Execute(a)) => self.execute(&a, now),
+            ClientEvent::Fire(Run::Resume) => {}
+            ClientEvent::Fire(Run::Settings) => {
+                // the settings' last Back lands on the Isorun menu they were reached from (overlays.ts `showSettings(again)`)
+                self.parts.menus.open_settings();
+                self.settings_from_system = true;
+            }
+            ClientEvent::Fire(Run::Fullscreen(on)) => self.parts.deferred.push(Deferred::Fullscreen(on)),
+            ClientEvent::Fire(Run::Chat) => self.parts.hud.chat.focus(),
+            ClientEvent::Fire(Run::Leave) => self.parts.leave = true,
             ClientEvent::Closed { from_hud } => {
                 if from_hud {
                     let ctx = egui::Context::default();

@@ -25,6 +25,24 @@ pub enum Run {
     Interact(bool),
     /// a command of the palette: the message the official client sends for its key
     Send(Value),
+    /// an action through the runner (the Character tab's screens)
+    Execute(isorun_input::Action),
+    /// the Isorun menu's own rows
+    Resume,
+    Settings,
+    Fullscreen(bool),
+    Chat,
+    Leave,
+}
+
+/// What the Isorun menu is opened for (overlays.ts `showSystem`).
+#[derive(Clone, Copy, Debug, PartialEq, Default)]
+pub struct SystemOpts {
+    pub spectating: bool,
+    /// chat is offered (a server game)
+    pub chat: bool,
+    pub can_fullscreen: bool,
+    pub fullscreen: bool,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -45,6 +63,8 @@ pub enum Kind {
     /// X's actions: the tab up, and crawl's line (None while a turn is under way)
     Actions(ActionTabId, Option<String>),
     Palette { mode: CommandCategory, category: usize, filter: String },
+    /// the Isorun menu (Start): the Character tab (0) and the System tab (1); a spectator has System alone
+    System { tab: usize, opts: SystemOpts },
 }
 
 pub struct ClientMenu {
@@ -56,6 +76,8 @@ pub struct ClientMenu {
     pub remember: String,
     /// the list came from the HUD, which hears of a close without a pick (`choices_closed`)
     pub from_hud: bool,
+    /// the row each of the Isorun menu's tabs was left on
+    pub tab_focus: [usize; 2],
 }
 
 /// What the player did on the list.
@@ -152,15 +174,15 @@ fn key_name(c: &CatalogueCommand) -> String {
 
 impl ClientMenu {
     pub fn choices(title: &str, rows: Vec<Row>, remember: &str, from_hud: bool) -> Self {
-        ClientMenu { kind: Kind::Choices, title: title.into(), rows, focus: 0, remember: remember.into(), from_hud }
+        ClientMenu { kind: Kind::Choices, title: title.into(), rows, focus: 0, remember: remember.into(), from_hud, tab_focus: [0; 2] }
     }
 
     pub fn actions(current: ActionTabId, text: Option<String>) -> Self {
-        ClientMenu { kind: Kind::Actions(current, text), title: String::new(), rows: vec![], focus: 0, remember: String::new(), from_hud: false }
+        ClientMenu { kind: Kind::Actions(current, text), title: String::new(), rows: vec![], focus: 0, remember: String::new(), from_hud: false, tab_focus: [0; 2] }
     }
 
     pub fn palette(mode: CommandCategory) -> Self {
-        let mut m = ClientMenu { kind: Kind::Palette { mode, category: 0, filter: String::new() }, title: String::new(), rows: vec![], focus: 0, remember: String::new(), from_hud: false };
+        let mut m = ClientMenu { kind: Kind::Palette { mode, category: 0, filter: String::new() }, title: String::new(), rows: vec![], focus: 0, remember: String::new(), from_hud: false, tab_focus: [0; 2] };
         m.title = match mode {
             CommandCategory::Command => "Commands",
             CommandCategory::Levelmap => "Level map commands",
@@ -170,6 +192,58 @@ impl ClientMenu {
         .into();
         m.build_palette();
         m
+    }
+
+    /// The Isorun menu, drawn as the game draws a menu: a place of its own, so it opens again on the
+    /// tab and row it was left on (`tab`, `tab_focus`). While playing it has two tabs: Character,
+    /// the screens that review and manage the character, and System, the game's own options and the
+    /// way out. A spectator has no character to read, so the System rows stand alone.
+    pub fn system(opts: SystemOpts, tab: usize, tab_focus: [usize; 2]) -> Self {
+        let tab = if opts.spectating { 1 } else { tab.min(1) };
+        let mut m = ClientMenu { kind: Kind::System { tab, opts }, title: "Isorun".into(), rows: vec![], focus: 0, remember: "system".into(), from_hud: false, tab_focus };
+        m.build_system();
+        m
+    }
+
+    fn build_system(&mut self) {
+        let Kind::System { tab, opts } = self.kind else { return };
+        self.rows = if tab == 0 {
+            isorun_input::command_menu::CHARACTER_COMMANDS
+                .iter()
+                .map(|c| Row { label: c.label.into(), sub: c.sub.map(Into::into), key: Some(c.key.into()), tile: c.tile, run: Some(Run::Execute(c.action())), ..Default::default() })
+                .collect()
+        } else {
+            // three runs under rules: the game (back to it, its own commands), Isorun (the settings), and last the way out
+            let mut rows = vec![Row { label: "Resume".into(), sub: Some("back to the dungeon, where you left it".into()), run: Some(Run::Resume), ..Default::default() }];
+            let playing = !opts.spectating;
+            if playing {
+                let r = isorun_input::command_menu::REPEAT_COMMAND;
+                let h = isorun_input::command_menu::HELP_COMMAND;
+                rows.push(Row { label: format!("{} ({})", r.label, r.key), sub: Some("do the last thing again".into()), run: Some(Run::Send(cm::input(r.key))), ..Default::default() });
+                rows.push(Row { label: format!("{} ({})", h.label, h.key), sub: Some("the manual, and what every key does".into()), run: Some(Run::Send(cm::input(h.key))), ..Default::default() });
+                // crawl binds CMD_GAME_MENU to `~` and F1; Escape does nothing in the main view
+                rows.push(Row { label: "Crawl menu (F1)".into(), sub: Some("crawl's own menu: character dump, macros, lookup, quit".into()), run: Some(Run::Send(cm::input("~"))), ..Default::default() });
+            }
+            if opts.chat {
+                rows.push(Row { label: "Chat (F12)".into(), sub: Some("talk to whoever is watching".into()), run: Some(Run::Chat), ..Default::default() });
+            }
+            rows.push(Row { label: "Settings".into(), sub: Some("graphics, controls and the gamepad buttons, the HUD, sound".into()), sep: true, run: Some(Run::Settings), ..Default::default() });
+            if opts.can_fullscreen {
+                let (label, sub) = if opts.fullscreen { ("Leave full screen", "back to a window; F11 or Escape does the same") } else { ("Full screen", "fill the screen; F11 or Escape is the way back") };
+                rows.push(Row { label: label.into(), sub: Some(sub.into()), run: Some(Run::Fullscreen(!opts.fullscreen)), ..Default::default() });
+            }
+            // a player saves (crawl's S, which asks first); a spectator goes back to the roster
+            rows.push(if playing {
+                Row { label: "Save and exit (S)".into(), sub: Some("the game keeps; come back to it whenever".into()), sep: true, run: Some(Run::Send(cm::input("S"))), ..Default::default() }
+            } else {
+                Row { label: "Stop watching".into(), sub: Some("back to the list of games being played".into()), sep: true, run: Some(Run::Leave), ..Default::default() }
+            });
+            for (i, r) in rows.iter_mut().enumerate() {
+                r.key = Some(((b'a' + i as u8) as char).to_string());
+            }
+            rows
+        };
+        self.focus = self.tab_focus[tab].min(self.rows.len().saturating_sub(1));
     }
 
     /// The palette's rows for its section, category and filter (the pad's direct buttons left out).
@@ -226,10 +300,21 @@ impl ClientMenu {
                         *category = ((*category as i32 + step).rem_euclid(k.max(1))) as usize;
                         self.build_palette();
                     }
+                    Kind::System { tab, opts } => {
+                        if !opts.spectating {
+                            let t = *tab;
+                            self.tab_focus[t] = self.focus;
+                            *tab = 1 - t;
+                            self.build_system();
+                        }
+                    }
                     Kind::Choices => {}
                 }
             }
             _ => {}
+        }
+        if let Kind::System { tab, .. } = self.kind {
+            self.tab_focus[tab] = self.focus;
         }
         (None, true)
     }
@@ -271,7 +356,7 @@ impl ClientMenu {
         let size = 0.95 * rem;
         let mono = egui::FontId::monospace(size);
         let small = egui::FontId::monospace(0.82 * rem);
-        let wide = matches!(self.kind, Kind::Actions(..)) || matches!(self.kind, Kind::Palette { .. });
+        let wide = matches!(self.kind, Kind::Actions(..) | Kind::Palette { .. } | Kind::System { .. });
         let width = if wide { (48.0 * rem).min(screen.width() * 0.94) } else { (34.0 * rem).min(screen.width() * 0.92) };
         let row_h = (size * 1.6).max(32.0 * scale + 4.0);
         let has_icons = self.rows.iter().any(|r| r.tile.is_some() || !r.tiles.is_empty());
@@ -279,11 +364,15 @@ impl ClientMenu {
         let max_rows = ((screen.height() * 0.7 - 6.0 * rem) / row_h).floor().max(3.0) as usize;
         let shown = self.rows.len().min(max_rows);
         let first = if self.focus >= shown { self.focus + 1 - shown } else { 0 };
-        let title_h = size * 1.3 + 0.8 * rem;
+        // the tabs stand in for the title (overlays.ts installTabs, packTabs): a strip with the tabs' icons
+        let tabbed = matches!(self.kind, Kind::Actions(..) | Kind::System { .. });
+        let title_h = if tabbed { 32.0 * scale + 0.35 * 2.0 * rem + 4.0 } else { size * 1.3 + 0.8 * rem };
         let body_h = match &self.kind {
             Kind::Actions(..) => 3.6 * rem,
             Kind::Palette { .. } => shown as f32 * row_h + 2.4 * rem,
             Kind::Choices => shown as f32 * row_h + 0.9 * rem,
+            // the panel stands as tall as the longer tab, so turning one never resizes it
+            Kind::System { .. } => isorun_input::command_menu::CHARACTER_COMMANDS.len().min(max_rows) as f32 * row_h + 0.9 * rem,
         };
         let hint_h = if !any_hint { 0.0 } else { 1.4 * rem };
         let footer_h = if keyboard { size * 1.2 + 0.8 * rem } else { 0.0 };
@@ -292,6 +381,10 @@ impl ClientMenu {
         let rect = egui::Rect::from_min_size(egui::pos2(screen.center().x - width / 2.0, screen.top() + top), egui::vec2(width, height));
         let layer = egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("isorun-client-menu"));
         let painter = ctx.layer_painter(layer);
+        // the pause menu takes the screen: the world dims behind it
+        if matches!(self.kind, Kind::System { .. }) {
+            isorun_front::paint::radial(&painter, screen, screen.center(), &[(0.0, rgba(3, 2, 6, 0.5)), (1.0, rgba(3, 2, 6, 0.86))]);
+        }
         paint_panel(&painter, rect, &PanelLook::dock_popup());
         let mut out = None;
         let mut stays = true;
@@ -308,8 +401,8 @@ impl ClientMenu {
                 for t in ACTION_TABS.iter() {
                     let on = t.id == *cur;
                     let colour = if on { egui::Color32::WHITE } else { INK_DIM };
-                    let icon = 1.4 * size;
-                    let g = painter.layout_no_wrap(t.label.to_string(), egui::FontId::proportional(size), colour);
+                    let icon = 32.0 * scale;
+                    let g = painter.layout_no_wrap(t.label.to_string(), mono.clone(), colour);
                     let r = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(icon + 0.35 * size + g.size().x, title_h - 0.6 * rem));
                     if let Some(id) = tiles.id_of(t.tile) {
                         tiles.paint_id(&painter, id, egui::Rect::from_min_size(egui::pos2(x, r.center().y - icon / 2.0), egui::vec2(icon, icon)));
@@ -343,10 +436,38 @@ impl ClientMenu {
                     x = r.right() + 0.9 * size;
                 }
             }
+            Kind::System { tab, opts } => {
+                let mut x = rect.left() + pad;
+                let tabs: &[(&str, &str)] = if opts.spectating { &[("System", "CMD_GAME_MENU")] } else { &[("Character", "CMD_DISPLAY_CHARACTER_STATUS"), ("System", "CMD_GAME_MENU")] };
+                for (i, (label, tile)) in tabs.iter().enumerate() {
+                    let index = if opts.spectating { 1 } else { i };
+                    let on = index == *tab;
+                    let colour = if on { GOLD_BRIGHT } else { INK_DIM };
+                    let icon = 32.0 * scale;
+                    let g = painter.layout_no_wrap(label.to_string(), mono.clone(), colour);
+                    let r = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(icon + 0.35 * size + g.size().x, title_h - 0.6 * rem));
+                    if let Some(id) = tiles.id_of(tile) {
+                        tiles.paint_id(&painter, id, egui::Rect::from_min_size(egui::pos2(x, r.center().y - icon / 2.0), egui::vec2(icon, icon)));
+                    }
+                    painter.galley(egui::pos2(x + icon + 0.35 * size, r.center().y - g.size().y / 2.0), g, colour);
+                    if on {
+                        painter.line_segment([egui::pos2(r.left(), r.bottom()), egui::pos2(r.right(), r.bottom())], egui::Stroke::new(2.0, GOLD_BRIGHT));
+                    }
+                    if clicked_at(r) && !on {
+                        chip = Some(index);
+                    }
+                    x = r.right() + 1.4 * size;
+                }
+            }
             Kind::Choices => {
                 let g = painter.layout_no_wrap(self.title.clone(), egui::FontId::new(size, isorun_ui::fonts::bold()), egui::Color32::WHITE);
                 painter.galley(egui::pos2(rect.left() + pad, y), g, egui::Color32::WHITE);
             }
+        }
+        if let (Some(i), Kind::System { tab, .. }) = (chip, &mut self.kind) {
+            self.tab_focus[*tab] = self.focus;
+            *tab = i;
+            self.build_system();
         }
         if let (Some(i), Kind::Palette { category, .. }) = (chip, &mut self.kind) {
             *category = i;
@@ -396,10 +517,21 @@ impl ClientMenu {
                         x += icon + 0.5 * size;
                     }
                     let colour = if lit { egui::Color32::WHITE } else { egui::Color32::from_gray(0xc0) };
+                    // the System tab's rows are lettered as the game's menus are: `a - Resume`
+                    let lettered = matches!(self.kind, Kind::System { tab: 1, .. });
+                    if lettered {
+                        if let Some(k) = &row.key {
+                            let g = painter.layout_no_wrap(format!("{k} - "), mono.clone(), egui::Color32::WHITE);
+                            let w = g.size().x;
+                            painter.galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, egui::Color32::WHITE);
+                            x += w;
+                        }
+                    }
                     let g = painter.layout_no_wrap(row.label.clone(), mono.clone(), colour);
                     painter.galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, colour);
                     let right = match (&self.kind, &row.key, &row.sub) {
                         (Kind::Palette { .. }, _, Some(sub)) => Some(sub.clone()),
+                        (Kind::System { tab: 1, .. }, _, _) => None,
                         (_, Some(k), _) => Some(k.clone()),
                         _ => None,
                     };
@@ -432,13 +564,15 @@ impl ClientMenu {
         if keyboard {
             painter.line_segment([egui::pos2(rect.left(), fy), egui::pos2(rect.right(), fy)], egui::Stroke::new(1.0, egui::Color32::from_gray(0x33)));
             let tabs = !matches!(self.kind, Kind::Choices);
-            let text = match self.kind {
-                Kind::Actions(..) => "[←] [→] Tabs · [Esc] Back".to_string(),
-                _ if tabs => "[←] [→] Tabs · [Enter] Select · [Esc] Back".into(),
-                _ => "[Enter] Select · [Esc] Back".into(),
+            // `.popup .more kbd`: the keys in caps, the words beside them
+            let words = |t: &'static str| isorun_ui::widgets::KeyHint::Text(t, mono.clone(), egui::Color32::from_gray(0xaa));
+            use isorun_ui::widgets::KeyHint::{Cap, Gap};
+            let parts: Vec<isorun_ui::widgets::KeyHint> = match self.kind {
+                Kind::Actions(..) => vec![Cap("←"), Gap(4.0), Cap("→"), words(" Tabs · "), Cap("Esc"), words(" Back")],
+                _ if tabs => vec![Cap("←"), Gap(4.0), Cap("→"), words(" Tabs · "), Cap("Enter"), words(" Select · "), Cap("Esc"), words(" Back")],
+                _ => vec![Cap("Enter"), words(" Select · "), Cap("Esc"), words(" Back")],
             };
-            let g = painter.layout_no_wrap(text, mono, egui::Color32::from_gray(0xaa));
-            painter.galley(egui::pos2(rect.left() + pad, fy + 0.4 * rem), g, egui::Color32::from_gray(0xaa));
+            isorun_ui::widgets::key_hints(&painter, egui::pos2(rect.left() + pad, fy + 0.4 * rem), &parts, &isorun_ui::widgets::KeycapLook::footer(size));
         }
         // the panel takes its own clicks: none reach the view under it
         egui::Area::new(egui::Id::unique("isorun-client-menu-block")).order(egui::Order::Middle).fixed_pos(rect.min).show(ctx, |ui| {

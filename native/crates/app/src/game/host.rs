@@ -40,6 +40,7 @@ pub enum Deferred {
     DockScreen(DockButtonId),
     DockNav(NavOp),
     ExploreAtOnce,
+    Fullscreen(bool),
 }
 
 pub struct Host<'a> {
@@ -211,8 +212,10 @@ impl GameHost for Host<'_> {
         if self.p.menus.is_open() {
             return Some(OverlayMenu::System);
         }
-        if self.p.client.as_ref().is_some_and(|c| matches!(c.kind, super::client::Kind::Actions(..))) {
-            return Some(OverlayMenu::Battle);
+        match self.p.client.as_ref().map(|c| &c.kind) {
+            Some(super::client::Kind::Actions(..)) => return Some(OverlayMenu::Battle),
+            Some(super::client::Kind::System { .. }) => return Some(OverlayMenu::System),
+            _ => {}
         }
         if self.p.hud.screen_open() == Some(isorun_hud::screens::ScreenId::Inventory) {
             return Some(OverlayMenu::Equipment);
@@ -359,9 +362,8 @@ impl GameHost for Host<'_> {
         self.state.ui.last().is_some_and(|p| isorun_overlays::menu_nav::is_scroller(&p.kind))
     }
 
-    fn show_system(&mut self, spectating: bool) {
-        self.p.client = None;
-        self.p.menus.open_system(isorun_front::SystemOptions { spectating, in_game: true, chat: self.chat, can_fullscreen: !cfg!(target_arch = "wasm32") || true, fullscreen: false });
+    fn show_system(&mut self, _spectating: bool) {
+        self.p.show_system();
     }
 
     fn show_palette(&mut self, category: CommandCategory) {
