@@ -7,7 +7,7 @@ compact dock of `touch.css`), `quick-slots.ts`, `dock-actions.ts`, `dock-memory.
 
 | module | what | from |
 |---|---|---|
-| `hud` | `Hud`: the whole HUD as the game screen drives it, and the game screen's helpers that belong to it | `game.ts` `relayout`, `updateDock`, `slotSources`, `loadMemory`, `learnFromMenus`, `probeGear`, `dockButton`, `showInventory`, `itemAct`, `fillPlace`, `trackResume` |
+| `hud` | `Hud`: the whole HUD as the game screen drives it, and the game screen's helpers that belong to it | `game.ts` `relayout`, `updateDock`, `slotSources`, `loadMemory`, `learnFromMenus`, `probeGear`, `dockButton`, `showInventory`, `itemAct`, `fillPlace`, `trackResume` (only putting on, taking off and describing bring the inventory back: `resumes_after`, `ResumeWatch`) |
 | `dock` | `Dock`: orbs, status chips, AC/EV/SH and attributes, quick slots, the square's actions, the screen buttons, the pad's cursor on it; the compact dock under 900 × 560 | `dock.ts`, `dock.css`, `touch.css` |
 | `classic` | the panes on the grid: stats pane with portrait, monster list, status strip, trapped mark, action panel, message pane and its `--more--` scrim, the pad's prompts and menu buttons, the status line, the inspect card; the minimap's slot | `hud.ts` |
 | `screens` | the inventory (paper doll, backpack, item cards against what they replace, item menu) and the character sheet | `screens.ts` |

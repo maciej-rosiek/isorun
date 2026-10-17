@@ -149,7 +149,7 @@ pub struct Hud {
     fresh_rev: u64,
     menus_read_rev: u64,
     probe: Option<Probe>,
-    resume: Option<(ScreenId, f64, bool)>,
+    resume: Option<Resume>,
     slots: Vec<Option<QuickSlot>>,
     view: DockView,
     layout: Option<HudLayout>,
@@ -160,6 +160,70 @@ pub struct Hud {
     /// the screens read the keyboard themselves; a game screen with a router turns it off and
     /// hands them `screen_op`s
     pub screens_read_keys: bool,
+}
+
+/// A screen put away for crawl to take an action, to come back once crawl is done with it
+/// (game.ts `trackResume`).
+#[derive(Clone, Debug)]
+struct Resume {
+    id: ScreenId,
+    at: f64,
+    /// crawl has left command mode for it (a menu, a prompt, a description)
+    left: bool,
+    /// for an item's action: what must hold for the inventory to come back (None: it comes back)
+    watch: Option<ResumeWatch>,
+}
+
+/// Whether an item's action from the inventory brings the inventory back once crawl is done:
+/// putting on and taking off (wear, wield, put on; take off, unwield, remove) and reading the
+/// description leave the player among their things. Using the item up or starting something in
+/// the dungeon (read, quaff, eat, evoke, zap, throw or fire, all `Use`) and dropping it do not:
+/// the screen stays away, and whatever crawl asks next (an aim, a scroll's menu) is shown.
+pub fn resumes_after(id: ItemActionId) -> bool {
+    matches!(id, ItemActionId::Equip | ItemActionId::Unequip | ItemActionId::Describe)
+}
+
+/// What an item's action that brings the inventory back is watched for: it does not come back
+/// after one that led to an aim, a level change or a fight, nor after a description from which
+/// the item was used (a key of its own: the description's `r`, `q`, `d`), seen as crawl opening
+/// a menu or a prompt from it or as the item gone or fewer.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ResumeWatch {
+    pub id: ItemActionId,
+    pub letter: String,
+    /// the item's count at the letter (None: no item there)
+    pub count: Option<i64>,
+    pub hp: i64,
+    pub place: (String, i64),
+    pub hostiles: usize,
+}
+
+impl ResumeWatch {
+    pub fn of(id: ItemActionId, letter: String, st: &GameState, scene: &Scene) -> ResumeWatch {
+        let count = pack_items(&st.player.inv).iter().find(|i| i.letter == letter).map(|i| i.count().unwrap_or(1));
+        ResumeWatch { id, letter, count, hp: st.player.hp, place: (st.player.place.clone(), st.player.depth), hostiles: hostiles_in_view(scene) }
+    }
+
+    /// Whether crawl's mode while the screen is away keeps it coming back. An aim never does. A
+    /// description shows as a popup; a menu or a prompt over it is something done from it. Putting
+    /// on and taking off may go through crawl's own menus and prompts (the equip menu, which ring
+    /// to take off, a confirmation), which are part of the action.
+    pub fn allows(&self, mode: Mode) -> bool {
+        match mode {
+            Mode::Command | Mode::Popup => true,
+            Mode::Targeting | Mode::LevelMap | Mode::Other => false,
+            Mode::Menu | Mode::Prompt => self.id != ItemActionId::Describe,
+        }
+    }
+
+    /// Whether the inventory comes back, `now` taken when crawl is done: on the same level, no
+    /// fight begun (a hostile more in view, or hit points lost with one there), and after a
+    /// description the item still there as it was.
+    pub fn still(&self, now: &ResumeWatch) -> bool {
+        let fight = now.hostiles > self.hostiles || (now.hostiles > 0 && now.hp < self.hp);
+        let used = self.id == ItemActionId::Describe && now.count != self.count;
+        now.place == self.place && !fight && !used
+    }
 }
 
 impl Default for Hud {
@@ -527,21 +591,33 @@ impl Hud {
     }
 
     /// A screen put away for crawl to take an action comes back once crawl is done with it.
+    /// An item's action brings the inventory back only while what crawl does for it stays what
+    /// the action is (`ResumeWatch`).
     fn track_resume(&mut self, cx: &mut HudCx) {
-        let Some((id, t, left)) = self.resume else { return };
-        if cx.now - t > RESUME || cx.client_overlay {
+        let Some(r) = self.resume.as_mut() else { return };
+        if cx.now - r.at > RESUME || cx.client_overlay {
             self.resume = None;
             return;
         }
-        if guess_mode(cx.state) != Mode::Command {
-            self.resume = Some((id, t, true));
+        let mode = guess_mode(cx.state);
+        if mode != Mode::Command {
+            r.left = true;
+            if r.watch.as_ref().is_some_and(|w| !w.allows(mode)) {
+                self.resume = None;
+            }
             return;
         }
-        if !left && cx.now - t < RESUME_QUIET {
+        if !r.left && cx.now - r.at < RESUME_QUIET {
             return;
         }
-        self.resume = None;
-        self.open_screen(id, cx);
+        let r = self.resume.take().expect("resume");
+        if let Some(w) = &r.watch {
+            let now = ResumeWatch::of(w.id, w.letter.clone(), cx.state, cx.scene);
+            if !w.still(&now) {
+                return;
+            }
+        }
+        self.open_screen(r.id, cx);
     }
 
     fn open_screen(&mut self, id: ScreenId, cx: &mut HudCx) {
@@ -569,7 +645,7 @@ impl Hud {
             DockButtonId::Inventory | DockButtonId::Character => {
                 let sid = if id == DockButtonId::Inventory { ScreenId::Inventory } else { ScreenId::Character };
                 if matches!(cx.mode, Mode::Menu | Mode::Popup) {
-                    self.resume = Some((sid, cx.now, true));
+                    self.resume = Some(Resume { id: sid, at: cx.now, left: true, watch: None });
                     cx.commands.push(HudCommand::Run(Action::Keys { label: "Cancel".into(), seq: vec![KeyStep::key(27)] }));
                     return;
                 }
@@ -728,7 +804,7 @@ impl Hud {
                     return;
                 }
                 self.screen = None;
-                self.resume = Some((ScreenId::Character, cx.now, false));
+                self.resume = Some(Resume { id: ScreenId::Character, at: cx.now, left: false, watch: None });
                 cx.commands.push(HudCommand::Run(a));
             }
         }
@@ -759,13 +835,14 @@ impl Hud {
     }
 
     /// An item's action from the inventory: the screen goes while crawl takes it, and comes back
-    /// after (game.ts `itemAct`).
+    /// after for those that leave the player in the inventory (`resumes_after`; game.ts `itemAct`
+    /// brought it back after every one).
     fn item_act(&mut self, item: PackItem, id: ItemActionId, cx: &mut HudCx) {
         if cx.state.watching.is_some() || self.probe.is_some() || guess_mode(cx.state) != Mode::Command {
             return;
         }
         self.screen = None;
-        self.resume = Some((ScreenId::Inventory, cx.now, false));
+        self.resume = resumes_after(id).then(|| Resume { id: ScreenId::Inventory, at: cx.now, left: false, watch: Some(ResumeWatch::of(id, item.letter.clone(), cx.state, cx.scene)) });
         match id {
             ItemActionId::Use => cx.commands.push(HudCommand::Run(Action::Send(cm::inv_item_action(item.item.slot)))),
             ItemActionId::Describe => cx.commands.push(HudCommand::Run(Action::Send(cm::inv_item_describe(item.item.slot)))),
@@ -818,5 +895,54 @@ mod centre_lift_tests {
         // little dock: little lift, and none upright
         assert_eq!(centre_lift(915.0, 875.0, true), 20.0);
         assert_eq!(centre_lift(915.0, 875.0, false), 0.0);
+    }
+}
+
+#[cfg(test)]
+mod resume_tests {
+    use super::{resumes_after, ResumeWatch};
+    use crate::gear::ItemActionId;
+    use crate::Mode;
+
+    fn watch(id: ItemActionId) -> ResumeWatch {
+        ResumeWatch { id, letter: "c".into(), count: Some(2), hp: 20, place: ("D".into(), 1), hostiles: 0 }
+    }
+
+    #[test]
+    fn only_putting_on_taking_off_and_describing_come_back() {
+        assert!(resumes_after(ItemActionId::Equip));
+        assert!(resumes_after(ItemActionId::Unequip));
+        assert!(resumes_after(ItemActionId::Describe));
+        // read, quaff, eat, evoke, zap, throw, fire
+        assert!(!resumes_after(ItemActionId::Use));
+        assert!(!resumes_after(ItemActionId::Drop));
+    }
+
+    #[test]
+    fn an_aim_a_menu_from_a_description_or_a_level_ends_it() {
+        let wear = watch(ItemActionId::Equip);
+        let describe = watch(ItemActionId::Describe);
+        assert!(wear.allows(Mode::Popup) && wear.allows(Mode::Menu) && wear.allows(Mode::Prompt));
+        assert!(!wear.allows(Mode::Targeting) && !wear.allows(Mode::LevelMap));
+        assert!(describe.allows(Mode::Popup));
+        assert!(!describe.allows(Mode::Menu) && !describe.allows(Mode::Prompt) && !describe.allows(Mode::Targeting));
+        assert!(wear.still(&wear));
+        assert!(!wear.still(&ResumeWatch { place: ("D".into(), 2), ..wear.clone() }));
+    }
+
+    #[test]
+    fn a_fight_or_the_item_used_from_its_description_ends_it() {
+        let wear = watch(ItemActionId::Equip);
+        assert!(!wear.still(&ResumeWatch { hostiles: 1, ..wear.clone() }));
+        let among = ResumeWatch { hostiles: 1, ..wear.clone() };
+        assert!(!among.still(&ResumeWatch { hp: 15, ..among.clone() }));
+        // poison ticking with nothing in view is no fight
+        assert!(wear.still(&ResumeWatch { hp: 19, ..wear.clone() }));
+        let describe = watch(ItemActionId::Describe);
+        assert!(describe.still(&describe));
+        assert!(!describe.still(&ResumeWatch { count: Some(1), ..describe.clone() }));
+        assert!(!describe.still(&ResumeWatch { count: None, ..describe.clone() }));
+        // wearing armour changes no count
+        assert!(wear.still(&ResumeWatch { count: Some(1), ..wear.clone() }));
     }
 }
