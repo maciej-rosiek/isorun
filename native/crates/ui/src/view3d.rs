@@ -9,6 +9,8 @@ use isorun_render::IsoRenderer;
 struct Target {
     _texture: wgpu::Texture,
     srgb: wgpu::TextureView,
+    /// The format the renderer writes `srgb` as: sRGB, or plain where there is no sRGB view.
+    format: wgpu::TextureFormat,
     id: egui::TextureId,
     size: (u32, u32),
 }
@@ -31,18 +33,28 @@ impl View3d {
         self.renderer.resize(rect.width(), rect.height(), ppp);
         let size = self.renderer.render_size();
         if self.target.as_ref().map(|t| t.size) != Some(size) {
+            // the renderer writes sRGB-encoded colour through an sRGB view, and egui shows the same
+            // bytes as plain colour
+            let views = rs.adapter.get_downlevel_capabilities().flags.contains(wgpu::DownlevelFlags::VIEW_FORMATS);
+            let extent = wgpu::Extent3d { width: size.0, height: size.1, depth_or_array_layers: 1 };
             let texture = rs.device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("iso view"),
-                size: wgpu::Extent3d { width: size.0, height: size.1, depth_or_array_layers: 1 },
+                size: extent,
                 mip_level_count: 1,
                 sample_count: 1,
                 dimension: wgpu::TextureDimension::D2,
                 format: wgpu::TextureFormat::Rgba8Unorm,
                 usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
-                view_formats: &[wgpu::TextureFormat::Rgba8UnormSrgb],
+                view_formats: if views { &[wgpu::TextureFormat::Rgba8UnormSrgb] } else { &[] },
             });
             let plain = texture.create_view(&Default::default());
-            let srgb = texture.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), ..Default::default() });
+            // without a second view format (WebGL2) the renderer writes the plain texture and
+            // encodes the colour itself (its composite's ENCODE_SRGB)
+            let (srgb, format) = if views {
+                (texture.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), ..Default::default() }), wgpu::TextureFormat::Rgba8UnormSrgb)
+            } else {
+                (texture.create_view(&Default::default()), wgpu::TextureFormat::Rgba8Unorm)
+            };
             let mut egui_renderer = rs.renderer.write();
             let id = match self.target.take() {
                 Some(old) => {
@@ -51,11 +63,11 @@ impl View3d {
                 }
                 None => egui_renderer.register_native_texture(&rs.device, &plain, wgpu::FilterMode::Linear),
             };
-            self.target = Some(Target { _texture: texture, srgb, id, size });
+            self.target = Some(Target { _texture: texture, srgb, format, id, size });
         }
         let target = self.target.as_ref().unwrap();
         let mut encoder = rs.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("iso frame") });
-        let drawn = self.renderer.render(&mut encoder, &target.srgb, wgpu::TextureFormat::Rgba8UnormSrgb);
+        let drawn = self.renderer.render(&mut encoder, &target.srgb, target.format);
         rs.queue.submit([encoder.finish()]);
         if drawn {
             ui.painter().image(target.id, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);

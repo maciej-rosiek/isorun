@@ -60,7 +60,10 @@ impl Shadows {
     pub fn new(gpu: &Gpu, point_lights: u32) -> Self {
         let device = &gpu.device;
         let sun = gpu.texture("sun shadow", SUN_SHADOW_MAP_SIZE, SUN_SHADOW_MAP_SIZE, DEPTH_FORMAT, 1, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING);
-        let layers = (point_lights * 6).max(1);
+        // OpenGL picks a texture's kind from its shape: a square one of 6n layers is a cube map
+        // (array), which WebGL2 cannot draw into by layer or has not at all, and one of a single
+        // layer is no array; a spare layer keeps it a 2D array there
+        let layers = if gpu.gl { (point_lights * 6 + 1).max(2) } else { (point_lights * 6).max(1) };
         let points = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("torch shadows"),
             size: wgpu::Extent3d { width: SHADOW_MAP_SIZE, height: SHADOW_MAP_SIZE, depth_or_array_layers: layers },

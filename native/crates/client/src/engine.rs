@@ -585,6 +585,13 @@ use web as host;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use native::{install, Install};
+#[cfg(target_arch = "wasm32")]
+pub use web::{install, Install};
+
+/// The engine build this device plays, if any.
+pub fn build() -> Option<Build> {
+    host::build()
+}
 
 /// The desktop and Android: crawl as a child process.
 #[cfg(not(target_arch = "wasm32"))]
@@ -1026,6 +1033,16 @@ mod web {
 
     pub(super) fn build() -> Option<Build> {
         channel().map(|c| c.build.clone())
+    }
+
+    /// The build the page serves, as the desktop's install names it (its folder is the server's).
+    #[derive(Clone, Debug)]
+    pub struct Install {
+        pub build: Build,
+    }
+
+    pub fn install() -> Option<Install> {
+        build().map(|build| Install { build })
     }
 
     /// The profile's save folder (channels.ts `profileSaveDir`).

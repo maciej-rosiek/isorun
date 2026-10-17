@@ -86,12 +86,13 @@ try {
   {
     const { page, log, loaded } = await open('?testbed')
     check(loaded, 'the test bed page starts')
-    await page.waitForTimeout(20_000)
+    await page.waitForTimeout(Number(process.env.TESTBED_WAIT ?? 20_000))
     await page.screenshot({ path: join(OUT, 'testbed.png') })
     const p = await painted(page)
     check(p.size > 50_000, `the test bed renders (${p.size} bytes of screenshot)`)
     const errors = log.filter((l) => /panicked|RuntimeError|pageerror|\[error\]/.test(l))
     check(errors.length === 0, `no errors in the test bed ${errors.slice(0, 5).join(' | ')}`)
+    if (process.env.VERBOSE) console.log(log.slice(0, 60).join('\n'))
     await page.close()
   }
   // an offline game through the bridge: the engine boots in a worker and draws its first map

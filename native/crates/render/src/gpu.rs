@@ -66,6 +66,12 @@ pub struct Gpu {
     pub world: wgpu::ShaderModule,
     pub shadow: wgpu::ShaderModule,
     pub max_texture: u32,
+    /// Whether each of a pass's targets can blend its own way. WebGL2 (and OpenGL ES) cannot:
+    /// there the layers blend every target alike, premultiplied, and their shaders shape what
+    /// they write to each target so it comes out as it would (layers.rs `premultiplied_source`).
+    pub independent_blend: bool,
+    /// The OpenGL (WebGL2) backend, which takes a texture's kind from its shape (layers.rs, shadows.rs).
+    pub gl: bool,
 }
 
 fn texture_entry(binding: u32, sample: wgpu::TextureSampleType, dim: wgpu::TextureViewDimension) -> wgpu::BindGroupLayoutEntry {
@@ -143,6 +149,8 @@ impl Gpu {
         let world = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("world"), source: wgpu::ShaderSource::Wgsl(with_common(include_str!("shaders/world.wgsl")).into()) });
         let shadow = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("shadow"), source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shadow.wgsl").into()) });
         let max_texture = device.limits().max_texture_dimension_2d;
+        let gl = device.adapter_info().backend == wgpu::Backend::Gl;
+        let independent_blend = !gl;
         Gpu {
             device,
             queue,
@@ -159,6 +167,8 @@ impl Gpu {
             world,
             shadow,
             max_texture,
+            independent_blend,
+            gl,
         }
     }
 

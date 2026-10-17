@@ -130,11 +130,11 @@ impl Post {
                 wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
             ],
         });
-        let ao_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("ao"), entries: &[tex_entry(0, wgpu::TextureSampleType::Depth), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Float { filterable: false })] });
+        let ao_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("ao"), entries: &[tex_entry(0, wgpu::TextureSampleType::Float { filterable: false }), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Float { filterable: false })] });
         let source_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("source"), entries: &[tex_entry(0, float)] });
         let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("composite"),
-            entries: &[tex_entry(0, float), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Depth), tex_entry(3, float), tex_entry(4, float), tex_entry(5, float), tex_entry(6, float)],
+            entries: &[tex_entry(0, float), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Float { filterable: false }), tex_entry(3, float), tex_entry(4, float), tex_entry(5, float), tex_entry(6, float)],
         });
         let sum_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("bloom sum"), entries: &(0..5).map(|i| tex_entry(i, float)).collect::<Vec<_>>() });
         let blur_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("blur"), entries: &[wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, 32, true) }] });
@@ -278,7 +278,12 @@ impl Post {
             label: Some("composite"),
             layout: Some(&self.composite_pl),
             vertex: wgpu::VertexState { module: &self.module, entry_point: Some("vs_full"), buffers: &[], compilation_options: Default::default() },
-            fragment: Some(wgpu::FragmentState { module: &self.module, entry_point: Some("fs_composite"), targets: &[Some(format.into())], compilation_options: Default::default() }),
+            fragment: Some(wgpu::FragmentState {
+                module: &self.module,
+                entry_point: Some("fs_composite"),
+                targets: &[Some(format.into())],
+                compilation_options: wgpu::PipelineCompilationOptions { constants: &[("ENCODE_SRGB", if format.is_srgb() { 0.0 } else { 1.0 })], ..Default::default() },
+            }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
             multisample: wgpu::MultisampleState::default(),

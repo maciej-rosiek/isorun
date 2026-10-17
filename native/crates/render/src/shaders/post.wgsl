@@ -55,7 +55,9 @@ fn vs_full(@builtin(vertex_index) i: u32) -> VertexOut {
 
 // ---------------------------------------------------------------- ambient occlusion
 
-@group(1) @binding(0) var depth_tex: texture_depth_2d;
+// the depth as an unfilterable float texture, not texture_depth_2d: WebGL2 (GLSL) has no
+// textureLoad from a depth texture
+@group(1) @binding(0) var depth_tex: texture_2d<f32>;
 @group(1) @binding(1) var normal_tex: texture_2d<f32>;
 
 fn view_position(uv: vec2<f32>, depth: f32) -> vec3<f32> {
@@ -67,7 +69,7 @@ fn view_position(uv: vec2<f32>, depth: f32) -> vec3<f32> {
 fn depth_at(uv: vec2<f32>) -> f32 {
     let size = vec2<f32>(textureDimensions(depth_tex));
     let c = clamp(vec2<i32>(uv * size), vec2<i32>(0), vec2<i32>(size) - 1);
-    return textureLoad(depth_tex, c, 0);
+    return textureLoad(depth_tex, c, 0).r;
 }
 
 fn ign(p: vec2<f32>) -> f32 {
@@ -193,7 +195,7 @@ fn fs_down(in: VertexOut) -> @location(0) vec4<f32> {
 
 @group(1) @binding(0) var scene_colour: texture_2d<f32>;
 @group(1) @binding(1) var scene_normal: texture_2d<f32>;
-@group(1) @binding(2) var scene_depth: texture_depth_2d;
+@group(1) @binding(2) var scene_depth: texture_2d<f32>;
 @group(1) @binding(3) var ao_tex: texture_2d<f32>;
 @group(1) @binding(4) var blur_tex: texture_2d<f32>;
 @group(1) @binding(5) var bloom_tex: texture_2d<f32>;
@@ -213,7 +215,7 @@ fn shaded(uv: vec2<f32>) -> vec3<f32> {
 fn depth_load(uv: vec2<f32>) -> f32 {
     let size = vec2<f32>(textureDimensions(scene_depth));
     let c = clamp(vec2<i32>(uv * size), vec2<i32>(0), vec2<i32>(size) - 1);
-    return textureLoad(scene_depth, c, 0);
+    return textureLoad(scene_depth, c, 0).r;
 }
 
 fn linear_depth(uv: vec2<f32>) -> f32 {
@@ -269,6 +271,13 @@ fn edge_at(uv: vec2<f32>) -> f32 {
     return edge;
 }
 
+override ENCODE_SRGB: bool = false;
+
+fn srgb_from_linear(c: vec3<f32>) -> vec3<f32> {
+    let x = max(c, vec3<f32>(0.0));
+    return select(1.055 * pow(x, vec3<f32>(1.0 / 2.4)) - 0.055, x * 12.92, x <= vec3<f32>(0.0031308));
+}
+
 @fragment
 fn fs_composite(in: VertexOut) -> @location(0) vec4<f32> {
     var uv = in.uv;
@@ -316,7 +325,12 @@ fn fs_composite(in: VertexOut) -> @location(0) vec4<f32> {
     } else if (debug == 4) {
         out = textureSampleLevel(blur_tex, linear_s, uv, 0.0).rgb;
     }
-    return vec4<f32>(neutral_tone(out, post.outline_colour.w), 1.0);
+    let toned = neutral_tone(out, post.outline_colour.w);
+    // an output that is not sRGB (WebGL2 has no sRGB view of a plain texture) gets the encoding here
+    if (ENCODE_SRGB) {
+        return vec4<f32>(srgb_from_linear(toned), 1.0);
+    }
+    return vec4<f32>(toned, 1.0);
 }
 
 // Khronos PBR Neutral, as three's NeutralToneMapping, after the exposure.
