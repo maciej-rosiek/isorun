@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { morgueDirGuesses, morgueDirOf, parseWhereis, parseXlog, saveWaiting, whereisUrl, whereisVersion } from '../src/whereis'
-import { describeCharacter, describePlace, findServer } from '../src/servers'
+import { describeCharacter, describePlace, findServer, gamedataBaseFor, morgueUrlFor } from '../src/servers'
 
 const cdi = findServer('cdi')!
 
@@ -75,5 +75,17 @@ describe('morgue directories', () => {
     expect(whereisUrl(cdi, '/crawl/morgue/orbrun/')).toBe('/morgue-proxy/crawl.dcss.io/crawl/morgue/orbrun/orbrun.where')
     expect(whereisUrl(cdi, '/rawdata/Dwarfsong/')).toBe('/morgue-proxy/crawl.dcss.io/rawdata/Dwarfsong/Dwarfsong.where')
     expect(whereisUrl(cdi, '/')).toBeNull()
+  })
+
+  it('goes through the hosted page’s proxies in the Android app, which has none of its own', () => {
+    vi.stubEnv('VITE_PLATFORM', 'android')
+    try {
+      const hosted = 'https://isorun.maciej-rosiek.workers.dev'
+      expect(whereisUrl(cdi, '/rawdata/Dwarfsong/')).toBe(`${hosted}/morgue-proxy/crawl.dcss.io/rawdata/Dwarfsong/Dwarfsong.where`)
+      expect(morgueUrlFor(cdi, '/morgue/Dwarfsong/morgue-Dwarfsong-20260912')).toBe(`${hosted}/morgue-proxy/crawl.dcss.io/morgue/Dwarfsong/morgue-Dwarfsong-20260912.txt`)
+      expect(gamedataBaseFor(cdi)).toBe(`${hosted}/gamedata-proxy/crawl.dcss.io`)
+    } finally {
+      vi.unstubAllEnvs()
+    }
   })
 })

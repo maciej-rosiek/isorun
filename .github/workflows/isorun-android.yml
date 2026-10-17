@@ -1,0 +1,75 @@
+name: Build the Isorun Android app
+
+# The Android app (mobile/): the game and the stable offline engine in an APK. Builds the engine
+# (engine/build.sh stable), then the APK (mobile/package.mjs), kept as the run's artifact. A run
+# for a published release, or a manual run with "upload", adds Isorun.apk to the release
+# v<version> of apps/isorun/package.json. Signed with the release key from the
+# ANDROID_KEYSTORE_BASE64 and ANDROID_KEYSTORE_PASSWORD repository secrets (mobile/README.md);
+# without them, with the debug key.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      upload:
+        description: Add the APK to the release v<version>
+        type: boolean
+        default: false
+
+concurrency:
+  group: isorun-android
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # the engine's build needs JSPI (engine/.node-version)
+          node-version-file: engine/.node-version
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            mobile/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Tools for the engine
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq libpng-dev zlib1g-dev pkg-config python3-yaml
+          git clone --quiet --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$(cat engine/emsdk-version)"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$(cat engine/emsdk-version)"
+      - name: Engine
+        run: |
+          node_bin=$(dirname "$(command -v node)")
+          . "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          # emsdk_env puts its own node first, which is older than JSPI needs
+          PATH=$node_bin:$PATH sh engine/build.sh stable
+      - run: npm ci
+      - run: npm ci
+        working-directory: mobile
+      - name: APK
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/isorun.keystore"
+            export ISORUN_KEYSTORE="$RUNNER_TEMP/isorun.keystore"
+          fi
+          node mobile/package.mjs ${{ (github.event_name == 'release' || inputs.upload) && '--publish' || '' }}
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ISORUN_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Isorun-android
+          path: mobile/dist/release/Isorun.apk

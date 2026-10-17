@@ -39,7 +39,8 @@ so the dev and preview servers include a small proxy that fetches gamedata
 The desktop app (Linux, SteamOS and Windows; for a Steam Deck or a ROG Ally) is in
 [desktop](desktop/README.md): the game and the offline engine in an Electron window, from the
 [releases](https://github.com/maciej-rosiek/isorun/releases) (on Linux a self-updating AppImage).
-[STEAM.md](STEAM.md) puts it in a Steam Deck's library.
+[STEAM.md](STEAM.md) puts it in a Steam Deck's library. The Android app is in
+[mobile](mobile/README.md): the game and the offline engine in an APK, also from the releases.
 
 ## Packages
 

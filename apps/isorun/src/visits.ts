@@ -1,3 +1,4 @@
+import { hostedBase } from './servers'
 import { BEAT_MS, visitUrl, type GameMode, type VisitBeacon } from './visit-beacon'
 
 export interface GameOnScreen {
@@ -34,6 +35,6 @@ export class Visits {
 
   private send(beacon: Omit<VisitBeacon, 'id'>): void {
     if (import.meta.env.DEV) return
-    navigator.sendBeacon(visitUrl({ id: this.id, ...beacon }))
+    navigator.sendBeacon(hostedBase() + visitUrl({ id: this.id, ...beacon }))
   }
 }

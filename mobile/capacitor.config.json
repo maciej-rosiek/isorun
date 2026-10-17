@@ -1,0 +1,13 @@
+{
+  "appId": "io.github.maciejrosiek.isorun",
+  "appName": "Isorun",
+  "webDir": "dist/www",
+  "server": {
+    "androidScheme": "https",
+    "hostname": "isorun.localhost"
+  },
+  "android": {
+    "path": "android",
+    "backgroundColor": "#000000"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "name": "isorun-mobile",
+  "productName": "Isorun",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Isorun as an Android app: the game and the offline engine in a Capacitor WebView",
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "scripts": {
+    "stage": "node stage.mjs",
+    "package": "node package.mjs",
+    "open": "cap open android",
+    "release": "node package.mjs --publish"
+  },
+  "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/core": "8.5.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3"
+  }
+}

@@ -1,4 +1,4 @@
-import { characterOf, type LastCharacter, type ServerInfo } from './servers'
+import { characterOf, hostedBase, type LastCharacter, type ServerInfo } from './servers'
 
 /**
  * `<player>.where`: what the server itself says is waiting in a player's save.
@@ -102,7 +102,7 @@ export function morgueDirGuesses(username: string): string[] {
   return [`/crawl/morgue/${u}/`, `/morgue/${u}/`, `/rawdata/${u}/`]
 }
 
-/** The same-origin address of the `.where` file in a morgue directory, for the proxy (gamedata-proxy.ts). */
+/** The proxied address (same-origin, or the hosted page's in the Android app) of the `.where` file in a morgue directory, for the proxy (gamedata-proxy.ts). */
 export function whereisUrl(server: ServerInfo, dir: string): string | null {
   const segs = dir.split('/').filter(Boolean)
   const who = segs[segs.length - 1]
@@ -114,5 +114,5 @@ export function whereisUrl(server: ServerInfo, dir: string): string | null {
     return null
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-  return `/morgue-proxy/${u.host}${u.pathname}`
+  return `${hostedBase()}/morgue-proxy/${u.host}${u.pathname}`
 }

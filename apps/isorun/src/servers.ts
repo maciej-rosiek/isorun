@@ -42,6 +42,24 @@ export interface ServerInfo {
 /** Where the offline engine's files are served (engine/dist; the dev server's /engine route). */
 export const ENGINE_BASE = '/engine'
 
+/** The hosted page, whose Worker serves the proxies and counts visits for a shell that has neither (the Android app). */
+const HOSTED_ORIGIN = 'https://isorun.maciej-rosiek.workers.dev'
+
+/**
+ * Whether this build is the Android app (mobile/, `VITE_PLATFORM=android`):
+ * its files, the engine among them, are in the APK, so nothing is kept in
+ * Cache Storage and no service worker runs; and it has no proxies of its
+ * own, so they are the hosted page's.
+ */
+export function androidApp(): boolean {
+  return import.meta.env.VITE_PLATFORM === 'android'
+}
+
+/** What the same-origin paths of the proxies and the visit beacon are prefixed with: the hosted page in the Android app. */
+export function hostedBase(): string {
+  return androidApp() ? HOSTED_ORIGIN : ''
+}
+
 /**
  * The server that is this device: the offline engine. Its accounts are
  * profiles, each with saves of its own (@isorun/offline `profileSaveDir`),
@@ -486,7 +504,7 @@ export function setGames(serverId: string, games: CachedGame[]) {
 /** Where gamedata is fetched from for a server, in this shell. */
 export function gamedataBaseFor(server: ServerInfo): string {
   if (server.offline) return ENGINE_BASE
-  return `/gamedata-proxy/${server.host}`
+  return `${hostedBase()}/gamedata-proxy/${server.host}`
 }
 
 /**
@@ -505,7 +523,7 @@ export function morgueUrlFor(server: ServerInfo, dump: string): string | null {
     return null
   }
   if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
-  return `/morgue-proxy/${u.host}${u.pathname}`
+  return `${hostedBase()}/morgue-proxy/${u.host}${u.pathname}`
 }
 
 /**

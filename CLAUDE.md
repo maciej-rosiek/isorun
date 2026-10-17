@@ -185,6 +185,15 @@ snapshot commit, without the history.
   (`electron desktop`) under `xvfb-run`, with `--ozone-platform=x11` and `ELECTRON_RUN_AS_NODE`
   unset (this shell sets it). The AppImage runs with `--appimage-extract-and-run` and an
   `LD_LIBRARY_PATH` of the nixpkgs libraries Electron needs (nss, nspr, gtk3, alsa-lib, libgbm).
+- The Android app (`mobile/`, not an npm workspace, so `npm install` there; README there): Capacitor,
+  the native project in `mobile/android`. `stage.mjs` builds the game with `VITE_PLATFORM=android`
+  (`servers.ts` `androidApp`: no service worker and no Cache Storage, as the engine is in the APK; the
+  proxies and the visit beacon go to the hosted page, `hostedBase`) and copies the stable channel of
+  `engine/dist` beside it; `npm run package` makes `dist/release/Isorun.apk` (needs a JDK 21 and the
+  Android SDK). `.github/workflows/isorun-android.yml` builds the engine and the APK
+  on GitHub and adds the APK to a release when it is published; the release key is the
+  `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets. The engine needs a WebView with
+  JSPI (137+).
 - Hosting: the `isorun` Worker (`wrangler.jsonc`, `apps/isorun/worker/index.ts`) at
   https://isorun.maciej-rosiek.workers.dev, deployed by `.github/workflows/isorun-cloudflare.yml` on
   a push to `main`. The offline engine's Worker is not deployed, so `/engine/*` is a 404 there and

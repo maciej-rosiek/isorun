@@ -1,5 +1,5 @@
 import { EngineStore } from '@isorun/offline'
-import { ENGINE_BASE, offlineOffered, offlineRuns } from './servers'
+import { androidApp, ENGINE_BASE, offlineOffered, offlineRuns } from './servers'
 
 let busy: () => boolean = () => false
 let atRest: () => boolean = () => false
@@ -15,7 +15,8 @@ const LOOK_MS = 5 * 60_000
 export const engines = new EngineStore({
   // no page to be relative to under node (the session tests), where nothing is kept anyway
   base: new URL(ENGINE_BASE + '/', typeof location === 'undefined' ? 'http://localhost/' : location.href).href,
-  caches: typeof caches === 'undefined' ? undefined : caches,
+  // the Android app has the engine in its own files: a copy in Cache Storage would only take the space twice
+  caches: typeof caches === 'undefined' || androidApp() ? undefined : caches,
   busy: () => busy(),
 })
 
@@ -24,7 +25,8 @@ export const engines = new EngineStore({
  * keeps the app, so it opens with no connection, and answers the engine's
  * requests from what is kept (public/sw.js), and what counts as a game under
  * way, which downloads wait for. Only where the engine runs: elsewhere the
- * app is no use offline.
+ * app is no use offline; and not in the Android app, whose files are all on
+ * the device already.
  *
  * A new deploy installs in the background and would otherwise wait for the
  * load after next; instead the page switches to it as soon as it takes over,
@@ -35,7 +37,7 @@ export function keepEngines(gameUnderWay: () => boolean, resting: () => boolean)
   busy = gameUnderWay
   atRest = resting
   if (!('serviceWorker' in navigator)) return
-  if (!offlineOffered()) {
+  if (!offlineOffered() || androidApp()) {
     void navigator.serviceWorker.getRegistrations().then((registrations) => registrations.forEach((r) => void r.unregister()))
     return
   }
