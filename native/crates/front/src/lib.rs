@@ -18,7 +18,6 @@ mod osk;
 mod screens;
 pub mod settings;
 pub mod splash;
-pub mod visits;
 pub mod whereis;
 pub mod words;
 

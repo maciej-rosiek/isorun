@@ -1,19 +1,28 @@
-# Isorun native on the web
+# Isorun on the web
 
-The native app (`native/crates/app`) built for wasm32: eframe's web runner on the page's canvas
+The app (`native/crates/app`) built for wasm32: eframe's web runner on the page's canvas
 (`index.html`), on WebGPU where the browser has it and WebGL2 otherwise. Offline play is the
-WebAssembly crawl of `engine/dist`, run in a Web Worker by `packages/offline`'s worker:
+WebAssembly crawl of `engine/dist`, run in a Web Worker (`engine/worker.ts`, `engine/engine.ts`):
 `engine-bridge.ts` puts it on the page as `globalThis.isorunEngine`, which `client::engine`
-(`web`) drives, with the saves in IndexedDB as the TypeScript build keeps them (the same save
-folders, notes and rc files on one origin).
+(`web`) drives, with the saves in IndexedDB as the TypeScript client kept them (the same save
+folders, notes and rc files on one origin, so its saves play on).
 
-    native/web/build.sh [out dir]      # default native/web/dist; PROFILE=release or dev for quicker builds
+    native/web/build.sh [out dir]      # default native/web/dist (the whole site); PROFILE=release or dev for quicker builds
     node native/web/test.mjs [dir]     # headless Chromium: the page, ?testbed on WebGL2 and WebGPU, the engine
 
-The page looks for the engine at `/engine/` on its origin, or at `?engine=<url>`, and for the
-sounds at `/audio/` (the TypeScript build's `public/audio`). The hosted page serves the build at
-`/native/` (`.github/workflows/isorun-cloudflare.yml`); the hosted page has no engine, so it
-offers no offline play there.
+The build is the whole site: the page, the app's module, the bridge, and the files the page
+fetches by path (the sounds at `/audio/`, the icons, the favicon and the Steam art that
+`STEAM.md` links, copied from `native/assets`), with `_headers` (the cache rules) and `sw.js`
+(which removes the TypeScript client's service worker from a browser that still has it). The
+page looks for the engine at `/engine/` on its origin, or at `?engine=<url>`.
+
+The hosted page (https://isorun.maciej-rosiek.workers.dev) serves it at its root, through the
+Worker in `worker/` (`wrangler.jsonc`, deployed by `.github/workflows/isorun-cloudflare.yml`); its
+old place, `/native/`, redirects to `/`. The hosted page has no engine (`/engine/*` is a 404), so
+it offers no offline games: every file of a build fits Cloudflare's 25 MiB limit (the largest,
+`crawl.data` and `crawl.wasm`, are about 12 MB), but the engine's own Worker
+(`engine/wrangler.jsonc`, `engine/DEPLOYMENT.md`) is not deployed. The page sends the visit
+counts of `/stats` (`client::visits`) to its own origin.
 
 ## What the page does that the desktop does not
 

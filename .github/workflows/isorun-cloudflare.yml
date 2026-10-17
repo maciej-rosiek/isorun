@@ -1,22 +1,28 @@
 name: Deploy Isorun to Cloudflare
 
-# The hosted game (https://isorun.maciej-rosiek.workers.dev): the static build, the gamedata proxy
-# and the visit counts in one Worker, and the native app's web build at /native/ (native/web). The offline engine is not hosted, so the build offers no offline play. Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and
-# CLOUDFLARE_ACCOUNT_ID repository secrets, and ISORUN_STATS_KEY for the /stats page.
+# The hosted page (https://isorun.maciej-rosiek.workers.dev): the app's web build (native/web) at
+# the site's root, the gamedata and morgue proxies and the visit counts in one Worker (worker/,
+# wrangler.jsonc). The offline engine is not hosted (/engine/* is a 404), so the page offers no
+# offline games. Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and CLOUDFLARE_ACCOUNT_ID
+# repository secrets, and ISORUN_STATS_KEY for the /stats page.
 
 on:
   push:
     branches: [main]
-    paths-ignore: ['engine/**']
+    paths-ignore: ['engine/**', 'native/android/**', 'native/desktop/**']
   workflow_dispatch:
 
 concurrency:
   group: isorun-cloudflare
   cancel-in-progress: true
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,13 +31,9 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
       - run: npm ci
-      - run: npm run typecheck
-      - run: npx vitest run --exclude packages/offline/test/engine.test.ts
-      - run: npm run build
-        env:
-          VITE_OFFLINE: 'off'
-      # the native app's web build (native/web), served beside the TypeScript build at /native/;
-      # a failure there leaves the page deployed without it
+      # the Worker and the engine bridge: types and tests
+      - run: npx tsc -p .
+      - run: npx vitest run
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
@@ -45,9 +47,8 @@ jobs:
       - uses: taiki-e/install-action@v2
         with:
           tool: wasm-bindgen@${{ steps.bindgen.outputs.version }}
-      - name: Native web build
-        continue-on-error: true
-        run: native/web/build.sh apps/isorun/dist/native
+      - name: Web build
+        run: native/web/build.sh native/web/dist
       - name: Deploy
         run: |
           printf 'STATS_KEY=%s\n' "$STATS_KEY" > .stats-secrets.env

@@ -1,14 +1,19 @@
 {
-  "files": [],
-  "references": [
-    { "path": "packages/scene" },
-    { "path": "packages/webtiles" },
-    { "path": "packages/gamedata" },
-    { "path": "packages/scene-webtiles" },
-    { "path": "packages/render-2d" },
-    { "path": "packages/render-iso" },
-    { "path": "packages/vault" },
-    { "path": "packages/offline" },
-    { "path": "apps/isorun" }
-  ]
+  // The TypeScript that remains beside the Rust app: the hosted page's Worker (worker/), the web
+  // build's engine bridge (native/web) and the engine's own Worker (engine/worker). `npm run
+  // typecheck`; wrangler and esbuild bundle them, so nothing is emitted.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "strict": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["worker", "native/web/*.ts", "native/web/engine", "engine/worker"]
 }

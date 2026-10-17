@@ -4,15 +4,15 @@ import { VISIT_PATH } from './visit-beacon'
 export { VisitLog } from './visit-log'
 
 /**
- * isorun.maciej-rosiek.workers.dev: the static build, plus the gamedata proxy the browser cannot do
- * without and the morgue proxy the exit screen reads through (see
- * ../gamedata-proxy.ts for why and for the routes), and the offline engine's
- * files, handed to the isorun-engine Worker as they are.
+ * isorun.maciej-rosiek.workers.dev: the app's web build (native/web/dist, the static assets),
+ * plus the gamedata proxy the browser cannot do without and the morgue proxy a game's end reads
+ * through (see gamedata-proxy.ts for why and for the routes), the visit counts (/api/visit,
+ * /stats), and the offline engine's files, handed to the isorun-engine Worker as they are.
  *
- * Everything that is not a proxy path is handed to the static assets, so
- * `public/_headers` keeps working. `run_worker_first` in wrangler.jsonc is what stops the asset
- * layer from answering /gamedata-proxy/* with index.html: that fallback is
- * exactly what used to reach the loader as `Unexpected token '<'`.
+ * The asset layer answers every file of the build itself (with its `_headers`); this runs for the
+ * paths `run_worker_first` in wrangler.jsonc names, and for any path that is no file. A page
+ * load of such a path goes home (`/`): the app does not route on the path, the old client's
+ * addresses (/watch/..., /app/steam) and the web build's old place (/native/) among them.
  * */
 interface Env {
   ASSETS: { fetch(request: Request): Promise<Response> }
@@ -33,6 +33,24 @@ interface ExecutionContext {
 type IncomingRequest = Request & { cf?: { country?: string } }
 
 const STATS_PATH = '/stats'
+
+/** A page load (not a script's fetch): what a link, a bookmark or a typed address sends. */
+function isPageLoad(request: Request): boolean {
+  const mode = request.headers.get('Sec-Fetch-Mode')
+  if (mode) return mode === 'navigate'
+  return (request.headers.get('Accept') ?? '').includes('text/html')
+}
+
+/** Home, with the query kept (`?engine=`, `?testbed`): the page's relative paths want the root. */
+function home(url: URL): Response {
+  return new Response(null, { status: 301, headers: { Location: `${url.origin}/${url.search}`, 'Cache-Control': 'no-cache' } })
+}
+
+async function serveAsset(request: Request, url: URL, env: Env): Promise<Response> {
+  const res = await env.ASSETS.fetch(request)
+  if (res.status === 404 && (request.method === 'GET' || request.method === 'HEAD') && isPageLoad(request)) return home(url)
+  return res
+}
 
 const visitLog = (env: Env) => env.VISITS.get(env.VISITS.idFromName('all'))
 
@@ -56,8 +74,9 @@ export default {
     if (url.pathname === VISIT_PATH) return recordVisit(request, url, env, ctx)
     if (url.pathname === STATS_PATH) return showStats(url, env)
     if (url.pathname.startsWith('/engine/')) return env.ENGINE?.fetch(request) ?? new Response('not found', { status: 404 })
+    if (url.pathname === '/native' || url.pathname.startsWith('/native/')) return home(url)
     const morgue = url.pathname.startsWith(MORGUE_PROXY_PREFIX)
-    if (!morgue && !url.pathname.startsWith(GAMEDATA_PROXY_PREFIX)) return env.ASSETS.fetch(request)
+    if (!morgue && !url.pathname.startsWith(GAMEDATA_PROXY_PREFIX)) return serveAsset(request, url, env)
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {

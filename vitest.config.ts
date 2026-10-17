@@ -1,8 +1,7 @@
 import { defineConfig } from 'vitest/config'
 export default defineConfig({
   test: {
-    include: ['packages/*/test/**/*.test.ts', 'apps/*/test/**/*.test.ts', 'desktop/test/**/*.test.ts'],
-    // the e2e harness plays crawl itself: `npm run e2e` (vitest.e2e.config.ts)
-    exclude: ['**/node_modules/**', 'apps/*/test/e2e/**'],
+    // the hosted page's Worker; the Rust app's tests are `cargo test --workspace` in native/
+    include: ['worker/test/**/*.test.ts'],
   },
 })

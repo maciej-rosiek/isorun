@@ -1,0 +1,10 @@
+# The hosted page's cache rules (Cloudflare's static assets read this file at the build's root).
+#
+# native/web/build.sh puts the app's module in a folder named by its hash, so a deploy with a new
+# build is a new path; the page, its small scripts and the sounds are asked for again.
+/pkg-*
+  Cache-Control: public, max-age=31536000, immutable
+
+# the service worker of the TypeScript client is replaced by one that removes itself: never kept
+/sw.js
+  Cache-Control: no-cache

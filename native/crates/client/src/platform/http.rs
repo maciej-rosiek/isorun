@@ -49,6 +49,24 @@ pub fn get(url: &str, wake: impl Fn() + Send + Sync + 'static) -> Request {
     request
 }
 
+/// Send a beacon: an empty POST to `url` whose answer nobody reads (the visit counts,
+/// `visits.rs`). `navigator.sendBeacon` on the web, which the browser sends even while the page
+/// is closing; a worker thread elsewhere.
+pub fn beacon(url: &str) {
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let url = url.to_string();
+        let _ = std::thread::Builder::new().name("beacon".into()).spawn(move || {
+            let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(std::time::Duration::from_secs(20))).build().into();
+            let _ = agent.post(&url).send_empty();
+        });
+    }
+    #[cfg(target_arch = "wasm32")]
+    if let Some(window) = web_sys::window() {
+        let _ = window.navigator().send_beacon(url);
+    }
+}
+
 #[cfg(not(target_arch = "wasm32"))]
 pub fn fetch_blocking(url: &str) -> Body {
     let agent: ureq::Agent = ureq::Agent::config_builder().timeout_global(Some(std::time::Duration::from_secs(60))).build().into();

@@ -48,6 +48,8 @@ pub struct IsorunApp {
     #[allow(dead_code)]
     pads: Pads,
     touch_sim: TouchSim,
+    /// The visit counts of the hosted page's /stats (client::visits).
+    visits: isorun_client::visits::Visits,
 }
 
 impl IsorunApp {
@@ -82,7 +84,7 @@ impl IsorunApp {
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
         let pads: Pads = ();
-        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default() };
+        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default(), visits: Default::default() };
         if let Some(path) = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned() {
             app.front.open(&path);
         }
@@ -297,6 +299,12 @@ impl eframe::App for IsorunApp {
         if ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::PointerButton { pressed: true, .. } | egui::Event::Touch { .. }))) {
             self.engine.unlock();
         }
+        let game_on_screen = match &self.screen {
+            Screen::Game(g) => Some(isorun_client::visits::GameOnScreen::of(&g.session)),
+            _ => None,
+        };
+        let shown = ui.ctx().input(|i| i.viewport().minimized != Some(true));
+        self.visits.tick(shown, game_on_screen);
         match &mut self.screen {
             Screen::Game(game) => {
                 let Some(outcome) = game.ui(ui) else { return };
@@ -321,6 +329,7 @@ impl eframe::App for IsorunApp {
                     Some(FrontAction::Play { session, .. }) | Some(FrontAction::Watch { session, .. }) => {
                         let pads = std::mem::take(&mut self.pads);
                         let game = GameScreen::new(ui.ctx(), session, self.rs.clone(), self.engine.clone(), self.opts.clone(), pads);
+                        self.visits.game_started(isorun_client::visits::GameOnScreen::of(&game.session));
                         self.screen = Screen::Game(Box::new(game));
                         ui.ctx().request_repaint();
                     }

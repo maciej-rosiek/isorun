@@ -7,3 +7,4 @@ pub mod servers;
 pub mod session;
 pub mod testbed;
 pub mod tiles;
+pub mod visits;

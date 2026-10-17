@@ -1,6 +1,6 @@
 // Checks the native app's web build in headless Chromium: the page starts, the test bed renders
-// (?testbed), and the offline engine's bridge starts a game. Serves native/web/dist at /native/
-// and engine/dist at /engine/ itself.
+// (?testbed), and the offline engine's bridge starts a game. Serves native/web/dist at / and
+// engine/dist at /engine/ itself, as the hosted page lays them out.
 //
 //   node native/web/test.mjs [out dir]        # screenshots there (default: /tmp/isorun-web-test)
 //
@@ -18,14 +18,21 @@ const ROOT = join(import.meta.dirname, '../..')
 const OUT = process.argv[2] ?? '/tmp/isorun-web-test'
 mkdirSync(OUT, { recursive: true })
 const MOUNTS = [
-  ['/native/', process.env.DIST ?? join(ROOT, 'native/web/dist')],
   ['/engine/', join(ROOT, 'engine/dist')],
-  ['/', join(ROOT, 'native/assets')],
+  ['/', process.env.DIST ?? join(ROOT, 'native/web/dist')],
 ]
 const TYPES = { '.js': 'text/javascript', '.wasm': 'application/wasm', '.json': 'application/json', '.png': 'image/png', '.html': 'text/html', '.data': 'application/octet-stream', '.bin': 'application/octet-stream' }
 
+// the visit counts' beacons (client::visits), as the hosted page's Worker takes them
+const visits = []
 const server = createServer((req, res) => {
   let path = decodeURIComponent((req.url ?? '/').split('?')[0])
+  if (path === '/api/visit') {
+    if (req.method === 'POST') visits.push(req.url)
+    res.statusCode = 204
+    res.end()
+    return
+  }
   if (path.endsWith('/')) path += 'index.html'
   for (const [prefix, dir] of MOUNTS) {
     if (!path.startsWith(prefix)) continue
@@ -61,8 +68,9 @@ async function open(query, on = browser) {
   const log = []
   page.on('console', (m) => log.push(`[${m.type()}] ${m.text()}`))
   page.on('pageerror', (e) => log.push(`[pageerror] ${e.message}`))
+  page.on('response', (r) => { if (r.status() >= 400) log.push(`[http ${r.status()}] ${r.url()}`) })
   const started = Date.now()
-  await page.goto(`${base}/native/${query}`)
+  await page.goto(`${base}/${query}`)
   await page.waitForFunction(() => !document.getElementById('loading'), null, { timeout: 120_000 }).catch(() => {})
   const loaded = await page.evaluate(() => !document.getElementById('loading'))
   return { page, log, loaded, ms: Date.now() - started }
@@ -86,6 +94,8 @@ try {
     check(!!engine, `the engine is served (${engine ? JSON.parse(engine).label : 'none'})`)
     const panics = log.filter((l) => /panicked|RuntimeError|pageerror/.test(l))
     check(panics.length === 0, `no panics on the home screen ${panics.slice(0, 3).join(' | ')}`)
+    // a dev build sends none (client::visits)
+    if (process.env.PROFILE !== 'dev') check(visits.some((v) => v.includes('e=visit')), `the visit beacon is posted (${visits.length} so far)`)
     console.log(log.slice(0, 20).join('\n'))
     await page.close()
   }

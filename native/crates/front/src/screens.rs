@@ -163,7 +163,7 @@ impl FrontEnd {
         news.dot = unread;
         utilities.push(news);
         if self.options.app_downloads {
-            utilities.push(Row::new("app", "Get the app", "+", "Isorun as an app for Linux, SteamOS and Windows: offline games, no browser.", Act::App));
+            utilities.push(Row::new("app", "Get the app", "+", "Isorun as an app for Linux, SteamOS, Windows and Android: offline games, no browser.", Act::App));
             utilities.push(Row::new("steam", "Add to Steam", "+", "Five steps that put the Linux app in a Steam Deck’s library.", Act::Steam));
         }
         utilities.push(Row::new("about", "About & credits", "?", "About Isorun, and the people behind the game.", Act::About));
@@ -594,7 +594,7 @@ impl FrontEnd {
 
     fn doc_screen(&self) -> Screen {
         let Some((title, lede, body, _)) = &self.doc else {
-            // Get the app: the desktop app's packages from the latest release
+            // Get the app: the packages of the latest release
             let mut rows = vec![Row::back("Back.")];
             for (file, label, sub, hint) in APP_DOWNLOADS {
                 rows.push(Row::new(format!("app:{file}"), label, "+", hint, Act::Open(format!("{LATEST_RELEASE_DOWNLOAD}{file}"))).sub(sub));

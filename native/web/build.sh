@@ -1,9 +1,11 @@
 #!/bin/sh
-# Builds the native app for the web: the app crate for wasm32 with wasm-bindgen's web target, the
-# page (index.html) and the offline engine's bridge (engine-bridge.ts and packages/offline's
-# worker, bundled with esbuild), into native/web/dist (or the folder given).
+# Builds the app for the web: the app crate for wasm32 with wasm-bindgen's web target, the page
+# (index.html), the offline engine's bridge (engine-bridge.ts and engine/worker.ts, bundled with
+# esbuild) and the files the page fetches (the sounds, the icons, the Steam art of STEAM.md, from
+# native/assets; _headers and sw.js), into native/web/dist (or the folder given): the whole site
+# the hosted page serves at its root (wrangler.jsonc).
 #
-#   native/web/build.sh [out dir]        # e.g. apps/isorun/dist/native, served at /native/
+#   native/web/build.sh [out dir]
 #
 # Needs the wasm32-unknown-unknown target, wasm-bindgen-cli of the version Cargo.lock has
 # (0.2.x), and the repository's npm install (esbuild). PROFILE=web (the default: release with
@@ -11,8 +13,8 @@
 # is on PATH, runs over the wasm; it gains little once the server compresses it.
 #
 # The app's module goes into pkg-<hash of the wasm>/, which index.html and tile-worker.js are
-# pointed at, so the hosted page can let browsers keep it for good (public/_headers): a new
-# build is a new folder.
+# pointed at, so the hosted page can let browsers keep it for good (_headers): a new build is a
+# new folder.
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -40,8 +42,11 @@ mv "$OUT/pkg" "$OUT/pkg-$hash"
 
 esbuild=$ROOT/node_modules/.bin/esbuild
 "$esbuild" "$HERE/engine-bridge.ts" --bundle --format=esm --target=es2022 --outfile="$OUT/engine-bridge.js" --log-level=warning
-"$esbuild" "$ROOT/packages/offline/src/worker.ts" --bundle --format=esm --target=es2022 --outfile="$OUT/engine-worker.js" --log-level=warning
+"$esbuild" "$HERE/engine/worker.ts" --bundle --format=esm --target=es2022 --outfile="$OUT/engine-worker.js" --log-level=warning
 for f in index.html tile-worker.js; do sed "s|\./pkg/|./pkg-$hash/|g" "$HERE/$f" > "$OUT/$f"; done
-cp "$HERE/tile-workers.js" "$OUT/"
+cp "$HERE/tile-workers.js" "$HERE/_headers" "$HERE/sw.js" "$OUT/"
+# what the page fetches by path: the sounds (/audio/, app.rs), the icons, the Steam art
+rm -rf "$OUT/audio" "$OUT/icons" "$OUT/steam"
+cp -R "$NATIVE/assets/audio" "$NATIVE/assets/icons" "$NATIVE/assets/steam" "$NATIVE/assets/favicon.svg" "$OUT/"
 du -sh "$OUT/pkg-$hash/isorun_app_bg.wasm"
 echo "web build -> $OUT (pkg-$hash)"

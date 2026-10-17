@@ -147,11 +147,13 @@ const REJOIN_SECONDS: [f64; 5] = [1.0, 2.0, 4.0, 8.0, 15.0];
 const WHEREIS_SECONDS: f64 = 60.0;
 
 pub const LATEST_RELEASE_DOWNLOAD: &str = "https://github.com/maciej-rosiek/isorun/releases/latest/download/";
-/// The desktop app's packages: file, label, note, hint.
-pub const APP_DOWNLOADS: [(&str, &str, &str, &str); 3] = [
-    ("Isorun-x86_64.AppImage", "Linux", "AppImage", "For a Steam Deck, a ROG Ally or any Linux PC. It updates itself."),
-    ("Isorun-linux-x64.tar.gz", "Linux", "folder", "The same app as a plain folder. It does not update itself."),
-    ("Isorun-win-x64.zip", "Windows", "zip", "Unzip it and run Isorun.exe. It does not update itself."),
+/// The app's packages in every release (native/desktop/package.sh, native/android/build.sh):
+/// file, label, note, hint.
+pub const APP_DOWNLOADS: [(&str, &str, &str, &str); 4] = [
+    ("Isorun-x86_64.AppImage", "Linux", "AppImage", "For a Steam Deck, a ROG Ally or any Linux PC. AppImageUpdate or Gear Lever keep it up to date."),
+    ("Isorun-linux-x86_64.tar.gz", "Linux", "folder", "The same app as a plain folder. Run Isorun/isorun."),
+    ("Isorun-win-x64.zip", "Windows", "zip", "Unzip it and run Isorun.exe."),
+    ("Isorun.apk", "Android", "APK", "For a phone or a tablet. A newer APK installs over it, saves kept."),
 ];
 
 /// Where the chosen account's connection stands: a dot after its name only when it is not ready.
