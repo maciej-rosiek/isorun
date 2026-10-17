@@ -1,0 +1,17 @@
+[package]
+name = "isorun-vault"
+description = "A supported subset of DCSS's .des vault syntax, compiled to an Isorun Scene; and the packed atlas such a scene is drawn from."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-scene-webtiles = { path = "../scene-webtiles" }
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+once_cell.workspace = true
+
+[dev-dependencies]
+isorun-gamedata = { path = "../gamedata" }

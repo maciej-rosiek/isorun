@@ -1,0 +1,484 @@
+// A frame (`render` in render-iso-3d.ts): the clock, the actors and the layers moved on, the
+// camera and the lights placed, then the shadow maps, the scene pass and the screen effects.
+// Included into renderer.rs.
+
+/// The planes of a view-projection, for culling what is off the screen.
+fn frustum_planes(m: Mat4) -> [Vec4; 6] {
+    let r = |i: usize| m.row(i);
+    [r(3) + r(0), r(3) - r(0), r(3) + r(1), r(3) - r(1), r(2), r(3) - r(2)]
+}
+
+fn box_visible(planes: &[Vec4; 6], min: Vec3, max: Vec3) -> bool {
+    planes.iter().all(|p| {
+        let v = Vec3::new(if p.x >= 0.0 { max.x } else { min.x }, if p.y >= 0.0 { max.y } else { min.y }, if p.z >= 0.0 { max.z } else { min.z });
+        p.truncate().dot(v) + p.w >= 0.0
+    })
+}
+
+impl IsoRenderer {
+    fn ensure_pipelines(&mut self, samples: u32) {
+        if self.pipelines.as_ref().is_some_and(|p| p.samples == samples) {
+            return;
+        }
+        let mut world = HashMap::new();
+        for m in [Material::Ground, Material::Sprite, Material::Actor, Material::Cap, Material::Clay] {
+            world.insert(m, self.gpu.world_pipeline(m, samples));
+        }
+        self.pipelines = Some(Pipelines { samples, world, shadow_sun: self.gpu.shadow_pipeline(false, false), shadow_point: self.gpu.shadow_pipeline(true, false) });
+        self.fog.prepare(&self.gpu, samples);
+        self.liquids.prepare(&self.gpu, samples);
+        self.combat.prepare(&self.gpu, samples);
+        self.steps.prepare(&self.gpu, samples);
+        self.torches.prepare(&self.gpu, samples);
+        self.overlay.prepare(&self.gpu, samples);
+    }
+
+    fn land_impacts(&mut self, scene: &Scene, now: f64) {
+        let mut i = 0;
+        while i < self.impacts.len() {
+            if self.impacts[i].time > self.clock {
+                i += 1;
+                continue;
+            }
+            let impact = self.impacts.remove(i);
+            if let Some(token) = impact.token {
+                self.events.shown.push(token);
+            }
+            if matches!(impact.action, ActorAction::Attack | ActorAction::Miss) {
+                continue;
+            }
+            let Some(at) = self.actors.cell_of(impact.id) else { continue };
+            let kind = if impact.action == ActorAction::Death {
+                ImpactKind::Death
+            } else if impact.id == PLAYER_ACTOR {
+                ImpactKind::Hurt
+            } else {
+                ImpactKind::Hit
+            };
+            let stop = self.combat.impact(kind, at, impact.from, &|x, y| ground_floor(scene, x, y));
+            self.stop_until = self.stop_until.max(now + stop);
+        }
+    }
+
+    /// The camera for this frame: ortho or perspective, shaken by the hits, lifted by the centre lift.
+    fn place_camera(&mut self) {
+        let elevation = -(self.cam.pitch as f32);
+        let (right, forward) = ground_basis(self.cam.yaw as f32);
+        let shake = self.combat.shake();
+        let mut target = Vec3::new(self.cam.eye_x as f32 + 0.5, 0.0, self.cam.eye_y as f32 + 0.5);
+        target.x += right[0] * shake.x + forward[0] * shake.y;
+        target.z += right[1] * shake.x + forward[1] * shake.y;
+        let hw = self.width / 2.0 / self.view.zoom / shake.zoom;
+        let hh = self.height / 2.0 / self.view.zoom / shake.zoom;
+        let fov = self.view.fov;
+        let perspective = fov > 0.0;
+        let distance = if perspective { hh / (fov.to_radians() / 2.0).tan() } else { CAMERA_DISTANCE };
+        let eye = Vec3::new(target.x - forward[0] * elevation.cos() * distance, elevation.sin() * distance, target.z - forward[1] * elevation.cos() * distance);
+        let look = Mat4::look_at_rh(eye, target, Vec3::Y);
+        let view = Mat4::from_rotation_z(-shake.roll) * look;
+        // the centre lift (three's setViewOffset): the frustum moves down, the view's content up
+        let lift = self.centre_lift / self.height;
+        let proj = if perspective {
+            let (near, far) = ((distance - PERSPECTIVE_DEPTH).max(0.1), distance + PERSPECTIVE_DEPTH);
+            let top = near * (fov.to_radians() / 2.0).tan();
+            let right_edge = top * self.width / self.height;
+            let shift = 2.0 * top * lift;
+            Mat4::frustum_rh(-right_edge, right_edge, -top - shift, top - shift, near, far)
+        } else {
+            let shift = 2.0 * hh * lift;
+            Mat4::orthographic_rh(-hw, hw, -hh - shift, hh - shift, 0.1, CAMERA_DISTANCE * 2.0)
+        };
+        self.camera_view = view;
+        self.camera_proj = proj;
+        self.camera_pos = eye;
+        self.perspective = perspective;
+    }
+
+    /// The sun follows the camera a whole cell at a time; the torch lights hang at the torches
+    /// nearest the camera, the nearest with shadows; one torch shadow is drawn again a frame.
+    fn place_lights(&mut self, now: f64) -> Option<usize> {
+        let (right, forward) = ground_basis(self.cam.yaw as f32);
+        let target = Vec3::new(self.cam.eye_x.round() as f32 + 0.5, 0.0, self.cam.eye_y.round() as f32 + 0.5);
+        let across = Vec3::new(-right[0] - forward[0] * SUN_FRONT, 0.0, -right[1] - forward[1] * SUN_FRONT).normalize() * SUN_ELEVATION.cos();
+        let sun_at = target + Vec3::new(across.x, SUN_ELEVATION.sin(), across.z) * SUN_DISTANCE;
+        if self.sun_at != sun_at {
+            self.sun_stale = true;
+        }
+        self.sun_at = sun_at;
+        self.sun_target = target;
+        let from = (self.cam.eye_x as f32 + 0.5, self.cam.eye_y as f32 + 0.5);
+        let fade = |t: &Torch| 1.0 - smoothstep(TORCH_FADE_START, TORCH_FADE_END, ((t.position.x - from.0).powi(2) + (t.position.z - from.1).powi(2)).sqrt());
+        let nearest = self.nearest_torches();
+        let shadows = if self.quality.shadows { (self.quality.torch_shadows as usize).min(TORCH_LIGHTS) } else { 0 };
+        let wanted = assign_torches(&self.lit[..shadows], &nearest[..nearest.len().min(shadows)]);
+        let mut due: Option<(usize, bool)> = None;
+        for (i, t) in wanted.iter().enumerate() {
+            let Some(t) = t else { continue };
+            let moves = !same_torch(&Some(*t), &self.lit[i]);
+            if fade(t) > 0.0 && (moves || self.stale[i]) {
+                let better = match due {
+                    None => true,
+                    Some((_, m)) => moves && !m,
+                };
+                if better {
+                    due = Some((i, moves));
+                }
+            }
+        }
+        let shadowed: Vec<Option<Torch>> = wanted.iter().enumerate().map(|(i, t)| if Some(i) == due.map(|d| d.0) || same_torch(t, &self.lit[i]) { *t } else { self.lit[i] }).collect();
+        let free: Vec<Torch> = nearest.iter().filter(|t| !shadowed.iter().any(|h| same_torch(h, &Some(**t)))).copied().collect();
+        let unshadowed = assign_torches(&self.lit[shadows..], &free);
+        let placed: Vec<Option<Torch>> = shadowed.into_iter().chain(unshadowed).collect();
+        let mut moved = self.revision_counter != self.dust_revision;
+        let mut draw_now = None;
+        for i in 0..TORCH_LIGHTS {
+            let torch = placed.get(i).copied().flatten();
+            moved |= !same_torch(&torch, &self.lit[i]) || torch.is_some() != self.lit[i].is_some();
+            self.lit[i] = torch;
+            let Some(torch) = torch else {
+                self.light_intensity[i] = 0.0;
+                continue;
+            };
+            if self.light_positions[i] != torch.position {
+                self.stale[i] = true;
+            }
+            self.light_positions[i] = torch.position;
+            let t = now as f32;
+            self.light_intensity[i] = fade(&torch) * self.lights.torch.intensity * (0.85 + 0.1 * (t * 13.0 + torch.phase).sin() + 0.05 * (t * 29.0 + torch.phase * 2.0).sin());
+            if i < shadows && Some(i) == due.map(|d| d.0) && self.stale[i] {
+                self.stale[i] = false;
+                draw_now = Some(i);
+            }
+        }
+        if moved {
+            self.dust_revision = self.revision_counter;
+            let scene = self.scene.clone();
+            let lit: Vec<Option<Torch>> = self.lit.iter().map(|t| t.filter(|t| scene.as_ref().and_then(|s| s.cell(t.cell.0, t.cell.1)).is_some_and(|c| c.visibility == Visibility::Visible))).collect();
+            self.torches.place_dust(&self.gpu, &lit);
+        }
+        draw_now
+    }
+
+    fn nearest_torches(&mut self) -> Vec<Torch> {
+        let x = self.cam.eye_x.round() as f32 + 0.5;
+        let z = self.cam.eye_y.round() as f32 + 0.5;
+        if x != self.nearest_from.0 || z != self.nearest_from.1 || self.nearest_from.2 != self.tile_torches_version {
+            self.nearest_from = (x, z, self.tile_torches_version);
+            let mut all = self.tile_torches.clone();
+            let away = |t: &Torch| (t.position.x - x).powi(2) + (t.position.z - z).powi(2);
+            all.sort_by(|a, b| away(a).total_cmp(&away(b)));
+            all.truncate(TORCH_LIGHTS);
+            self.nearest = all;
+        }
+        self.nearest.clone()
+    }
+
+    fn frame_uniform(&self, now: f64) -> FrameUniform {
+        let view = self.camera_view;
+        let lin = |hex: u32, k: f32| {
+            let l = linear(hex);
+            [l[0] * k, l[1] * k, l[2] * k, 1.0]
+        };
+        let to_view = |v: Vec3| (view * v.extend(0.0)).truncate();
+        let sun_dir = to_view((self.sun_at - self.sun_target).normalize());
+        let sun_casts = self.quality.shadows && self.lights.sun_intensity > 0.0;
+        let detail = self.detail.detail();
+        let s = &self.lights.shading;
+        let gate = |on: bool, v: f32| if on { v } else { 0.0 };
+        let shadows = if self.quality.shadows { self.quality.torch_shadows as usize } else { 0 };
+        let mut lights = [LightUniform::default(); MAX_LIGHTS];
+        let spec = self.lights.torch;
+        let colour = linear(spec.colour);
+        for i in 0..TORCH_LIGHTS {
+            if self.lit[i].is_none() || self.light_intensity[i] <= 0.0 {
+                continue;
+            }
+            let p = self.light_positions[i];
+            let vp = (view * p.extend(1.0)).truncate();
+            let k = self.light_intensity[i];
+            lights[i] = LightUniform {
+                position: [vp.x, vp.y, vp.z, spec.distance],
+                colour: [colour[0] * k, colour[1] * k, colour[2] * k, spec.decay],
+                shadow: [if i < shadows && !self.undrawn[i] { (i * 6) as f32 } else { -1.0 }, TORCH_BIAS, NORMAL_BIAS, spec.distance],
+                world: [p.x, p.y, p.z, 0.0],
+            };
+        }
+        if let Some((p, intensity)) = self.combat.light() {
+            let vp = (view * p.extend(1.0)).truncate();
+            let c = linear(0xffd8a8);
+            lights[TORCH_LIGHTS] = LightUniform { position: [vp.x, vp.y, vp.z, 4.0], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], shadow: [-1.0, 0.0, 0.0, 1.0], world: [p.x, p.y, p.z, 0.0] };
+        }
+        let sun_view = Mat4::look_at_rh(self.sun_at, self.sun_target, Vec3::Y);
+        let sun_proj = Mat4::orthographic_rh(-SUN_REACH, SUN_REACH, -SUN_REACH, SUN_REACH, 1.0, SUN_DISTANCE * 2.0);
+        let up = to_view(Vec3::Y);
+        FrameUniform {
+            view_proj: (self.camera_proj * view).to_cols_array_2d(),
+            view: view.to_cols_array_2d(),
+            proj: self.camera_proj.to_cols_array_2d(),
+            inv_view: view.inverse().to_cols_array_2d(),
+            sun_matrix: (sun_proj * sun_view).to_cols_array_2d(),
+            camera: [self.camera_pos.x, self.camera_pos.y, self.camera_pos.z, self.perspective as u8 as f32],
+            sky: lin(self.lights.ambient_sky, self.lights.ambient_intensity),
+            ground: lin(self.lights.ambient_ground, self.lights.ambient_intensity),
+            sun_dir: [sun_dir.x, sun_dir.y, sun_dir.z, sun_casts as u8 as f32],
+            sun_colour: lin(self.lights.sun_colour, self.lights.sun_intensity),
+            sun_shadow: [SUN_BIAS, NORMAL_BIAS, 1.0 / crate::shadows::SUN_SHADOW_MAP_SIZE as f32, self.lights.shadow_softness],
+            shading0: [s.wrap, s.bands, s.relief, s.depth],
+            shading1: [s.sprites, gate(detail.gloss, s.gloss), gate(detail.rim, s.rim), gate(detail.cavity, s.cavity)],
+            shading2: [gate(detail.variation, s.variation), gate(detail.wetness, s.wetness), gate(detail.glow, s.glow), gate(detail.sparkle, s.sparkle)],
+            shading3: [detail.depth_steps as f32, detail.liquids as u8 as f32, detail.statuses as u8 as f32, (now - self.start) as f32],
+            viewport: [self.width, self.height, MAX_LIGHTS as f32, self.lights.shadow_softness / crate::shadows::SHADOW_MAP_SIZE as f32],
+            up: [up.x, up.y, up.z, gate(detail.dust, s.dust)],
+            lights,
+        }
+    }
+
+    /// Draw a frame into `output` (a view of `format` at `render_size()`): returns false when
+    /// there is nothing to draw yet (no scene, no tiles).
+    pub fn render(&mut self, encoder: &mut wgpu::CommandEncoder, output: &wgpu::TextureView, format: wgpu::TextureFormat) -> bool {
+        let (Some(scene), Some(tiles)) = (self.scene.clone(), self.tiles.clone()) else { return false };
+        if self.pages.is_none() {
+            return false;
+        }
+        self.frame_number += 1;
+        let now = now_seconds();
+        if self.last_frame > 0.0 && self.quality.adaptive {
+            self.resolution.frame(((now - self.last_frame) * 1000.0) as f32);
+        }
+        let dt = if self.last_frame > 0.0 { (now - self.last_frame).min(0.1) } else { 0.0 };
+        self.last_frame = now;
+        let static_key = self.statics_key(&scene);
+        let mut changed: Vec<CellArea> = Vec::new();
+        if static_key != self.static_key {
+            changed.extend(self.build_statics(&scene, &tiles));
+            self.static_key = static_key;
+        }
+        for (x, y) in self.features.update(dt as f32) {
+            changed.push(CellArea { x0: x as f32, y0: y as f32, x1: x as f32 + 1.0, y1: y as f32 + 1.0 });
+        }
+        self.events.doors.extend(self.features.take_doors());
+        if now >= self.stop_until {
+            self.clock += dt * self.animation_speed;
+        }
+        self.land_impacts(&scene, now);
+        let pose = self.upright(self.cam.pitch as f32);
+        let features = &self.features;
+        let hops = self.actors.update(self.clock, self.cam.yaw as f32, pose, &|x, y| features.ground_at(x, y));
+        for hop in hops {
+            self.steps.step(hop.from, hop.to, hop.seconds / self.animation_speed, &|x, y| ground_floor(&scene, x, y));
+            self.events.hops.push(hop);
+        }
+        let actor_shadows_moved = self.actors.take_shadow_change();
+        if actor_shadows_moved && self.quality.actor_torch_shadows {
+            self.mark_shadows_stale();
+        } else {
+            self.mark_shadows_stale_around(&changed);
+            if actor_shadows_moved {
+                self.sun_stale = true;
+            }
+        }
+        self.fog.update(dt as f32);
+        self.place_camera();
+        let rotation = self.camera_view.inverse();
+        let (cam_right, cam_up) = (rotation.transform_vector3(Vec3::X), rotation.transform_vector3(Vec3::Y));
+        self.combat.update(&self.gpu, dt as f32, cam_right, cam_up, &|x, y| ground_floor(&scene, x, y));
+        self.steps.update(&self.gpu, dt as f32, cam_right, cam_up);
+        let danger = self.danger * (1.0 - DANGER_PULSE + DANGER_PULSE * (now as f32 * DANGER_PULSE_SPEED).sin());
+        let torch_due = self.place_lights(now);
+        let aim_colour_of = |r: &IsoRenderer, intent| {
+            let c = if intent == crate::plan::AimIntent::Move { r.lights.aim.colour } else { aim_colour(intent) };
+            let l = linear(c);
+            [l[0] * r.lights.aim.brightness, l[1] * r.lights.aim.brightness, l[2] * r.lights.aim.brightness]
+        };
+        let focus = self.focus(&scene);
+        let (level_yaw, level_pitch) = (self.level_yaw(), self.level_pitch());
+        let lift_on = |x: i32, y: i32| if is_pointable(scene.cell(x, y)) { AIM_LIFT } else { wall_height_at(x, y, &focus, level_yaw, -level_pitch, &self.view) + AIM_LIFT };
+        let aim = self.aim.filter(|_| scene.player_on_level).map(|a| (a, aim_colour_of(self, a.intent)));
+        let route = self.route.as_ref().map(|r| (r.steps.iter().take(ROUTE_STEPS).copied().collect::<Vec<_>>(), r.target, lift_on(r.target.0, r.target.1), aim_colour_of(self, r.intent)));
+        let cursor = self.cursor.filter(|c| c.mode != isorun_scene::CursorMode::Map).map(|c| ((c.x, c.y), lift_on(c.x, c.y), aim_colour_of(self, if c.mode == isorun_scene::CursorMode::Target { crate::plan::AimIntent::Attack } else { crate::plan::AimIntent::Move })));
+        self.overlay.place(&self.gpu, scene.player, aim, route, cursor);
+
+        let (width, height) = self.render_size();
+        let samples = 1;
+        self.ensure_pipelines(samples);
+        self.post.ensure(&self.gpu, width, height, samples);
+        {
+            let pages = self.pages.as_mut().unwrap();
+            pages.upload(&self.gpu.device, &self.gpu.queue, encoder, &self.mipmapper);
+        }
+        // what is drawn this frame
+        let view_proj = self.camera_proj * self.camera_view;
+        let planes = frustum_planes(view_proj);
+        let mut items: Vec<DrawItem> = Vec::new();
+        for (id, chunk) in self.chunks.iter().chain(self.sprite_chunks.iter()) {
+            let a = chunk_area(*id);
+            let visible = box_visible(&planes, Vec3::new(a.x0 - 1.0, -1.5, a.y0 - 1.0), Vec3::new(a.x1 + 1.0, 3.0, a.y1 + 1.0));
+            for (material, page, mesh, cast, receive) in &chunk.meshes {
+                // a caster off the screen still shadows what is on it
+                if !visible && *cast == Cast::None {
+                    continue;
+                }
+                items.push(DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain(*receive), cast: *cast });
+            }
+        }
+        self.features.draws(&mut items);
+        if let Some(model) = &self.torch_model {
+            self.torches.draws(&mut items, model);
+        }
+        self.actors.draws(&mut items);
+        // the uniforms of every draw, in one buffer
+        self.draws.clear();
+        let offsets: Vec<u32> = items.iter().map(|i| self.draws.push(&i.uniform)).collect();
+        self.draws.upload(&self.gpu.device, &self.gpu.queue, &self.gpu.draw_layout);
+        let frame = self.frame_uniform(now);
+        self.gpu.queue.write_buffer(&self.frame_buffer, 0, bytemuck::bytes_of(&frame));
+        let page_group = |r: &IsoRenderer, p: PageRef| -> Option<wgpu::BindGroup> {
+            match p {
+                PageRef::Page(i) => r.pages.as_ref().and_then(|pages| pages.bind_group(i)).cloned(),
+                PageRef::Cap => Some(r.cap_group.clone()),
+                PageRef::Door => Some(r.door_group.clone()),
+                PageRef::Torch => r.torch_group.clone(),
+            }
+        };
+        let groups: Vec<Option<wgpu::BindGroup>> = items.iter().map(|i| page_group(self, i.page)).collect();
+
+        // shadow maps
+        self.shadows.begin();
+        let sun_casts = self.quality.shadows && self.lights.sun_intensity > 0.0;
+        let sun_view = if sun_casts && self.sun_stale {
+            self.sun_stale = false;
+            let m = Mat4::orthographic_rh(-SUN_REACH, SUN_REACH, -SUN_REACH, SUN_REACH, 1.0, SUN_DISTANCE * 2.0) * Mat4::look_at_rh(self.sun_at, self.sun_target, Vec3::Y);
+            Some(self.shadows.view(m, Vec4::ZERO, false))
+        } else {
+            None
+        };
+        let mut torch_views: Vec<(usize, Vec<u32>)> = Vec::new();
+        let shadow_count = if self.quality.shadows { (self.quality.torch_shadows as usize).min(TORCH_LIGHTS) } else { 0 };
+        let mut to_draw: Vec<usize> = (0..shadow_count).filter(|&i| self.undrawn[i]).collect();
+        if let Some(i) = torch_due {
+            if !to_draw.contains(&i) {
+                to_draw.push(i);
+            }
+        }
+        for i in to_draw {
+            self.undrawn[i] = false;
+            let p = self.light_positions[i];
+            let far = self.lights.torch.distance;
+            let views = (0..6).map(|f| self.shadows.view(cube_face_view(f, p, far), p.extend(far), true)).collect();
+            torch_views.push((i, views));
+        }
+        self.shadows.upload(&self.gpu.queue);
+        let pipelines = self.pipelines.as_ref().unwrap();
+        if let Some(offset) = sun_view {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("sun shadow"),
+                color_attachments: &[],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &self.shadows.sun_view, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_pipeline(&pipelines.shadow_sun);
+            pass.set_bind_group(0, &self.shadows.view_group, &[offset]);
+            for (k, item) in items.iter().enumerate() {
+                let Some(group) = &groups[k] else { continue };
+                if item.cast == Cast::None {
+                    continue;
+                }
+                pass.set_bind_group(1, group, &[]);
+                pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
+                item.mesh.draw(&mut pass);
+            }
+        }
+        for (light, views) in &torch_views {
+            for (face, offset) in views.iter().enumerate() {
+                let layer = self.shadows.layer_view((light * 6 + face) as u32);
+                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("torch shadow"),
+                    color_attachments: &[],
+                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &layer, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                    timestamp_writes: None,
+                    occlusion_query_set: None,
+                    multiview_mask: None,
+                });
+                pass.set_pipeline(&pipelines.shadow_point);
+                pass.set_bind_group(0, &self.shadows.view_group, &[*offset]);
+                for (k, item) in items.iter().enumerate() {
+                    let Some(group) = &groups[k] else { continue };
+                    if item.cast == Cast::None || (item.cast == Cast::Actor && !self.quality.actor_torch_shadows) {
+                        continue;
+                    }
+                    pass.set_bind_group(1, group, &[]);
+                    pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
+                    item.mesh.draw(&mut pass);
+                }
+            }
+        }
+
+        self.fog.upload(&self.gpu);
+        self.torches.set_dust_strength(&self.gpu, frame.up[3]);
+        // the scene pass
+        let targets = self.post.targets.as_ref().unwrap();
+        let bg = linear(self.lights.background);
+        let views: Vec<wgpu::TextureView> = [&targets.colour, &targets.normal, &targets.emission].iter().map(|t| t.create_view(&wgpu::TextureViewDescriptor::default())).collect();
+        let depth_view = targets.depth.create_view(&wgpu::TextureViewDescriptor::default());
+        {
+            let clear = |c: wgpu::Color| wgpu::Operations { load: wgpu::LoadOp::Clear(c), store: wgpu::StoreOp::Store };
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("scene"),
+                color_attachments: &[
+                    Some(wgpu::RenderPassColorAttachment { view: &views[0], depth_slice: None, resolve_target: None, ops: clear(wgpu::Color { r: bg[0] as f64, g: bg[1] as f64, b: bg[2] as f64, a: 1.0 }) }),
+                    Some(wgpu::RenderPassColorAttachment { view: &views[1], depth_slice: None, resolve_target: None, ops: clear(wgpu::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }) }),
+                    Some(wgpu::RenderPassColorAttachment { view: &views[2], depth_slice: None, resolve_target: None, ops: clear(wgpu::Color::TRANSPARENT) }),
+                ],
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &depth_view, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
+                timestamp_writes: None,
+                occlusion_query_set: None,
+                multiview_mask: None,
+            });
+            pass.set_bind_group(0, &self.frame_group, &[]);
+            let mut current: Option<Material> = None;
+            for (k, item) in items.iter().enumerate() {
+                if !box_visible_item(&planes, item) {
+                    continue;
+                }
+                let Some(group) = &groups[k] else { continue };
+                if current != Some(item.material) {
+                    pass.set_pipeline(&pipelines.world[&item.material]);
+                    current = Some(item.material);
+                }
+                pass.set_bind_group(1, group, &[]);
+                pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
+                item.mesh.draw(&mut pass);
+            }
+            self.combat.draw_opaque(&mut pass, &self.frame_group);
+            self.overlay.draw(&mut pass, &self.frame_group);
+            // what is blended, by three's render order
+            self.torches.draw_glows(&mut pass, &self.frame_group);
+            self.combat.draw_sparks(&mut pass, &self.frame_group);
+            self.steps.draw_prints(&mut pass, &self.frame_group);
+            self.combat.draw_splats(&mut pass, &self.frame_group);
+            self.liquids.draw(&mut pass, &self.frame_group);
+            self.fog.draw(&mut pass, &self.frame_group);
+            self.steps.draw_puffs(&mut pass, &self.frame_group);
+            self.torches.draw_dust(&mut pass, &self.frame_group);
+        }
+        let emission = self.liquids.glowing() || (self.pages.as_ref().is_some_and(|p| p.glowing) && self.detail.detail().glow && self.lights.shading.glow > 0.0 && (self.glow_in_view() || self.actors.glowing() || self.features.glowing));
+        let origin = view_proj.project_point3(Vec3::ZERO);
+        let ratio = self.pixel_ratio();
+        let post_frame = PostFrame {
+            proj: self.camera_proj,
+            pixel_scale: self.view.zoom / DEFAULT_VIEW.zoom * ratio,
+            pixel_origin: [(origin.x + 1.0) / 2.0 * width as f32, (1.0 - origin.y) / 2.0 * height as f32],
+            danger,
+            emission,
+            perspective: self.perspective,
+        };
+        self.post.render(&self.gpu, encoder, &self.lights, &post_frame, output, format);
+        true
+    }
+}
+
+fn box_visible_item(_planes: &[Vec4; 6], _item: &DrawItem) -> bool {
+    true
+}

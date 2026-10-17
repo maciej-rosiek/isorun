@@ -1,0 +1,14 @@
+[package]
+name = "isorun-scene-webtiles"
+description = "A WebTiles GameState plus the server's gamedata, turned into the renderer-facing Scene: every piece of DCSS knowledge rendering needs."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-gamedata = { path = "../gamedata" }
+serde_json.workspace = true
+regex.workspace = true
+once_cell.workspace = true

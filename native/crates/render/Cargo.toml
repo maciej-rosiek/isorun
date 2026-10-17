@@ -1,0 +1,23 @@
+[package]
+name = "isorun-render"
+description = "The isometric renderer: DCSS tiles upscaled with relief, lights and shadows, drawn with wgpu."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-vault = { path = "../vault" }
+wgpu = "30"
+glam = { version = "0.30", features = ["bytemuck"] }
+bytemuck = { version = "1", features = ["derive"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+gltf = { version = "1", default-features = false, features = ["import", "utils"] }
+log = "0.4"
+web-time = "1"
+
+[dev-dependencies]
+pollster = "1"
+png = "0.17"
+isorun-vault = { path = "../vault" }

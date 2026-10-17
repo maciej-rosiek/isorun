@@ -1,0 +1,12 @@
+[package]
+name = "isorun-webtiles"
+description = "The DCSS WebTiles protocol: client message builders, a tolerant reducer over server messages, and crawl's formatted strings."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+once_cell.workspace = true

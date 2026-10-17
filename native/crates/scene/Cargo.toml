@@ -1,0 +1,8 @@
+[package]
+name = "isorun-scene"
+description = "The renderer-facing model of a DCSS level: cells, billboards, camera, and the rules every consumer shares."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]

@@ -1,0 +1,13 @@
+[package]
+name = "isorun-gamedata"
+description = "A WebTiles server's own version-specific gamedata (enums.js, tileinfo-*.js, status-icon-sizes.js), read without a JavaScript engine."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+serde.workspace = true
+serde_json.workspace = true
+regex.workspace = true
+once_cell.workspace = true
