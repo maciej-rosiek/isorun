@@ -1896,6 +1896,7 @@ dependencies = [
  "isorun-webtiles",
  "log",
  "serde_json",
+ "web-sys",
  "wgpu",
 ]
 

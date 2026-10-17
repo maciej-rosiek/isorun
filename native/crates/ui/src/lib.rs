@@ -1,6 +1,7 @@
 //! Isorun's UI toolkit on egui: what every screen of the native app shares.
 
 pub mod fonts;
+pub mod fullscreen;
 pub mod harness;
 pub mod keys;
 pub mod text;

@@ -516,7 +516,7 @@ impl GameScreen {
         self.parts.dock_on = layout.dock;
         self.parts.view.renderer.set_centre_lift(layout.centre_lift);
         self.parts.chat_capturing = self.parts.hud.chat.capturing(&ctx);
-        let fullscreen = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+        let fullscreen = isorun_ui::fullscreen::is_on(&ctx);
         self.parts.system_opts = client::SystemOpts { spectating: self.session.watching(), chat: self.chat_on(), can_fullscreen: self.opts.can_fullscreen, fullscreen };
         if let Some(ClientMenu { kind: client::Kind::System { tab, .. }, tab_focus, .. }) = &self.parts.client {
             self.parts.system_at = (*tab, *tab_focus);
@@ -882,7 +882,7 @@ impl GameScreen {
                     Deferred::Hud(c) => self.hud_command(c, now),
                     Deferred::DockScreen(id) => self.hud_call(ctx, now, |hud, cx| hud.dock_button(id, cx)),
                     Deferred::DockNav(op) => self.hud_call(ctx, now, |hud, cx| hud.dock_nav(op, cx)),
-                    Deferred::Fullscreen(on) => ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(on)),
+                    Deferred::Fullscreen(on) => isorun_ui::fullscreen::set(ctx, on),
                     Deferred::ExploreAtOnce => {
                         self.exploring_at_once = true;
                         self.pace_travel();
@@ -1695,8 +1695,8 @@ impl GameScreen {
         }
         match pressed {
             Some("full") => {
-                let on = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
-                ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!on));
+                let on = isorun_ui::fullscreen::is_on(&ctx);
+                isorun_ui::fullscreen::set(&ctx, !on);
             }
             Some(_) => self.open_system(),
             None => {}

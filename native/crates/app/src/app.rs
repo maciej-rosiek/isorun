@@ -232,6 +232,8 @@ impl eframe::App for IsorunApp {
         isorun_front::settings::set_phone(phone);
         self.front.options.can_fullscreen = can_fullscreen(phone);
         self.opts.can_fullscreen = can_fullscreen(phone);
+        // the screen's own state: F11 or Escape in the browser leaves full screen behind the menus' back
+        self.front.options.fullscreen = isorun_ui::fullscreen::is_on(ui.ctx());
         // the web's sound starts with the player's first key, click or touch (the browsers let a
         // page make a sound only after a gesture); unlock does nothing the second time
         #[cfg(target_arch = "wasm32")]
@@ -263,7 +265,7 @@ impl eframe::App for IsorunApp {
                         ui.ctx().request_repaint();
                     }
                     Some(FrontAction::Quit) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
-                    Some(FrontAction::Fullscreen(f)) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(f)),
+                    Some(FrontAction::Fullscreen(f)) => isorun_ui::fullscreen::set(ui.ctx(), f),
                     Some(FrontAction::Testbed) => self.open_testbed(),
                     None => {}
                 }
