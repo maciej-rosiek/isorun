@@ -816,7 +816,11 @@ impl GameScreen {
         if let Some((pos, button)) = ctx.input(|i| i.pointer.press_origin().filter(|_| i.pointer.any_pressed()).map(|p| (p, if i.pointer.secondary_pressed() { 2 } else { 0 }))) {
             let outside = !pointer_over_panel_at(&ctx, pos);
             let touch = events.iter().any(|e| matches!(e, egui::Event::Touch { .. }));
-            if touch && !watching && (self.parts.client.is_some() || self.ctx.mode == Mode::Menu) && outside {
+            if self.parts.cell_menu.is_some() && outside {
+                // a tap or click beside the cell menu puts it away, and does nothing else
+                swallowed = true;
+                self.parts.cell_menu = None;
+            } else if touch && !watching && (self.parts.client.is_some() || self.ctx.mode == Mode::Menu) && outside {
                 swallowed = true;
                 self.route(now, |r, io| r.back(io));
             } else if !watching && self.parts.client.is_none() && !menus_keys && matches!(self.ctx.mode, Mode::Popup | Mode::Dialog) && mouse_control(&self.session.state) && (outside || button == 2) {
@@ -833,6 +837,11 @@ impl GameScreen {
         self.gestures.level_map = self.parts.map_shown;
         self.gestures.cell_menu_open = self.parts.cell_menu.is_some();
         let mut gestures = self.gestures.feed(&events, now);
+        // a press taken as a tap away (Back, a popup or the cell menu put away) is not the
+        // view's either when it is released
+        if swallowed {
+            self.gestures.cancel_drag();
+        }
         self.gestures.tick(now);
         gestures.extend(self.gestures.take());
         for g in gestures {
