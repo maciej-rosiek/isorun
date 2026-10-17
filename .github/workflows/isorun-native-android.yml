@@ -19,9 +19,11 @@ on:
         type: boolean
         default: false
 
+# a run in progress finishes (its emulator smoke is the check that matters); only the newest
+# push waits behind it, the ones between are dropped
 concurrency:
   group: isorun-native-android-${{ github.event_name }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   contents: write
