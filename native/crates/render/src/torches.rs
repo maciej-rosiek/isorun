@@ -134,6 +134,11 @@ pub struct TorchLayer {
 }
 
 impl TorchLayer {
+    /// Dust drifts before a lit torch in sight (the Torch dust setting).
+    pub fn dust_shown(&self) -> bool {
+        self.dust.count > 0 && self.dust_strength > 0.0
+    }
+
     pub fn new(gpu: &Gpu) -> Self {
         use wgpu::util::DeviceExt;
         let layout = uniform_layout(gpu, 48);

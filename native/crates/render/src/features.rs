@@ -64,6 +64,11 @@ impl Default for TileFeatures {
 }
 
 impl TileFeatures {
+    /// A door is still swinging.
+    pub fn animating(&self) -> bool {
+        self.doors.values().any(|d| (d.target - d.angle).abs() > DOOR_STILL * 10.0)
+    }
+
     pub fn new() -> Self {
         TileFeatures { doors: HashMap::new(), ground: HashMap::new(), meshes: Vec::new(), leaf: None, built_key: 0, built_pages: 0, glowing: false, doors_changed: Vec::new() }
     }

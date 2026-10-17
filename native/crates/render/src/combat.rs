@@ -118,6 +118,11 @@ pub struct CombatLayer {
 }
 
 impl CombatLayer {
+    /// Blood or sparks in the air, a splat still spreading, the camera's shake or the flash fading.
+    pub fn animating(&self) -> bool {
+        !self.drops.is_empty() || !self.sparks.is_empty() || self.trauma > 1e-3 || self.punch > 1e-3 || self.light_amount > 1e-2 || self.splats.iter().any(|s| s.age < s.grow)
+    }
+
     pub fn new(gpu: &Gpu) -> Self {
         let shared = ParticleShared::new(gpu);
         let drops_batch = ParticleBatch::new(gpu, &shared, "fs_flat", Blend::Opaque, true);

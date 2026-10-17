@@ -209,6 +209,11 @@ pub struct FogLayer {
 }
 
 impl FogLayer {
+    /// A new explored area is blending in (`FADE_SECONDS`).
+    pub fn fading(&self) -> bool {
+        self.blend < 1.0
+    }
+
     pub fn new(gpu: &Gpu) -> Self {
         let float = wgpu::TextureSampleType::Float { filterable: true };
         let tex = |binding| wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: float, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None };

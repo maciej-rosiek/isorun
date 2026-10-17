@@ -19,15 +19,33 @@ pub struct View3d {
     pub renderer: IsoRenderer,
     target: Option<Target>,
     pub rect: egui::Rect,
+    /// the target holds a frame
+    drawn: bool,
 }
 
 impl View3d {
     pub fn new(rs: &RenderState) -> Self {
-        View3d { renderer: IsoRenderer::new(rs.device.clone(), rs.queue.clone()), target: None, rect: egui::Rect::NOTHING }
+        View3d { renderer: IsoRenderer::new(rs.device.clone(), rs.queue.clone()), target: None, rect: egui::Rect::NOTHING, drawn: false }
     }
 
     /// Draw a frame into `rect`; false while there is nothing to draw (no scene or tiles yet).
     pub fn paint(&mut self, ui: &egui::Ui, rs: &RenderState, rect: egui::Rect) -> bool {
+        self.paint_if(ui, rs, rect, true)
+    }
+
+    /// Show the view in `rect`, drawing a new frame only when `redraw` (or when the last one no
+    /// longer fits): a screen at rest shows the frame it drew last (game.ts `needsRender`), so
+    /// the HUD can move without the dungeon being drawn again.
+    pub fn paint_if(&mut self, ui: &egui::Ui, rs: &RenderState, rect: egui::Rect, redraw: bool) -> bool {
+        if !redraw && self.drawn {
+            let ppp = ui.ctx().pixels_per_point();
+            self.renderer.resize(rect.width(), rect.height(), ppp);
+            if let Some(t) = self.target.as_ref().filter(|t| t.size == self.renderer.render_size()) {
+                self.rect = rect;
+                ui.painter().image(t.id, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+                return true;
+            }
+        }
         self.rect = rect;
         let ppp = ui.ctx().pixels_per_point();
         self.renderer.resize(rect.width(), rect.height(), ppp);
@@ -69,6 +87,7 @@ impl View3d {
         let mut encoder = rs.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("iso frame") });
         let drawn = self.renderer.render(&mut encoder, &target.srgb, target.format);
         rs.queue.submit([encoder.finish()]);
+        self.drawn = drawn;
         if drawn {
             ui.painter().image(target.id, rect, egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
         }

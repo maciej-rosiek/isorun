@@ -60,6 +60,25 @@ const SNAP_CELLS: i32 = 8;
 const OWN_SWING_MS: f64 = 1000.0;
 /// Below this share of their hit points the screen's edge turns red, deeper as they fall.
 const DANGER_HP: f32 = 0.5;
+/// The safety tick while the screen rests (game.ts `IDLE_TICK_MS`): a frame every quarter second,
+/// so anything that changed without waking it (a runner's timeout, the torches' flicker, the
+/// actors' breath) is seen. At rest the native screen draws nothing else: on a phone that is the
+/// battery.
+const IDLE_TICK_MS: f64 = 250.0;
+/// How long after the last thing that wanted a frame the screen keeps the display's rate before
+/// it rests (game.ts `ACTIVE_MS`): play is a stream of events, and frames that came only when a
+/// packet did would judder.
+const ACTIVE_MS: f64 = 500.0;
+/// While a pad is plugged in the resting screen still reads it this often: gilrs and the Gamepad
+/// API are polled, and wake nothing on their own. The dungeon is not drawn again for it.
+const PAD_POLL_MS: f64 = 33.0;
+
+/// `ISORUN_ALWAYS_DRAW=1`: every frame drawn whole, as before the screen learnt to rest (to
+/// compare the CPU at rest, or to rule the resting out).
+fn always_draw() -> bool {
+    static ALWAYS: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *ALWAYS.get_or_init(|| std::env::var("ISORUN_ALWAYS_DRAW").is_ok_and(|v| v != "0"))
+}
 /// How long a turn of X's tabs waits on crawl before it gives up (`track_actions`).
 const ACTION_TURN_MS: f64 = 1500.0;
 
@@ -197,6 +216,12 @@ pub struct GameScreen {
     last_target_sent: Option<(i32, i32)>,
     saved_view: String,
     last_frame: f64,
+    /// when something last wanted frames (input, a message, a pad), for `ACTIVE_MS`
+    last_active: f64,
+    /// when the dungeon was last drawn, for the idle tick
+    last_3d: f64,
+    /// the view moved this frame (the camera's easing, the renderer's animations)
+    animating: bool,
     torch_loaded: bool,
     level_map_was: bool,
     touch: bool,
@@ -310,6 +335,9 @@ impl GameScreen {
             last_target_sent: None,
             saved_view: String::new(),
             last_frame: now_ms(),
+            last_active: now_ms(),
+            last_3d: 0.0,
+            animating: true,
             torch_loaded: false,
             level_map_was: false,
             touch,
@@ -420,6 +448,10 @@ impl GameScreen {
         if outcome.is_some() {
             return outcome;
         }
+        // a message, a key, the pointer or a finger: frames at the display's rate for a while
+        if states > 0 || ctx.input(|i| !i.events.is_empty() || i.pointer.is_moving() || i.pointer.any_down() || i.any_touches()) {
+            self.last_active = now;
+        }
         let phase = self.session.state.phase;
         if matches!(phase, Phase::Playing | Phase::Watching) {
             self.started = true;
@@ -506,6 +538,7 @@ impl GameScreen {
             let player = self.parts.view.renderer.player_shown().map(|(x, y)| (x.round() as i32, y.round() as i32)).unwrap_or(scene.player);
             let _ = player;
             let moving = self.camera.update(dt, scene.player.0, scene.player.1);
+            self.animating = moving;
             // saved as soon as a turn or zoom ends, as an app that is killed never saves on the way out
             if !moving {
                 self.save_view();
@@ -525,7 +558,17 @@ impl GameScreen {
                 self.parts.view.renderer.set_danger(danger);
                 self.parts.view.renderer.set_scene(scene.clone());
                 self.parts.view.renderer.follow(&self.camera);
-                drew = self.parts.view.paint(ui, &self.rs, layout.view);
+                // the dungeon is drawn while anything moves or plays, and at rest on the idle tick
+                // only (the ambient: the torches' flicker, the fog's drift, the breath)
+                self.animating = moving || self.parts.view.renderer.animating();
+                if log::log_enabled!(target: "isorun::idle", log::Level::Debug) {
+                    log::debug!(target: "isorun::idle", "camera {moving} renderer {:?} active {}", self.parts.view.renderer.animating_why(), now - self.last_active < ACTIVE_MS);
+                }
+                let redraw = always_draw() || self.animating || now - self.last_active < ACTIVE_MS || now - self.last_3d >= IDLE_TICK_MS;
+                drew = self.parts.view.paint_if(ui, &self.rs, layout.view, redraw);
+                if redraw {
+                    self.last_3d = now;
+                }
             }
         }
         if self.perf.enabled {
@@ -595,8 +638,15 @@ impl GameScreen {
             self.perf.sample(&lc);
             self.perf.ui(&ctx);
         }
-        // the iso view moves all the time (torches flicker, the fog drifts, the actors breathe)
-        ctx.request_repaint();
+        // the next frame: at once while something moves or plays (game.ts `awake`), else the idle
+        // tick, or the pad's poll while one is plugged in; the session's messages wake the screen
+        // themselves, and the HUD's own easings ask for their frames
+        if always_draw() || !self.started || self.loading.is_some() || self.animating || now - self.last_active < ACTIVE_MS || self.pad.busy() {
+            ctx.request_repaint();
+        } else {
+            let wait = if self.pad.connected() { PAD_POLL_MS } else { IDLE_TICK_MS };
+            ctx.request_repaint_after(std::time::Duration::from_millis(wait as u64));
+        }
         None
     }
 
@@ -743,7 +793,11 @@ impl GameScreen {
         }
         #[cfg(target_arch = "wasm32")]
         self.pad.poll_source(now, &mut isorun_input::gamepad::WebSource);
-        for ev in self.pad.take_events() {
+        let pad_events = self.pad.take_events();
+        if !pad_events.is_empty() || self.pad.busy() {
+            self.last_active = now;
+        }
+        for ev in pad_events {
             if self.parts.menus.is_open() {
                 // the Isorun menu reads the pad its own way
                 if let Some(pe) = front_pad(&ev) {

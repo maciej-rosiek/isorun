@@ -16,6 +16,15 @@ use std::sync::{Arc, Mutex};
 
 /// How fast the camera turns round the place by itself, and at full right stick, in degrees a second.
 const ORBIT_DEGREES_PER_SECOND: f32 = 3.0;
+/// The room turning on its own is drawn this often: at 3 degrees a second a frame moves it a
+/// tenth of a degree, which no one sees at the display's rate, and a phone's battery feels.
+/// A drag, the stick, the fade in and the renderer's own motion draw every frame.
+const ORBIT_FRAME_SECONDS: f64 = 1.0 / 30.0;
+/// With the turning stopped (reduced motion) the room is drawn again only this often, for the
+/// torches' flicker and the fog's drift.
+const STILL_FRAME_SECONDS: f64 = 0.25;
+/// How long a drag keeps every frame coming after its last move (the camera eases after it).
+const DRAG_SETTLE_SECONDS: f64 = 0.6;
 const STICK_DEGREES_PER_SECOND: f32 = 90.0;
 /// How far a drag across the scenery turns the camera, in degrees per point.
 pub const DRAG_DEGREES_PER_PIXEL: f32 = 0.3;
@@ -443,6 +452,11 @@ pub struct RoomView {
     /// Turning stops (the reduced-motion setting of a system).
     pub reduced_motion: bool,
     failed: bool,
+    /// when a frame was last drawn, and when the last drag moved the camera
+    drawn_at: f64,
+    dragged_at: f64,
+    /// something changed what is drawn (the settings): the next frame is drawn whatever the cadence
+    redraw: bool,
 }
 
 impl RoomView {
@@ -461,7 +475,7 @@ impl RoomView {
         #[cfg(target_arch = "wasm32")]
         work();
         let cam = IsoCamera::new(isorun_render::CameraAngles { rotation: (crate::splash::random() * 360.0) as f32, tilt: 0.0, perspective: 0.0 }, isorun_render::DEFAULT_VIEW.zoom);
-        RoomView { place, view: None, cam, loading: Some(slot), loaded: false, stick: 0.0, last: isorun_client::platform::seconds(), shown_at: None, reduced_motion: false, failed: false }
+        RoomView { place, view: None, cam, loading: Some(slot), loaded: false, stick: 0.0, last: isorun_client::platform::seconds(), shown_at: None, reduced_motion: false, failed: false, drawn_at: 0.0, dragged_at: f64::NEG_INFINITY, redraw: true }
     }
 
     /// Right stick: dx in [-1, 1]; zero releases it.
@@ -471,11 +485,13 @@ impl RoomView {
 
     /// A drag across the scenery: the camera turns with it.
     pub fn drag(&mut self, dx_points: f32) {
+        self.dragged_at = isorun_client::platform::seconds();
         self.cam.turn(-dx_points * DRAG_DEGREES_PER_PIXEL);
     }
 
     /// The Graphics settings changed (the settings screen stands over the room): they show at once.
     pub fn apply_settings(&mut self, settings: &crate::settings::Settings, dpr: f32) {
+        self.redraw = true;
         if let Some(v) = &mut self.view {
             crate::settings::apply_graphics(&mut v.renderer, settings, dpr);
         }
@@ -530,7 +546,16 @@ impl RoomView {
         let eye = self.cam.camera();
         self.cam.update(dt, eye.x, eye.y);
         view.renderer.follow(&self.cam);
-        let drawn = view.paint(ui, rs, rect);
+        // every frame while the room is handled, fades in or moves of its own; the orbit alone
+        // and the stillness have their own cadences (`ORBIT_FRAME_SECONDS`, `STILL_FRAME_SECONDS`)
+        let fading = self.shown_at.is_none() || (!self.reduced_motion && self.shown_at.is_some_and(|t| now - t < FADE_SECONDS as f64));
+        let busy = std::env::var_os("ISORUN_ALWAYS_DRAW").is_some_and(|v| v != "0") || fading || self.stick != 0.0 || now - self.dragged_at < DRAG_SETTLE_SECONDS || view.renderer.animating();
+        let cadence = if orbit > 0.0 { ORBIT_FRAME_SECONDS } else { STILL_FRAME_SECONDS };
+        let redraw = busy || std::mem::take(&mut self.redraw) || now - self.drawn_at >= cadence;
+        let drawn = view.paint_if(ui, rs, rect, redraw);
+        if redraw {
+            self.drawn_at = now;
+        }
         if drawn && self.shown_at.is_none() {
             self.shown_at = Some(now);
         }
@@ -539,7 +564,12 @@ impl RoomView {
         if drawn && o < 1.0 {
             ui.painter().rect_filled(rect, 0.0, egui::Color32::from_black_alpha(((1.0 - o) * 255.0) as u8));
         }
-        ui.ctx().request_repaint();
+        if busy {
+            ui.ctx().request_repaint();
+        } else {
+            let wait = (self.drawn_at + cadence - now).max(0.0);
+            ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(wait));
+        }
     }
 }
 

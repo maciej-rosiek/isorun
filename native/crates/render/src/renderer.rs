@@ -218,6 +218,8 @@ pub struct IsoRenderer {
     perspective: bool,
     events: FrameEvents,
     revision_counter: u64,
+    /// whether a liquid lies on a cell in sight, by the scene's revision (for `animating`)
+    liquid_sight: std::cell::Cell<(u64, bool)>,
     dust_revision: u64,
     pub frame_number: u64,
 }
@@ -421,6 +423,7 @@ impl IsoRenderer {
             perspective: false,
             events: FrameEvents::default(),
             revision_counter: 0,
+            liquid_sight: std::cell::Cell::new((u64::MAX, false)),
             dust_revision: u64::MAX,
             frame_number: 0,
         };
@@ -618,8 +621,13 @@ impl IsoRenderer {
 
     /// The view's size in logical pixels and the device pixels per logical pixel.
     pub fn resize(&mut self, width: f32, height: f32, dpr: f32) {
-        self.width = width.max(1.0);
-        self.height = height.max(1.0);
+        let (width, height) = (width.max(1.0), height.max(1.0));
+        // the view is sized every frame: only a real change starts the dynamic resolution over
+        if (width, height, dpr) == (self.width, self.height, self.dpr) {
+            return;
+        }
+        self.width = width;
+        self.height = height;
         self.dpr = dpr;
         self.resolution.reset();
     }
@@ -638,6 +646,47 @@ impl IsoRenderer {
 
     fn pixel_ratio(&self) -> f32 {
         self.dpr.min(self.quality.pixel_ratio) * if self.quality.adaptive { self.resolution.scale } else { 1.0 }
+    }
+
+    /// Whether the next frames show motion that is more than the ambient (the torches' flicker,
+    /// the actors' breath, the fog's drift): a hop or an action under way, a blow still to land,
+    /// the hit stop, blood, sparks, the shake or the flash, dust of a step or footprints fading,
+    /// a door swinging, the fog blending over a new explored area, the torches' dust, or a liquid
+    /// in sight. A screen that draws only on demand keeps drawing every frame while it is true,
+    /// and otherwise may wait (game.ts `awake`, which keeps the iso view always going; natively
+    /// an idle tick shows the ambient instead, for the batteries). The camera's own easing is
+    /// `IsoCamera::update`'s to say.
+    pub fn animating(&self) -> bool {
+        self.animating_why().is_some()
+    }
+
+    /// What keeps `animating` true, for the perf log: the first reason found.
+    pub fn animating_why(&self) -> Option<&'static str> {
+        let now = now_seconds();
+        let reasons: [(&'static str, &dyn Fn() -> bool); 10] = [
+            ("impact", &|| !self.impacts.is_empty()),
+            ("hit stop", &|| now < self.stop_until),
+            // the low hit points' red edge pulses
+            ("danger", &|| self.danger > 0.0),
+            ("actors", &|| self.actors.animating(self.clock)),
+            ("combat", &|| self.combat.animating()),
+            ("steps", &|| self.steps.animating()),
+            ("doors", &|| self.features.animating()),
+            ("fog fade", &|| self.fog.fading()),
+            ("torch dust", &|| self.torches.dust_shown()),
+            ("liquid", &|| self.liquids.drawn() && self.liquid_in_sight()),
+        ];
+        reasons.iter().find(|(_, f)| f()).map(|(n, _)| *n)
+    }
+
+    fn liquid_in_sight(&self) -> bool {
+        let (rev, seen) = self.liquid_sight.get();
+        if rev == self.revision_counter {
+            return seen;
+        }
+        let seen = self.scene.as_ref().is_some_and(|s| s.cells.values().any(|c| c.liquid.is_some() && c.visibility == Visibility::Visible));
+        self.liquid_sight.set((self.revision_counter, seen));
+        seen
     }
 
     /// What happened in the last frame: blows shown, hops started, doors moved.

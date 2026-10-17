@@ -164,6 +164,11 @@ fn palette(kind: LiquidKind) -> (u32, u32, u32, f32, f32, f32, f32) {
 }
 
 impl Liquids {
+    /// Some liquid is drawn at all (its ripples, stars and lava move).
+    pub fn drawn(&self) -> bool {
+        self.pools.iter().any(|p| p.shown && p.grid.count > 0)
+    }
+
     pub fn new(gpu: &Gpu) -> Self {
         let layout = uniform_layout(gpu, 64);
         let module = shader(gpu, "liquids", include_str!("shaders/liquids.wgsl"));

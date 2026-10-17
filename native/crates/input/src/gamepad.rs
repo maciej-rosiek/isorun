@@ -293,6 +293,16 @@ impl GamepadInput {
         self.events.push(e);
     }
 
+    /// A pad is plugged in: a screen that sleeps between frames polls it while one is.
+    pub fn connected(&self) -> bool {
+        self.connected
+    }
+
+    /// Some button is down (or a stick out of its centre): the frames keep coming for its hold or repeat.
+    pub fn busy(&self) -> bool {
+        !self.pressed.is_empty() || !self.virtual_held.is_empty() || self.dpad_dir.is_some() || self.stick_dir.is_some() || self.rstick_dir.is_some() || self.looking
+    }
+
     pub fn is_held(&self, b: Button) -> bool {
         self.pressed.iter().any(|(x, _)| *x == b) || self.virtual_held.iter().any(|(x, _)| *x == b)
     }

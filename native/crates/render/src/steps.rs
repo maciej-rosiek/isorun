@@ -60,6 +60,11 @@ pub struct StepLayer {
 }
 
 impl StepLayer {
+    /// Dust in the air, a landing to come, or footprints still fading.
+    pub fn animating(&self) -> bool {
+        !self.puffs.is_empty() || !self.landings.is_empty() || (self.settings.prints > 0.0 && self.prints.iter().any(|p| p.age < self.settings.prints))
+    }
+
     pub fn new(gpu: &Gpu) -> Self {
         let shared = ParticleShared::new(gpu);
         let puffs_batch = ParticleBatch::new(gpu, &shared, "fs_puff", Blend::Alpha, false);

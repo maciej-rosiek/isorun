@@ -415,6 +415,12 @@ pub struct ActorLayer {
 }
 
 impl ActorLayer {
+    /// Something of an actor's moves at `now` (its clock): a hop, a lunge, a hit's knock, a
+    /// dodge, a death. Breathing and the statuses' flicker do not count: they are ambient.
+    pub fn animating(&self, now: f64) -> bool {
+        self.actors.values().any(|a| a.moving || now - a.hit.0 < HIT_SECONDS || now - a.dodge.0 < DODGE_SECONDS || a.death_start.is_some_and(|d| now - d < DEATH_SECONDS))
+    }
+
     pub fn sync(&mut self, scene: &Scene, now: f64, env: &mut ActorEnv) {
         let mut seen = Vec::new();
         let pages_id = env.pages as *const Pages as usize;
