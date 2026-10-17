@@ -7,6 +7,7 @@ pub mod text;
 pub mod theme;
 pub mod tiles;
 pub mod view3d;
+pub mod widgets;
 
 use std::sync::Arc;
 

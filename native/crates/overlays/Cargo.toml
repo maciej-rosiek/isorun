@@ -1,0 +1,22 @@
+[package]
+name = "isorun-overlays"
+description = "The screens crawl puts over the game (menus, popups, describe screens, character creation, the CRT screens, prompts, text input, the level-up banner) on egui: the port of overlays.ts."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-webtiles = { path = "../webtiles" }
+isorun-client = { path = "../client" }
+isorun-gamedata = { path = "../gamedata" }
+isorun-scene = { path = "../scene" }
+isorun-ui = { path = "../ui" }
+egui = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+once_cell = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+eframe = { workspace = true }
+log = "0.4"
