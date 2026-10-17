@@ -32,7 +32,7 @@ pub mod uniforms;
 pub use camera::{CameraAngles, IsoCamera, DEFAULT_ANGLES, TILT_MAX, TILT_MIN, TURN_DEGREES, ZOOM_MAX, ZOOM_MIN};
 pub use lights::{lights, quality, IsoLights, IsoQuality, SurfaceDetail, LIGHTS_NAMES};
 pub use plan::{stick_to_dir, AimIntent, IsoAim, IsoRoute, IsoView, DEFAULT_VIEW};
-pub use renderer::{ground_floor, ActorAction, ActorStep, IsoRenderer, PLAYER_ACTOR};
+pub use renderer::{ground_floor, ActorAction, ActorStep, FrameEvents, IsoRenderer, PLAYER_ACTOR};
 
 use isorun_scene::{TileId, TileRect};
 use std::sync::Arc;
