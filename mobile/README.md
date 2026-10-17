@@ -39,8 +39,7 @@ Needs Node 22+, a JDK 21 and the Android SDK (Android Studio, or the command-lin
 
 1. Build the offline engine: `engine/build.sh stable` (see `../CLAUDE.md`).
 2. Install the tools: `npm install` in this folder (this folder is not an npm workspace).
-3. Make the APK: `npm run package`. It is `dist/release/Isorun.apk`; `npm run package -- --bundle`
-   also makes `Isorun.aab` for Google Play.
+3. Make the APK: `npm run package`. It is `dist/release/Isorun.apk`.
 
 `npm run stage` builds only the files (`dist/www`), and `npx cap sync android && npm run open`
 opens the project in Android Studio, to run it on a phone or an emulator. With the phone on USB,
@@ -76,12 +75,8 @@ So, beside the desktop release (`../desktop/README.md`): increase `version` in
 follows a few minutes later. `npm run release` here does the same from this machine.
 
 A player installs the APK from the release page (Android asks to allow installs from the browser
-once). The app does not update itself: a newer APK installs over it, saves kept. Obtainium can
-watch the GitHub releases and do that for them.
+once). The app does not update itself: a newer APK installs over it, saves kept.
 
-## Google Play
-
-Upload `Isorun.aab` (`npm run package -- --bundle`) to a Play Console app with the id
-`io.github.maciejrosiek.isorun`, with Play App Signing on, and the release key above as the upload
-key. The listing needs a privacy note: the app sends the anonymous visit counts (a random id per
-start, no cookie) and talks to the servers a player picks.
+To update from the releases, add the app to [Obtainium](https://obtainium.imranr.dev): Add App, the
+source `https://github.com/maciej-rosiek/isorun`. It looks at each release for an `.apk` (only
+`Isorun.apk` is one), reads the version from the tag (`v0.1.5`) and installs the newer one.
