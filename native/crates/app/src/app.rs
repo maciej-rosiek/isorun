@@ -220,10 +220,10 @@ fn to_front(ev: &PadEvent) -> Option<FrontPad> {
     }
 }
 
-/// Android's app is always full screen, and a phone's screen is all the game's: no Full screen
-/// row there.
-fn can_fullscreen(phone: bool) -> bool {
-    !cfg!(target_os = "android") && !phone
+/// Android's app is always full screen: no Full screen row there. A phone's browser does have
+/// the page's full screen (it hides the address bar), so the web build keeps the row on a phone.
+fn can_fullscreen(_phone: bool) -> bool {
+    !cfg!(target_os = "android")
 }
 
 /// `ISORUN_TOUCH_SIM=1`: the mouse acts as a finger, as egui-winit hands a touch screen's
