@@ -23,8 +23,14 @@ pub fn launch_args() -> Vec<String> {
 
 #[cfg(not(target_arch = "wasm32"))]
 pub fn native_options() -> eframe::NativeOptions {
+    // `--size=412x915`: a window of that size from the start (a phone's, for a test), as the app
+    // decides some things (a phone's layout, the Full screen row) when it starts
+    let size = launch_args().iter().find_map(|a| {
+        let (w, h) = a.strip_prefix("--size=")?.split_once('x')?;
+        Some([w.parse::<f32>().ok()?, h.parse::<f32>().ok()?])
+    });
     eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_title(servers::APP_NAME).with_inner_size([1600.0, 1000.0]).with_min_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_title(servers::APP_NAME).with_inner_size(size.unwrap_or([1600.0, 1000.0])).with_min_inner_size([320.0, 240.0]),
         wgpu_options: isorun_ui::wgpu_options(),
         // the window opens at its own size each time: a remembered one outlives what it was for
         // (a run at a phone's size for a test opened every later run as small)

@@ -64,14 +64,16 @@ impl IsorunApp {
         // `--touch` lays the game out for a touch screen (the touch bar, the corner buttons), as a phone's
         let touch = isorun_input::touch::touch_screen() || args.iter().any(|a| a == "--touch");
         let size = cc.egui_ctx.content_rect().size();
-        isorun_front::settings::set_phone(touch && size.x.min(size.y) < 560.0);
-        let front_opts = FrontOptions { mouse: !touch, testbed: has("--testbed-link"), ..Default::default() };
+        let phone = touch && size.x.min(size.y) < 560.0;
+        isorun_front::settings::set_phone(phone);
+        let can_fullscreen = can_fullscreen(phone);
+        let front_opts = FrontOptions { mouse: !touch, testbed: has("--testbed-link"), can_fullscreen, ..Default::default() };
         let front = FrontEnd::new(&cc.egui_ctx, rs.clone(), front_opts);
         let engine = SoundEngine::new();
         // natively the sound may start at once; the web waits for the first key or click
         #[cfg(not(target_arch = "wasm32"))]
         engine.unlock();
-        let opts = GameOptions { perf: has("--perf"), audio_trace: has("--audio-trace"), can_fullscreen: true, touch: touch || has("--touch") };
+        let opts = GameOptions { perf: has("--perf"), audio_trace: has("--audio-trace"), can_fullscreen, touch: touch || has("--touch") };
         #[cfg(all(not(target_arch = "wasm32"), feature = "gilrs"))]
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
@@ -215,8 +217,21 @@ impl eframe::App for IsorunApp {
             Screen::Game(game) => {
                 let Some(outcome) = game.ui(ui) else { return };
                 let Screen::Game(mut game) = std::mem::replace(&mut self.screen, Screen::Front) else { unreachable!() };
+/// Android's app is always full screen, and a phone's screen is all the game's: no Full screen
+/// row there.
+fn can_fullscreen(phone: bool) -> bool {
+    !cfg!(target_os = "android") && !phone
+}
+
                 game.close();
                 let GameScreen { session, pads, .. } = *game;
+        // a phone is told by its window (the first frame's size is the real one, the app's start
+        // may not know it yet)
+        let size = ui.ctx().content_rect().size();
+        let phone = self.opts.touch && size.x.min(size.y) < 560.0;
+        isorun_front::settings::set_phone(phone);
+        self.front.options.can_fullscreen = can_fullscreen(phone);
+        self.opts.can_fullscreen = can_fullscreen(phone);
                 self.pads = pads;
                 self.front.game_over(match outcome {
                     Outcome::Lobby => GameEnd::Lobby(session),
