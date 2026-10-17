@@ -162,6 +162,62 @@ fn class_word(base: Option<i64>) -> &'static str {
 const BACKPACK_COLUMNS: usize = 8;
 const BACKPACK_MIN_ROWS: usize = 7;
 const PACK_LETTERS: usize = 52;
+/// The smallest unit the screens' small text (a socket's letter and count, the cards, the item
+/// menu) is set in when a phone's screen scales the rest down: 11px letters at 0.8 still read.
+const SMALL_TEXT_UNIT: f32 = 0.8;
+
+/// How the inventory's panels stand.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum InvArrange {
+    /// the doll beside the backpack, the summary under both (the desktop's)
+    Wide,
+    /// the doll beside the backpack, the summary under the backpack (a phone on its side)
+    Beside,
+    /// the doll over the backpack (a phone held upright)
+    Stacked,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct InvLayout {
+    arrange: InvArrange,
+    cols: usize,
+}
+
+impl InvLayout {
+    fn rows(&self, items: usize) -> usize {
+        let min_rows = match self.arrange {
+            InvArrange::Wide => BACKPACK_MIN_ROWS,
+            InvArrange::Stacked => 4,
+            // as many rows as the pack's letters need, all of them in sight: never fewer than
+            // the 52 letters' worth spread over the columns
+            InvArrange::Beside => PACK_LETTERS.div_ceil(self.cols).min(BACKPACK_MIN_ROWS),
+        };
+        min_rows.max(items.div_ceil(self.cols))
+    }
+
+    /// The panel's size at unit `u` for a pack of `items` (not on the doll).
+    fn size_at(&self, u: f32, items: usize) -> (f32, f32) {
+        let cols = self.cols;
+        let rows = self.rows(items);
+        let doll_w = 84.0 * u * 4.4 + 16.0 * u;
+        let doll_h = 6.0 * 84.0 * u + 5.0 * 8.0 * u;
+        let grid_w = cols as f32 * 72.0 * u + (cols - 1) as f32 * 6.0 * u;
+        let grid_h = rows as f32 * 72.0 * u + (rows - 1) as f32 * 6.0 * u;
+        let title_h = 12.0 * u + 28.0 * 1.1 * u + 10.0 * u + 1.0;
+        let summary = 12.0 * u + (4.0 * u + 19.0 * u) + 6.0 * u + 24.0 * u + 6.0 * u;
+        let around = 1.0 + title_h + 18.0 * u + summary + 1.0;
+        let panel = |h: f32| h + 28.0 * u + 2.0;
+        let (w, h) = match self.arrange {
+            InvArrange::Stacked => (22.0 * u + (doll_w.max(grid_w) + 28.0 * u + 2.0) + 22.0 * u, around + panel(doll_h) + 22.0 * u + panel(grid_h)),
+            InvArrange::Wide => (22.0 * u + panel(doll_w) + 22.0 * u + panel(grid_w) + 22.0 * u, around + panel(doll_h.max(grid_h))),
+            InvArrange::Beside => {
+                let right = panel(grid_h) + summary;
+                (22.0 * u + panel(doll_w) + 22.0 * u + panel(grid_w) + 22.0 * u, around - summary + panel(doll_h).max(right))
+            }
+        };
+        (w + 2.0, h)
+    }
+}
 /// the character sheet's line height: the body's `normal` in DejaVu Sans Mono
 const LINE: f32 = 1.17;
 
@@ -281,6 +337,10 @@ pub struct Screen {
     pub own_keys: bool,
     /// the panel as last drawn
     panel: Option<Rect>,
+    /// how far the body is scrolled where it is taller than the screen (a phone)
+    scroll: f32,
+    /// the stop last brought into view
+    scrolled_to: Option<String>,
 }
 
 /// What the screens are drawn from.
@@ -341,7 +401,7 @@ fn panel_style(u: f32, paper: bool, char_block: bool) -> BoxStyle {
 
 impl Screen {
     pub fn new(id: ScreenId) -> Screen {
-        Screen { id, menu: None, focus: None, stops: vec![], figure: None, own_keys: true, panel: None }
+        Screen { id, menu: None, focus: None, stops: vec![], figure: None, own_keys: true, panel: None, scroll: 0.0, scrolled_to: None }
     }
 
     /// Keys while the screen is up, for a HUD that reads its own keys (the examples): the arrows
@@ -621,43 +681,45 @@ impl Screen {
         let doll = paper_doll(data.items, data.worn);
         let on_doll: Vec<&str> = doll.values().map(|i| i.letter.as_str()).collect();
         let pack: Vec<&PackItem> = data.items.iter().filter(|i| !on_doll.contains(&i.letter.as_str())).collect();
-        // touch.css `@media (max-width: 600px)`: the panels one over the other, the backpack six
-        // wide, and the whole screen made smaller until it fits the phone
-        let stacked = screen.width() < 600.0;
-        let cols = if stacked { 6 } else { BACKPACK_COLUMNS };
-        let min_rows = if stacked { 4 } else { BACKPACK_MIN_ROWS };
-        let rows = min_rows.max(pack.len().div_ceil(cols));
-        // the sizes at u = 1: the doll's panel, the backpack's and the lines around them
-        let size_at = |u: f32| {
-            let doll_w = 84.0 * u * 4.4 + 16.0 * u;
-            let doll_h = 6.0 * 84.0 * u + 5.0 * 8.0 * u;
-            let grid_w = cols as f32 * 72.0 * u + (cols - 1) as f32 * 6.0 * u;
-            let grid_h = rows as f32 * 72.0 * u + (rows - 1) as f32 * 6.0 * u;
-            let title_h = 12.0 * u + 28.0 * 1.1 * u + 10.0 * u + 1.0;
-            let around = 1.0 + title_h + 18.0 * u + 12.0 * u + (4.0 * u + 19.0 * u) + 6.0 * u + 24.0 * u + 6.0 * u + 1.0;
-            let (w, h) = if stacked {
-                (22.0 * u + (doll_w.max(grid_w) + 28.0 * u + 2.0) + 22.0 * u, around + (doll_h + 28.0 * u + 2.0) + 22.0 * u + (grid_h + 28.0 * u + 2.0))
-            } else {
-                (22.0 * u + (doll_w + 28.0 * u + 2.0) + 22.0 * u + (grid_w + 28.0 * u + 2.0) + 22.0 * u, around + doll_h.max(grid_h) + 28.0 * u + 2.0)
-            };
-            (w + 2.0, h)
-        };
-        let u = if stacked {
-            let (w, h) = size_at(1.0);
-            u.min((screen.width() - 8.0) / w).min((screen.height() * 0.95 - 8.0) / h)
+        // the arrangement and the size: on a desktop the doll beside an eight-wide backpack, as the
+        // web build has it. A compact window (a phone) takes the one that fits it largest: held
+        // upright the panels one over the other with the backpack six wide (touch.css `@media
+        // (max-width: 600px)`); on its side the doll beside a wider, shorter backpack with the
+        // summary under it, since the height is what is short there.
+        let compact = style::compact_window(screen.size());
+        let margin = if compact { 4.0 } else { 0.0 };
+        let avail = screen.shrink(margin);
+        let mut layouts = vec![];
+        if compact {
+            layouts.push(InvLayout { arrange: InvArrange::Stacked, cols: 6 });
+            for cols in 6..=13 {
+                layouts.push(InvLayout { arrange: InvArrange::Beside, cols });
+            }
         } else {
-            u
+            layouts.push(InvLayout { arrange: InvArrange::Wide, cols: BACKPACK_COLUMNS });
+        }
+        let fit_of = |l: &InvLayout| {
+            let (w, h) = l.size_at(1.0, pack.len());
+            (avail.width() / w).min(avail.height() * if compact { 1.0 } else { 0.95 } / h)
         };
+        let lay = layouts.iter().copied().max_by(|a, b| fit_of(a).min(u).total_cmp(&fit_of(b).min(u)).then(b.cols.cmp(&a.cols))).unwrap_or(InvLayout { arrange: InvArrange::Wide, cols: BACKPACK_COLUMNS });
+        let stacked = lay.arrange == InvArrange::Stacked;
+        let side_by = lay.arrange == InvArrange::Beside;
+        let cols = lay.cols;
+        let rows = lay.rows(pack.len());
+        let u = u.min(fit_of(&lay));
+        // small labels (the letters, the counts) keep a size that reads on a phone
+        let tu = u.max(SMALL_TEXT_UNIT);
         let place = 84.0 * u;
         let sock = 72.0 * u;
         let doll_w = place * 4.4 + 16.0 * u;
         let doll_h = 6.0 * place + 5.0 * 8.0 * u;
         let grid_w = cols as f32 * sock + (cols - 1) as f32 * 6.0 * u;
         let grid_h = rows as f32 * sock + (rows - 1) as f32 * 6.0 * u;
-        let (paper_h, bag_h) = if stacked { (doll_h + 28.0 * u + 2.0, grid_h + 28.0 * u + 2.0) } else { (doll_h.max(grid_h) + 28.0 * u + 2.0, doll_h.max(grid_h) + 28.0 * u + 2.0) };
+        let (paper_h, bag_h) = if stacked || side_by { (doll_h + 28.0 * u + 2.0, grid_h + 28.0 * u + 2.0) } else { (doll_h.max(grid_h) + 28.0 * u + 2.0, doll_h.max(grid_h) + 28.0 * u + 2.0) };
         let summary_h = 4.0 * u + 19.0 * u;
-        let (width, height) = size_at(u);
-        let top = if stacked { screen.top() + ((screen.height() - height) / 2.0).clamp(4.0, screen.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
+        let (width, height) = lay.size_at(u, pack.len());
+        let top = if compact { avail.top() + ((avail.height() - height) / 2.0).clamp(0.0, avail.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
         self.panel = Some(rect);
         // a click on the panel is the panel's, not the world's
@@ -771,8 +833,9 @@ impl Screen {
         }
 
         // the summary under the panels
-        let sy = paper.bottom().max(bag.bottom()) + 12.0 * u + 4.0 * u;
-        let mut x = body.x + 22.0 * u + 6.0 * u;
+        // beside the doll, the summary and the footer stand under the backpack
+        let sy = if side_by { bag.bottom() } else { paper.bottom().max(bag.bottom()) } + 12.0 * u + 4.0 * u;
+        let mut x = if side_by { bag.left() + 6.0 * u } else { body.x + 22.0 * u + 6.0 * u };
         let p = data.player;
         for (k, v) in [("AC", p.ac), ("EV", p.ev), ("SH", p.sh)] {
             let vg = TextStyle::new(Face::Caps700, 19.0 * u, hex(0xefe4cc)).line(1.0).galley(&ctx, &v.to_string(), None);
@@ -796,16 +859,17 @@ impl Screen {
         let slots = TextStyle::new(Face::Caps700, 13.0 * u, hex(0x857759)).spacing(0.08).line(1.0).galley(&ctx, &format!("{} / {PACK_LETTERS}", data.items.len()), None);
         painter.galley(egui::pos2(bag.right() - 6.0 * u - slots.size().x, sy + 9.5 * u - slots.size().y / 2.0), slots, Color32::WHITE);
         if pad.is_none() {
-            footer(&painter, boxes, rect.center().x, sy + summary_h - 4.0 * u + 6.0 * u, u);
+            footer(&painter, boxes, if side_by { bag.center().x } else { rect.center().x }, sy + summary_h - 4.0 * u + 6.0 * u, u);
         }
 
         // the cards beside what the pointer is over, or the menu of what was picked
         let tip_painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Tooltip, egui::Id::unique("hud-screen-tip")));
         if let Some((cards, anchor)) = hover_tip {
-            let laid: Vec<_> = cards.iter().map(|(t, k)| layout_card(&ctx, t, *k, u, pad)).collect();
+            // the cards keep a size that reads: on a small screen they may stand over the panel's edge
+            let laid: Vec<_> = cards.iter().map(|(t, k)| layout_card(&ctx, t, *k, tu, pad)).collect();
             let w: f32 = laid.iter().map(|c| c.size.x).sum::<f32>() + 8.0 * u * (laid.len().saturating_sub(1)) as f32;
             let h = laid.iter().map(|c| c.size.y).fold(0.0, f32::max);
-            let at = beside(rect, anchor, egui::vec2(w, h), 10.0 * u);
+            let at = beside(if compact { screen } else { rect }, anchor, egui::vec2(w, h), 10.0 * u);
             let mut x = at.x;
             for c in laid {
                 c.paint(&tip_painter, boxes, egui::pos2(x, at.y), pad.unwrap_or_default());
@@ -813,11 +877,12 @@ impl Screen {
             }
         }
         if self.menu.is_some() {
-            if let Some(e) = self.paint_menu(ui, &tip_painter, boxes, rect, u) {
+            let host = if compact { screen } else { rect };
+            if let Some(e) = self.paint_menu(ui, &tip_painter, boxes, host, tu) {
                 events.push(e);
             }
             // a press outside the menu puts it away
-            if ui.input(|i| i.pointer.any_pressed()) && !self.menu_rect(&ctx, rect, u).is_some_and(|r| ui.rect_contains_pointer(r)) && !self.menu.as_ref().is_some_and(|m| ui.rect_contains_pointer(m.anchor)) {
+            if ui.input(|i| i.pointer.any_pressed()) && !self.menu_rect(&ctx, host, tu).is_some_and(|r| ui.rect_contains_pointer(r)) && !self.menu.as_ref().is_some_and(|m| ui.rect_contains_pointer(m.anchor)) {
                 self.menu = None;
             }
         }
@@ -849,11 +914,11 @@ impl Screen {
         let tint = if item.useless() { Color32::from_gray(130) } else { Color32::WHITE };
         icons::paint_with_shadow(tiles, painter, &placed, Rect::from_center_size(rect.center(), Vec2::splat(56.0 * u)), tint, 2.0 * u, 2.0 * u, Color32::BLACK);
         if let Some(q) = item.count().filter(|q| *q > 1) {
-            let g = TextStyle::new(Face::MonoBold, 14.0 * u, INK).galley(painter.ctx(), &q.to_string(), None);
+            let g = TextStyle::new(Face::MonoBold, 14.0 * u.max(SMALL_TEXT_UNIT), INK).galley(painter.ctx(), &q.to_string(), None);
             let at = egui::pos2(rect.right() - 1.0 - 5.0 * u - g.size().x, rect.bottom() - 1.0 - 3.0 * u - g.size().y);
             crate::paint::shadowed_galley(painter, at, g, INK.to_color32(), &[(0.0, 0.0, 2.0, Color32::BLACK), (0.0, 1.0, 1.0, Color32::BLACK)]);
         }
-        let lg = TextStyle::new(Face::Mono, 11.0 * u, hex(0x7d6b48)).galley(painter.ctx(), &item.letter, None);
+        let lg = TextStyle::new(Face::Mono, 11.0 * u.max(SMALL_TEXT_UNIT), hex(0x7d6b48)).galley(painter.ctx(), &item.letter, None);
         crate::paint::shadowed_galley(painter, rect.min + egui::vec2(1.0 + 5.0 * u, 1.0 + 3.0 * u), lg, hex(0x7d6b48).to_color32(), &[(0.0, 1.0, 1.0, Color32::BLACK)]);
     }
 
@@ -987,19 +1052,41 @@ impl Screen {
         // the commands: a grid of three columns as wide as the widest button
         let cmds = commands();
         let kc = KeycapSize::base(u);
-        let cmd_w = cmds.iter().map(|c| 6.0 * u + 32.0 * u + 10.0 * u + ink(INK).galley(&ctx, c.label, None).size().x + 10.0 * u + keycaps_width(&ctx, &c.key.split(' ').map(String::from).collect::<Vec<_>>(), kc, u) + 10.0 * u + 2.0).fold(0.0, f32::max);
+        let keys_of = |c: &Command| c.key.split(' ').map(String::from).collect::<Vec<_>>();
+        let cmd_fixed = |c: &Command| 6.0 * u + 32.0 * u + 10.0 * u + 10.0 * u + keycaps_width(&ctx, &keys_of(c), kc, u) + 10.0 * u + 2.0;
+        let cmd_w = cmds.iter().map(|c| cmd_fixed(c) + ink(INK).galley(&ctx, c.label, None).size().x).fold(0.0, f32::max);
         let cmd_h = 5.0 * u * 2.0 + 32.0 * u + 2.0;
         let grid_w = 3.0 * cmd_w + 2.0 * 6.0 * u;
-        let inner_w = grid_w.max(900.0 * u);
-        let width = inner_w + 48.0 * u + 2.0;
-        // the head
-        let name_g = TextStyle::new(Face::Caps700, 36.0 * u, GOLD_BRIGHT).spacing(0.04).line(1.0).galley(&ctx, &p.name, None);
-        let title_g = TextStyle::new(Face::Caps600, 16.0 * u, INK).line(1.3).galley(&ctx, p.title.trim_start_matches(',').trim(), None);
+        // a compact window (a phone) gives the sheet its whole width less the margins, and what does
+        // not fit beside each other stands one under the other
+        let compact = style::compact_window(screen.size());
+        let avail = if compact { screen.shrink(4.0) } else { screen };
+        let side = if compact { 12.0 * u } else { 24.0 * u };
+        let natural_inner = grid_w.max(900.0 * u);
+        let width = if compact { (natural_inner + 2.0 * side + 2.0).min(avail.width()).floor() } else { natural_inner + 48.0 * u + 2.0 };
+        let inner_w = width - 2.0 - 2.0 * side;
+        // the head: the figure smaller on a narrow screen
+        let fig_size = if inner_w < 560.0 * u { 120.0 * u } else { 180.0 * u };
+        let name_w = inner_w - fig_size - 22.0 * u;
+        let name_g = TextStyle::new(Face::Caps700, 36.0 * u, GOLD_BRIGHT).spacing(0.04).line(1.0).galley(&ctx, &p.name, Some(name_w));
+        let title_g = TextStyle::new(Face::Caps600, 16.0 * u, INK).line(1.3).galley(&ctx, p.title.trim_start_matches(',').trim(), Some(name_w));
         let species = if p.species_display_name.is_empty() { &p.species } else { &p.species_display_name };
-        let species_g = ink(INK_DIM).galley(&ctx, &format!("Level {} {species}", p.xl), None);
-        let head_h = 180.0 * u;
-        // the blocks' heights
-        let block_w = [1.0, 1.0, 1.6].map(|f| (inner_w - 28.0 * u) * f / 3.6);
+        let species_g = ink(INK_DIM).galley(&ctx, &format!("Level {} {species}", p.xl), Some(name_w));
+        let xpg = TextStyle::new(Face::Mono, body * 0.9, INK_DIM).galley(&ctx, &format!("{}% to level {}", p.progress, p.xl + 1), None);
+        let name_lines_h = name_g.size().y + 4.0 * u + title_g.size().y + species_g.size().y + body * LINE + 8.0 * u + body * LINE;
+        let head_h = fig_size.max(name_lines_h);
+        // the three blocks: side by side where they fit, else vitals and defence over the arms,
+        // else one under the other
+        let gap = 14.0 * u;
+        let rows_of_blocks: Vec<Vec<(&Vec<Line>, f32)>> = if inner_w >= 0.85 * 900.0 * u {
+            let w = [1.0, 1.0, 1.6].map(|f| (inner_w - 2.0 * gap) * f / 3.6);
+            vec![vec![(&vitals, w[0]), (&defence, w[1]), (&arms, w[2])]]
+        } else if (inner_w - gap) / 2.0 >= 190.0 * u {
+            let w = (inner_w - gap) / 2.0;
+            vec![vec![(&vitals, w), (&defence, w)], vec![(&arms, inner_w)]]
+        } else {
+            vec![vec![(&vitals, inner_w)], vec![(&defence, inner_w)], vec![(&arms, inner_w)]]
+        };
         let line_h = |l: &Line, w: f32| -> f32 {
             match l {
                 Line::Head(_) => 14.0 * 1.2 * u,
@@ -1018,14 +1105,26 @@ impl Screen {
             }
             h
         };
-        let blocks_h = block_h(&vitals, block_w[0]).max(block_h(&defence, block_w[1])).max(block_h(&arms, block_w[2]));
-        let rows_n = cmds.len().div_ceil(3);
-        let cmds_h = rows_n as f32 * cmd_h + (rows_n - 1) as f32 * 6.0 * u;
+        let block_rows_h: Vec<f32> = rows_of_blocks.iter().map(|r| r.iter().map(|(l, w)| block_h(l, *w)).fold(0.0, f32::max)).collect();
+        let blocks_h = block_rows_h.iter().sum::<f32>() + gap * (block_rows_h.len() as f32 - 1.0);
+        // the commands' columns: three where the widest fits, two with their labels wrapping, else one
+        let cmd_cols = (1..=3usize).rev().find(|&n| {
+            let cw = (inner_w - (n - 1) as f32 * 6.0 * u) / n as f32;
+            cw >= cmd_w || (n == 2 && cw >= 170.0 * u)
+        }).unwrap_or(1);
+        let cw = (inner_w - (cmd_cols - 1) as f32 * 6.0 * u) / cmd_cols as f32;
+        let cmd_labels: Vec<_> = cmds.iter().map(|c| ink(INK).galley(&ctx, c.label, Some((cw - cmd_fixed(c)).max(40.0 * u)))).collect();
+        let rows_n = cmds.len().div_ceil(cmd_cols);
+        let cmd_row_h: Vec<f32> = (0..rows_n).map(|r| (r * cmd_cols..((r + 1) * cmd_cols).min(cmds.len())).map(|k| cmd_labels[k].size().y + 10.0 * u + 2.0).fold(cmd_h, f32::max)).collect();
+        let cmds_h = cmd_row_h.iter().sum::<f32>() + (rows_n - 1) as f32 * 6.0 * u;
         let content_h = 18.0 * u + head_h + 14.0 * u + blocks_h + 14.0 * u + 14.0 * 1.2 * u + 14.0 * u + cmds_h + 8.0 * u;
         let title_h = 12.0 * u + 28.0 * 1.1 * u + 10.0 * u + 1.0;
         let footer_h = if data.pad.is_none() { 24.0 * u } else { 0.0 };
-        let height = 1.0 + title_h + content_h + footer_h + 6.0 * u + 1.0;
-        let top = screen.top() + screen.height() * 0.05;
+        let natural_h = 1.0 + title_h + content_h + footer_h + 6.0 * u + 1.0;
+        // taller than the screen: the panel takes the height and its body scrolls
+        let max_h = if compact { avail.height() } else { screen.height() * 0.95 };
+        let height = natural_h.min(max_h).floor();
+        let top = if compact { avail.top() + ((avail.height() - height) / 2.0).clamp(0.0, avail.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
         self.panel = Some(rect);
         ui.interact(rect, ui.scope_id().with("char-panel"), Sense::click());
@@ -1033,17 +1132,18 @@ impl Screen {
         if closed {
             events.push(ScreenEvent::Close);
         }
-        let painter = ui.painter().clone();
-        let left = bodyp.x + 24.0 * u;
-        let mut y = bodyp.y + 18.0 * u;
+        let view = Rect::from_min_max(egui::pos2(rect.left() + 1.0, bodyp.y), egui::pos2(rect.right() - 1.0, rect.bottom() - 1.0 - 6.0 * u - footer_h));
+        self.scroll = isorun_ui::scroll::scroll(ui, view, content_h, self.scroll);
+        let painter = ui.painter().with_clip_rect(view.intersect(screen));
+        let left = rect.left() + 1.0 + side;
+        let mut y = bodyp.y - self.scroll + 18.0 * u;
         // the figure in its ring
-        let fig = Rect::from_min_size(egui::pos2(left, y), Vec2::splat(180.0 * u));
-        painter.circle_filled(fig.center(), 90.0 * u + 4.0 * u, TRIM.to_color32());
-        painter.circle_filled(fig.center(), 90.0 * u + 3.0 * u, hex(0x120e08).to_color32());
-        boxes.paint_box(&painter, "char-figure", fig, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.2)), s(rgba(0, 0, 0, 0.5), 0.7)])], border: Border::all(1.0, hex(0x4b3b1d)), insets: vec![inset(0.0, 0.0, 20.0, 0.0, hex(0x000000))], ..Default::default() }.round(90.0 * u));
-        self.paint_figure(&painter, tiles, data.me, Rect::from_center_size(fig.center(), Vec2::splat(160.0 * u)), u, false);
+        let fig = Rect::from_min_size(egui::pos2(left, y + (head_h - fig_size) / 2.0), Vec2::splat(fig_size));
+        painter.circle_filled(fig.center(), fig_size / 2.0 + 4.0 * u, TRIM.to_color32());
+        painter.circle_filled(fig.center(), fig_size / 2.0 + 3.0 * u, hex(0x120e08).to_color32());
+        boxes.paint_box(&painter, &format!("char-figure:{}", fig_size as i32), fig, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.2)), s(rgba(0, 0, 0, 0.5), 0.7)])], border: Border::all(1.0, hex(0x4b3b1d)), insets: vec![inset(0.0, 0.0, 20.0, 0.0, hex(0x000000))], ..Default::default() }.round(fig_size / 2.0));
+        self.paint_figure(&painter, tiles, data.me, Rect::from_center_size(fig.center(), Vec2::splat(fig_size * 160.0 / 180.0)), u, false);
         let nx = fig.right() + 22.0 * u;
-        let name_lines_h = name_g.size().y + 4.0 * u + title_g.size().y + species_g.size().y + body * LINE + 8.0 * u + body * LINE;
         let mut ny = fig.center().y - name_lines_h / 2.0;
         let nh = name_g.size().y;
         crate::paint::shadowed_galley(&painter, egui::pos2(nx, ny), name_g, GOLD_BRIGHT.to_color32(), &[(0.0, 2.0, 6.0, Color32::BLACK)]);
@@ -1056,6 +1156,7 @@ impl Screen {
         ny += sh;
         // the god and the piety
         let mut job = egui::text::LayoutJob::default();
+        job.wrap.max_width = name_w;
         if p.god.is_empty() {
             job.append("No god", 0.0, ink(INK_DIM).format());
         } else {
@@ -1069,124 +1170,145 @@ impl Screen {
         let gh = god_g.size().y;
         painter.galley(egui::pos2(nx, ny), god_g, Color32::WHITE);
         ny += gh + 8.0 * u;
-        let track = Rect::from_min_size(egui::pos2(nx, ny + (body * LINE * 0.9 - 9.0 * u) / 2.0), egui::vec2(240.0 * u, 9.0 * u));
+        let track_w = (240.0 * u).min(name_w - xpg.size().x - 10.0 * u).max(60.0 * u);
+        let track = Rect::from_min_size(egui::pos2(nx, ny + (body * LINE * 0.9 - 9.0 * u) / 2.0), egui::vec2(track_w, 9.0 * u));
         painter.rect_filled(track, 4.0 * u, hex(0x090705).to_color32());
         let fill = Rect::from_min_size(track.min + egui::vec2(1.0, 1.0), egui::vec2((track.width() - 2.0) * (p.progress.clamp(0, 100) as f32 / 100.0), track.height() - 2.0));
         if fill.width() > 0.0 {
             crate::paint::gradient_rect(&painter, fill, true, &[(0.0, hex(0xf1d58e)), (0.6, hex(0xc08d34)), (1.0, hex(0x8a611c))]);
         }
         painter.rect_stroke(track, 4.0 * u, egui::Stroke::new(1.0, hex(0x3e301a).to_color32()), egui::StrokeKind::Inside);
-        let xpg = TextStyle::new(Face::Mono, body * 0.9, INK_DIM).galley(&ctx, &format!("{}% to level {}", p.progress, p.xl + 1), None);
         painter.galley(egui::pos2(track.right() + 10.0 * u, track.center().y - xpg.size().y / 2.0), xpg, Color32::WHITE);
         y += head_h + 14.0 * u;
-        // the three blocks
-        let mut bx = left;
-        for (lines, bw) in [(&vitals, block_w[0]), (&defence, block_w[1]), (&arms, block_w[2])] {
-            let br = Rect::from_min_size(egui::pos2(bx, y), egui::vec2(bw, blocks_h));
-            boxes.paint_box(&painter, &format!("char-block:{}x{}", bw as i32, blocks_h as i32), br, &panel_style(u, false, true));
-            let il = br.left() + 1.0 + 14.0 * u;
-            let iw = bw - 2.0 - 28.0 * u;
-            let mut ly = br.top() + 1.0 + 12.0 * u;
-            for (k, l) in lines.iter().enumerate() {
-                match l {
-                    Line::Head(t) => {
-                        if k > 0 {
-                            ly += 14.0 * u;
+        // the blocks
+        for (row, row_h) in rows_of_blocks.iter().zip(&block_rows_h) {
+            let mut bx = left;
+            for (lines, bw) in row {
+                let (lines, bw) = (*lines, *bw);
+                let br = Rect::from_min_size(egui::pos2(bx, y), egui::vec2(bw, *row_h));
+                boxes.paint_box(&painter, &format!("char-block:{}x{}", bw as i32, *row_h as i32), br, &panel_style(u, false, true));
+                let il = br.left() + 1.0 + 14.0 * u;
+                let iw = bw - 2.0 - 28.0 * u;
+                let mut ly = br.top() + 1.0 + 12.0 * u;
+                for (k, l) in lines.iter().enumerate() {
+                    match l {
+                        Line::Head(t) => {
+                            if k > 0 {
+                                ly += 14.0 * u;
+                            }
+                            let g = h3.galley(&ctx, t, None);
+                            let hh = g.size().y;
+                            painter.galley(egui::pos2(il, ly), g, Color32::WHITE);
+                            ly += hh + 8.0 * u;
                         }
-                        let g = h3.galley(&ctx, t, None);
-                        let hh = g.size().y;
-                        painter.galley(egui::pos2(il, ly), g, Color32::WHITE);
-                        ly += hh + 8.0 * u;
-                    }
-                    Line::Stat(key, v, drained, gold) => {
-                        let rh = 3.0 * u * 2.0 + body * LINE;
-                        let kg = ink(INK_DIM).galley(&ctx, key, None);
-                        let vc = if *drained {
-                            DANGER
-                        } else if *gold {
-                            GOLD_BRIGHT
-                        } else {
-                            INK
-                        };
-                        let vg = TextStyle::new(Face::MonoBold, body, vc).line(LINE).galley(&ctx, v, None);
-                        painter.galley(egui::pos2(il, ly + 3.0 * u), kg, Color32::WHITE);
-                        let vx = il + iw - vg.size().x;
-                        if *gold {
-                            let coin = body * 0.8;
-                            paint_coin(&painter, boxes, egui::pos2(vx - coin - 0.35 * body, ly + 3.0 * u + (body * LINE - coin) / 2.0), coin);
+                        Line::Stat(key, v, drained, gold) => {
+                            let rh = 3.0 * u * 2.0 + body * LINE;
+                            let kg = ink(INK_DIM).galley(&ctx, key, None);
+                            let vc = if *drained {
+                                DANGER
+                            } else if *gold {
+                                GOLD_BRIGHT
+                            } else {
+                                INK
+                            };
+                            let vg = TextStyle::new(Face::MonoBold, body, vc).line(LINE).galley(&ctx, v, None);
+                            painter.galley(egui::pos2(il, ly + 3.0 * u), kg, Color32::WHITE);
+                            let vx = il + iw - vg.size().x;
+                            if *gold {
+                                let coin = body * 0.8;
+                                paint_coin(&painter, boxes, egui::pos2(vx - coin - 0.35 * body, ly + 3.0 * u + (body * LINE - coin) / 2.0), coin);
+                            }
+                            painter.galley(egui::pos2(vx, ly + 3.0 * u), vg, Color32::WHITE);
+                            // the dotted rule under the row
+                            let ry = ly + rh;
+                            let mut dx = il;
+                            while dx < il + iw {
+                                painter.rect_filled(Rect::from_min_size(egui::pos2(dx, ry), egui::vec2(1.0, 1.0)), 0.0, rgba(184, 145, 63, 0.15).to_color32());
+                                dx += 3.0;
+                            }
+                            ly += rh + 1.0;
                         }
-                        painter.galley(egui::pos2(vx, ly + 3.0 * u), vg, Color32::WHITE);
-                        // the dotted rule under the row
-                        let ry = ly + rh;
-                        let mut dx = il;
-                        while dx < il + iw {
-                            painter.rect_filled(Rect::from_min_size(egui::pos2(dx, ry), egui::vec2(1.0, 1.0)), 0.0, rgba(184, 145, 63, 0.15).to_color32());
-                            dx += 3.0;
+                        Line::Text(t, dim) => {
+                            let mut job = isorun_ui::text::formatted(t, body);
+                            if *dim {
+                                job = egui::text::LayoutJob::simple(t.clone(), egui::FontId::monospace(body), INK_DIM.to_color32(), iw);
+                            }
+                            job.wrap.max_width = iw;
+                            let g = ctx.fonts_mut(|f| f.layout_job(job));
+                            let gh = g.size().y;
+                            painter.galley(egui::pos2(il, ly + 2.0 * u), g, Color32::WHITE);
+                            ly += gh + 4.0 * u;
                         }
-                        ly += rh + 1.0;
-                    }
-                    Line::Text(t, dim) => {
-                        let mut job = isorun_ui::text::formatted(t, body);
-                        if *dim {
-                            job = egui::text::LayoutJob::simple(t.clone(), egui::FontId::monospace(body), INK_DIM.to_color32(), iw);
+                        Line::Status(light, c, desc) => {
+                            let lg = TextStyle::new(Face::MonoBold, body, *c).line(LINE).galley(&ctx, light, None);
+                            let lw = lg.size().x;
+                            let dg = TextStyle::new(Face::Mono, body * 0.9, INK_DIM).line(LINE).galley(&ctx, desc, Some(iw - lw - 10.0 * u));
+                            let rh = lg.size().y.max(dg.size().y);
+                            painter.galley(egui::pos2(il, ly + 3.0 * u), lg, Color32::WHITE);
+                            painter.galley(egui::pos2(il + lw + 10.0 * u, ly + 3.0 * u), dg, Color32::WHITE);
+                            ly += rh + 6.0 * u;
                         }
-                        job.wrap.max_width = iw;
-                        let g = ctx.fonts_mut(|f| f.layout_job(job));
-                        let gh = g.size().y;
-                        painter.galley(egui::pos2(il, ly + 2.0 * u), g, Color32::WHITE);
-                        ly += gh + 4.0 * u;
-                    }
-                    Line::Status(light, c, desc) => {
-                        let lg = TextStyle::new(Face::MonoBold, body, *c).line(LINE).galley(&ctx, light, None);
-                        let lw = lg.size().x;
-                        let dg = TextStyle::new(Face::Mono, body * 0.9, INK_DIM).line(LINE).galley(&ctx, desc, Some(iw - lw - 10.0 * u));
-                        let rh = lg.size().y.max(dg.size().y);
-                        painter.galley(egui::pos2(il, ly + 3.0 * u), lg, Color32::WHITE);
-                        painter.galley(egui::pos2(il + lw + 10.0 * u, ly + 3.0 * u), dg, Color32::WHITE);
-                        ly += rh + 6.0 * u;
                     }
                 }
+                bx += bw + gap;
             }
-            bx += bw + 14.0 * u;
+            y += row_h + gap;
         }
-        y += blocks_h + 14.0 * u;
         let more = h3.galley(&ctx, "More about you", None);
         let mh = more.size().y;
         painter.galley(egui::pos2(left, y), more, Color32::WHITE);
         y += mh + 14.0 * u;
         // the commands
-        let cw = (inner_w - 12.0 * u) / 3.0;
         let mut stops = vec![];
-        for (k, c) in cmds.iter().enumerate() {
-            let (r, col) = (k / 3, k % 3);
-            let br = Rect::from_min_size(egui::pos2(left + col as f32 * (cw + 6.0 * u), y + r as f32 * (cmd_h + 6.0 * u)), egui::vec2(cw, cmd_h));
-            let id = format!("cmd:{}", c.key);
-            let resp = ui.interact(br, ui.scope_id().with(("char-cmd", k)), Sense::click());
-            let hot = resp.hovered() || self.focus.as_deref() == Some(id.as_str());
-            boxes.paint_box(&painter, &format!("char-command:{hot}"), br, &BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(hex(0x2c241b)), sa(hex(0x130f0b))])], radius: [4.0 * u; 4], border: Border::all(1.0, if hot { GOLD_BRIGHT } else { hex(0x5a4724) }), ..Default::default() });
-            let tile = Rect::from_min_size(egui::pos2(br.left() + 1.0 + 6.0 * u, br.center().y - 16.0 * u), Vec2::splat(32.0 * u));
-            if let Some(id) = icons::named(tiles, c.tile) {
-                let placed = tiles.rect(id).map(|rect| vec![Placed { rect, ox: 0.0, oy: 0.0 }]).unwrap_or_default();
-                icons::paint(tiles, &painter, &placed, tile, Color32::WHITE);
+        let mut ry = y;
+        for (r, rh) in cmd_row_h.iter().enumerate() {
+            for col in 0..cmd_cols {
+                let k = r * cmd_cols + col;
+                let Some(c) = cmds.get(k) else { break };
+                let br = Rect::from_min_size(egui::pos2(left + col as f32 * (cw + 6.0 * u), ry), egui::vec2(cw, *rh));
+                let id = format!("cmd:{}", c.key);
+                // only the part in sight takes the pointer
+                let seen = br.intersect(view);
+                let resp = ui.interact(if seen.is_positive() { seen } else { Rect::NOTHING }, ui.scope_id().with(("char-cmd", k)), Sense::click());
+                let hot = resp.hovered() || self.focus.as_deref() == Some(id.as_str());
+                boxes.paint_box(&painter, &format!("char-command:{hot}"), br, &BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(hex(0x2c241b)), sa(hex(0x130f0b))])], radius: [4.0 * u; 4], border: Border::all(1.0, if hot { GOLD_BRIGHT } else { hex(0x5a4724) }), ..Default::default() });
+                let tile = Rect::from_min_size(egui::pos2(br.left() + 1.0 + 6.0 * u, br.center().y - 16.0 * u), Vec2::splat(32.0 * u));
+                if let Some(id) = icons::named(tiles, c.tile) {
+                    let placed = tiles.rect(id).map(|rect| vec![Placed { rect, ox: 0.0, oy: 0.0 }]).unwrap_or_default();
+                    icons::paint(tiles, &painter, &placed, tile, Color32::WHITE);
+                }
+                let lg = cmd_labels[k].clone();
+                painter.galley(egui::pos2(tile.right() + 10.0 * u, br.center().y - lg.size().y / 2.0), lg, Color32::WHITE);
+                let keys = keys_of(c);
+                let kw = keycaps_width(&ctx, &keys, kc, u);
+                paint_keycaps(&painter, boxes, egui::pos2(br.right() - 1.0 - 10.0 * u - kw, br.center().y - kc.h / 2.0), &keys, kc, u);
+                if resp.clicked() {
+                    events.push(ScreenEvent::Command(c.action.clone()));
+                }
+                if resp.hovered() {
+                    resp.on_hover_text(c.sub);
+                }
+                stops.push(Stop2 { id, rect: br, row: r, col });
             }
-            let lg = ink(INK).galley(&ctx, c.label, None);
-            painter.galley(egui::pos2(tile.right() + 10.0 * u, br.center().y - lg.size().y / 2.0), lg, Color32::WHITE);
-            let keys: Vec<String> = c.key.split(' ').map(String::from).collect();
-            let kw = keycaps_width(&ctx, &keys, kc, u);
-            paint_keycaps(&painter, boxes, egui::pos2(br.right() - 1.0 - 10.0 * u - kw, br.center().y - kc.h / 2.0), &keys, kc, u);
-            if resp.clicked() {
-                events.push(ScreenEvent::Command(c.action.clone()));
-            }
-            if resp.hovered() {
-                resp.on_hover_text(c.sub);
-            }
-            stops.push(Stop2 { id, rect: br, row: r, col });
+            ry += rh + 6.0 * u;
         }
         if data.pad.is_none() {
-            footer(&painter, boxes, rect.center().x, rect.bottom() - 1.0 - 6.0 * u - footer_h, u);
+            footer(ui.painter(), boxes, rect.center().x, rect.bottom() - 1.0 - 6.0 * u - footer_h, u);
         }
         if self.focus.is_none() {
             self.focus = stops.first().map(|s| s.id.clone());
+        }
+        // the cursor moved to a stop out of sight: scroll it in (scrollIntoView, nearest)
+        if self.focus != self.scrolled_to {
+            if let Some(st) = stops.iter().find(|s| Some(&s.id) == self.focus.as_ref()) {
+                if st.rect.top() < view.top() {
+                    self.scroll -= view.top() - st.rect.top() + 6.0 * u;
+                } else if st.rect.bottom() > view.bottom() {
+                    self.scroll += st.rect.bottom() - view.bottom() + 6.0 * u;
+                }
+                self.scroll = self.scroll.clamp(0.0, (content_h - view.height()).max(0.0));
+            }
+            self.scrolled_to = self.focus.clone();
         }
         self.stops = stops;
         let _ = y;
