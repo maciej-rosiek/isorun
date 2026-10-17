@@ -44,11 +44,18 @@
       // the offline engine's bridge first: the app asks it for the engine as it starts (engine.rs `init`)
       import './engine-bridge.js'
       import init from './pkg/isorun_app.js'
+      import { startTileWorkers } from './tile-workers.js'
+      const loading = document.getElementById('loading')
       try {
-        await init({ module_or_path: new URL('./pkg/isorun_app_bg.wasm', import.meta.url) })
-        document.getElementById('loading').remove()
+        // compiled once, for the page and for the tile workers (tile-workers.js)
+        const url = new URL('./pkg/isorun_app_bg.wasm', import.meta.url)
+        const response = fetch(url)
+        const module = await WebAssembly.compileStreaming(response).catch(async () => WebAssembly.compile(await (await fetch(url)).arrayBuffer()))
+        startTileWorkers(module)
+        await init({ module_or_path: module })
+        loading.remove()
       } catch (e) {
-        document.getElementById('loading').textContent = `Isorun did not start: ${e}`
+        loading.textContent = `Isorun did not start: ${e}`
         throw e
       }
     </script>

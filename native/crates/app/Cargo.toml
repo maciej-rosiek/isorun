@@ -46,7 +46,8 @@ winit = { version = "0.30", default-features = false }
 wgpu = { version = "30", features = ["webgl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
-web-sys = { version = "0.3", features = ["Window", "Document", "HtmlCanvasElement", "Location"] }
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Document", "HtmlCanvasElement", "Location", "console"] }
 
 [features]
 default = ["gilrs"]

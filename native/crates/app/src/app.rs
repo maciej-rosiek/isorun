@@ -99,6 +99,9 @@ impl IsorunApp {
                 }
                 view.renderer.set_tiles(tiles);
                 view.renderer.new_level();
+                if let Some(v) = crate::launch_args().iter().find_map(|a| a.strip_prefix("--debug-view=")?.parse().ok()) {
+                    view.renderer.set_debug_view(v);
+                }
                 view.renderer.set_scene(Arc::new(scene.clone()));
                 let mut camera = IsoCamera::default();
                 camera.snap_to(scene.player.0, scene.player.1);

@@ -15,7 +15,7 @@ const ROOT = join(import.meta.dirname, '../..')
 const OUT = process.argv[2] ?? '/tmp/isorun-web-test'
 mkdirSync(OUT, { recursive: true })
 const MOUNTS = [
-  ['/native/', join(ROOT, 'native/web/dist')],
+  ['/native/', process.env.DIST ?? join(ROOT, 'native/web/dist')],
   ['/engine/', join(ROOT, 'engine/dist')],
   ['/', join(ROOT, 'apps/isorun/public')],
 ]

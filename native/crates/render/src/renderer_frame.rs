@@ -310,17 +310,24 @@ impl IsoRenderer {
         let view_proj = self.camera_proj * self.camera_view;
         let planes = frustum_planes(view_proj);
         let mut items: Vec<DrawItem> = Vec::new();
+        // the level's chunks by material, then nearest first, as three sorts its opaque objects
+        // (painterSortStable): what stands in front is drawn first, so the depth test can spare
+        // the shading of what it hides
+        let mut chunk_items: Vec<(u8, f32, DrawItem)> = Vec::new();
         for (id, chunk) in self.chunks.iter().chain(self.sprite_chunks.iter()) {
             let a = chunk_area(*id);
             let visible = box_visible(&planes, Vec3::new(a.x0 - 1.0, -1.5, a.y0 - 1.0), Vec3::new(a.x1 + 1.0, 3.0, a.y1 + 1.0));
+            let centre = self.camera_view.transform_point3(Vec3::new((a.x0 + a.x1) * 0.5, 0.0, (a.y0 + a.y1) * 0.5));
             for (material, page, mesh, cast, receive) in &chunk.meshes {
                 // a caster off the screen still shadows what is on it
                 if !visible && *cast == Cast::None {
                     continue;
                 }
-                items.push(DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain(*receive), cast: *cast });
+                chunk_items.push((*material as u8, -centre.z, DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain(*receive), cast: *cast }));
             }
         }
+        chunk_items.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
+        items.extend(chunk_items.into_iter().map(|(_, _, item)| item));
         self.features.draws(&mut items);
         if let Some(model) = &self.torch_model {
             self.torches.draws(&mut items, model);

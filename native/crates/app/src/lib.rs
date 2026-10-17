@@ -111,17 +111,57 @@ fn android_logger_init() {
     android_logger::init_once(android_logger::Config::default().with_max_level(log::LevelFilter::Info).with_tag("isorun"));
 }
 
-/// The web entry point: the app on the page's canvas `#isorun`.
+/// The web entry point: the app on the page's canvas `#isorun`. In a Web Worker (the tile
+/// workers, `tile-worker.js`, which load this same module for `enhance_job`) it does nothing.
 #[cfg(target_arch = "wasm32")]
 #[wasm_bindgen::prelude::wasm_bindgen(start)]
 pub fn start() {
     use wasm_bindgen::JsCast;
-    wasm_bindgen_futures::spawn_local(async {
-        let document = web_sys::window().unwrap().document().unwrap();
+    let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
+    console_error_panic_hook_set();
+    let _ = eframe::WebLogger::init(log::LevelFilter::Info);
+    use_tile_workers();
+    wasm_bindgen_futures::spawn_local(async move {
         let canvas = document.get_element_by_id("isorun").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
         // the page's offline engine is looked up first, so the front end offers it from the start
         isorun_client::engine::init().await;
         let options = eframe::WebOptions { wgpu_options: isorun_ui::wgpu_options(), ..Default::default() };
         let _ = eframe::WebRunner::new().start(canvas, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc))))).await;
     });
+}
+
+/// A panic's message on the console, not wasm's bare "unreachable".
+#[cfg(target_arch = "wasm32")]
+fn console_error_panic_hook_set() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        web_sys::console::error_1(&format!("isorun panicked: {info}").into());
+        previous(info);
+    }));
+}
+
+/// A tile worker's job (`isorun_render::remote`): the job's bytes in, the enhanced tile's out.
+#[cfg(target_arch = "wasm32")]
+#[wasm_bindgen::prelude::wasm_bindgen]
+pub fn enhance_job(job: &[u8]) -> Vec<u8> {
+    isorun_render::remote::enhance_job(job)
+}
+
+/// The renderer's tiles are enhanced on the page's tile workers (`globalThis.isorunEnhance`,
+/// index.html) where it set them up, as the web build's tile-enhancer.ts does: the page's thread
+/// keeps its frames.
+#[cfg(target_arch = "wasm32")]
+fn use_tile_workers() {
+    use wasm_bindgen::{closure::Closure, JsCast, JsValue};
+    let Ok(f) = js_sys::Reflect::get(&js_sys::global(), &JsValue::from_str("isorunEnhance")) else { return };
+    let Some(f) = f.dyn_ref::<js_sys::Function>().cloned() else { return };
+    isorun_render::remote::set_job_runner(Box::new(move |job: Vec<u8>, done: Box<dyn FnOnce(Vec<u8>)>| {
+        let back = Closure::once_into_js(move |bytes: JsValue| {
+            let bytes = bytes.dyn_into::<js_sys::Uint8Array>().map(|a| a.to_vec()).unwrap_or_default();
+            done(bytes);
+        });
+        if f.call2(&JsValue::NULL, &js_sys::Uint8Array::from(&job[..]), &back).is_err() {
+            log::warn!("a tile worker did not take its job");
+        }
+    }));
 }

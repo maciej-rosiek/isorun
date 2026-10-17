@@ -6,3 +6,8 @@
 # renames them, so a return visit never asks for them again
 /fonts/*
   Cache-Control: public, max-age=31536000, immutable
+
+# the native app's web build (native/web/build.sh) keeps its module in a folder named by its hash,
+# so a deploy with a new build is a new path; the page and its small scripts are asked for again
+/native/pkg-*
+  Cache-Control: public, max-age=31536000, immutable
