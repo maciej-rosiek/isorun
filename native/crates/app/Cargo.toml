@@ -1,0 +1,38 @@
+[package]
+name = "isorun-app"
+description = "Isorun, the game: front end, game screen, HUD, menus, input, sound, on eframe (egui + wgpu) for desktop, Android and the web."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-gamedata = { path = "../gamedata" }
+isorun-scene-webtiles = { path = "../scene-webtiles" }
+isorun-vault = { path = "../vault" }
+isorun-render = { path = "../render" }
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "persistence", "default_fonts", "x11", "wayland", "clipboard", "links", "android-native-activity"] }
+egui = "0.37"
+egui-wgpu = "0.37"
+wgpu = "30"
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+log = "0.4"
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
+web-time = "1"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tungstenite = { version = "0.27", features = ["rustls-tls-webpki-roots"] }
+ureq = "3"
+env_logger = "0.11"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = ["WebSocket", "MessageEvent", "CloseEvent", "ErrorEvent", "BinaryType", "Window", "Document", "HtmlCanvasElement", "Location", "Storage", "Request", "RequestInit", "Response", "Headers"] }
+js-sys = "0.3"
