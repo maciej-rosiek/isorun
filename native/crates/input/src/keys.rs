@@ -473,6 +473,11 @@ fn types_text(key: &KeyLike) -> bool {
     single_char(&key.key).is_some() && !((key.ctrl || key.alt) && !(key.ctrl && key.alt)) && !key.meta
 }
 
+thread_local! {
+    /// The web's order of a key and its character, natively too (tests).
+    pub static WEB_ORDER: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 /// The keys of a frame's egui events, in order, as the DOM would deliver them.
 ///
 /// egui sends a key as a `Key` event, then (for a key that types) a `Text` event with the
@@ -508,6 +513,23 @@ pub fn key_inputs(events: &[egui::Event], modifiers: egui::Modifiers) -> Vec<Key
                 out.push(KeyInput::Down { key: like, repeat: *repeat });
             }
             egui::Event::Text(t) => {
+                // the web's order (eframe's keydown pushes the character, then the key, while the
+                // canvas has the keyboard): a character just before a key that types is that
+                // key's, as the Key then Text of the desktop are
+                if cfg!(target_arch = "wasm32") || WEB_ORDER.with(|w| w.get()) {
+                    if let (Some(c), Some(egui::Event::Key { key, physical_key, pressed: true, repeat, modifiers: m })) = (single_char(t), events.get(i + 1)) {
+                        let (k, code) = dom_key(*key, m.shift);
+                        let key_code = physical_key.or(Some(*key)).and_then(dom_key_code);
+                        let mut like = KeyLike { key: k, code, ctrl: m.ctrl, shift: m.shift, alt: m.alt, meta: m.mac_cmd, key_code };
+                        let named = key_which(&like.key).is_some() || dom_key_code(*key).is_some_and(|c| (112..=135).contains(&c));
+                        if types_text(&like) || (!named && !((like.ctrl || like.alt) && !(like.ctrl && like.alt)) && !like.meta) {
+                            like.key = c.to_string();
+                            out.push(KeyInput::Down { key: like, repeat: *repeat });
+                            i += 2;
+                            continue;
+                        }
+                    }
+                }
                 for c in t.chars() {
                     let like = KeyLike { key: c.to_string(), code: String::new(), ctrl: false, shift: modifiers.shift, alt: modifiers.alt, meta: false, key_code: Some(PROCESS_KEY_CODE) };
                     out.push(KeyInput::Down { key: like, repeat: false });

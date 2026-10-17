@@ -460,3 +460,15 @@ fn egui_punctuation_keeps_the_browsers_keycode_so_no_table_mistakes_it_for_a_nav
     let msgs: Vec<_> = down(&key_inputs(&events, none)).iter().map(keydown_message).collect();
     assert_eq!(msgs, vec![Some(cm::input("'")), Some(cm::input("(")), Some(cm::input("\""))]);
 }
+
+#[test]
+fn egui_on_the_web_a_character_before_its_key_is_one_key() {
+    // eframe's web runner pushes the Text before the Key while the canvas has the keyboard
+    isorun_input::keys::WEB_ORDER.with(|w| w.set(true));
+    let shift = egui::Modifiers { shift: true, ..Default::default() };
+    let none = egui::Modifiers::default();
+    let events = vec![egui::Event::Text("2".into()), key_event(egui::Key::Num2, none), egui::Event::Text(">".into()), key_event(egui::Key::Period, shift), key_event(egui::Key::Escape, none)];
+    let msgs: Vec<_> = down(&key_inputs(&events, none)).iter().map(keydown_message).collect();
+    isorun_input::keys::WEB_ORDER.with(|w| w.set(false));
+    assert_eq!(msgs, vec![Some(cm::input("2")), Some(cm::input(">")), Some(cm::key(27))]);
+}
