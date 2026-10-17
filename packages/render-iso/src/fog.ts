@@ -1,5 +1,5 @@
 import * as THREE from 'three/webgpu'
-import { float, instanceIndex, mix, positionLocal, positionWorld, texture, time, uniform, vec2, vec3 } from 'three/tsl'
+import { float, instanceIndex, mix, positionLocal, positionWorld, texture, time, uniform, varying, vec2, vec3 } from 'three/tsl'
 import type { Scene, SceneCell } from '@isorun/scene'
 
 export interface FogSettings {
@@ -60,7 +60,7 @@ export class FogLayer {
 
   constructor() {
     const noise = noiseTexture()
-    const layer = float(instanceIndex).div(LAYERS - 1)
+    const layer = varying(float(instanceIndex).div(LAYERS - 1))
     const place = positionWorld.xz.add(layer.mul(3.7))
     const slow = texture(noise, place.mul(NOISE_SCALE).add(vec2(time.mul(DRIFT), time.mul(DRIFT * 0.6)))).r
     const fast = texture(noise, place.mul(NOISE_SCALE * 2.3).sub(vec2(time.mul(DRIFT * 1.7), time.mul(DRIFT * 0.4)))).r

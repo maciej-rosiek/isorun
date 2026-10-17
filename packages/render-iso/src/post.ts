@@ -40,7 +40,7 @@ function quarterBloom(...args: Parameters<typeof bloom>) {
 
 /** For `material.mrtNode`: the screen effects leave this material as it is drawn. */
 export function overlayOutput() {
-  return mrt({ normal: vec4(packNormalToRGB(normalViewGeometry), 1) })
+  return mrt({ normal: vec4(packNormalToRGB(normalViewGeometry), 0) })
 }
 
 export function emissionOutput(colour: THREE.Node<'vec3'>) {
@@ -59,7 +59,7 @@ const DANGER_COLOUR = vec3(0.45, 0.03, 0.03)
  * The scene pass with the screen effects on top: GTAO, a painted filter, outlines, bloom, tilt-shift blur and a colour grade; then the overlay materials (`overlayOutput`) as they are.
  * With no effect but GTAO before it, the tilt-shift blurs the scene's own colour and shades the blur with the GTAO after: blurring the shaded image would draw it whole once more
  * into a texture of its own, which on a big screen costs as much as the rest of the effects together. The glow of lava and starwater is added after the blur, as it is soft already.
- * The normal output is 8-bit, and its alpha marks the overlay materials; the scene's colour stays half float.
+ * The normal output is 8-bit, and an alpha of 0 in it marks the overlay materials (the background is cleared to 1); the scene's colour stays half float.
  */
 export class IsoPost {
   private readonly pipeline: THREE.RenderPipeline
@@ -86,14 +86,13 @@ export class IsoPost {
   private readonly vignette = uniform(0)
   private readonly danger = uniform(0)
   private aoNode: GTAONode | null = null
-  private scenePass: THREE.PassNode | null = null
   private aoResolution = 1
   private aoSamples = 16
   private samples = 4
   private shape = ''
 
   constructor(
-    private readonly renderer: THREE.WebGPURenderer,
+    renderer: THREE.WebGPURenderer,
     private readonly world: THREE.Scene,
     private camera: THREE.OrthographicCamera | THREE.PerspectiveCamera,
   ) {
@@ -180,21 +179,15 @@ export class IsoPost {
     this.pipeline.render()
   }
 
-  /** Build the pipelines of everything in the world now, off the main thread, so nothing in it (blood, dust, a new monster) waits for one when it first shows. */
-  compile() {
-    void this.scenePass?.compileAsync(this.renderer)
-  }
-
   dispose() {
     this.pipeline.dispose()
   }
 
   private build(settings: ScreenLightSettings) {
     const scenePass = pass(this.world, this.camera, { samples: this.samples })
-    this.scenePass = scenePass
     this.aoNode = null
     const aoOn = this.aoOn(settings)
-    scenePass.setMRT(mrt({ output, normal: vec4(packNormalToRGB(normalViewGeometry), 0), ...(this.emitting ? { emission: vec4(0) } : {}) }))
+    scenePass.setMRT(mrt({ output, normal: vec4(packNormalToRGB(normalViewGeometry), 1), ...(this.emitting ? { emission: vec4(0) } : {}) }))
     scenePass.getTexture('normal').type = THREE.UnsignedByteType
     const colour = scenePass.getTextureNode('output')
     const depthTexture = scenePass.getTextureNode('depth')
@@ -237,7 +230,7 @@ export class IsoPost {
     const graded = saturation(image.rgb, this.saturation)
     const tint = mix(this.shadows.div(luminance(this.shadows)), this.highlights.div(luminance(this.highlights)), smoothstep(0, 0.6, luminance(graded)))
     const corners = float(1).sub(length(screenUV.sub(0.5)).mul(1.414).pow(2).mul(this.vignette))
-    const overlay = scenePass.getTextureNode('normal').a
+    const overlay = scenePass.getTextureNode('normal').a.oneMinus()
     const dangerEdge = smoothstep(DANGER_EDGE_START, DANGER_EDGE_END, length(screenUV.sub(0.5)).mul(1.414)).mul(this.danger).mul(DANGER_STRENGTH)
     const shown = mix(graded.mul(tint).mul(corners), DANGER_COLOUR, dangerEdge)
     this.pipeline.outputNode = vec4(mix(shown, colour.rgb, overlay), image.a)

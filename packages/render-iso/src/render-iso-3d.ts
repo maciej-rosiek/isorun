@@ -91,6 +91,8 @@ const AIM_LIFT = 0.03
 /** The mouse snaps to the nearest floor cell within this many cells of where it points, and this many cells on the screen. */
 const SNAP_CELLS = 3
 const SNAP_SCREEN_CELLS = 1.5
+/** The step the camera's angles are rounded to for the level's geometry (`levelYaw`). */
+const LEVEL_ANGLE_STEP = THREE.MathUtils.degToRad(1)
 const DANGER_PULSE = 0.3
 const DANGER_PULSE_SPEED = 3
 
@@ -140,8 +142,6 @@ export class IsoRender3d implements MapRenderer {
   private readonly torchModels = new TorchLayer()
   private readonly meshes = new MeshPool()
   private readonly resolution = new DynamicResolution()
-  /** Whether the pipelines of the world were built ahead (`IsoPost.compile`). */
-  private compiled = false
   private readonly torchDust = new TorchDust(TORCH_LIGHTS)
   private readonly tileTorches: Torch[] = []
   /** Goes up whenever `tileTorches` changes. */
@@ -366,7 +366,7 @@ export class IsoRender3d implements MapRenderer {
     if (this.lastFrame && this.quality.adaptive && this.resolution.frame((now - this.lastFrame) * 1000)) this.applySize()
     const dt = this.lastFrame ? Math.min(0.1, now - this.lastFrame) : 0
     this.lastFrame = now
-    const staticKey = `${this.staticsRevision(scene)}|${this.cutAway(scene)}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
+    const staticKey = `${this.staticsRevision(scene)}|${this.cutAway(scene)}|${this.levelYaw()}|${this.levelPitch()}|${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.fog.height}|${this.lights.fog.reach}|${this.lights.water.enabled}|${this.lights.lava.enabled}`
     const changed: CellArea[] = []
     if (staticKey !== this.staticKey) {
       changed.push(...this.buildStatics(scene, this.tiles, this.materials))
@@ -402,10 +402,6 @@ export class IsoRender3d implements MapRenderer {
     const pixels = this.pixelRatio()
     this.post?.setEmission(this.lava.shown || this.starwater.shown || (this.materials?.glowing === true && glowShown() && (this.glowInView() || this.actors.glowing || this.features.glowing)))
     this.post?.render({ scale: (this.view.zoom / DEFAULT_VIEW.zoom) * pixels, x: ((origin.x + 1) / 2) * this.width * pixels, y: ((1 - origin.y) / 2) * this.height * pixels }, this.lights)
-    if (!this.compiled && this.chunks.size) {
-      this.compiled = true
-      this.post?.compile()
-    }
   }
 
   /** The floor cell under a point of the canvas, in CSS pixels; over a wall, the fog or the void, the floor cell nearest to the point on the screen. */
@@ -501,9 +497,19 @@ export class IsoRender3d implements MapRenderer {
     }
   }
 
+  /** The camera's turn the level's geometry is built for: in whole degrees, so a turn of the view (the menus' room turns all the time) builds the standing sprites again once a degree, not in every frame. */
+  private levelYaw(): number {
+    return Math.round(this.cam.yaw / LEVEL_ANGLE_STEP) * LEVEL_ANGLE_STEP
+  }
+
+  /** The camera's tilt the level's geometry is built for, in whole degrees as `levelYaw`. */
+  private levelPitch(): number {
+    return Math.round(this.cam.pitch / LEVEL_ANGLE_STEP) * LEVEL_ANGLE_STEP
+  }
+
   /** How upright sprites stand: stretched up so the view's angle does not flatten them, and, when the camera is too high for that, leaned back toward it. */
-  private upright(): UprightPose {
-    const elevation = -this.cam.pitch
+  private upright(pitch = this.cam.pitch): UprightPose {
+    const elevation = -pitch
     return { stretch: Math.min(MAX_UPRIGHT_STRETCH, 1 / Math.max(0.01, Math.cos(elevation))), lean: Math.max(0, elevation - Math.acos(1 / MAX_UPRIGHT_STRETCH)) }
   }
 
@@ -736,7 +742,7 @@ export class IsoRender3d implements MapRenderer {
     this.routeDots.count = steps.length
     this.routeDots.instanceMatrix.needsUpdate = true
     const onWall = !isPointable(getCell(scene, route.target.x, route.target.y))
-    const lift = onWall ? wallHeightAt(route.target.x, route.target.y, this.focus(scene), this.cam.yaw, -this.cam.pitch, this.view) + AIM_LIFT : AIM_LIFT
+    const lift = onWall ? wallHeightAt(route.target.x, route.target.y, this.focus(scene), this.levelYaw(), -this.levelPitch(), this.view) + AIM_LIFT : AIM_LIFT
     this.routeSquare.position.set(route.target.x + 0.5, lift, route.target.y + 0.5)
   }
 
@@ -746,7 +752,7 @@ export class IsoRender3d implements MapRenderer {
     if (!cursor) return
     this.cursorMaterial.color.copy(this.aimColour(cursor.mode === 'target' ? 'attack' : 'move'))
     const onWall = !isPointable(getCell(scene, cursor.x, cursor.y))
-    const lift = onWall ? wallHeightAt(cursor.x, cursor.y, this.focus(scene), this.cam.yaw, -this.cam.pitch, this.view) + AIM_LIFT : AIM_LIFT
+    const lift = onWall ? wallHeightAt(cursor.x, cursor.y, this.focus(scene), this.levelYaw(), -this.levelPitch(), this.view) + AIM_LIFT : AIM_LIFT
     this.cursorSquare.position.set(cursor.x + 0.5, lift, cursor.y + 0.5)
   }
 
@@ -776,7 +782,7 @@ export class IsoRender3d implements MapRenderer {
   /** The level's geometry in chunks of `CHUNK_CELLS` square: only a chunk whose cells, cut-away walls or items changed is built again. Returns where the geometry changed. */
   private buildStatics(scene: Scene, tiles: TileSource, materials: AtlasMaterials): CellArea[] {
     const changed: CellArea[] = []
-    const { stretch, lean } = this.upright()
+    const { stretch, lean } = this.upright(this.levelPitch())
     const chunksKey = `${this.view.wallHeight}|${JSON.stringify(this.lights.walls)}|${this.lights.water.enabled}|${this.lights.lava.enabled}|${this.assets !== null}`
     if (chunksKey !== this.chunksKey || materials !== this.chunkMaterials) {
       this.clearStatics()
@@ -784,22 +790,22 @@ export class IsoRender3d implements MapRenderer {
       this.chunkMaterials = materials
       changed.push(EVERYWHERE)
     }
-    const spritesView = `${this.cam.yaw}|${stretch}|${lean}`
+    const spritesView = `${this.levelYaw()}|${stretch}|${lean}`
     const turned = spritesView !== this.spritesView
     this.spritesView = spritesView
     const focus = this.focus(scene)
-    const cut = cutAwayCells(scene, focus, this.cam.yaw, -this.cam.pitch, this.view)
+    const cut = cutAwayCells(scene, focus, this.levelYaw(), -this.levelPitch(), this.view)
     const standing = standingByCell(scene)
     const dirty = this.built && dirtyChunks(this.built, scene.cells, cut, standing)
     this.built = { cells: scene.cells, cut, standing }
-    const plan = planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, focus, dirty ? (x, y) => dirty.has(chunkId(x, y)) : undefined)
-    const spritePlan = turned && dirty ? planScene(scene, this.cam.yaw, -this.cam.pitch, this.view, focus, undefined, true) : plan
+    const plan = planScene(scene, this.levelYaw(), -this.levelPitch(), this.view, focus, dirty ? (x, y) => dirty.has(chunkId(x, y)) : undefined)
+    const spritePlan = turned && dirty ? planScene(scene, this.levelYaw(), -this.levelPitch(), this.view, focus, undefined, true) : plan
     const revision = this.staticsRevision(scene)
     this.fog.build(scene, revision, this.lights.fog.height, this.lights.fog.reach)
     for (const water of this.waters) water.build(scene, revision)
     this.starwater.build(scene, revision)
     this.lava.build(scene, revision)
-    if (this.features.build(scene, tiles, materials, this.meshes, this.view.wallHeight, groundBasis(this.cam.yaw).forward)) changed.push(EVERYWHERE)
+    if (this.features.build(scene, tiles, materials, this.meshes, this.view.wallHeight, groundBasis(this.levelYaw()).forward)) changed.push(EVERYWHERE)
     const grounds = new Map<string, ChunkPart>()
     const sprites = new Map<string, ChunkPart>()
     const partAt = (parts: Map<string, ChunkPart>, x: number, y: number) => {
@@ -846,10 +852,10 @@ export class IsoRender3d implements MapRenderer {
   /** `cutAwayKey` for the view now, worked out again only when the cells in focus, the view or the level's cells change. */
   private cutAway(scene: Scene): string {
     const focus = this.focus(scene)
-    const inputs = `${focus.map((f) => `${f.x},${f.y}`).join(';')}|${this.cam.yaw}|${this.cam.pitch}|${this.view.wallHeight}|${this.staticsRevision(scene)}`
+    const inputs = `${focus.map((f) => `${f.x},${f.y}`).join(';')}|${this.levelYaw()}|${this.levelPitch()}|${this.view.wallHeight}|${this.staticsRevision(scene)}`
     if (inputs !== this.cutAwayInputs) {
       this.cutAwayInputs = inputs
-      this.cutAwayCache = cutAwayKey(scene, focus, this.cam.yaw, -this.cam.pitch, this.view)
+      this.cutAwayCache = cutAwayKey(scene, focus, this.levelYaw(), -this.levelPitch(), this.view)
     }
     return this.cutAwayCache
   }
@@ -930,8 +936,8 @@ export class IsoRender3d implements MapRenderer {
       }
     }
 
-    const { right, forward } = groundBasis(this.cam.yaw)
-    const { stretch, lean } = this.upright()
+    const { right, forward } = groundBasis(this.levelYaw())
+    const { stretch, lean } = this.upright(this.levelPitch())
     batches = spriteBatches
     const lyingLayer = (s: Sprite, layer: SpriteLayer, i: number, copy: { across: number; behind: number; mirror: boolean } | null) => {
       const rect = tiles.tile(layer.tile)
