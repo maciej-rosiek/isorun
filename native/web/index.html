@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="color-scheme" content="dark" />
+    <title>Isorun (native)</title>
+    <link rel="icon" href="/icons/icon-192.png" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #0b0a09;
+        color: #c9bfae;
+        font-family: 'DejaVu Sans Mono', monospace;
+        touch-action: none;
+      }
+      canvas#isorun {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        outline: none;
+      }
+      #loading {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="isorun"></canvas>
+    <div id="loading">Loading Isorun…</div>
+    <script type="module">
+      // the offline engine's bridge first: the app asks it for the engine as it starts (engine.rs `init`)
+      import './engine-bridge.js'
+      import init from './pkg/isorun_app.js'
+      try {
+        await init({ module_or_path: new URL('./pkg/isorun_app_bg.wasm', import.meta.url) })
+        document.getElementById('loading').remove()
+      } catch (e) {
+        document.getElementById('loading').textContent = `Isorun did not start: ${e}`
+        throw e
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,562 @@
+Runs the webtiles binary on Windows, for the native app (native/, engine.rs):
+Windows has no Unix datagram sockets, so the webtiles channel is the
+process's stdin and stdout there. Each control message is one line of JSON
+on stdin; each flush of output goes to stdout as the socket would carry it.
+tileweb.cc keeps them in the same message queue the WebAssembly build has
+(wasm/bridge.h's names; WEBTILES_QUEUE), so the waits are the same. A
+`hangup` control message, or the end of stdin, is a server's SIGHUP: the
+game saves and exits. libw32c.cc gets the headless mode libunix.cc has (no
+console; the screen in memory; keys from the webtiles channel), and main.cc
+skips the UTF-8 locale check, which needs nl_langinfo.
+
+Everything is under TARGET_OS_WINDOWS (or WEBTILES_QUEUE, which is
+__EMSCRIPTEN__ elsewhere): the Linux and WebAssembly builds are unchanged.
+Applies after 01-12. GPLv2+, as the files it patches.
+
+--- a/crawl-ref/source/libw32c.cc
++++ b/crawl-ref/source/libw32c.cc
+@@ -68,6 +68,9 @@
+ #include "version.h"
+ #include "viewgeom.h"
+ #include "view.h"
++#ifdef USE_TILE_WEB
++#include "tileweb.h"
++#endif
+ 
+ wchar_t oldTitle[80];
+ 
+@@ -124,8 +127,17 @@
+ /** @brief The current background @em colour. */
+ static COLOURS BG_COL = BLACK;
+ 
+-void enter_headless_mode() { }
+-bool in_headless_mode() { return false; }
++// Headless mode (-headless): no console at all, as libunix.cc has it for a
++// webtiles game run by a server. The screen is kept in memory only, and keys
++// come from the webtiles channel (tileweb.cc, 13-windows-webtiles.patch).
++static bool _headless_mode = false;
++void enter_headless_mode() { _headless_mode = true; }
++bool in_headless_mode() { return _headless_mode; }
++#define HEADLESS_LINES 24
++#define HEADLESS_COLS 80
++#ifdef USE_TILE_WEB
++static int tiles_pending_key = 0;
++#endif
+ 
+ static void _update_dirty_area(short x, short y)
+ {
+@@ -160,6 +172,8 @@
+ 
+ static void _sync_cursor()
+ {
++    if (_headless_mode)
++        return;
+     // if cursor is not NOCURSOR, update on screen
+     if (cursor_is_enabled)
+     {
+@@ -225,6 +239,8 @@
+ 
+ void set_mouse_enabled(bool enabled)
+ {
++    if (_headless_mode)
++        return;
+     DWORD inmode;
+     if (::GetConsoleMode(inbuf, &inmode))
+     {
+@@ -359,6 +375,17 @@
+ 
+ void console_startup()
+ {
++    if (_headless_mode)
++    {
++        screensize.X = HEADLESS_COLS;
++        screensize.Y = HEADLESS_LINES;
++        screen = new CHAR_INFO[screensize.X * screensize.Y];
++        clrscr_sys();
++#ifdef USE_TILE_WEB
++        tiles.resize();
++#endif
++        return;
++    }
+     inbuf = GetStdHandle(STD_INPUT_HANDLE);
+     old_outbuf = GetStdHandle(STD_OUTPUT_HANDLE);
+ 
+@@ -425,6 +452,12 @@
+ 
+ void console_shutdown()
+ {
++    if (_headless_mode)
++    {
++        delete [] screen;
++        screen = nullptr;
++        return;
++    }
+     // don't do anything if we were never initted
+     if (inbuf == nullptr && outbuf == nullptr && old_outbuf == nullptr)
+         return;
+@@ -677,7 +710,7 @@
+ static void cprintf_aux(const char *s)
+ {
+     // early out -- not initted yet
+-    if (outbuf == nullptr)
++    if (outbuf == nullptr && !(_headless_mode && screen))
+     {
+         printf("%ls", OUTW(s));
+         return;
+@@ -840,8 +873,41 @@
+     return 0;
+ }
+ 
++#ifdef USE_TILE_WEB
++static int _headless_getchk()
++{
++    tiles.redraw();
++
++    if (tiles_pending_key)
++    {
++        wint_t c = tiles_pending_key;
++        tiles_pending_key = 0;
++        return c;
++    }
++
++    wint_t c = tiles.await_input([]() { return false; });
++    if (c != 0)
++        return c;
++
++    return ESCAPE;
++}
++#endif
++
+ int getch_ck()
+ {
++#ifdef USE_TILE_WEB
++    if (_headless_mode)
++    {
++        int c;
++        do
++        {
++            c = _headless_getchk();
++        }
++        while ((c == CK_MOUSE_MOVE || c == CK_MOUSE_CLICK)
++                   && !crawl_state.mouse_enabled);
++        return c;
++    }
++#endif
+     INPUT_RECORD ir;
+     DWORD nread;
+     int key = 0;
+@@ -910,6 +976,21 @@
+     if (crawl_state.seen_hups)
+         return false;
+ 
++    if (_headless_mode)
++    {
++#ifdef USE_TILE_WEB
++        if (tiles_pending_key)
++            return true;
++        wint_t c = tiles.try_await_input();
++        if (c != 0)
++        {
++            tiles_pending_key = c;
++            return true;
++        }
++#endif
++        return false;
++    }
++
+     INPUT_RECORD ir[10];
+     DWORD read_count = 0;
+     PeekConsoleInputW(inbuf, ir, ARRAYSZ(ir), &read_count);
+@@ -955,6 +1036,11 @@
+ 
+ void update_screen()
+ {
++    if (_headless_mode)
++    {
++        _clear_dirty_area();
++        return;
++    }
+     // see if we have a dirty area
+     if (dirty_area_start.X == dirty_area_end.X)
+         return;
+--- a/crawl-ref/source/main.cc
++++ b/crawl-ref/source/main.cc
+@@ -244,7 +244,8 @@
+ #else
+     setlocale(LC_ALL, "");
+ #endif
+-#ifdef USE_TILE_WEB
++#if defined(USE_TILE_WEB) && !defined(TARGET_OS_WINDOWS)
++    // (Windows has no nl_langinfo; crawl's webtiles text is its own UTF-8)
+     if (strcasecmp(nl_langinfo(CODESET), "UTF-8"))
+     {
+         fprintf(stderr, "Webtiles require an UTF-8 locale.\n");
+--- a/crawl-ref/source/tileweb.cc
++++ b/crawl-ref/source/tileweb.cc
+@@ -8,10 +8,14 @@
+ #include <cstdarg>
+ 
+ #include <signal.h>
++#ifndef TARGET_OS_WINDOWS
+ #include <sys/socket.h>
++#endif
+ #include <sys/time.h>
+ #include <sys/types.h>
++#ifndef TARGET_OS_WINDOWS
+ #include <sys/un.h>
++#endif
+ #if defined(UNIX) || defined(TARGET_COMPILER_MINGW)
+ #include <unistd.h>
+ #endif
+@@ -74,6 +78,99 @@
+ #include "view.h"
+ #include "xom.h"
+ 
++// The webtiles socket as a message queue: the WebAssembly build's JS queue
++// (wasm/bridge.h), or the Windows build's pipes below.
++#if defined(__EMSCRIPTEN__) || defined(TARGET_OS_WINDOWS)
++# define WEBTILES_QUEUE
++#endif
++
++#ifdef TARGET_OS_WINDOWS
++// Windows has no Unix datagram sockets, so the host (the native app's
++// engine.rs) runs crawl on pipes: each control message is one line of JSON
++// on stdin, and each flush of output goes to stdout as the socket would
++// carry it (newline-terminated JSON lines). The queue is what wasm/bridge.h
++// is for the WebAssembly build, with the same names. The end of stdin is a
++// hangup, as a server's SIGHUP: the game saves and exits.
++#include <condition_variable>
++#include <deque>
++#include <mutex>
++#include <thread>
++#include <fcntl.h>
++#include <io.h>
++
++static std::mutex _pipe_lock;
++static std::condition_variable _pipe_cv;
++static std::deque<std::string> _pipe_queue;
++static bool _pipe_closed = false;
++
++static void _pipe_reader()
++{
++    std::string partial;
++    char buf[4096];
++    while (true)
++    {
++        int n = _read(0, buf, sizeof(buf));
++        if (n <= 0)
++            break;
++        partial.append(buf, n);
++        size_t nl;
++        while ((nl = partial.find('\n')) != std::string::npos)
++        {
++            std::string line = partial.substr(0, nl);
++            partial.erase(0, nl + 1);
++            if (!line.empty() && line.back() == '\r')
++                line.pop_back();
++            if (line.empty())
++                continue;
++            std::lock_guard<std::mutex> l(_pipe_lock);
++            _pipe_queue.push_back(line);
++            _pipe_cv.notify_all();
++        }
++    }
++    std::lock_guard<std::mutex> l(_pipe_lock);
++    _pipe_closed = true;
++    _pipe_cv.notify_all();
++}
++
++static void _pipe_start()
++{
++    _setmode(0, _O_BINARY);
++    _setmode(1, _O_BINARY);
++    std::thread(_pipe_reader).detach();
++}
++
++static void wasm_bridge_emit(const char *buf, int len)
++{
++    fwrite(buf, 1, len, stdout);
++    fflush(stdout);
++}
++
++static char *wasm_bridge_pop_message()
++{
++    std::lock_guard<std::mutex> l(_pipe_lock);
++    if (_pipe_queue.empty())
++        return nullptr;
++    std::string s = _pipe_queue.front();
++    _pipe_queue.pop_front();
++    return strdup(s.c_str());
++}
++
++static bool wasm_bridge_has_message()
++{
++    std::lock_guard<std::mutex> l(_pipe_lock);
++    return !_pipe_queue.empty();
++}
++
++// Waits for a message; once stdin is closed and drained, it is a hangup.
++static void wasm_bridge_await_message()
++{
++    std::unique_lock<std::mutex> l(_pipe_lock);
++    _pipe_cv.wait(l, [] { return !_pipe_queue.empty() || _pipe_closed; });
++    if (_pipe_queue.empty() && _pipe_closed && !crawl_state.seen_hups)
++        crawl_state.seen_hups++;
++}
++#endif // TARGET_OS_WINDOWS
++
+ //#define DEBUG_WEBSOCKETS
+ 
+ static unsigned int get_milliseconds()
+@@ -90,7 +187,7 @@
+ TilesFramework::TilesFramework() :
+       m_controlled_from_web(false),
+       _send_lock(false),
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+       m_checkpoint_pending(false),
+ #endif
+       m_last_ui_state(UI_INIT),
+@@ -118,6 +215,10 @@
+     if (m_sock_name.empty())
+         return;
+ 
++#ifdef TARGET_OS_WINDOWS
++    // the pipes are the process's own
++    return;
++#endif
+     close(m_sock);
+     remove(m_sock_name.c_str());
+ }
+@@ -138,7 +239,10 @@
+     if (m_sock_name.empty())
+         return true;
+ 
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
++#ifdef TARGET_OS_WINDOWS
++    _pipe_start();
++#endif
+     // The JS message queue replaces the Unix socket (wasm/bridge.h);
+     // m_sock stays unused. m_sock_name still must be non-empty (a dummy
+     // -webtiles-socket argument) so the m_sock_name.empty() guards keep the
+@@ -165,7 +269,7 @@
+     tv.tv_usec = 0;
+     if (setsockopt(m_sock, SOL_SOCKET, SO_SNDTIMEO, &tv, sizeof(tv)) < 0)
+         die("Can't set send timeout!");
+-#endif // !__EMSCRIPTEN__
++#endif // !WEBTILES_QUEUE
+ 
+     if (m_await_connection)
+         _await_connection();
+@@ -215,12 +319,12 @@
+     }
+ 
+     m_msg_buf.append("\n");
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     wasm_bridge_emit(m_msg_buf.data(), (int) m_msg_buf.size());
+     m_msg_buf.clear();
+     m_need_flush = true;
+     return;
+-#endif
++#else
+     const char* fragment_start = m_msg_buf.data();
+     const char* data_end = m_msg_buf.data() + m_msg_buf.size();
+ #ifdef DEBUG_WEBSOCKETS
+@@ -295,6 +399,7 @@
+ 
+         fragment_start += fragment_size;
+     }
++#endif // !WEBTILES_QUEUE
+     m_msg_buf.clear();
+     m_need_flush = true;
+ #ifdef DEBUG_WEBSOCKETS
+@@ -349,9 +454,14 @@
+ 
+     while (m_dest_addrs.size() == 0)
+     {
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+         wasm_bridge_await_message();
+ #endif
++#ifdef TARGET_OS_WINDOWS
++        // the host went before it attached
++        if (crawl_state.seen_hups)
++            exit(0);
++#endif
+         _receive_control_message();
+     }
+ }
+@@ -361,7 +471,7 @@
+     if (m_sock_name.empty())
+         return 0;
+ 
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     char *popped = wasm_bridge_pop_message();
+     if (!popped)
+         return 0;
+@@ -404,7 +514,7 @@
+         dprf("Malformed control message!");
+         return 0;
+     }
+-#endif // !__EMSCRIPTEN__
++#endif // !WEBTILES_QUEUE
+ }
+ 
+ static int _handle_cell_target(const coord_def &gc)
+@@ -513,13 +623,23 @@
+         _send_everything();
+         flush_messages();
+     }
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     else if (msgtype == "checkpoint")
+     {
+         m_checkpoint_pending = true;
+         _maybe_checkpoint();
+     }
+ #endif
++#ifdef TARGET_OS_WINDOWS
++    // what a server's SIGHUP does (libutil.cc handle_hangup), which Windows
++    // cannot send: the game saves and exits
++    else if (msgtype == "hangup")
++    {
++        if (!crawl_state.seen_hups)
++            crawl_state.seen_hups++;
++        c = ESCAPE;
++    }
++#endif
+     else if (msgtype == "menu_hover")
+     {
+         JsonWrapper hover = json_find_member(obj.node, "hover");
+@@ -682,7 +802,7 @@
+     return c;
+ }
+ 
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+ // Perform a checkpoint save the client asked for (the browser backgrounding
+ // the tab -- the analog of Android's SDLActivity.onPause save, syscalls.cc),
+ // deferred until the player has control: waiting_for_command ||
+@@ -739,7 +859,7 @@
+     if (c != 0)
+         return c;
+ 
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     _maybe_checkpoint();
+     while (wasm_bridge_has_message())
+     {
+@@ -771,9 +891,10 @@
+         if (c != 0)
+             return c;
+     }
+-#endif // !__EMSCRIPTEN__
++#endif // !WEBTILES_QUEUE
+ }
+ 
++#ifndef TARGET_OS_WINDOWS
+ struct save_signal_mask
+ {
+     save_signal_mask()
+@@ -788,6 +909,7 @@
+ 
+     sigset_t old;
+ };
++#endif
+ 
+ wint_t TilesFramework::await_input(bool(*has_console_input)())
+ {
+@@ -798,7 +920,7 @@
+     if (c != 0)
+         return c;
+ 
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     while (true)
+     {
+         // Before going idle, not after: this is the point where the engine
+@@ -808,7 +930,15 @@
+         tiles.flush_messages();
+         if (has_console_input())
+             return 0;
++#ifdef TARGET_OS_WINDOWS
++        if (crawl_state.seen_hups)
++            return 0;
++#endif
+         wasm_bridge_await_message();
++#ifdef TARGET_OS_WINDOWS
++        if (crawl_state.seen_hups)
++            return 0;
++#endif
+         c = _receive_control_message();
+         if (c != 0)
+             return c;
+@@ -858,7 +988,7 @@
+         else
+             die("select error: %s", strerror(errno));
+     }
+-#endif // !__EMSCRIPTEN__
++#endif // !WEBTILES_QUEUE
+ }
+ 
+ void TilesFramework::dump()
+@@ -2355,7 +2485,7 @@
+     // _send_map(true) only sends the full map to the newly connected
+     // spectator but resets the dirty flags. So make sure the player's
+     // map data is up to date first.
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     // Upstream only reaches here with a live game on screen (spectators join
+     // mid-game). The in-browser host's boot handshake can trigger it before the
+     // first viewwindow of a resumed save: sending map state built from the
+@@ -2372,7 +2502,7 @@
+     // If we didn't send the full map, send it to the new spectator
+     if (!sent_full_map)
+         _send_map(true);
+-#ifdef __EMSCRIPTEN__
++#ifdef WEBTILES_QUEUE
+     }
+ #endif
+ 
+--- a/crawl-ref/source/tileweb.h
++++ b/crawl-ref/source/tileweb.h
+@@ -11,7 +11,27 @@
+ #include <map>
+ #include <vector>
+ 
++#ifdef TARGET_OS_WINDOWS
++// windows.h (objbase.h), which a file may include before this, defines PURE
++// for COM interfaces; crawl's own is macros.h's
++# ifdef PURE
++#  undef PURE
++#  ifdef __GNUC__
++#   define PURE __attribute__ ((pure))
++#  else
++#   define PURE
++#  endif
++# endif
++// No Unix sockets: the webtiles channel is the process's stdin and stdout
++// (tileweb.cc), and an address names nothing.
++struct sockaddr_un
++{
++    unsigned short sun_family;
++    char sun_path[108];
++};
++#else
+ #include <sys/un.h>
++#endif
+ 
+ #include "cursor-type.h"
+ #include "map-cell.h"
+@@ -246,7 +266,7 @@
+     wint_t _handle_control_message(sockaddr_un addr, string data);
+     wint_t _receive_control_message();
+ 
+-#ifdef __EMSCRIPTEN__
++#if defined(__EMSCRIPTEN__) || defined(TARGET_OS_WINDOWS)
+     // A client-requested checkpoint save, latched until the player has
+     // control (see _maybe_checkpoint).
+     bool m_checkpoint_pending;

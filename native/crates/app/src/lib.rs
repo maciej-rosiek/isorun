@@ -58,6 +58,8 @@ pub fn start() {
     wasm_bindgen_futures::spawn_local(async {
         let document = web_sys::window().unwrap().document().unwrap();
         let canvas = document.get_element_by_id("isorun").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
+        // the page's offline engine is looked up first, so the front end offers it from the start
+        isorun_client::engine::init().await;
         let options = eframe::WebOptions { wgpu_options: isorun_ui::wgpu_options(), ..Default::default() };
         let _ = eframe::WebRunner::new().start(canvas, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc))))).await;
     });
