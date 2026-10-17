@@ -6,6 +6,7 @@ import { GameAudio } from './audio/director'
 import { combatEvents, linesSince, monsterCell, type Fighter } from './combat'
 import { DamageNumbers } from './damage-numbers'
 import { cellDetails } from './cell-info'
+import { CellMenu, cellMenuRows, type CellMenuRow } from './cell-menu'
 import { DEFAULT_ANGLES, IsoAssets, applySurfaceDetail, IsoCamera, IsoRender3d, LIGHTS, STEP_SECONDS, TURN_DEGREES, stickToDir, type AimIntent } from '@isorun/render-iso'
 import { qualityFor } from './graphics'
 import { Render2d } from '@isorun/render-2d'
@@ -142,6 +143,8 @@ export class GameScreen {
   /** the settings as last read; cleared by `applySettings`, so a frame reads storage at most once */
   private settingsCache: Settings | null = null
   private lookPanel: HTMLElement | null = null
+  /** the menu a long press opens on a cell (cell-menu.ts), and the cell it is about */
+  private cellMenu: { menu: CellMenu; x: number; y: number } | null = null
   /** the context as last derived, and the key of what it was derived from */
   private ctxBase: Context | null = null
   private ctxKey = ''
@@ -482,6 +485,7 @@ export class GameScreen {
     clearTimeout(this.tooltipTimer)
     clearTimeout(this.longPressTimer)
     clearTimeout(this.touchHoverTimer)
+    this.closeCellMenu()
     this.sound.dispose()
     this.damageNumbers.dispose()
     this.hud.destroy()
@@ -827,6 +831,7 @@ export class GameScreen {
       this.hud.setCursor(this.cursorIsOurs ? null : cursor)
       this.needsRender = true
     }
+    if (this.cellMenu && this.ctx.mode !== 'command') this.closeCellMenu()
     this.updateInspect()
     this.mapShown = this.mapHold.shown(st.uiState === UiState.VIEW_MAP, this.ctx.mode, now)
     this.relayout()
@@ -1105,7 +1110,8 @@ export class GameScreen {
   /** The details card (cell-info.ts) about the cell the aim, the pointer or the server's cursor is on. */
   private updateInspect() {
     const cell = this.inspectedCell()
-    if (!cell || !this.inspectShown()) return this.hud.showInspect([])
+    // the cell menu shows the same details itself
+    if (!cell || !this.inspectShown() || this.cellMenu) return this.hud.showInspect([])
     const hints = this.aimDir === null && this.pointerLive ? this.clickHints(cell.x, cell.y) : []
     this.hud.showInspect(cellDetails(this.session.scene, cell.x, cell.y), hints)
   }
@@ -1441,6 +1447,7 @@ export class GameScreen {
     this.inputActed()
     this.needsRender = true
     if (this.lookPanel) return this.closeLookPanel()
+    if (this.cellMenu) return this.closeCellMenu()
     if (this.overlays.levelUp.choosing) return
     if (this.chat.capturing) return this.chat.close()
     if (this.dock.focused) return this.dock.focusOff()
@@ -1490,6 +1497,14 @@ export class GameScreen {
       return this.closeLookPanel()
     }
     if (this.lookPanel && ev.target instanceof Node && this.lookPanel.contains(ev.target)) return
+    // any key puts the cell menu away; Escape does nothing more
+    if (this.cellMenu) {
+      this.closeCellMenu()
+      if (ev.key === 'Escape') {
+        ev.preventDefault()
+        return
+      }
+    }
     this.wake()
     const target = ev.target as HTMLElement | null
     // a key typed into a field is still the keyboard speaking (a server prompt's on-screen keyboard goes away for it)
@@ -1731,11 +1746,53 @@ export class GameScreen {
 
   private dropTouchHover() {
     clearTimeout(this.touchHoverTimer)
-    if (!this.hoverByTouch) return
+    // the cursor stays on the cell the menu is about until the menu goes
+    if (!this.hoverByTouch || this.cellMenu) return
     this.hoverByTouch = false
     this.hover = null
     this.pickDirty = true
     this.wake()
+  }
+
+  /**
+   * A long press in command mode opens the cell menu at the finger (client
+   * coordinates): what the cell holds and what can be done there. False
+   * where there is no menu to show (a spectator, mouse control off, another
+   * mode, an unseen cell), and the long press describes the cell instead.
+   */
+  private openCellMenu(clientX: number, clientY: number): boolean {
+    if (this.session.watching || this.ctx.mode !== 'command' || this.levelMap) return false
+    if (this.session.state.options.tile_web_mouse_control === false) return false
+    const rect = this.canvas.getBoundingClientRect()
+    const key = this.renderer.pick(clientX - rect.left, clientY - rect.top)
+    if (key === null) return false
+    const x = (key & 1023) - 512
+    const y = (key >> 10) - 512
+    const scene = this.session.scene
+    const rows = cellMenuRows(this.ctx, scene, x, y)
+    if (!rows.length) return false
+    this.closeCellMenu()
+    navigator.vibrate?.(10)
+    const menu = new CellMenu(this.root, cellDetails(scene, x, y), rows, { x: clientX, y: clientY }, (row) => this.runCellMenu(row))
+    this.cellMenu = { menu, x, y }
+    this.needsRender = true
+    return true
+  }
+
+  private runCellMenu(row: CellMenuRow) {
+    const at = this.cellMenu
+    this.closeCellMenu()
+    if (!at) return
+    if (row.run.kind === 'click') this.runner.clickCell(at.x, at.y, row.run.button)
+    else this.runner.execute(row.run.action)
+  }
+
+  private closeCellMenu() {
+    if (!this.cellMenu) return
+    this.cellMenu.menu.remove()
+    this.cellMenu = null
+    this.dropTouchHover()
+    this.needsRender = true
   }
 
   private armLongPress(x: number, y: number) {
@@ -1744,6 +1801,7 @@ export class GameScreen {
       const d = this.drag
       if (!d || d.moved) return
       d.moved = true
+      if (this.openCellMenu(x, y)) return
       const rect = this.canvas.getBoundingClientRect()
       this.onPointer(x - rect.left, y - rect.top, RIGHT_BUTTON)
     }, LONG_PRESS_MS)
@@ -1831,6 +1889,12 @@ export class GameScreen {
     this.wake()
     this.dock.focusOff()
     const t = ev.target instanceof Element ? ev.target : null
+    // a press outside the cell menu only puts it away
+    if (this.cellMenu && !this.cellMenu.menu.contains(t)) {
+      ev.preventDefault()
+      ev.stopPropagation()
+      return this.closeCellMenu()
+    }
     if (this.tapAway(ev, t)) return
     if (!this.popupUp()) return
     if (t && this.chat.root.contains(t)) return

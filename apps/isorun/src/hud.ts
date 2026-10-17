@@ -1568,7 +1568,7 @@ const WOUND_FILL: Record<WoundLevel, number> = {
   almost_dead: 0.1,
 }
 
-function woundBar(wound: WoundLevel): HTMLElement {
+export function woundBar(wound: WoundLevel): HTMLElement {
   const { top, bottom } = WOUND_COLOURS[wound]
   return h('div', { class: 'wound-bar' }, h('span', { style: { width: WOUND_FILL[wound] * 100 + '%', background: `linear-gradient(${top}, ${bottom})` } }))
 }

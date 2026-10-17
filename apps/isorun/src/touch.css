@@ -409,3 +409,33 @@
     padding: 0.6rem 1rem;
   }
 }
+
+/* The menu a long press opens on a cell (cell-menu.ts): the cell's details as the inspect card has them, over the rows. */
+.cell-menu {
+  --u: var(--hu);
+  position: absolute;
+  z-index: 45;
+  min-width: calc(200 * var(--hu));
+  max-width: min(calc(360 * var(--hu)), calc(100% - 16px));
+  padding: calc(6 * var(--hu));
+  display: flex;
+  flex-direction: column;
+  font-size: calc(17 * var(--hu));
+  color: #d9ccb0;
+  background: linear-gradient(180deg, rgba(29, 25, 21, 0.97), rgba(11, 9, 8, 0.97));
+  border: 1px solid var(--trim);
+  border-radius: calc(4 * var(--hu));
+  box-shadow: inset 0 0 0 1px #000, 0 calc(10 * var(--hu)) calc(30 * var(--hu)) rgba(0, 0, 0, 0.9);
+}
+.cell-menu-title {
+  padding: calc(4 * var(--hu)) calc(10 * var(--hu)) calc(8 * var(--hu));
+  margin-bottom: calc(4 * var(--hu));
+  border-bottom: 1px solid #3a2d16;
+}
+.cell-menu .inv-menu-row {
+  min-height: 44px;
+  font-size: max(15px, calc(15 * var(--hu)));
+}
+.cell-menu .inv-menu-row:active {
+  background: linear-gradient(90deg, rgba(216, 180, 95, 0.3), rgba(216, 180, 95, 0.06));
+}
