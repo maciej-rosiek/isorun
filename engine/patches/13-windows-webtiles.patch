@@ -6,13 +6,43 @@ tileweb.cc keeps them in the same message queue the WebAssembly build has
 (wasm/bridge.h's names; WEBTILES_QUEUE), so the waits are the same. A
 `hangup` control message, or the end of stdin, is a server's SIGHUP: the
 game saves and exits. libw32c.cc gets the headless mode libunix.cc has (no
-console; the screen in memory; keys from the webtiles channel), and main.cc
-skips the UTF-8 locale check, which needs nl_langinfo.
+console; the screen in memory; keys from the webtiles channel, and the
+-headless option, which initfile.cc offered only to Unix), and main.cc skips
+the UTF-8 locale check, which needs nl_langinfo.
 
 Everything is under TARGET_OS_WINDOWS (or WEBTILES_QUEUE, which is
 __EMSCRIPTEN__ elsewhere): the Linux and WebAssembly builds are unchanged.
 Applies after 01-12. GPLv2+, as the files it patches.
 
+--- a/crawl-ref/source/initfile.cc
++++ b/crawl-ref/source/initfile.cc
+@@ -4805,7 +4805,7 @@
+     CLO_GAMETYPES_JSON,
+     CLO_EDIT_BONES,
+     CLO_DESCENT,
+-#if defined(UNIX) || defined(USE_TILE_LOCAL)
++#if defined(UNIX) || defined(USE_TILE_LOCAL) || defined(USE_TILE_WEB)
+     CLO_HEADLESS,
+ #endif
+ #ifdef USE_TILE_WEB
+@@ -4859,7 +4859,7 @@
+     "no-player-bones", "gdb", "no-gdb", "nogdb", "throttle", "no-throttle",
+     "lua-max-memory", "playable-json", "branches-json", "save-json",
+     "gametypes-json", "bones", "descent",
+-#if defined(UNIX) || defined(USE_TILE_LOCAL)
++#if defined(UNIX) || defined(USE_TILE_LOCAL) || defined(USE_TILE_WEB)
+     "headless",
+ #endif
+ #ifdef USE_TILE_WEB
+@@ -5925,7 +5925,7 @@
+             }
+             break;
+ 
+-#if defined(UNIX) || defined(USE_TILE_LOCAL)
++#if defined(UNIX) || defined(USE_TILE_LOCAL) || defined(USE_TILE_WEB)
+         case CLO_HEADLESS:
+             enter_headless_mode();
+ #ifdef USE_TILE_LOCAL
 --- a/crawl-ref/source/libw32c.cc
 +++ b/crawl-ref/source/libw32c.cc
 @@ -68,6 +68,9 @@
