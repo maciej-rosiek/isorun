@@ -344,7 +344,9 @@ impl GameMenus {
         let value_w = if matches!(page, Page::Group(_)) { 10.0 * size + 4.0 * size } else { 0.0 };
         let label_w = items.iter().map(|i| galley(ctx, &i.label, &Style::new(size, face.clone(), C7), f32::INFINITY).size().x).fold(0.0, f32::max);
         let min_w = if page == Page::Settings { 22.0 * rem } else { 26.0 * rem };
-        let width = (1.2 * size + 1.5 * size + label_w + 2.0 * size + value_w + 1.2 * size + 0.8 * rem).max(min_w).min(screen.width() * 0.94);
+        // a compact screen (a phone, touch.css) gives the menu its whole width less the margins
+        let compact = screen.width() < 900.0 || screen.height() < 560.0;
+        let width = if compact { screen.width() - 16.0 } else { (1.2 * size + 1.5 * size + label_w + 2.0 * size + value_w + 1.2 * size + 0.8 * rem).max(min_w).min(screen.width() * 0.94) };
         let hint = items.get(self.cursor).map(|i| i.hint.clone()).unwrap_or_default();
         let hint_g = galley(ctx, &hint, &Style::new(0.82 * rem, face.clone(), INK_DIM), width - 1.6 * rem);
         let footer = match page {

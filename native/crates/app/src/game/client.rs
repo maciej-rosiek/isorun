@@ -357,7 +357,9 @@ impl ClientMenu {
         let mono = egui::FontId::monospace(size);
         let small = egui::FontId::monospace(0.82 * rem);
         let wide = matches!(self.kind, Kind::Actions(..) | Kind::Palette { .. } | Kind::System { .. });
-        let width = if wide { (48.0 * rem).min(screen.width() * 0.94) } else { (34.0 * rem).min(screen.width() * 0.92) };
+        // a compact screen (a phone, touch.css) gives every list its whole width less the margins
+        let compact = screen.width() < 900.0 || screen.height() < 560.0;
+        let width = if compact { screen.width() - 16.0 } else if wide { (48.0 * rem).min(screen.width() * 0.94) } else { (34.0 * rem).min(screen.width() * 0.92) };
         let row_h = (size * 1.6).max(32.0 * scale + 4.0);
         let has_icons = self.rows.iter().any(|r| r.tile.is_some() || !r.tiles.is_empty());
         let any_hint = self.rows.iter().any(|r| r.sub.is_some());
