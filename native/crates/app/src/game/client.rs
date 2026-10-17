@@ -390,7 +390,8 @@ impl ClientMenu {
         paint_panel(&painter, rect, &PanelLook::dock_popup());
         let mut out = None;
         let mut stays = true;
-        let pointer = ctx.input(|i| (i.pointer.latest_pos(), i.pointer.primary_clicked()));
+        // interact_pos: a touch ends with PointerGone, which clears latest_pos in the frame of its tap
+        let pointer = ctx.input(|i| (i.pointer.interact_pos(), i.pointer.primary_clicked()));
         let clicked_at = |r: egui::Rect| pointer.1 && pointer.0.is_some_and(|p| r.contains(p));
         let hovered = |r: egui::Rect| pointer.0.is_some_and(|p| r.contains(p));
         let pad = 0.8 * rem;
@@ -493,7 +494,9 @@ impl ClientMenu {
                     y += 2.0 * rem;
                 }
                 for i in first..first + shown {
-                    let row = &self.rows[i];
+                    // a tab or chip clicked this frame rebuilt the rows under the range measured
+                    // for the old ones: the rest is drawn the next frame
+                    let Some(row) = self.rows.get(i) else { break };
                     let r = egui::Rect::from_min_size(egui::pos2(rect.left() + 0.4 * rem, y), egui::vec2(width - 0.8 * rem, row_h));
                     let lit = i == self.focus;
                     if lit {

@@ -47,6 +47,7 @@ pub struct IsorunApp {
     pad: GamepadInput,
     #[allow(dead_code)]
     pads: Pads,
+    touch_sim: TouchSim,
 }
 
 impl IsorunApp {
@@ -81,7 +82,7 @@ impl IsorunApp {
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
         let pads: Pads = ();
-        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads };
+        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default() };
         if let Some(path) = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned() {
             app.front.open(&path);
         }
@@ -223,7 +224,61 @@ fn can_fullscreen(phone: bool) -> bool {
     !cfg!(target_os = "android") && !phone
 }
 
+/// `ISORUN_TOUCH_SIM=1`: the mouse acts as a finger, as egui-winit hands a touch screen's
+/// input on: a press is a Touch Start with its emulated button press, a held move a Touch
+/// Move, a release a Touch End with the button's release and then PointerGone, and the mouse
+/// moving with no button held is not seen at all (a finger does not hover). To test the touch
+/// paths with xdotool on a desktop.
+#[derive(Default)]
+struct TouchSim {
+    down: bool,
+}
+
+impl TouchSim {
+    fn on() -> bool {
+        static ON: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ON.get_or_init(|| std::env::var_os("ISORUN_TOUCH_SIM").is_some_and(|v| v != "0"))
+    }
+
+    fn rewrite(&mut self, raw: &mut egui::RawInput) {
+        let touch = |phase, pos| egui::Event::Touch { device_id: egui::TouchDeviceId(1), id: egui::TouchId(1), phase, pos, force: None };
+        let mut out = Vec::with_capacity(raw.events.len());
+        for e in raw.events.drain(..) {
+            match e {
+                egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers } => {
+                    if pressed {
+                        self.down = true;
+                        out.push(touch(egui::TouchPhase::Start, pos));
+                        out.push(egui::Event::PointerMoved(pos));
+                        out.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers });
+                    } else if self.down {
+                        self.down = false;
+                        out.push(touch(egui::TouchPhase::End, pos));
+                        out.push(egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers });
+                        out.push(egui::Event::PointerGone);
+                    }
+                }
+                egui::Event::PointerMoved(pos) => {
+                    if self.down {
+                        out.push(touch(egui::TouchPhase::Move, pos));
+                        out.push(egui::Event::PointerMoved(pos));
+                    }
+                }
+                egui::Event::PointerButton { .. } | egui::Event::PointerGone => {}
+                other => out.push(other),
+            }
+        }
+        raw.events = out;
+    }
+}
+
 impl eframe::App for IsorunApp {
+    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        if TouchSim::on() {
+            self.touch_sim.rewrite(raw_input);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // a phone is told by its window (the first frame's size is the real one, the app's start
         // may not know it yet)

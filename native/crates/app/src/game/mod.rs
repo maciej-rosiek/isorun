@@ -827,6 +827,9 @@ impl GameScreen {
         // the pointer and the fingers over the view; none while a screen of ours or a panel covers it
         let covered = swallowed || self.parts.client.is_some() || self.parts.hud.screen_open().is_some() || menus_keys || pointer_over_panel(&ctx);
         self.gestures.view = view_rect;
+        // what takes the pointer (the dock, the touch bar, the corner buttons, panels): a press
+        // there is that widget's for its whole gesture, never the view's
+        self.gestures.ui = ctx.interactive_rects_last_pass();
         self.gestures.level_map = self.parts.map_shown;
         self.gestures.cell_menu_open = self.parts.cell_menu.is_some();
         let mut gestures = self.gestures.feed(&events, now);

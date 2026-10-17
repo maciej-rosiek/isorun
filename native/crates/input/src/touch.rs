@@ -124,6 +124,11 @@ pub struct Gestures {
     mouse_pos: Option<egui::Pos2>,
     mouse_buttons: u8,
     pub view: egui::Rect,
+    /// What takes the pointer over the view (the dock, the touch bar, the buttons, a panel): a
+    /// press there belongs to that, through its whole life (moves, the release, the tap), and
+    /// never reaches the view's cell picking, hover, long press or pinch. Set each frame
+    /// (egui's interactive rects of the last pass).
+    pub ui: Vec<egui::Rect>,
     /// the level map is up: drags and pinches do not move the 3D view
     pub level_map: bool,
     /// the cell menu is up: the finger's cursor stays on the cell it is about until it goes
@@ -147,6 +152,7 @@ impl Default for Gestures {
             mouse_pos: None,
             mouse_buttons: 0,
             view: egui::Rect::EVERYTHING,
+            ui: Vec::new(),
             level_map: false,
             cell_menu_open: false,
             seen_touch: false,
@@ -261,6 +267,10 @@ impl Gestures {
 
     pub fn down(&mut self, id: u64, kind: PointerKind, pos: egui::Pos2, button: i32, now: f64) {
         self.out.push(Gesture::Pressed(kind));
+        // decided on the press: a gesture that starts on the UI is the UI's
+        if self.ui.iter().any(|r| r.contains(pos)) {
+            return;
+        }
         if kind == PointerKind::Touch {
             if !self.view.contains(pos) {
                 return;

@@ -384,3 +384,24 @@ fn a_click_on_the_view_is_crawls_click_cell_on_the_cell_picked() {
     assert_eq!(r.runner.take_outbox(), vec![cm::click_cell(6, 5, 1)]);
     let _ = &picker.0;
 }
+
+#[test]
+fn a_tap_that_starts_on_the_ui_never_reaches_the_view() {
+    let mut g = Gestures::default();
+    g.view = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(412.0, 915.0));
+    // the dock's Autofight button
+    g.ui = vec![egui::Rect::from_min_size(egui::pos2(340.0, 700.0), egui::vec2(60.0, 60.0))];
+    let mut out = g.feed(&[touch(1, egui::TouchPhase::Start, 370.0, 730.0)], 0.0);
+    out.extend(g.feed(&[touch(1, egui::TouchPhase::Move, 372.0, 731.0)], 50.0));
+    out.extend(g.feed(&[touch(1, egui::TouchPhase::End, 372.0, 731.0)], 100.0));
+    g.tick(800.0);
+    out.extend(g.take());
+    let k = kinds(&out);
+    assert!(k.iter().all(|k| k != "click1" && !k.starts_with("hover") && k != "long"), "{k:?}");
+    // even when the button has gone by the release (the dock hid)
+    g.ui.clear();
+    let mut out = g.feed(&[touch(2, egui::TouchPhase::Start, 370.0, 730.0)], 1000.0);
+    g.ui = vec![egui::Rect::from_min_size(egui::pos2(340.0, 700.0), egui::vec2(60.0, 60.0))];
+    out.extend(g.feed(&[touch(2, egui::TouchPhase::End, 370.0, 730.0)], 1100.0));
+    assert!(kinds(&out).contains(&"click1".to_string()), "a press on the view is the view's");
+}
