@@ -36,7 +36,7 @@ fn main() -> eframe::Result {
         played.extend(engine.take_trace());
         let keep = played.len().saturating_sub(14);
         played.drain(..keep);
-        egui::Area::new(egui::Id::new("sounds")).anchor(egui::Align2::RIGHT_TOP, [-12.0, 24.0]).show(ui.ctx(), |ui| {
+        egui::Area::new(egui::Id::unique("sounds")).anchor(egui::Align2::RIGHT_TOP, [-12.0, 24.0]).show(ui.ctx(), |ui| {
             ui.label(egui::RichText::new("sounds played").monospace().color(egui::Color32::from_gray(150)));
             for name in played.iter().rev() {
                 ui.label(egui::RichText::new(name).monospace().size(15.0).color(egui::Color32::from_rgb(230, 200, 120)));
