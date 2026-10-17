@@ -12,7 +12,7 @@ whoever ports a part.
 | `scene`, `webtiles`, `gamedata`, `scene-webtiles`, `vault` | data layers (done) | `packages/*` |
 | `render` | the isometric renderer `IsoRenderer` (done) | `packages/render-iso` |
 | `client` | no UI: platform (storage, HTTP, sockets), `servers.rs`, `session.rs`, the offline engine (`engine.rs`) | `servers.ts`, `session.ts`, `packages/offline` |
-| `ui` | egui toolkit: fonts, `theme` (the CSS colours), `text::formatted` (crawl's `<red>` text), `tiles::TileIcons` (crawl tiles as egui images), `view3d::View3d` (the iso view as a widget), `keys` (basic keys to crawl), `harness` | — |
+| `ui` | egui toolkit: fonts, `theme` (the CSS colours), `text::formatted` (crawl's `<red>` text), `tiles::TileIcons` (crawl tiles as egui images; `shared_atlas` uploads each atlas once for it and the 2D maps), `view3d::View3d` (the iso view as a widget), `keys` (basic keys to crawl), `harness` | — |
 | `app` | the game: front end and game screen, `main.rs` | `main.ts`, `game.ts` |
 
 New parts go in **their own crate** under `crates/` (so a half-done part never breaks another's

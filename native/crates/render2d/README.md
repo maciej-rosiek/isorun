@@ -43,7 +43,7 @@ are kept apart from the level's list.
 use isorun_render2d::{map_cell_size, minibars, minimap_box, LevelMap, MapTiles, Minimap};
 
 // one of each for the game screen
-let mut tiles = MapTiles::default();          // the atlases as egui textures, for both views
+let mut tiles = MapTiles::default();          // the atlases as egui textures, for both views (shared with the icons: `isorun_ui::tiles::shared_atlas`)
 let mut level_map = LevelMap::new();
 let mut minimap = Minimap::new();
 

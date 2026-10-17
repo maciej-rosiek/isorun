@@ -25,7 +25,8 @@ pub struct Sprite {
 struct Atlas {
     name: String,
     size: [f32; 2],
-    texture: Option<egui::TextureHandle>,
+    /// the page's shared texture of it (`isorun_ui::tiles::shared_atlas`): the icons draw from it too
+    texture: Option<isorun_ui::tiles::SharedTexture>,
 }
 
 /// The tile source's atlases, uploaded on first use.
@@ -105,10 +106,11 @@ impl MapTiles {
     pub fn texture(&mut self, ctx: &egui::Context, atlas: u8) -> Option<egui::TextureId> {
         let a = self.atlases.get_mut(atlas as usize)?;
         if a.texture.is_none() {
-            let img = self.source.as_ref()?.atlas(&a.name)?;
-            let colour = egui::ColorImage::from_rgba_unmultiplied([img.width as usize, img.height as usize], &img.rgba);
-            let options = if self.filter { egui::TextureOptions::LINEAR } else { egui::TextureOptions::NEAREST };
-            a.texture = Some(ctx.load_texture(format!("map2d:{}", a.name), colour, options));
+            let source = self.source.as_ref()?;
+            a.texture = isorun_ui::tiles::shared_atlas(ctx, isorun_ui::tiles::source_key(source), &a.name, self.filter, || {
+                let img = source.atlas(&a.name)?;
+                Some(egui::ColorImage::from_rgba_unmultiplied([img.width as usize, img.height as usize], &img.rgba))
+            });
         }
         a.texture.as_ref().map(|t| t.id())
     }
