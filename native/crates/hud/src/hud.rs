@@ -259,6 +259,11 @@ impl Hud {
         self.screen.as_ref().map(|s| s.id)
     }
 
+    /// The panel of the screen that is up, as last drawn: a tap outside it puts the screen away.
+    pub fn screen_panel(&self) -> Option<Rect> {
+        self.screen.as_ref().and_then(|s| s.panel())
+    }
+
     /// One of the pad's operations on the screen that is up (game.ts `pad` on a client overlay,
     /// the router's overlay ops): carried out in the next `ui`, where the screen's data is.
     /// Cancel with no item menu open puts the screen away at once.

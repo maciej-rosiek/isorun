@@ -141,6 +141,8 @@ pub struct Parts {
     pub hover_by_touch: bool,
     /// the mouse moved since the last keyboard or pad action: its own selection shows
     pub pointer_live: bool,
+    /// the touch bar's height as last drawn (0 when it is not up): crawl's popups keep clear of it
+    pub touch_bar_h: f32,
     /// the pointer moved since the last target sent
     pub hover_moved: bool,
     pub last_input: InputDevice,
@@ -275,6 +277,7 @@ impl GameScreen {
             hover: None,
             hover_by_touch: false,
             pointer_live: false,
+            touch_bar_h: 0.0,
             hover_moved: false,
             last_input: InputDevice::Keyboard,
             chat_capturing: false,
@@ -816,7 +819,13 @@ impl GameScreen {
         if let Some((pos, button)) = ctx.input(|i| i.pointer.press_origin().filter(|_| i.pointer.any_pressed()).map(|p| (p, if i.pointer.secondary_pressed() { 2 } else { 0 }))) {
             let outside = !pointer_over_panel_at(&ctx, pos);
             let touch = events.iter().any(|e| matches!(e, egui::Event::Touch { .. }));
-            if self.parts.cell_menu.is_some() && outside {
+            let screen_panel = self.parts.hud.screen_panel();
+            if touch && self.parts.client.is_none() && screen_panel.is_some_and(|r| !r.contains(pos)) {
+                // a tap outside the inventory or the character sheet puts it away, as Back
+                // (game.ts `tapAway`); the screen's own block keeps it from the world
+                swallowed = true;
+                self.parts.hud.screen_op(isorun_hud::screens::ScreenOp::Cancel);
+            } else if self.parts.cell_menu.is_some() && outside {
                 // a tap or click beside the cell menu puts it away, and does nothing else
                 swallowed = true;
                 self.parts.cell_menu = None;
@@ -1600,6 +1609,7 @@ impl GameScreen {
             cx.ui_scale = self.client_settings.ui_scale.max(0.5);
             cx.hide_menu = Some(&probing);
             cx.back = Some(&mut on_back);
+            cx.bottom = self.parts.touch_bar_h;
             self.parts.overlays.ui(ctx, &mut cx);
         }
         for m in out {
@@ -1657,7 +1667,8 @@ impl GameScreen {
         let shown = !self.session.watching() && self.parts.client.is_none() && !self.parts.menus.is_open() && !self.parts.chat_capturing && !self.parts.overlays.level_up.choosing();
         let screen = isorun_ui::safe::rect(ui.ctx());
         let ctx = self.ctx.clone();
-        let (a, _) = isorun_input::touch_bar::touch_bar(ui, &ctx, shown, screen);
+        let (a, bar) = isorun_input::touch_bar::touch_bar(ui, &ctx, shown, screen);
+        self.parts.touch_bar_h = bar.map_or(0.0, |b| b.height());
         if let Some(a) = a {
             self.parts.pointer_live = false;
             self.execute(&a, now);
