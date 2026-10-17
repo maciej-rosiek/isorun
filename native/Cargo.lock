@@ -1542,6 +1542,7 @@ dependencies = [
  "egui",
  "env_logger",
  "isorun-client",
+ "isorun-gamedata",
  "isorun-render",
  "isorun-scene",
  "isorun-webtiles",

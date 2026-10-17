@@ -5,6 +5,7 @@ pub mod harness;
 pub mod keys;
 pub mod text;
 pub mod theme;
+pub mod tiles;
 pub mod view3d;
 
 use std::sync::Arc;

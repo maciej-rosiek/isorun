@@ -10,6 +10,7 @@ isorun-scene = { path = "../scene" }
 isorun-webtiles = { path = "../webtiles" }
 isorun-render = { path = "../render" }
 isorun-client = { path = "../client" }
+isorun-gamedata = { path = "../gamedata" }
 eframe = { workspace = true }
 egui = { workspace = true }
 wgpu = "30"
