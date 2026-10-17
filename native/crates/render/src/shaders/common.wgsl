@@ -1,3 +1,8 @@
+// Tint (the browsers' WebGPU) checks that derivatives and implicit-lod samples run in uniform
+// control flow more strictly than naga; the shaders take them after a discard or in a branch on
+// purpose, where the neighbours' values are close enough.
+diagnostic(off, derivative_uniformity);
+
 // Shared by the world's shaders: the frame's uniforms, the lights and shadows, the memory mask,
 // noise. Lighting is in view space with the formulas of three.js's nodes (Phong, Lambert, the
 // hemisphere light, distance attenuation), which the web build used, so the look carries over.

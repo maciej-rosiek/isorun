@@ -52,7 +52,7 @@ struct LabelFile {
     tiles: HashMap<String, usize>,
 }
 
-fn decode(v: &[u8]) -> TileLabel {
+pub(crate) fn decode_label(v: &[u8]) -> TileLabel {
     let at = |i: usize| v.get(i).copied().unwrap_or(0);
     TileLabel {
         material: at(0),
@@ -85,7 +85,7 @@ fn table() -> &'static HashMap<u32, TileLabel> {
     static TABLE: OnceLock<HashMap<u32, TileLabel>> = OnceLock::new();
     TABLE.get_or_init(|| {
         let file: LabelFile = serde_json::from_str(include_str!("tile-labels.json")).expect("tile-labels.json");
-        let labels: Vec<TileLabel> = file.labels.iter().map(|l| decode(l)).collect();
+        let labels: Vec<TileLabel> = file.labels.iter().map(|l| decode_label(l)).collect();
         file.tiles
             .into_iter()
             .filter_map(|(hash, i)| Some((u32::from_str_radix(&hash, 16).ok()?, labels.get(i).copied().unwrap_or(UNLABELLED))))

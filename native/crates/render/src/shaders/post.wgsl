@@ -52,6 +52,8 @@ fn vs_full(@builtin(vertex_index) i: u32) -> VertexOut {
 @group(0) @binding(0) var<uniform> post: Post;
 @group(0) @binding(1) var linear_s: sampler;
 @group(0) @binding(2) var point_s: sampler;
+// nearest, for the depth: sampled, not loaded, so that WebGL2 has a sampler to make it complete
+@group(0) @binding(3) var depth_s: sampler;
 
 // ---------------------------------------------------------------- ambient occlusion
 
@@ -69,7 +71,7 @@ fn view_position(uv: vec2<f32>, depth: f32) -> vec3<f32> {
 fn depth_at(uv: vec2<f32>) -> f32 {
     let size = vec2<f32>(textureDimensions(depth_tex));
     let c = clamp(vec2<i32>(uv * size), vec2<i32>(0), vec2<i32>(size) - 1);
-    return textureLoad(depth_tex, c, 0).r;
+    return textureSampleLevel(depth_tex, depth_s, (vec2<f32>(c) + 0.5) / size, 0.0).r;
 }
 
 fn ign(p: vec2<f32>) -> f32 {
@@ -215,7 +217,7 @@ fn shaded(uv: vec2<f32>) -> vec3<f32> {
 fn depth_load(uv: vec2<f32>) -> f32 {
     let size = vec2<f32>(textureDimensions(scene_depth));
     let c = clamp(vec2<i32>(uv * size), vec2<i32>(0), vec2<i32>(size) - 1);
-    return textureLoad(scene_depth, c, 0).r;
+    return textureSampleLevel(scene_depth, depth_s, (vec2<f32>(c) + 0.5) / size, 0.0).r;
 }
 
 fn linear_depth(uv: vec2<f32>) -> f32 {

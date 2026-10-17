@@ -1,3 +1,8 @@
+// Tint (the browsers' WebGPU) checks that derivatives and implicit-lod samples run in uniform
+// control flow more strictly than naga; the shaders take them after a discard or in a branch on
+// purpose, where the neighbours' values are close enough.
+diagnostic(off, derivative_uniformity);
+
 // The shadow maps: the casters seen from the sun (an orthographic depth) or from a torch (the
 // distance to it over its reach, one of six views), alpha tested like the scene's sprites.
 

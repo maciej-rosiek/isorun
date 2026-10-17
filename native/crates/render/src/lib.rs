@@ -22,6 +22,7 @@ pub mod pages;
 pub mod particles;
 pub mod plan;
 pub mod post;
+pub mod remote;
 mod renderer;
 pub mod scalefx;
 pub mod shadows;

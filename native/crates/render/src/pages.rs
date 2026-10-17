@@ -86,7 +86,20 @@ impl Enhancer {
             Some(tx) => {
                 let _ = tx.send((page, slot, job));
             }
-            None => self.queued.push((page, slot, job)),
+            None => {
+                // the web's workers (remote.rs), when the page has set them up
+                if let Some(run) = crate::remote::job_runner() {
+                    let out = self.done_tx.clone();
+                    let bytes = crate::remote::encode_job(&job);
+                    // a worker that failed answers with nothing: the tile is enhanced here then
+                    let back = Box::new(move |bytes: Vec<u8>| {
+                        let tile = crate::remote::decode_tile(&bytes).unwrap_or_else(|| enhance_tile(&job));
+                        let _ = out.send(Done { page, slot, tile });
+                    });
+                    return run(bytes, back);
+                }
+                self.queued.push((page, slot, job))
+            }
         }
     }
 

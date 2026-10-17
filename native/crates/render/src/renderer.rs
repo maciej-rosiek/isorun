@@ -624,6 +624,12 @@ impl IsoRenderer {
         self.resolution.reset();
     }
 
+    /// Show one of the screen effects' images alone (post.wgsl `debug`: 1 the glow, 2 the
+    /// occlusion, 3 the normals, 4 the blur), 0 for the frame; natively also `ISORUN_DEBUG_VIEW`.
+    pub fn set_debug_view(&mut self, view: u32) {
+        self.post.debug = view;
+    }
+
     /// The size the frame is drawn at, in device pixels.
     pub fn render_size(&self) -> (u32, u32) {
         let ratio = self.pixel_ratio();

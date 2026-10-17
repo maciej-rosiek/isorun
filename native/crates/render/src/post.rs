@@ -128,6 +128,10 @@ impl Post {
                 wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, std::mem::size_of::<PostUniform>() as u64, false) },
                 wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
                 wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+                // the depth's: WebGL2 (OpenGL ES 3) takes a depth texture whose own filter is linear,
+                // as wgpu leaves it, for incomplete unless a nearest sampler is bound with it, and
+                // then reads 0 everywhere
+                wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering), count: None },
             ],
         });
         let ao_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("ao"), entries: &[tex_entry(0, wgpu::TextureSampleType::Float { filterable: false }), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Float { filterable: false })] });
@@ -149,6 +153,7 @@ impl Post {
                 wgpu::BindGroupEntry { binding: 0, resource: uniform.as_entire_binding() },
                 wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&gpu.linear_sampler) },
                 wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::Sampler(&gpu.nearest_sampler) },
+                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&gpu.nearest_sampler) },
             ],
         });
         let blur_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
