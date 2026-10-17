@@ -700,6 +700,18 @@ fn actions_job(text: &str, st: &TextStyle, focused: Option<&str>, wrap: f32) -> 
     (job, ranges)
 }
 
+/// Whether a block's text stands in columns: a run of three spaces or more between words.
+fn columned(b: &Block) -> bool {
+    let t = match b {
+        Block::Formatted(t) | Block::Paras(t) | Block::Html(t) | Block::Nowrap(t) | Block::Table(t) => formatted_string_to_text(t),
+        _ => return false,
+    };
+    t.lines().any(|l| {
+        let l = l.trim();
+        l.contains("   ")
+    })
+}
+
 impl Overlays {
     /// Draw a popup of crawl's; `top` is the one the keys go to.
     pub(crate) fn draw_popup(&mut self, ctx: &egui::Context, cx: &mut OverlayCx, p: &Popup, top: bool, depth: usize, screen: &Screen) {
@@ -708,6 +720,17 @@ impl Overlays {
         }
         let m = model(p, cx.tiles);
         let font = screen.popup_font();
+        // text laid out in columns (the overview's gods, the help's index, a character dump's
+        // tables) wraps into a muddle on a phone: there it is set smaller, to fit the width if it
+        // can, but no smaller than 8px or two thirds of the size; prose wraps as it is
+        let font = if screen.compact() && m.sections.iter().any(|s| matches!(s, Section::Body(b) if b.iter().any(columned))) {
+            let base = TextStyle::new(ctx, font, hex(0xdddddd));
+            let natural = m.sections.iter().map(|s| if let Section::Body(b) = s { body_natural(ctx, b, &base) } else { 0.0 }).fold(0.0, f32::max);
+            let room = screen.popup_max_w() - 2.0 - 2.0 * 0.8 * screen.rem() - frame::SCROLLBAR_W;
+            if natural > room { (font * room / natural).max((2.0 / 3.0 * font).max(8.0)).min(font) } else { font }
+        } else {
+            font
+        };
         let st = TextStyle::new(ctx, font, hex(0xdddddd));
         let grey = st.clone().colour(hex(0xaaaaaa));
         let pad_y = 0.5 * screen.rem();

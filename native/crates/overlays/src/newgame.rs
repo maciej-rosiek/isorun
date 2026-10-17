@@ -88,10 +88,72 @@ pub fn grids(p: &Popup) -> (Grid, Grid) {
     (grid(p.data.get("main-items")), grid(p.data.get("sub-items")))
 }
 
+/// The grid in `n` columns where the server's has more (a phone's width): each column's groups
+/// (a label and the buttons under it, up to the next label) are dealt out in their order into
+/// `n` columns of about the same height, so a group keeps its label and its buttons together.
+pub fn reflow(g: &Grid, n: i32) -> Grid {
+    if n <= 0 || n >= g.cols {
+        return g.clone();
+    }
+    let cols = g.cols.max(1) as usize;
+    let mut height = vec![0i32; cols];
+    for b in &g.buttons {
+        height[b.x as usize] = height[b.x as usize].max(b.y + 1);
+    }
+    for (x, y, _) in &g.labels {
+        height[*x as usize] = height[*x as usize].max(y + 1);
+    }
+    // the groups, by column and then from the top: [y0, y1) in column x
+    let mut units: Vec<(i32, i32, i32)> = Vec::new();
+    for (x, &h) in height.iter().enumerate() {
+        let mut starts: Vec<i32> = g.labels.iter().filter(|l| l.0 == x as i32).map(|l| l.1).collect();
+        starts.push(0);
+        starts.sort();
+        starts.dedup();
+        for (k, &y0) in starts.iter().enumerate() {
+            let y1 = starts.get(k + 1).copied().unwrap_or(h);
+            if y1 > y0 {
+                units.push((x as i32, y0, y1));
+            }
+        }
+    }
+    let total: i32 = units.iter().map(|u| u.2 - u.1).sum();
+    let target = (total + n - 1) / n;
+    // where each group goes: its new column and the row its top lands on
+    let mut placed: Vec<(i32, i32, i32, i32, i32)> = Vec::new();
+    let (mut col, mut used) = (0, 0);
+    for (x, y0, y1) in units {
+        let h = y1 - y0;
+        if used > 0 && used + h > target && col < n - 1 {
+            col += 1;
+            used = 0;
+        }
+        placed.push((x, y0, y1, col, used));
+        used += h;
+    }
+    let map = |x: i32, y: i32| -> (i32, i32) {
+        placed.iter().find(|p| p.0 == x && y >= p.1 && y < p.2).map(|p| (p.3, p.4 + y - p.1)).unwrap_or((x.min(n - 1), y))
+    };
+    let mut out = Grid { menu_id: g.menu_id.clone(), cols: n, rows: 0, ..Default::default() };
+    for b in &g.buttons {
+        let (x, y) = map(b.x, b.y);
+        out.rows = out.rows.max(y + 1);
+        out.buttons.push(Button { x, y, ..b.clone() });
+    }
+    for (x, y, l) in &g.labels {
+        let (nx, ny) = map(*x, *y);
+        out.rows = out.rows.max(ny + 1);
+        out.labels.push((nx, ny, l.clone()));
+    }
+    out
+}
+
 /// The cursor's stops, the screen, where the cursor starts, the server's focus and whether the
 /// server's focus was an echo of ours.
-pub fn focus(p: &Popup) -> (String, Vec<Focusable>, i32, String, bool) {
+/// `cols` is the columns the grids were drawn in (`reflow`), so the cursor walks what is seen.
+pub fn focus(p: &Popup, cols: (i32, i32)) -> (String, Vec<Focusable>, i32, String, bool) {
     let (main, sub) = grids(p);
+    let (main, sub) = (reflow(&main, cols.0), reflow(&sub, cols.1));
     let focus_key = p.state.get("button_focus").and_then(|v| v.as_i64());
     let mut items = Vec::new();
     // the sub grid's rows follow the main grid's, so down from the last species reaches the random row
@@ -129,7 +191,10 @@ struct ButtonLay {
 
 impl Overlays {
     pub(crate) fn draw_newgame(&mut self, ctx: &egui::Context, cx: &mut OverlayCx, p: &Popup, top: bool, screen: &Screen) {
-        let compact = screen.w() <= 900.0 || screen.compact();
+        // a phone held upright (or any narrow window) puts the description under the choices; a
+        // phone on its side keeps it beside them, narrower, as the height is what is short there
+        let landscape = screen.w() > screen.h();
+        let compact = screen.w() < 640.0 || (screen.w() <= 900.0 && !landscape);
         let u = if screen.compact() { 0.7 * screen.scale } else { screen.hu() };
         let font = 17.0 * u;
         let (main, sub) = grids(p);
@@ -141,22 +206,34 @@ impl Overlays {
         let width = if screen.compact() { screen.w() - 12.0 } else { width };
         let max_h = if screen.compact() { screen.h() - 12.0 } else { 0.94 * screen.h() };
         let title_font = FontId::new(34.0 * u, isorun_ui::fonts::caps());
-        let title = spaced(ctx, &formatted_string_to_text(&p.data.get("title").map(isorun_webtiles::js_string).unwrap_or_default()), title_font, 0.08 * 34.0 * u, palette::GOLD_BRIGHT);
         let doll = tiles::doll(p.data.get("doll"));
-        let head_h = (16.0 * u + (34.0 * u * 1.1).max(if doll.is_empty() { 0.0 } else { 96.0 }) + 4.0 * u).ceil();
+        let doll_w = if doll.is_empty() { 0.0 } else { 96.0 + 0.6 * 34.0 * u };
+        // a long title ("... Please select your background.") wraps on a narrow screen
+        let title = spaced_wrapped(ctx, &formatted_string_to_text(&p.data.get("title").map(isorun_webtiles::js_string).unwrap_or_default()), title_font, 0.08 * 34.0 * u, palette::GOLD_BRIGHT, (width - 48.0 * u - doll_w).max(120.0));
+        let head_h = (16.0 * u + title.size().y.max(34.0 * u * 1.1).max(if doll.is_empty() { 0.0 } else { 96.0 }) + 4.0 * u).ceil();
         let prompt = p.data.get("prompt").map(isorun_webtiles::js_string).filter(|s| !s.is_empty());
         let prompt_st = TextStyle::new(ctx, 18.0 * u, palette::BRONZE_BRIGHT).line(18.0 * u * 1.3);
         let prompt_g = prompt.as_ref().map(|t| rich::galley(ctx, rich::formatted(t, &prompt_st, width - 48.0 * u)));
         let prompt_h = prompt_g.as_ref().map_or(0.0, |g| g.size().y + 14.0 * u + 1.0);
         // the details column: the heroes and the descriptions, each as tall as its tallest pane
-        let details_w = if compact { width - 2.0 } else { 420.0 * u };
+        let details_w = if compact {
+            width - 2.0
+        } else if screen.compact() {
+            (0.36 * width).floor()
+        } else {
+            420.0 * u
+        };
         let desc_st = TextStyle::new(ctx, font, hex(0xcfc4ad)).line(1.5 * font);
-        let all: Vec<&Button> = main.buttons.iter().chain(sub.buttons.iter()).collect();
-        let desc_gs: Vec<_> = all.iter().map(|b| rich::galley(ctx, rich::formatted(&b.description, &desc_st, details_w - 48.0 * u))).collect();
-        let desc_h = desc_gs.iter().map(|g| g.size().y).fold(0.0, f32::max) + 28.0 * u;
+        let desc_for = |b: &Button| rich::galley(ctx, rich::formatted(&b.description, &desc_st, details_w - 48.0 * u));
         let hero_font = FontId::new(30.0 * u, isorun_ui::fonts::caps());
         let hero_name = |b: &Button| if b.formatted { formatted_string_to_text(&b.name).trim().to_string() } else { b.name.clone() };
-        let hero_h = if compact { 0.0 } else { 24.0 * u + 128.0 + 8.0 * u + 30.0 * u * 1.1 + 12.0 * u };
+        // the hero needs height: none on a short screen
+        let hero = !compact && !screen.compact();
+        // a phone's tiles are smaller, so two or three columns of choices fit its width
+        let ts = if screen.compact() { 32.0 } else { 48.0 };
+        // and its random and recommended rows scroll with the choices, which keep the height
+        let sub_in_body = screen.compact();
+        let hero_h = if hero { 24.0 * u + 128.0 + 8.0 * u + 30.0 * u * 1.1 + 12.0 * u } else { 0.0 };
         // the grids: each column as wide as its widest button, the room left shared out
         let key_font = 0.85 * font;
         let lay_grid = |g: &Grid, font: f32, min_h: f32, inner_w: f32| -> (Vec<f32>, Vec<f32>, Vec<Rect>, f32) {
@@ -170,9 +247,9 @@ impl Overlays {
                 let name_w = rich::natural_width(ctx, if b.formatted { rich::formatted(&b.name, &st, 0.0) } else { rich::plain(&b.name, &st, 0.0) });
                 let key_w = b.key.as_ref().map_or(0.0, |k| (rich::natural_width(ctx, rich::plain(k, &TextStyle::new(ctx, font * 0.85, palette::BRONZE_BRIGHT), 0.0)) + 0.6 * key_font).max(1.5 * key_font) + 2.0 + 10.0 * u);
                 let suf_w: f32 = b.suffixes.iter().map(|s| rich::natural_width(ctx, rich::formatted(s, &TextStyle::new(ctx, font, TERM8), 0.0)) + 10.0 * u).sum();
-                let tile_w = if b.tiles.is_empty() { 0.0 } else { 48.0 + 10.0 * u };
+                let tile_w = if b.tiles.is_empty() { 0.0 } else { ts + 10.0 * u };
                 let w = 6.0 * u + tile_w + key_w + name_w + suf_w + 12.0 * u + 2.0;
-                let h = (if b.tiles.is_empty() { widgets::normal_line_height(font) } else { 48.0 } + 8.0 * u + 2.0).max(min_h);
+                let h = (if b.tiles.is_empty() { widgets::normal_line_height(font) } else { ts } + 8.0 * u + 2.0).max(min_h);
                 col_w[b.x as usize] = col_w[b.x as usize].max(w);
                 row_h[b.y as usize] = row_h[b.y as usize].max(h);
                 sizes.push(h);
@@ -194,6 +271,28 @@ impl Overlays {
         };
         let choices_w = if compact { width - 2.0 } else { width - 2.0 - details_w - 1.0 };
         let grid_inner = choices_w - 40.0 * u;
+        // as many of the server's columns as fit the width (grids pick their columns from the width)
+        let fit_cols = |g: &Grid, font: f32, min_h: f32| -> i32 {
+            (1..=g.cols.max(1))
+                .rev()
+                .find(|&n| {
+                    let (w, ..) = lay_grid(&reflow(g, n), font, min_h, 0.0);
+                    w.iter().sum::<f32>() + 12.0 * u * (w.len() as f32 - 1.0) <= grid_inner
+                })
+                .unwrap_or(1)
+        };
+        // one column wastes a phone's width: a little smaller text that makes room for two is better
+        let font = if main.cols > 1 && fit_cols(&main, font, 56.0 * u) < 2 && fit_cols(&main, 0.86 * font, 56.0 * u) >= 2 { 0.86 * font } else { font };
+        let cols = (fit_cols(&main, font, 56.0 * u), fit_cols(&sub, 0.9 * font, 36.0 * u));
+        if top && cols != self.newgame_cols {
+            // the cursor's grid follows the columns drawn
+            self.newgame_cols = cols;
+            self.last_ui_rev = u64::MAX;
+        }
+        let (main, sub) = (reflow(&main, cols.0), reflow(&sub, cols.1));
+        let all: Vec<&Button> = main.buttons.iter().chain(sub.buttons.iter()).collect();
+        let desc_gs: Vec<_> = all.iter().map(|b| desc_for(b)).collect();
+        let desc_h = desc_gs.iter().map(|g| g.size().y).fold(0.0, f32::max) + 28.0 * u;
         let (main_cols, main_rows, _, main_h) = lay_grid(&main, font, 56.0 * u, grid_inner);
         let (sub_cols, sub_rows, _, sub_h) = if sub.buttons.is_empty() { (vec![], vec![], vec![], 0.0) } else { lay_grid(&sub, 0.9 * font, 36.0 * u, grid_inner) };
         let choices_h = main_h + if sub.buttons.is_empty() { 0.0 } else { sub_h + 1.0 };
@@ -245,8 +344,9 @@ impl Overlays {
             let choices = Rect::from_min_size(Pos2::new(rect.left() + 1.0, y), Vec2::new(choices_w, if compact { (cols_h - details_h.min(0.24 * screen.h()) - 1.0).max(40.0) } else { cols_h }));
             // the main grid is the scrolling body; the sub grid (random, recommended) stays under it
             let sub_total = if sub.buttons.is_empty() { 0.0 } else { sub_h + 1.0 };
-            let main_view = Rect::from_min_size(choices.min, Vec2::new(choices.width(), (choices.height() - sub_total).max(0.0)));
-            new_scroll = frame::wheel(ui, main_view, main_h, scroll);
+            let main_view = if sub_in_body { choices } else { Rect::from_min_size(choices.min, Vec2::new(choices.width(), (choices.height() - sub_total).max(0.0))) };
+            let body_h = if sub_in_body { main_h + sub_total } else { main_h };
+            new_scroll = frame::wheel(ui, main_view, body_h, scroll);
             let mut cp = pt.with_clip_rect(main_view);
             let mut lays: Vec<ButtonLay> = Vec::new();
             let mut gy = choices.top() - new_scroll;
@@ -255,7 +355,10 @@ impl Overlays {
                 if g.buttons.is_empty() {
                     continue;
                 }
-                if sub_grid {
+                if sub_grid && sub_in_body {
+                    widgets::rule(&cp, choices.left()..=choices.right(), gy, palette::RULE);
+                    gy += 1.0;
+                } else if sub_grid {
                     cp = pt.with_clip_rect(choices);
                     gy = main_view.bottom();
                     widgets::rule(&cp, choices.left()..=choices.right(), gy, palette::RULE);
@@ -275,23 +378,23 @@ impl Overlays {
                     let id = format!("{}:{}", if sub_grid { "sub" } else { "main" }, b.hotkey);
                     let r = Rect::from_min_size(Pos2::new(col_x(b.x), row_y(b.y)), Vec2::new(cols[b.x as usize], rows[b.y as usize]));
                     let on = shown_id.as_deref() == Some(id.as_str());
-                    draw_button(ui, &cp, cx.tiles, b, r, on, u, gfont);
+                    draw_button(ui, &cp, cx.tiles, b, r, on, u, gfont, ts);
                     lays.push(ButtonLay { rect: r, id, index, sub: sub_grid });
                     index += 1;
                 }
                 gy += rows.iter().sum::<f32>() + 6.0 * u * (rows.len() as f32 - 1.0).max(0.0) + 28.0 * u;
             }
             // the cursor moved to a button out of view: bring it in (FocusNav's scrollIntoView, nearest)
-            if let Some(l) = lit.as_ref().filter(|id| **id != follow).and_then(|id| lays.iter().find(|l| &l.id == id && !l.sub)) {
+            if let Some(l) = lit.as_ref().filter(|id| **id != follow).and_then(|id| lays.iter().find(|l| &l.id == id && (sub_in_body || !l.sub))) {
                 if l.rect.top() < main_view.top() {
                     new_scroll -= main_view.top() - l.rect.top();
                 } else if l.rect.bottom() > main_view.bottom() {
                     new_scroll += l.rect.bottom() - main_view.bottom();
                 }
-                new_scroll = new_scroll.clamp(0.0, (main_h - main_view.height()).max(0.0));
+                new_scroll = new_scroll.clamp(0.0, (body_h - main_view.height()).max(0.0));
             }
             for l in &lays {
-                if !(if l.sub { choices } else { main_view }).contains(l.rect.center()) {
+                if !(if l.sub && !sub_in_body { choices } else { main_view }).contains(l.rect.center()) {
                     continue;
                 }
                 let resp = ui.interact(l.rect, egui::Id::unique(("isorun-ng", &l.id)), egui::Sense::click());
@@ -306,6 +409,7 @@ impl Overlays {
                 }
                 let _ = (l.index, l.sub);
             }
+            isorun_ui::scroll::paint_bar(&pt, main_view, body_h, new_scroll);
             // the details: the hero of the button under the cursor, and its description
             let details = if compact {
                 Rect::from_min_max(Pos2::new(rect.left() + 1.0, choices.bottom() + 1.0), Pos2::new(rect.right() - 1.0, rect.bottom() - 1.0))
@@ -323,7 +427,7 @@ impl Overlays {
             if let Some(i) = shown {
                 let b = all[i];
                 let mut dy = details.top();
-                if !compact {
+                if hero {
                     dy += 24.0 * u;
                     if !b.tiles.is_empty() {
                         let sq = Rect::from_min_size(Pos2::new(details.center().x - 64.0, dy), Vec2::splat(128.0));
@@ -368,7 +472,13 @@ const TERM8: Color32 = Color32::from_rgb(0x55, 0x57, 0x53);
 
 /// Text in Cinzel's capitals with CSS letter-spacing.
 fn spaced(ctx: &egui::Context, text: &str, font: FontId, spacing: f32, colour: Color32) -> std::sync::Arc<egui::Galley> {
+    spaced_wrapped(ctx, text, font, spacing, colour, f32::INFINITY)
+}
+
+/// `spaced`, wrapped at `width`.
+fn spaced_wrapped(ctx: &egui::Context, text: &str, font: FontId, spacing: f32, colour: Color32, width: f32) -> std::sync::Arc<egui::Galley> {
     let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = width;
     for (i, c) in text.chars().enumerate() {
         job.append(&c.to_string(), if i == 0 { 0.0 } else { spacing }, egui::TextFormat { font_id: font.clone(), color: colour, ..Default::default() });
     }
@@ -377,7 +487,7 @@ fn spaced(ctx: &egui::Context, text: &str, font: FontId, spacing: f32, colour: C
 
 /// One button of the grid (`.newgame .button`).
 #[allow(clippy::too_many_arguments)]
-fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::TileIcons, b: &Button, r: Rect, on: bool, u: f32, font: f32) {
+fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::TileIcons, b: &Button, r: Rect, on: bool, u: f32, font: f32, ts: f32) {
     let ctx = p.ctx().clone();
     let dim = b.highlight == 7 && !on;
     let fade = |c: Color32| if dim { c.gamma_multiply(0.5) } else { c };
@@ -401,7 +511,7 @@ fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::
     let mut x = r.left() + 1.0 + 6.0 * u;
     let cy = r.center().y;
     if !b.tiles.is_empty() {
-        let sq = tiles::square(x, cy, 48.0);
+        let sq = tiles::square(x, cy, ts);
         if dim {
             // `opacity: 0.5` on the whole button: the tile fades with it
             let tp = p.clone();
@@ -410,7 +520,7 @@ fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::
         } else {
             tiles::paint(icons, p, &b.tiles, sq);
         }
-        x += 48.0 + 10.0 * u;
+        x += ts + 10.0 * u;
     }
     if let Some(k) = &b.key {
         let kst = TextStyle::new(&ctx, 0.85 * font, if on { palette::BRONZE_BRIGHT } else { fade(palette::BRONZE_BRIGHT) });
@@ -437,3 +547,34 @@ fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::
 
 #[allow(dead_code)]
 fn unused(_f: FontFamily) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn button(x: i32, y: i32, k: char) -> Button {
+        Button { hotkey: k as i64, x, y, tiles: vec![], key: Some(k.to_string()), name: k.to_string(), formatted: false, suffixes: vec![], description: String::new(), highlight: 0, label: k.to_string() }
+    }
+
+    #[test]
+    fn a_narrow_screen_deals_the_groups_into_fewer_columns() {
+        // three columns: two groups in the first, one each in the others
+        let g = Grid {
+            menu_id: "m".into(),
+            buttons: vec![button(0, 1, 'a'), button(0, 2, 'b'), button(0, 4, 'c'), button(1, 1, 'd'), button(1, 2, 'e'), button(2, 1, 'f')],
+            labels: vec![(0, 0, "A".into()), (0, 3, "B".into()), (1, 0, "C".into()), (2, 0, "D".into())],
+            cols: 3,
+            rows: 5,
+        };
+        assert_eq!(reflow(&g, 3).buttons[0].x, 0);
+        let two = reflow(&g, 2);
+        assert_eq!(two.cols, 2);
+        let at = |k: char| two.buttons.iter().find(|b| b.hotkey == k as i64).map(|b| (b.x, b.y)).unwrap();
+        // 10 rows in all: the first column takes A and B (5), the second C and D
+        assert_eq!((at('a'), at('c'), at('d'), at('f')), ((0, 1), (0, 4), (1, 1), (1, 4)));
+        assert!(two.labels.contains(&(1, 3, "D".into())));
+        let one = reflow(&g, 1);
+        assert_eq!(one.rows, 10);
+        assert_eq!(one.buttons.iter().map(|b| b.y).collect::<Vec<_>>(), vec![1, 2, 4, 6, 7, 9]);
+    }
+}

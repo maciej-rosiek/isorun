@@ -17,6 +17,12 @@ impl Screen {
     pub fn new(ctx: &egui::Context, scale: f32) -> Self {
         Screen { rect: isorun_ui::safe::rect(ctx), scale }
     }
+    /// The screen less a bar of `bottom` points at its foot (the touch bar), which popups keep clear of.
+    pub fn above(ctx: &egui::Context, scale: f32, bottom: f32) -> Self {
+        let mut rect = isorun_ui::safe::rect(ctx);
+        rect.max.y = (rect.max.y - bottom.max(0.0)).max(rect.min.y + 0.5 * rect.height());
+        Screen { rect, scale }
+    }
     pub fn w(&self) -> f32 {
         self.rect.width()
     }

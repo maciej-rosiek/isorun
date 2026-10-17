@@ -267,7 +267,24 @@ impl LevelUp {
             self.baseline = self.current;
         }
         let Some(b) = &self.open else { return false };
-        let rem = screen.rem();
+        // the panel's height at a rem: a short window (a phone on its side) sets the whole panel
+        // smaller until it fits, the number as touch.css sets it (3.2rem under 560px)
+        let short = screen.h() < 560.0;
+        let level_size_at = |rem: f32| if short { 3.2 * rem } else { (0.11 * screen.w()).clamp(4.5 * rem, 7.5 * rem) };
+        let choosing_now = self.choice.is_some();
+        let height_at = |rem: f32| {
+            let narrow = screen.w() <= 760.0;
+            let pad = if narrow { (rem, rem, rem) } else { (1.5 * rem, 3.0 * rem, 1.8 * rem) };
+            let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + 2.6 * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
+            let mut h = pad.0 + 0.95 * rem * 1.3 + level_size_at(rem) * 1.1 * 0.82 + 0.5 * rem + 2.0 + 0.9 * rem + 1.9 * rem + pad.2;
+            if choosing_now {
+                h += 0.4 * rem + 1.6 * rem * 1.3 + rem + card_h + 1.2 * rem + 1.7 * 0.9 * rem;
+            }
+            h
+        };
+        let base = screen.rem();
+        let room = 0.96 * screen.h();
+        let rem = if height_at(base) > room { (base * room / height_at(base)).max(0.6 * base) } else { base };
         let fade = match b.leaving {
             Some(t) => (1.0 - (now - t) / LEAVE).clamp(0.0, 1.0) as f32,
             None => ((now - b.opened) / 0.3).clamp(0.0, 1.0) as f32,
@@ -279,7 +296,7 @@ impl LevelUp {
         // the panel's parts
         let kicker_font = FontId::new(0.95 * rem, isorun_ui::fonts::bold());
         let kicker = spaced(ctx, "YOU HAVE REACHED", kicker_font, 0.6 * 0.95 * rem, rgba(243, 214, 140, 1.0));
-        let level_size = (0.11 * screen.w()).clamp(4.5 * rem, 7.5 * rem);
+        let level_size = level_size_at(rem);
         let level_g = ctx.fonts_mut(|f| f.layout_no_wrap(format!("LEVEL {level}"), FontId::new(level_size, display.clone()), Color32::WHITE));
         let gains = match (self.baseline, self.current) {
             (Some(a), Some(c)) => gains(&a, &c),
@@ -311,7 +328,7 @@ impl LevelUp {
         let cards_w = 3.0 * card_w + 2.0 * card_gap;
         let w = (22.0 * rem).max(if choosing.is_some() { cards_w } else { 0.0 }) + 2.0 * pad.1;
         // centred in the screen less its 8vh foot
-        let area = Rect::from_min_max(screen.rect.min, Pos2::new(screen.rect.right(), screen.rect.bottom() - 0.08 * screen.h()));
+        let area = if h > screen.h() * 0.84 { screen.rect } else { Rect::from_min_max(screen.rect.min, Pos2::new(screen.rect.right(), screen.rect.bottom() - 0.08 * screen.h())) };
         let panel = Rect::from_center_size(area.center() - Vec2::new(0.0, lift), Vec2::new(w, h));
         let mut clicked: Option<String> = None;
         let mut panel_clicked = false;

@@ -61,11 +61,13 @@ pub struct OverlayCx<'a> {
     pub hide_menu: Option<&'a dyn Fn(&MenuState) -> bool>,
     /// what the phone's Back and a popup's close button do (game.ts `GameScreen.back`); None sends Escape
     pub back: Option<&'a mut dyn FnMut()>,
+    /// the height a bar at the foot of the screen takes (the touch bar): the popups stand clear of it
+    pub bottom: f32,
 }
 
 impl<'a> OverlayCx<'a> {
     pub fn new(state: &'a GameState, tiles: &'a mut TileIcons, out: &'a mut Vec<Value>) -> Self {
-        OverlayCx { state, tiles, out, watching: false, device: Device::Keyboard, touch: false, dock: true, ui_scale: 1.0, hide_menu: None, back: None }
+        OverlayCx { state, tiles, out, watching: false, device: Device::Keyboard, touch: false, dock: true, ui_scale: 1.0, hide_menu: None, back: None, bottom: 0.0 }
     }
     fn send(&mut self, m: Value) {
         if !self.watching {
@@ -109,7 +111,7 @@ pub(crate) struct PopupGeom {
 
 /// The screens crawl puts over the game.
 pub struct Overlays {
-    last_ui_rev: u64,
+    pub(crate) last_ui_rev: u64,
     pub(crate) nav: FocusNav,
     pub(crate) focusables: Vec<Focusable>,
     focus_screen: String,
@@ -129,6 +131,8 @@ pub struct Overlays {
     newgame_focus: String,
     /// the new-game stop last drawn lit: a move to another brings it into view
     pub(crate) newgame_lit: String,
+    /// the columns character creation's grids were last drawn in (main, sub): the cursor's grid
+    pub(crate) newgame_cols: (i32, i32),
     // menus
     /// the hover each menu (by its stack place) was moved to here, and the server's hover then:
     /// ours holds until the server moves its own
@@ -203,6 +207,7 @@ impl Overlays {
             card: None,
             newgame_focus: String::new(),
             newgame_lit: String::new(),
+            newgame_cols: (i32::MAX, i32::MAX),
             hover: HashMap::new(),
             scroll: HashMap::new(),
             menu_geom: MenuGeom::default(),
@@ -323,7 +328,7 @@ impl Overlays {
         if let Some(p) = st.ui.last() {
             let id = self.popup_id(p.stack_order);
             if p.kind == "newgame-choice" {
-                let (screen, items, initial, server_focus, from_client) = newgame::focus(p);
+                let (screen, items, initial, server_focus, from_client) = newgame::focus(p, self.newgame_cols);
                 let force = !from_client && server_focus != self.newgame_focus;
                 self.newgame_focus = server_focus;
                 self.register_focus(screen, items, FocusOptions { page_rows: NEWGAME_PAGE_ROWS, ..Default::default() }, Some(initial), force);
@@ -499,7 +504,7 @@ impl Overlays {
     pub fn ui(&mut self, ctx: &egui::Context, cx: &mut OverlayCx) {
         self.sync(cx, Some(ctx));
         self.pointer_wakes(ctx);
-        let screen = frame::Screen::new(ctx, cx.ui_scale);
+        let screen = frame::Screen::above(ctx, cx.ui_scale, cx.bottom);
         let st = cx.state;
         // the character overview stands on the world dimmed, as WebTiles' popups on its overlay
         if st.ui.last().is_some_and(|p| !p.hidden && p.kind == "formatted-scroller" && p.data.get("tag").and_then(|t| t.as_str()) == Some("resists")) {

@@ -51,12 +51,17 @@ pub fn focus(state: &GameState, tag: &str) -> (String, Vec<Focusable>, FocusOpti
 
 impl Overlays {
     pub(crate) fn draw_crt(&mut self, ctx: &egui::Context, cx: &mut OverlayCx, tag: &str, top: bool, depth: usize, screen: &Screen, stack: i64) {
-        let font = screen.popup_font();
-        // `.crt .crt-line { line-height: 1.2em }`
-        let st = TextStyle::new(ctx, font, hex(0xdddddd)).line(1.2 * font);
         let pad_y = 0.5 * screen.rem();
         let pad_x = 0.8 * screen.rem();
         let ls = lines(cx.state);
+        // crawl's screen is laid out in columns, so it cannot wrap: on a narrow screen (a phone held
+        // upright) the font is set smaller until the widest line fits, down to 7px
+        let font = screen.popup_font();
+        let columns = ls.iter().map(|l| rich::galley(ctx, rich::html(l, &TextStyle::new(ctx, font, hex(0xdddddd)), 0.0)).size().x).fold(0.0, f32::max);
+        let room = screen.popup_max_w() - 2.0 * pad_x - 2.0;
+        let font = if columns > room { (font * room / columns).max(7.0) } else { font };
+        // `.crt .crt-line { line-height: 1.2em }`
+        let st = TextStyle::new(ctx, font, hex(0xdddddd)).line(1.2 * font);
         let galleys: Vec<_> = ls.iter().map(|l| rich::galley(ctx, rich::html(if l.is_empty() { " " } else { l }, &st, 0.0))).collect();
         let natural = galleys.iter().map(|g| g.size().x).fold(0.0, f32::max);
         // a phone's screen is full width (touch.css), whatever the text's own width
@@ -98,6 +103,7 @@ impl Overlays {
             for (i, g) in galleys.iter().enumerate() {
                 bp.galley(Pos2::new(left, top_y + i as f32 * line_h), g.clone(), st.colour);
             }
+            isorun_ui::scroll::paint_bar(&p, view, content_h, new_scroll);
         });
         self.scroll.insert(key, new_scroll);
         if let Some(k) = clicked {
