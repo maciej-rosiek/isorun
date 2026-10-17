@@ -2,7 +2,9 @@ Builds the webtiles binary for Android as a console program, for the native
 app (native/android): crawl's own Android port is its SDL app, whose code
 sits under __ANDROID__; a webtiles build there (USE_TILE_WEB) leaves out the
 parts that need SDL or its Java side (the external storage path, the on-screen
-keyboard and tab icon commands). The app runs it from its native library
+keyboard and tab icon commands, and syscalls.cc's reading of the APK's assets
+through JNI, which only the SDL app has: the console program reads its data as
+plain files). The app runs it from its native library
 folder and gives it its data folder (CRAWL_DIR).
 
 Everything is under __ANDROID__: the Linux, Windows and WebAssembly builds are
@@ -48,3 +50,110 @@ unchanged. Applies after 01-13. GPLv2+, as the files it patches.
      case CMD_TOGGLE_TAB_ICONS:
          tiles.toggle_tab_icons();
          break;
+--- a/crawl-ref/source/files.cc
++++ b/crawl-ref/source/files.cc
+@@ -467,7 +467,7 @@
+ #ifdef TARGET_OS_MACOSX
+         SysEnv.crawl_base + "../Resources/",
+ #endif
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+         ANDROID_ASSETS
+ #endif
+ #ifdef __HAIKU__
+--- a/crawl-ref/source/startup.cc
++++ b/crawl-ref/source/startup.cc
+@@ -1049,7 +1049,7 @@
+     if (!SysEnv.crawl_name.empty())
+         choice.name = SysEnv.crawl_name;
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     // Request the Android virtual keyboard. Waiting for the SDLActivity to be
+     // resized avoids some display bugs.
+     jni_keyboard_control(1);
+--- a/crawl-ref/source/syscalls.cc
++++ b/crawl-ref/source/syscalls.cc
+@@ -27,7 +27,7 @@
+ #include "random.h"
+ #include "unicode.h"
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ #define HAVE_STAT
+ #include "player.h"
+ #include <errno.h>
+@@ -289,7 +289,7 @@
+ # endif
+ #endif
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ AAssetManager *_android_get_asset_manager()
+ {
+     JNIEnv *env = Android_JNI_GetEnv();
+@@ -324,7 +324,7 @@
+     return lAttr != INVALID_FILE_ATTRIBUTES
+            && !(lAttr & FILE_ATTRIBUTE_DIRECTORY);
+ #else
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     if (name.find(ANDROID_ASSETS) == 0)
+     {
+         if (!_android_asset_manager)
+@@ -351,7 +351,7 @@
+ #endif
+ }
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ /**
+  * Remove an ANDROID_ASSETS prefix and strip any trailing slashes
+  * from a directory name.
+@@ -374,7 +374,7 @@
+     return lAttr != INVALID_FILE_ATTRIBUTES
+            && (lAttr & FILE_ATTRIBUTE_DIRECTORY);
+ #else
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     if (dir.find(ANDROID_ASSETS) == 0)
+     {
+         if (!_android_asset_manager)
+@@ -436,7 +436,7 @@
+         FindClose(hFind);
+     }
+ #else
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     if (dirname.find(ANDROID_ASSETS) == 0)
+     {
+         if (!_android_asset_manager)
+@@ -494,7 +494,7 @@
+ #endif
+ }
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ /**
+  * This implementation of handling Android fopens to Android assets
+  * appears to originate from here:
+@@ -530,7 +530,7 @@
+     // Why it wants the mode string as double-byte is beyond me.
+     return _wfopen(OUTW(path), OUTW(mode));
+ #else
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+     if (strstr(path, ANDROID_ASSETS) == path)
+     {
+         if (!mode || mode[0] == 'w')
+--- a/crawl-ref/source/syscalls.h
++++ b/crawl-ref/source/syscalls.h
+@@ -23,7 +23,7 @@
+ # endif
+ #endif
+ 
+-#ifdef __ANDROID__
++#if defined(__ANDROID__) && !defined(USE_TILE_WEB)
+ int jni_ref_display_size();
+ bool jni_keyboard_control(int toggle);
+ #endif
