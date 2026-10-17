@@ -23,6 +23,15 @@ egui = { workspace = true }
 wgpu = "30"
 serde_json = { workspace = true }
 log = "0.4"
+isorun-front = { path = "../front" }
+isorun-hud = { path = "../hud" }
+isorun-input = { path = "../input" }
+isorun-overlays = { path = "../overlays" }
+isorun-audio = { path = "../audio" }
+isorun-render2d = { path = "../render2d" }
+isorun-scene-webtiles = { path = "../scene-webtiles" }
+serde = { workspace = true }
+web-time = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 env_logger = "0.11"
@@ -38,3 +47,8 @@ wgpu = { version = "30", features = ["webgl"] }
 wasm-bindgen = "0.2"
 wasm-bindgen-futures = "0.4"
 web-sys = { version = "0.3", features = ["Window", "Document", "HtmlCanvasElement", "Location"] }
+
+[features]
+default = ["gilrs"]
+# real gamepads with gilrs on the desktop and Android (libudev on Linux)
+gilrs = ["isorun-input/gilrs"]
