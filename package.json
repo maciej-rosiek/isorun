@@ -1,7 +1,7 @@
 {
-  "name": "isorun-monorepo",
+  "name": "isorun",
   "private": true,
-  "description": "Isorun: Dungeon Crawl Stone Soup drawn isometrically, for gamepad, keyboard and mouse. The game plus the DCSS-as-a-library packages it is built on.",
+  "description": "Isorun: Dungeon Crawl Stone Soup drawn isometrically, for gamepad, keyboard, mouse and touch. The app is Rust (native/); this is the JavaScript beside it: the hosted page's Worker, the web build's engine bridge and the tools.",
   "license": "AGPL-3.0-or-later",
   "repository": {
     "type": "git",
@@ -9,34 +9,23 @@
   },
   "bugs": "https://github.com/maciej-rosiek/isorun/issues",
   "type": "module",
-  "workspaces": [
-    "packages/*",
-    "apps/*",
-    "tools/*"
-  ],
   "scripts": {
-    "dev": "npm run dev -w apps/isorun",
-    "prebuild": "node tools/build/ensure-dev-deps.mjs",
-    "build": "npm run build -w apps/isorun",
-    "preview": "npm run preview -w apps/isorun",
-    "typecheck": "tsc -b",
-    "check": "npm run typecheck && npm test",
+    "typecheck": "tsc -p .",
     "test": "vitest run",
-    "e2e": "vitest run -c vitest.e2e.config.ts",
+    "check": "npm run typecheck && npm test",
+    "web": "native/web/build.sh",
+    "web:test": "node native/web/test.mjs",
     "record": "node tools/record/record.mjs",
-    "room:pack": "node tools/build/pack-room.mjs",
     "deploy": "wrangler deploy",
     "deploy:check": "wrangler deploy --dry-run"
   },
   "devDependencies": {
     "@types/node": "^26.4.1",
-    "@types/three": "^0.185.4",
-    "happy-dom": "^20.14.0",
+    "esbuild": "^0.28.2",
     "opentype.js": "^2.0.0",
+    "playwright-core": "1.64.1",
     "typescript": "^5.9.2",
-    "vite": "^7.1.0",
     "vitest": "^3.2.4",
-    "wrangler": "^4.129.0",
-    "ws": "^8.18.0"
+    "wrangler": "^4.129.0"
   }
 }

@@ -12,7 +12,7 @@ Isorun is a hard fork of [Orbrun](https://github.com/Caeous/orbrun) by Caeous
 the WebTiles connection and reducer, the scene model, the HUD, the gamepad
 system, the menus, the offline engine, the front room and the tools. Isorun
 replaces Orbrun's first-person renderer with the isometric one
-(`packages/render-iso`) and takes the project in its own direction. Orbrun's
+(`native/crates/render`) and takes the project in its own direction. Orbrun's
 copyright notices stay with the code they cover.
 
 Copyright (C) 2026 the Orbrun developer, and the Isorun developers.
@@ -48,77 +48,78 @@ protocol-interoperability requirement.
 
 | File | Derived from (DCSS) | What |
 |------|---------------------|------|
-| `packages/webtiles/src/protocol.ts` | `key_conversion.js`, `cio.h` | Special keycodes sent to the server (arrows, F1–F19, keypad) |
-| `packages/webtiles/src/protocol.ts` | `tileweb.h`, `map-feature.h`, `enums.js` | Mouse-mode and minimap feature-category values |
-| `apps/isorun/src/keys.ts` | `key_conversion.js` | Browser key → DCSS keycode tables, keyed by `which` |
-| `packages/scene-webtiles/src/index.ts` | `enums.js` (`MF_*`, `HALO_*`, cell flag masks) | Fallback tables, cross-checked against the server's own `enums.js` at load and warned about on mismatch |
-| `packages/webtiles/src/format.ts`, `packages/render-2d/src/index.ts` | The official WebTiles stylesheet | The 16-colour terminal palette (the standard IBM CGA/VGA set, not specific to DCSS) |
-| `packages/render-2d/src/index.ts` | `minimap.js` — `init_options` | Default minimap colour palette, indexed by map-feature category |
+| `native/crates/webtiles/src/protocol.rs` | `key_conversion.js`, `cio.h` | Special keycodes sent to the server (arrows, F1–F19, keypad) |
+| `native/crates/webtiles/src/protocol.rs` | `tileweb.h`, `map-feature.h`, `enums.js` | Mouse-mode and minimap feature-category values |
+| `native/crates/input/src/keys.rs` | `key_conversion.js` | Browser key → DCSS keycode tables, keyed by `which` |
+| `native/crates/scene-webtiles` | `enums.js` (`MF_*`, `HALO_*`, cell flag masks) | Fallback tables, cross-checked against the server's own `enums.js` at load and warned about on mismatch |
+| `native/crates/webtiles/src/format.rs`, `native/crates/render2d` | The official WebTiles stylesheet | The 16-colour terminal palette (the standard IBM CGA/VGA set, not specific to DCSS) |
+| `native/crates/render2d` | `minimap.js` — `init_options` | Default minimap colour palette, indexed by map-feature category |
 
 ## Tile art in the front room
 
-The front end's room (`apps/isorun/src/room/places.json`) is drawn from
-a handful of DCSS's own tiles, packed into `apps/isorun/public/room/` by
-`tools/build/pack-room.mjs` from one pinned gamedata version (named in that
+The front end's room (`native/assets/room`) and the test bed
+(`native/crates/client/assets`) are drawn from a handful of DCSS's own tiles,
+packed by `tools/build/pack-room.mjs` from one pinned gamedata version (named in that
 tool; `atlas.json` records it and the source of every tile). This is the one
 place Isorun ships tile art of its own rather than loading the connected
 server's: the room is a build asset the menus stand in before any server is
 spoken to, and gameplay never draws from it. The mark is the Orb of
 Zot's tile of that same version, cut from its `main.png` into
-`apps/isorun/public/orb.png`: it stands beside the name on the title screen,
+`native/assets/orb.png`: it stands beside the name on the title screen,
 and `tools/build/brand.mjs` builds the favicon, the README's wordmark and the
 app icons from it. DCSS's tile art (`rltiles`) is released under CC0 by
 the DCSS team and its artists.
 
 The name beside it is set in Grenze Gotisch Bold by Omnibus-Type, under the
 SIL Open Font License 1.1 (`assets/fonts/OFL.txt`): the title screen loads
-`apps/isorun/public/fonts/grenze-gotisch-700-latin.woff2`, and the brand tool
+`native/crates/ui/assets/fonts/grenze-gotisch-700-latin.ttf`, and the brand tool
 outlines the word from `assets/fonts/GrenzeGotisch-Bold.ttf` so the wordmark
 and icons need no font installed to render.
 
 ## Derived from the DCSS WebTiles client
 
-These files port portions of the official WebTiles client to TypeScript,
+These files port portions of the official WebTiles client (first to
+TypeScript in Orbrun and Isorun's web client, now to Rust),
 following its structure, draw order, and key handling. The presentation
 differs (isometric view, HUD, action bar); the behaviour being reproduced is the
 official client's.
 
 | File | Ported from (DCSS WebTiles) | What |
 |------|-----------------------------|------|
-| `packages/scene-webtiles/src/index.ts` | `cell_renderer.js` — `draw_background`, `draw_foreground`, `draw_dolls` | Cell composition, cursor order, status-icon order and `status_shift`, player-doll/mcache layer composition |
-| `packages/scene-webtiles/src/index.ts` | `monster_list.js` — `monster_sort`, `is_excluded`, `group_monsters`, attitude/threat classes | Monster ordering, exclusion predicate, grouping, attitude and threat classification |
-| `packages/scene/src/bars.ts` | `cell_renderer.js` — `draw_minibars`, `determine_colours` | Health/magic minibar geometry, colours, and the "don't draw when full" rule |
-| `packages/scene/src/index.ts` | `monster_list.js`, `map-feature.h` | Attitude and wound class names carried by the scene model |
-| `packages/render-2d/src/index.ts` | `cell_renderer.js` — `render_cell`; `minimap.js` — `update` | Top-down cell draw order; minimap feature → colour lookup |
-| `apps/isorun/src/overlays.ts` | `menu.js` — `update_more`, `handle_size_change`, `update_visible_indices`, `scroll_to_item`, `snap_in_page`, `update_server_scroll`, `set_hovered`, `title_prompt`; `input.js` | Server menu layout, paging, hover, scroll reporting, title prompts, and key routing |
-| `apps/isorun/src/menu-nav.ts` | `menu.js` — `menu_keydown_handler`, `menu_keypress_handler`, `item_selectable`, `next_hoverable_item`, `get_/set_relative_hover`, `line_up`, `line_down`, `snap_hover_in_page`, `raw_arrow_keys`, `menu_has_custom_dash`; `ui-layouts.js` — `scroller_handle_key` | Menu and popup key semantics |
-| `apps/isorun/src/grid/stats.ts` | `player.js` — `update_bar`, `update_bar_noise`, `update_stat`, `update_defense`, `percentage_color`, `stat_class`, `stat_boosters`, `wielded_weapon` | The stats pane: row order, captions, bar segments, and colour rules |
-| `apps/isorun/src/grid/console.ts` | `game.js` — `layout`, `handle_set_layout`, `toggle_full_window_dungeon_view`, `stat_width`, `show_diameter`; `messages.js` — `message_pane_height` | Console pane geometry and the level-map layout |
-| `apps/isorun/src/grid/messages.ts`, `apps/isorun/src/overlays.ts` | `messages.js` | Message-pane scroll behaviour and the `--more--` prompt |
-| `apps/isorun/src/hud.ts` | `monster_list.js` — `update`; `cell_renderer.js` — `render_cell`, `draw_quantity`; `player.js`; `mouse_control.js` — `show_tooltip`; `game.js` | Monster list rows and limits, the player/monster cell portrait, item quantity marks, cell tooltips |
-| `apps/isorun/src/chat.ts` | `chat.js`, `client.html` — `receive_message`, `toggle`, `toggle_entire_chat`, `focus`, `chat_message_send`, history and linkify | The chat box: caption, history, send/close keys, link handling |
-| `apps/isorun/src/game.ts` | `game.js` — `set_ui_state`, `init_custom_text_colours`, `layout`; `mouse_control.js`; `dungeon_renderer.js` — `handle_mouse`; `ui.js`; `menu.js` | UI-state layers, rc colour overrides, `tile_web_mouse_control` semantics, tooltip and popup pointer rules |
-| `apps/isorun/src/runner.ts` | `mouse_control.js`; `tileweb.cc`; `travel.cc` — `_adjacent_cmd` | Cell-click message shape and button numbering; what a click-travel does not act on |
-| `apps/isorun/src/keys.ts` | `key_conversion.js`, `client.js` | Which keys the browser keeps (F11, F12) and which reach the server |
+| `native/crates/scene-webtiles` | `cell_renderer.js` — `draw_background`, `draw_foreground`, `draw_dolls` | Cell composition, cursor order, status-icon order and `status_shift`, player-doll/mcache layer composition |
+| `native/crates/scene-webtiles` | `monster_list.js` — `monster_sort`, `is_excluded`, `group_monsters`, attitude/threat classes | Monster ordering, exclusion predicate, grouping, attitude and threat classification |
+| `native/crates/scene/src/bars.rs` | `cell_renderer.js` — `draw_minibars`, `determine_colours` | Health/magic minibar geometry, colours, and the "don't draw when full" rule |
+| `native/crates/scene` | `monster_list.js`, `map-feature.h` | Attitude and wound class names carried by the scene model |
+| `native/crates/render2d` | `cell_renderer.js` — `render_cell`; `minimap.js` — `update` | Top-down cell draw order; minimap feature → colour lookup |
+| `native/crates/overlays` | `menu.js` — `update_more`, `handle_size_change`, `update_visible_indices`, `scroll_to_item`, `snap_in_page`, `update_server_scroll`, `set_hovered`, `title_prompt`; `input.js` | Server menu layout, paging, hover, scroll reporting, title prompts, and key routing |
+| `native/crates/overlays/src/menu_nav.rs` | `menu.js` — `menu_keydown_handler`, `menu_keypress_handler`, `item_selectable`, `next_hoverable_item`, `get_/set_relative_hover`, `line_up`, `line_down`, `snap_hover_in_page`, `raw_arrow_keys`, `menu_has_custom_dash`; `ui-layouts.js` — `scroller_handle_key` | Menu and popup key semantics |
+| `native/crates/hud/src/grid/stats.rs` | `player.js` — `update_bar`, `update_bar_noise`, `update_stat`, `update_defense`, `percentage_color`, `stat_class`, `stat_boosters`, `wielded_weapon` | The stats pane: row order, captions, bar segments, and colour rules |
+| `native/crates/hud/src/grid/console.rs` | `game.js` — `layout`, `handle_set_layout`, `toggle_full_window_dungeon_view`, `stat_width`, `show_diameter`; `messages.js` — `message_pane_height` | Console pane geometry and the level-map layout |
+| `native/crates/hud/src/grid/messages.rs`, `native/crates/overlays` | `messages.js` | Message-pane scroll behaviour and the `--more--` prompt |
+| `native/crates/hud/src/hud.rs` | `monster_list.js` — `update`; `cell_renderer.js` — `render_cell`, `draw_quantity`; `player.js`; `mouse_control.js` — `show_tooltip`; `game.js` | Monster list rows and limits, the player/monster cell portrait, item quantity marks, cell tooltips |
+| `native/crates/hud/src/chat.rs` | `chat.js`, `client.html` — `receive_message`, `toggle`, `toggle_entire_chat`, `focus`, `chat_message_send`, history and linkify | The chat box: caption, history, send/close keys, link handling |
+| `native/crates/app/src/game` | `game.js` — `set_ui_state`, `init_custom_text_colours`, `layout`; `mouse_control.js`; `dungeon_renderer.js` — `handle_mouse`; `ui.js`; `menu.js` | UI-state layers, rc colour overrides, `tile_web_mouse_control` semantics, tooltip and popup pointer rules |
+| `native/crates/input/src/runner.rs` | `mouse_control.js`; `tileweb.cc`; `travel.cc` — `_adjacent_cmd` | Cell-click message shape and button numbering; what a click-travel does not act on |
+| `native/crates/input/src/keys.rs` | `key_conversion.js`, `client.js` | Which keys the browser keeps (F11, F12) and which reach the server |
 
 ## Derived from the DCSS engine and server
 
 | File | Derived from (DCSS) | What |
 |------|---------------------|------|
-| `packages/webtiles/src/state.ts` | `tileweb.cc` — `redraw`, `_send_cell`, `_send_item`, `push_ui_cutoff`; `messages.js`; `menu.js`; `game.js`; `ui.js`; `chat.js`; `travel.cc` | Reducer semantics: message ordering, the UI cutoff stack, item and cell field meanings, travel-trail rules |
-| `packages/scene-webtiles/src/index.ts` | `tileweb.cc` — `_send_cell` | Which fields a cell carries and what a missing field means |
-| `packages/gamedata/src/index.ts` | `tileweb.h`; the server's `enums.js`, `tileinfo-*.js` and `status-icon-sizes.js` | UI-state values; the runtime loader for the server's own gamedata |
+| `native/crates/webtiles/src/state.rs` | `tileweb.cc` — `redraw`, `_send_cell`, `_send_item`, `push_ui_cutoff`; `messages.js`; `menu.js`; `game.js`; `ui.js`; `chat.js`; `travel.cc` | Reducer semantics: message ordering, the UI cutoff stack, item and cell field meanings, travel-trail rules |
+| `native/crates/scene-webtiles` | `tileweb.cc` — `_send_cell` | Which fields a cell carries and what a missing field means |
+| `native/crates/gamedata` | `tileweb.h`; the server's `enums.js`, `tileinfo-*.js` and `status-icon-sizes.js` | UI-state values; the runtime loader for the server's own gamedata |
 
 ## Independently implemented
 
 The rest of the codebase is an independent implementation written against the
 observed wire protocol and the behaviour of the official client: the WebSocket
 connection layer, the tolerant reducer's own structure, the scene model
-(`packages/scene`), the isometric renderer (`packages/render-iso`) and every
+(`native/crates/scene`), the isometric renderer (`native/crates/render`) and every
 rendering decision in it, the HUD layout, the gamepad system and action bar,
 the on-screen keyboard, the command menus, the server picker and lobby,
 settings, the front room and the `.des` subset compiler it is written in
-(`packages/vault`, an independent parser of a documented format), the build
+(`native/crates/vault`, an independent parser of a documented format), the build
 tools.
 
 ## PocketZot
@@ -136,16 +137,17 @@ upstream and a JSPI-only build.
 
 ## Third-party assets and dependencies
 
-- [three.js](https://threejs.org) (MIT): the 3D renderer, the one runtime
-  dependency.
+- [egui](https://github.com/emilk/egui) and [wgpu](https://wgpu.rs) (MIT or Apache-2.0): the
+  interface and the renderer; the Rust crates `native/Cargo.lock` lists, each under its own
+  licence.
 - KayKit Dungeon Remastered by Kay Lousberg (CC0): the wall torch model,
-  `apps/isorun/public/iso/models/torch_mounted.glb`.
+  `native/crates/client/assets/torch_mounted.glb` (its licence beside it).
 - Grenze Gotisch by Omnibus-Type (SIL Open Font License 1.1,
   `assets/fonts/OFL.txt`): the title face, as described above.
 - Cinzel by Natanael Gama, The Cinzel Project Authors (SIL Open Font License 1.1,
   `assets/fonts/Cinzel-OFL.txt`): the small capitals of the dock, its screens and tooltips,
-  `apps/isorun/public/fonts/cinzel-latin.woff2` (the latin range from Google Fonts).
-- Sounds, in `apps/isorun/public/audio/` (re-encoded to mono or stereo Ogg Vorbis, trimmed and
+  `native/crates/ui/assets/fonts/cinzel-latin.ttf` and `native/crates/hud/assets/fonts/cinzel-*.ttf`.
+- Sounds, in `native/assets/audio/` (re-encoded to mono or stereo Ogg Vorbis, trimmed and
   normalised in loudness, otherwise as published). Everything below is CC0 (public domain):
   - Kenney, [Impact Sounds](https://kenney.nl/assets/impact-sounds) (CC0): `sfx/step1-5`
     (footstep_concrete), `sfx/hit1-4`, `sfx/hit-heavy1-2`, `sfx/hurt1-2`, `sfx/death1-2`,

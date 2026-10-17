@@ -23,7 +23,7 @@ music, and the cues that turn a game into sounds.
 - `mixer.rs`: where the sound goes. kira on the default device; kira rendered by hand
   (`SoundEngine::offline`, `OfflineOutput::render`); or nowhere (`NullMixer`) when there is no
   device: the logic, the timing and the trace run the same.
-- `embedded.rs` (not on the web): every `.ogg` of `apps/isorun/public/audio`, in the binary.
+- `embedded.rs` (not on the web): every `.ogg` of `native/assets/audio`, in the binary (the web build serves the same files at `/audio/`).
 
 ## The stack
 

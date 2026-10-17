@@ -13,7 +13,7 @@ android {
     namespace = "io.github.maciejrosiek.isorun"
     compileSdk = 35
     defaultConfig {
-        // the Capacitor app's id (mobile/), signed with the same key: it installs over that one
+        // the id of the Capacitor app it replaced, signed with the same key: it installs over that one
         applicationId = "io.github.maciejrosiek.isorun"
         minSdk = 26
         targetSdk = 35
@@ -25,7 +25,7 @@ android {
         assets.srcDir(stage.dir("assets"))
         res.srcDir(stage.dir("res"))
     }
-    // the release key (mobile/README.md): ISORUN_KEYSTORE, ISORUN_KEYSTORE_PASSWORD, and
+    // the release key (native/android/README.md): ISORUN_KEYSTORE, ISORUN_KEYSTORE_PASSWORD, and
     // optionally ISORUN_KEY_ALIAS (isorun) and ISORUN_KEY_PASSWORD (the store's)
     val keystore = System.getenv("ISORUN_KEYSTORE")
     signingConfigs {

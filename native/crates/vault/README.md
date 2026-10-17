@@ -3,7 +3,7 @@
 A supported subset of DCSS's `.des` vault syntax, parsed and compiled to an
 `isorun-scene` `Scene` that the renderers draw exactly as they draw a live
 level; the port of `packages/vault`. Written for Isorun's front room and the
-isometric test bed (`apps/isorun/testbed/iso.des`), places authored by hand
+isometric test bed (`native/crates/client/assets/iso.des`), places authored by hand
 from the game's own tiles; useful for any static scene or level preview.
 
 Accepted: `NAME`, `MAP … ENDMAP`, `TILE`, `FTILE`, `KFEAT`, `KITEM`,

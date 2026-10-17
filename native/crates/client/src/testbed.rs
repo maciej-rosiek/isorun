@@ -1,4 +1,4 @@
-//! The test bed: the level of `apps/isorun/testbed/iso.des` with every kind of cell, a monster
+//! The test bed: the level of `assets/iso.des` with every kind of cell, a monster
 //! of each status, and the human as the player. No server; it shows the look.
 
 use crate::tiles::decode_png;

@@ -1,18 +1,17 @@
-name: Build the Isorun native app
+name: Build the Isorun app
 
-# The native app (native/: Rust, egui and wgpu) beside the TypeScript one: the workspace's tests,
-# and its packages with the offline engine built natively (engine/native.sh):
-#   Isorun-native-linux-x86_64.tar.gz, Isorun-native-x86_64.AppImage (+ .zsync)   native/desktop
-#   Isorun-native-win-x64.zip                                                      native/desktop
+# The app (native/: Rust, egui and wgpu): the workspace's tests, the web build's check, and the
+# desktop packages with the offline engine built natively (engine/native.sh):
+#   Isorun-linux-x86_64.tar.gz, Isorun-x86_64.AppImage (+ .zsync)   native/desktop
+#   Isorun-win-x64.zip                                              native/desktop
 # kept as the run's artifacts. A published release, or a manual run with "upload", adds them to
-# the release (its tag; v<version of apps/isorun/package.json> for a manual run). The APK is
-# isorun-native-android.yml's, and the web build is deployed with the hosted page, at /native/
-# (isorun-cloudflare.yml).
+# the release (its tag; v<the version in native/Cargo.toml> for a manual run). The APK is
+# isorun-android.yml's, and the web build is deployed as the hosted page (isorun-cloudflare.yml).
 
 on:
   push:
     branches: [main]
-    paths: ['native/**', 'engine/native.sh', 'engine/patches/**', '.github/workflows/isorun-native.yml']
+    paths: ['native/**', 'engine/native.sh', 'engine/patches/**', 'engine/wasm/**', 'ABOUT.md', 'CHANGELOG.md', 'STEAM.md', '.github/workflows/isorun-desktop.yml']
   release:
     types: [published]
   workflow_dispatch:
@@ -23,7 +22,7 @@ on:
         default: false
 
 concurrency:
-  group: isorun-native-${{ github.event_name }}
+  group: isorun-desktop-${{ github.event_name }}
   cancel-in-progress: true
 
 permissions:
@@ -83,11 +82,11 @@ jobs:
         run: native/desktop/package.sh linux
       - uses: actions/upload-artifact@v4
         with:
-          name: Isorun-native-linux
+          name: Isorun-linux
           path: |
-            native/target/release-packages/Isorun-native-linux-x86_64.tar.gz
-            native/target/release-packages/Isorun-native-x86_64.AppImage
-            native/target/release-packages/Isorun-native-x86_64.AppImage.zsync
+            native/target/release-packages/Isorun-linux-x86_64.tar.gz
+            native/target/release-packages/Isorun-x86_64.AppImage
+            native/target/release-packages/Isorun-x86_64.AppImage.zsync
 
   windows:
     runs-on: ubuntu-24.04
@@ -111,8 +110,8 @@ jobs:
         run: native/desktop/package.sh windows
       - uses: actions/upload-artifact@v4
         with:
-          name: Isorun-native-windows
-          path: native/target/release-packages/Isorun-native-win-x64.zip
+          name: Isorun-windows
+          path: native/target/release-packages/Isorun-win-x64.zip
 
   release:
     if: github.event_name == 'release' || inputs.upload
@@ -128,7 +127,7 @@ jobs:
         run: |
           tag=${{ github.event.release.tag_name }}
           if [ -z "$tag" ]; then
-            tag=v$(node -p "require('./apps/isorun/package.json').version")
+            tag=v$(sed -n 's/^version = "\(.*\)"/\1/p' native/Cargo.toml | head -1)
           fi
           gh release upload "$tag" packages/* --clobber
         env:

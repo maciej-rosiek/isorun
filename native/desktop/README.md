@@ -1,12 +1,15 @@
-# Isorun native on the desktop
+# Isorun on the desktop
 
-`package.sh` packages the native app with the offline engine beside it (`engine/`, where
+`package.sh` packages the app with the offline engine beside it (`engine/`, where
 `client::engine` looks first), into `native/target/release-packages/`:
 
-- `linux`: `Isorun-native-linux-x86_64.tar.gz` (a folder) and `Isorun-native-x86_64.AppImage`
+- `linux`: `Isorun-linux-x86_64.tar.gz` (a folder) and `Isorun-x86_64.AppImage`
   (with a `.zsync` for AppImageUpdate, from this repository's latest release).
-- `windows`: `Isorun-native-win-x64.zip`, cross-compiled with mingw-w64.
+- `windows`: `Isorun-win-x64.zip`, cross-compiled with mingw-w64.
 
 Build the engine first: `engine/native.sh stable` (Linux) or `engine/native.sh stable --target
-windows`. The names differ from the Electron app's (`desktop/`), so both fit in one release;
-`.github/workflows/isorun-native.yml` builds them and adds them to a published release.
+windows`. `.github/workflows/isorun-desktop.yml` builds them and adds them to a published
+release; the app's Get the app screen and `STEAM.md` link them by these names from the latest
+release. The AppImage's update information (`gh-releases-zsync|maciej-rosiek|isorun|latest|
+Isorun-x86_64.AppImage.zsync`) lets AppImageUpdate, Gear Lever or AppImageLauncher update it
+in place; the app does not update itself.

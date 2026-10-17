@@ -7,7 +7,7 @@
 //!     ISORUN_DATA_DIR=/tmp/smoke cargo run -p isorun-client --example offline_smoke [profile]
 //!
 //! `ISORUN_ENGINE_DIR` picks an engine folder (engine/native.sh's), as the app does. The Android
-//! CI runs it on an emulator, beside crawl as `libcrawl.so` (isorun-native-android.yml).
+//! CI runs it on an emulator, beside crawl as `libcrawl.so` (isorun-android.yml).
 
 use isorun_client::engine;
 use isorun_client::platform::net::ConnEvent;

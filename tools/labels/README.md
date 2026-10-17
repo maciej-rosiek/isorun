@@ -3,11 +3,11 @@
 What each DCSS tile is made of and how its surface behaves: the material, the relief and its joints,
 whether its light texels are the high ones, the gloss, whether it is wet, whether it glows or
 sparkles, whether it is see-through, and how a creature moves. The renderer builds each tile's
-height, gloss, glow and sparkle from them (`packages/render-iso/src/enhance.ts`), and an actor's
-motion and see-through look (`shading.ts` `actorMaterial`).
+height, gloss, glow and sparkle from them (`native/crates/render/src/enhance.rs`), and an actor's
+motion and see-through look (the render crate, `labels.rs`).
 
 - `labels.json`: the labels by tile name, as the labelling gave them (the source of truth).
-- `packages/render-iso/src/tile-labels.json`: the same labels by the pixel hash of every variant
+- `native/crates/render/src/tile-labels.json`: the same labels by the pixel hash of every variant
   (`tileHash`), which the renderer reads. A tile finds its label by its art, so the labels hold on
   any server and version that has the same art, bcrawl included; a tile with no label gets a
   little relief and nothing else (`UNLABELLED`).

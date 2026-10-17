@@ -1,16 +1,14 @@
 #!/bin/sh
-# Packages the native app for the desktop: the `isorun` binary with the
+# Packages the app for the desktop: the `isorun` binary with the
 # offline engine beside it (engine/, as engine.rs finds it), into
 # native/target/release-packages/.
 #
-#   native/desktop/package.sh linux      # Isorun-native-linux-x86_64.tar.gz and Isorun-native-x86_64.AppImage
-#   native/desktop/package.sh windows    # Isorun-native-win-x64.zip (x86_64-pc-windows-gnu, mingw-w64)
+#   native/desktop/package.sh linux      # Isorun-linux-x86_64.tar.gz and Isorun-x86_64.AppImage
+#   native/desktop/package.sh windows    # Isorun-win-x64.zip (x86_64-pc-windows-gnu, mingw-w64)
 #
 # The engine comes from engine/native.sh (engine/dist/native/<target>/engine);
 # build it first: `engine/native.sh stable` for linux, `engine/native.sh
 # stable --target windows` for windows. ISORUN_ENGINE overrides where it is.
-# Packages are named apart from the Electron app's (desktop/), so both can sit
-# in one release.
 set -eu
 
 HERE=$(cd "$(dirname "$0")" && pwd)
@@ -40,7 +38,7 @@ linux() {
     # the plain folder
     dir=$OUT/linux/Isorun
     stage "$dir" "$bin" "$engine"
-    tar -C "$OUT/linux" -czf "$OUT/Isorun-native-linux-x86_64.tar.gz" Isorun
+    tar -C "$OUT/linux" -czf "$OUT/Isorun-linux-x86_64.tar.gz" Isorun
 
     # the AppImage: the same folder under usr/bin, so the engine is beside the binary
     app=$OUT/linux/Isorun.AppDir
@@ -70,10 +68,10 @@ EOF
     # the update information lets AppImageUpdate (and Gear Lever, AppImageLauncher) update it
     # from this repository's latest release, by the .zsync written beside it
     (cd "$OUT" && ARCH=x86_64 "$tool" --appimage-extract-and-run --no-appstream \
-        -u "gh-releases-zsync|maciej-rosiek|isorun|latest|Isorun-native-x86_64.AppImage.zsync" \
-        "$app" "$OUT/Isorun-native-x86_64.AppImage")
+        -u "gh-releases-zsync|maciej-rosiek|isorun|latest|Isorun-x86_64.AppImage.zsync" \
+        "$app" "$OUT/Isorun-x86_64.AppImage")
     rm -rf "$OUT/linux"
-    ls -la "$OUT"/Isorun-native-linux-x86_64.tar.gz "$OUT"/Isorun-native-x86_64.AppImage
+    ls -la "$OUT"/Isorun-linux-x86_64.tar.gz "$OUT"/Isorun-x86_64.AppImage
 }
 
 # appimagetool, fetched once into the target dir (an AppImage itself, run extracted: no FUSE needed)
@@ -96,10 +94,10 @@ windows() {
     x86_64-w64-mingw32-strip "$bin" 2>/dev/null || true
     dir=$OUT/windows/Isorun
     stage "$dir" "$bin" "$engine"
-    rm -f "$OUT/Isorun-native-win-x64.zip"
-    (cd "$OUT/windows" && zip -qr9 "$OUT/Isorun-native-win-x64.zip" Isorun)
+    rm -f "$OUT/Isorun-win-x64.zip"
+    (cd "$OUT/windows" && zip -qr9 "$OUT/Isorun-win-x64.zip" Isorun)
     rm -rf "$OUT/windows"
-    ls -la "$OUT/Isorun-native-win-x64.zip"
+    ls -la "$OUT/Isorun-win-x64.zip"
 }
 
 [ $# -gt 0 ] || set -- linux

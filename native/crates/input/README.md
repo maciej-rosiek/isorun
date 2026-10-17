@@ -74,10 +74,9 @@ pad, `stick_to_dir` with its `yaw_goal()` for the aim arrow, and turns it (`turn
 
 ## Tests and the demo
 
-`cargo test -p isorun-input`: the TypeScript tests in `apps/isorun/test` ported (keys, bindings,
+`cargo test -p isorun-input`: the TypeScript client's tests ported (keys, bindings,
 context, runner, gamepad, hints, cells, combat, map hold, OSK, touch, routing).
 
 `examples/input.rs` plays an offline game in the harness with every key, the pad and the pointer
 going through this crate, and logs each message it sends (`SENT <json>`; `ISORUN_INPUT_LOG` to a
 file). `ISORUN_PAD_SCRIPT="t:BUTTONS:LX,LY,RX,RY;..."` plays a scripted pad.
-`tools/web-keys.mjs` plays the same keys on the web build and logs what it sends, to compare.

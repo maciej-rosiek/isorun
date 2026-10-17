@@ -1,6 +1,6 @@
 #!/bin/sh
 # Plays the offline engine on an Android device or emulator (adb on PATH, one device), as the CI
-# does after building the APK (isorun-native-android.yml):
+# does after building the APK (isorun-android.yml):
 #
 #   native/android/smoke.sh <Isorun.apk> <smoke dir>
 #

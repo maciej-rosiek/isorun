@@ -39,9 +39,8 @@ Monster billboards carry `ref_id` = `mon.id`; the player's carries
 `PLAYER_REF`. Cells are built in key order (row by row), so a build does not
 depend on hash order; a tie for the level's lid goes to the lower tile id.
 
-Tested against a recorded session (`packages/webtiles/test/fixtures`) and the
-checked-in tileinfo of one gamedata version
-(`packages/scene-webtiles/test/fixtures`): `cargo test -p
+Tested against a recorded session and the checked-in tileinfo of one gamedata
+version (`native/fixtures`): `cargo test -p
 isorun-scene-webtiles`. Part of [Isorun](https://github.com/maciej-rosiek/isorun).
 AGPL-3.0-or-later; see the repository's ATTRIBUTION.md for what follows the
 official client's `cell_renderer.js` and `monster_list.js`.

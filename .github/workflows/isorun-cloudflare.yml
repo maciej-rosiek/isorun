@@ -57,3 +57,18 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STATS_KEY: ${{ secrets.ISORUN_STATS_KEY }}
+      # the deployed page: the build's own page at /, and the web build's old place sent home
+      - name: Live check
+        run: |
+          base=https://isorun.maciej-rosiek.workers.dev
+          pkg=$(ls -d native/web/dist/pkg-* | xargs -n1 basename)
+          for i in 1 2 3 4 5 6; do
+            curl -fsS "$base/" | grep -q "$pkg/isorun_app.js" && break
+            [ "$i" = 6 ] && { echo "::error::$base/ does not serve $pkg"; exit 1; }
+            sleep 10
+          done
+          echo "/ serves $pkg"
+          curl -sS -o /dev/null -w '/native/ -> %{http_code} %{redirect_url}\n' "$base/native/" | tee native.txt
+          grep -q "^/native/ -> 301 $base/$" native.txt
+          curl -fsS -o /dev/null -w '/audio/sfx/hit1.ogg -> %{http_code}\n' "$base/audio/sfx/hit1.ogg"
+          curl -sS -o /dev/null -w '/engine/stable/engine.json -> %{http_code}\n' "$base/engine/stable/engine.json"

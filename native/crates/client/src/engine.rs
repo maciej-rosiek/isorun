@@ -8,7 +8,7 @@
 //! - Windows: a child process on its stdin and stdout, which
 //!   `engine/patches/13-windows-webtiles.patch` gives crawl there.
 //! - The web: the WebAssembly crawl of `engine/dist` in a Web Worker, run by
-//!   `packages/offline/src/worker.ts` through the page's `isorunEngine` module (`native/web`;
+//!   `native/web/engine/worker.ts` through the page's `isorunEngine` module (`native/web`;
 //!   `web`).
 //!
 //! An engine natively is a folder (`engine.json`, the `crawl` binary, its `dat`, `docs` and
@@ -1138,7 +1138,7 @@ mod native {
 }
 
 /// The web: the WebAssembly crawl in a Web Worker, through the page's `isorunEngine` module
-/// (`native/web/engine-bridge.ts`, which runs `packages/offline`'s worker).
+/// (`native/web/engine-bridge.ts`, which runs `native/web/engine/worker.ts`).
 #[cfg(target_arch = "wasm32")]
 mod web {
     use super::*;

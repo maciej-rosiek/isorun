@@ -1,8 +1,8 @@
 # Add Isorun to Steam
 
 The Isorun app for Linux is one file, an AppImage, so it goes onto a Steam
-Deck as a non-Steam game. It plays on the public servers and offline, and it
-updates itself. It takes five steps and a few minutes.
+Deck as a non-Steam game. It plays on the public servers and offline. It
+takes five steps and a few minutes.
 
 The first four happen in Desktop Mode: hold the power button and choose
 **Switch to Desktop**.
@@ -21,8 +21,8 @@ If you'd rather click than type, download `Isorun-x86_64.AppImage` from the
 move it to a folder where it can stay, right-click it, choose **Properties >
 Permissions** and tick **Is executable**.
 
-Keep the file where it is: each update replaces it in place, so Steam's
-shortcut stays right.
+Keep the file where it is, so Steam's shortcut stays right. To update it, run
+the same line again, or let Gear Lever or AppImageUpdate replace it in place.
 
 ## 2. Add it to Steam
 
@@ -35,8 +35,6 @@ Library**. Click **Browse**, set the file type to **All Files**, choose
 Right-click `Isorun-x86_64.AppImage` in your library, choose **Properties**,
 and rename it to `Isorun`. Leave **Launch Options** empty: the app opens full
 screen on its own.
-
-If it does not start, add `--no-sandbox` to **Launch Options**.
 
 ## 4. Add the artwork (optional)
 

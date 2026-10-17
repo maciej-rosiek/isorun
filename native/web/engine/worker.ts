@@ -41,7 +41,7 @@ async function start(m: Extract<ToWorker, { type: 'start' }>) {
   try {
     engine = await startEngine({
       source: {
-        factory: async () => ((await import(/* @vite-ignore */ url('crawl.js'))) as { default: EngineFactory }).default,
+        factory: async () => ((await import(url('crawl.js'))) as { default: EngineFactory }).default,
         read: async (file: EngineFile) => {
           const res = await fetch(url(file))
           if (!res.ok) throw new Error(`${file}: HTTP ${res.status}`)

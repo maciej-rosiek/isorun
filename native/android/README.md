@@ -1,6 +1,6 @@
-# Isorun native for Android
+# Isorun for Android
 
-The native app (`native/crates/app`) as an APK: a `NativeActivity` that loads
+The app (`native/crates/app`) as an APK: a `NativeActivity` that loads
 `libisorun_app.so` (`android_main` in `crates/app/src/lib.rs`), with no Java or Kotlin. The
 offline engine is crawl cross-compiled with the NDK (`engine/native.sh --target android-<arch>`,
 with `engine/patches/14-android-webtiles.patch`), shipped as `lib/<abi>/libcrawl.so`: Android
@@ -14,10 +14,12 @@ the data folders (EACCES in the shell's on the emulator). A game that ends badly
 report (its signal, its error output, its crash file) under the tag `isorun`: `adb logcat -s
 isorun:* Crawl:*`.
 
-It is `io.github.maciejrosiek.isorun`, the Capacitor app's id (`mobile/`), with the same version
-code (the game's version in `apps/isorun/package.json`) and the same release key, so it installs
-over the Capacitor app and replaces it; releases carry it as `Isorun.apk`. It does not read the
-Capacitor app's saves (they are in the WebView's IndexedDB).
+It is `io.github.maciejrosiek.isorun`, the id of the Capacitor app it replaced, with the version
+code that app had (from the version in `native/Cargo.toml`: 0.1.5 is 105) and the same release
+key, so it installs over that app; releases carry it as `Isorun.apk`. It does not read the
+Capacitor app's saves (they were in the WebView's IndexedDB). It does not update itself: a newer
+APK installs over it, saves kept, and [Obtainium](https://obtainium.imranr.dev) (source
+`https://github.com/maciej-rosiek/isorun`) finds `Isorun.apk` in each release.
 
 ## Build
 
@@ -27,11 +29,26 @@ Capacitor app's saves (they are in the WebView's IndexedDB).
 It needs the Android SDK (`ANDROID_HOME`, platform 35), an NDK r26 or newer
 (`ANDROID_NDK_HOME`), `gradle` 8.9 or newer, a JDK 17 or 21, and the Rust targets
 `aarch64-linux-android` and `x86_64-linux-android`. The APK is
-`native/target/release-packages/Isorun.apk`. It is signed with the release key of
-`mobile/README.md` (`ISORUN_KEYSTORE`, `ISORUN_KEYSTORE_PASSWORD`, `ISORUN_KEY_ALIAS`,
-`ISORUN_KEY_PASSWORD`) when they are set, and with the debug key otherwise.
+`native/target/release-packages/Isorun.apk`. It is signed with the release key (below) when
+`ISORUN_KEYSTORE` is set, and with the debug key otherwise.
 
-`.github/workflows/isorun-native-android.yml` builds it on every push to `main` (the run's
+## The release key
+
+Every build must be signed with the same key, or Android will not install it over the last one
+(a lost key means a new app, and the players' saves stay behind with the old one). It was made
+once with
+
+    keytool -genkeypair -v -keystore isorun.keystore -alias isorun -keyalg RSA -keysize 4096 -validity 20000
+
+The build reads it from the environment: `ISORUN_KEYSTORE` (the file), `ISORUN_KEYSTORE_PASSWORD`,
+and optionally `ISORUN_KEY_ALIAS` (default `isorun`) and `ISORUN_KEY_PASSWORD` (default the
+store's). Without `ISORUN_KEYSTORE` the APK is signed with the debug key: it installs, but neither
+it nor a release-signed APK will update the other. On GitHub the key is two repository secrets,
+`ANDROID_KEYSTORE_BASE64` (`base64 -w0 isorun.keystore`) and `ANDROID_KEYSTORE_PASSWORD`.
+
+## CI
+
+`.github/workflows/isorun-android.yml` builds it on every push to `main` (the run's
 artifact) and adds it to a release when one is published, or on a manual run with "upload".
 
 ## Smoke test

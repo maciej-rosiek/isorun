@@ -52,7 +52,7 @@ send(cm::watch("somebody"));
 ```
 
 Tested by replaying recorded sessions from a public server
-(`packages/webtiles/test/fixtures/*.ndjson`) and the TS package's own cases:
+(`native/fixtures/*.ndjson`) and the TypeScript package's own cases:
 `cargo test -p isorun-webtiles`.
 
 Part of [Isorun](https://github.com/maciej-rosiek/isorun). AGPL-3.0-or-later.
