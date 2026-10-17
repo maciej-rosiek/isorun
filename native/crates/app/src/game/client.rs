@@ -351,7 +351,7 @@ impl ClientMenu {
 
     /// Draw the list; a click fires a row or turns a tab.
     pub fn ui(&mut self, ctx: &egui::Context, tiles: &mut TileIcons, scale: f32, keyboard: bool) -> (Option<ClientEvent>, bool) {
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(ctx);
         let rem = 15.0 * scale;
         let size = 0.95 * rem;
         let mono = egui::FontId::monospace(size);

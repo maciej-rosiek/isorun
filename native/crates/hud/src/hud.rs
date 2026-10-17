@@ -289,7 +289,7 @@ impl Hud {
         }
         self.boxes.begin_frame();
         let st = cx.state;
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(&ctx);
         let Some(layout) = self.layout else { return HudOutput::default() };
         let watching = st.watching.is_some();
         let mut output = HudOutput::default();

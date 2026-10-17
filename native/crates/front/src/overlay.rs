@@ -330,7 +330,7 @@ impl GameMenus {
             }
         }
         let Some(page) = self.page.clone() else { return out };
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(ctx);
         let rem = 15.0 * settings::ui_scale(&self.settings);
         let size = 0.95 * rem;
         let bold = ctx.pixels_per_point() <= 1.5;

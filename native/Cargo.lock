@@ -1682,6 +1682,7 @@ dependencies = [
  "isorun-scene-webtiles",
  "isorun-ui",
  "isorun-webtiles",
+ "jni",
  "js-sys",
  "log",
  "serde",

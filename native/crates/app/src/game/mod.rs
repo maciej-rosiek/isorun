@@ -510,7 +510,7 @@ impl GameScreen {
         self.track_actions(now, true);
 
         // 4. the layout, then the input
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(&ctx);
         let map_view = self.parts.map_shown;
         let layout = self.parts.hud.layout(&ctx, screen, &self.session.state, &self.client_settings, map_view);
         self.parts.dock_on = layout.dock;
@@ -1643,7 +1643,7 @@ impl GameScreen {
             return;
         }
         let shown = !self.session.watching() && self.parts.client.is_none() && !self.parts.menus.is_open() && !self.parts.chat_capturing && !self.parts.overlays.level_up.choosing();
-        let screen = ui.ctx().content_rect();
+        let screen = isorun_ui::safe::rect(ui.ctx());
         let ctx = self.ctx.clone();
         let (a, _) = isorun_input::touch_bar::touch_bar(ui, &ctx, shown, screen);
         if let Some(a) = a {

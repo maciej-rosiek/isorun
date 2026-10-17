@@ -156,7 +156,7 @@ impl Osk {
     /// Returns what a click on a key asked.
     pub fn show(&self, ctx: &egui::Context, preview: &str, prompts: &[OskPrompt]) -> Option<OskEdit> {
         let target = self.target.as_ref()?;
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(ctx);
         let em = 15.0;
         let key = 2.1 * em;
         let gap = 0.2 * em;

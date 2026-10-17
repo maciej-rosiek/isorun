@@ -227,6 +227,8 @@ impl eframe::App for IsorunApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // a phone is told by its window (the first frame's size is the real one, the app's start
         // may not know it yet)
+        #[cfg(target_os = "android")]
+        crate::android_insets::poll(ui.ctx());
         let size = ui.ctx().content_rect().size();
         let phone = self.opts.touch && size.x.min(size.y) < 560.0;
         isorun_front::settings::set_phone(phone);
@@ -257,7 +259,10 @@ impl eframe::App for IsorunApp {
             Screen::Testbed(_) => self.testbed(ui),
             Screen::Front => {
                 self.front_pad();
-                match self.front.ui(ui) {
+                // the front end inside the safe area (the system's bars, a camera cutout)
+                let safe = isorun_ui::safe::rect(ui.ctx());
+                let mut inside = ui.new_child(egui::UiBuilder::new().max_rect(safe));
+                match self.front.ui(&mut inside) {
                     Some(FrontAction::Play { session, .. }) | Some(FrontAction::Watch { session, .. }) => {
                         let pads = std::mem::take(&mut self.pads);
                         let game = GameScreen::new(ui.ctx(), session, self.rs.clone(), self.engine.clone(), self.opts.clone(), pads);

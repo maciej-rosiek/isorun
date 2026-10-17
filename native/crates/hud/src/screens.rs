@@ -512,7 +512,7 @@ impl Screen {
 
     /// Draw the screen over the game and take its input.
     pub fn ui(&mut self, ctx: &egui::Context, data: &ScreenData, tiles: &mut TileIcons, boxes: &mut BoxCache, u: f32) -> Vec<ScreenEvent> {
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(ctx);
         let mut events = vec![];
         // the world under the panel takes no clicks while it is up
         let modal = egui::Area::new(egui::Id::unique("hud-screen-modal")).order(egui::Order::Foreground).fixed_pos(screen.min);

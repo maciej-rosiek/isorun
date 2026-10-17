@@ -2,6 +2,8 @@
 //! eframe (egui and wgpu) for the desktop, Android and the web.
 
 pub mod app;
+#[cfg(target_os = "android")]
+mod android_insets;
 
 use isorun_client::servers;
 #[cfg(target_os = "android")]
@@ -50,6 +52,7 @@ pub fn run_native() -> eframe::Result {
 #[unsafe(no_mangle)]
 fn android_main(android: winit::platform::android::activity::AndroidApp) {
     android_logger_init();
+    android_insets::set_app(&android);
     if let Some(dir) = android.internal_data_path() {
         if let Err(e) = unpack_engine(&android, &dir.join("engine")) {
             log::error!("the offline engine was not unpacked: {e}");

@@ -690,7 +690,7 @@ impl Classic {
             return;
         }
         ctx.request_repaint();
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(ctx);
         let size = 15.0;
         let g = ctx.fonts_mut(|f| f.layout_no_wrap(text.clone(), egui::FontId::monospace(size), Color32::WHITE));
         let r = Rect::from_center_size(egui::pos2(screen.center().x, screen.top() + screen.height() * 0.12 + (g.size().y + 0.6 * size) / 2.0), g.size() + egui::vec2(1.6 * size, 0.6 * size));
@@ -796,7 +796,7 @@ pub fn paint_inspect(ctx: &egui::Context, boxes: &mut BoxCache, lines: &[Inspect
     if lines.is_empty() {
         return;
     }
-    let screen = ctx.content_rect();
+    let screen = isorun_ui::safe::rect(ctx);
     let painter = ctx.layer_painter(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("hud-inspect")));
     let base = 17.0 * u;
     let tone = |t: Option<&str>| -> C {

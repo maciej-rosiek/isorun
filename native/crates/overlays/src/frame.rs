@@ -15,7 +15,7 @@ pub struct Screen {
 
 impl Screen {
     pub fn new(ctx: &egui::Context, scale: f32) -> Self {
-        Screen { rect: ctx.content_rect(), scale }
+        Screen { rect: isorun_ui::safe::rect(ctx), scale }
     }
     pub fn w(&self) -> f32 {
         self.rect.width()

@@ -172,7 +172,7 @@ impl CellMenu {
     pub fn show(&self, ctx: &egui::Context, hu: f32) -> CellMenuResponse {
         let id = egui::Id::unique(("isorun-cell-menu", self.x, self.y));
         let caps = caps_family(ctx);
-        let screen = ctx.content_rect();
+        let screen = isorun_ui::safe::rect(ctx);
         // beside the finger, not under it: above and to the right, turned back inside the screen where it would leave it
         let size = ctx.memory(|m| m.area_rect(id)).map_or(egui::vec2(220.0 * hu, 160.0 * hu), |r| r.size());
         let gap = 24.0;
