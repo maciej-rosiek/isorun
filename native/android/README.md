@@ -10,8 +10,11 @@ client's gamedata are assets under `engine/`, listed in `engine/files.txt`; the 
 into its files (`files/engine`) on the first start and whenever the APK carries another build,
 and `client::engine` runs crawl from there.
 
-It is `io.github.maciejrosiek.isorun.native`, so it installs beside the Capacitor app
-(`mobile/`).
+It is `io.github.maciejrosiek.isorun`, the Capacitor app's id (`mobile/`), with the same version
+code (the game's version in `apps/isorun/package.json`) and the same release key, so it installs
+over the Capacitor app (whose saves it does not read: they are in the WebView's IndexedDB).
+Releases carry it as `Isorun-native.apk` beside the Capacitor app's `Isorun.apk` until it is
+complete.
 
 ## Build
 
@@ -25,4 +28,5 @@ It needs the Android SDK (`ANDROID_HOME`, platform 35), an NDK r26 or newer
 `mobile/README.md` (`ISORUN_KEYSTORE`, `ISORUN_KEYSTORE_PASSWORD`, `ISORUN_KEY_ALIAS`,
 `ISORUN_KEY_PASSWORD`) when they are set, and with the debug key otherwise.
 
-`.github/workflows/isorun-native.yml` builds it on GitHub and adds it to a published release.
+`.github/workflows/isorun-native-android.yml` builds it on every push to `main` (the run's
+artifact) and adds it to a release when one is published, or on a manual run with "upload".

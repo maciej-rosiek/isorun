@@ -57,8 +57,9 @@ mkdir -p "$STAGE/assets/engine"
 (cd "$engine" && tar --exclude ./crawl -cf - .) | (cd "$STAGE/assets/engine" && tar -xf -)
 (cd "$STAGE/assets/engine" && find . -type f ! -name engine.json ! -name files.txt | sed 's#^\./##' | sort > files.txt)
 
-version=$(sed -n 's/^version = "\(.*\)"/\1/p' "$NATIVE/Cargo.toml" | head -1)
-# 0.1.5 -> 105: a higher version is a higher code
+# the game's version, as the Capacitor app has it (mobile/android/app/build.gradle), so one
+# orders after the other: 0.1.5 -> 105
+version=$(sed -n 's/^  "version": "\(.*\)",/\1/p' "$ROOT/apps/isorun/package.json" | head -1)
 code=$(echo "$version" | awk -F. '{ print $1 * 10000 + $2 * 100 + $3 }')
 (cd "$HERE" && gradle --no-daemon -q assembleRelease -PisorunVersion="$version" -PisorunVersionCode="$code")
 cp "$HERE/app/build/outputs/apk/release/app-release.apk" "$OUT/Isorun-native.apk"

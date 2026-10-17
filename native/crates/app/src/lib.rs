@@ -39,7 +39,7 @@ pub fn run_native() -> eframe::Result {
 /// The Android entry point (NativeActivity).
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
-fn android_main(android: eframe::winit::platform::android::activity::AndroidApp) {
+fn android_main(android: winit::platform::android::activity::AndroidApp) {
     android_logger_init();
     if let Some(dir) = android.internal_data_path() {
         if let Err(e) = unpack_engine(&android, &dir.join("engine")) {
@@ -58,7 +58,7 @@ fn android_main(android: eframe::winit::platform::android::activity::AndroidApp)
 /// and again when the APK carries another build (its `engine.json` differs). The binary itself is
 /// `lib/<abi>/libcrawl.so`, which Android unpacks and lets the app run (engine.rs).
 #[cfg(target_os = "android")]
-fn unpack_engine(android: &eframe::winit::platform::android::activity::AndroidApp, dir: &std::path::Path) -> std::io::Result<()> {
+fn unpack_engine(android: &winit::platform::android::activity::AndroidApp, dir: &std::path::Path) -> std::io::Result<()> {
     use std::ffi::CString;
     use std::io::{Error, Read};
     let assets = android.asset_manager();

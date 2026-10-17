@@ -10,12 +10,11 @@ val appVersion: String = providers.gradleProperty("isorunVersion").getOrElse("0.
 val appVersionCode: Int = providers.gradleProperty("isorunVersionCode").getOrElse("1").toInt()
 
 android {
-    namespace = "io.github.maciejrosiek.isorun.native"
+    namespace = "io.github.maciejrosiek.isorun"
     compileSdk = 35
     defaultConfig {
-        // beside the Capacitor app (io.github.maciejrosiek.isorun, mobile/), not over it, while
-        // both are built; the native one takes the id over when it replaces the other
-        applicationId = "io.github.maciejrosiek.isorun.native"
+        // the Capacitor app's id (mobile/), signed with the same key: it installs over that one
+        applicationId = "io.github.maciejrosiek.isorun"
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
