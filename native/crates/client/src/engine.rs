@@ -145,6 +145,23 @@ trait Process {
     fn retire(&mut self) {
         self.kill();
     }
+    /// What it left behind when it stopped badly: how it stopped (a signal), what it wrote to its
+    /// error output and crawl's own crash file. None when there is nothing to tell.
+    fn crash_report(&mut self) -> Option<String> {
+        None
+    }
+}
+
+/// The line of a crash report the dialog shows: the first that says something. crawl's crash
+/// file and its error output open with the error itself ("ASSERT(...) in 'x.cc' at line N
+/// failed", "Cannot find ..."), or with the signal line this side writes.
+fn crash_headline(report: &str) -> Option<String> {
+    let line = report.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with("---") && !l.starts_with("==="))?;
+    let mut cut: String = line.chars().take(160).collect();
+    if cut.len() < line.len() {
+        cut.push('\u{2026}');
+    }
+    Some(cut)
 }
 
 /// How long a stop waits for crawl to save after its hangup before it is killed.
@@ -161,6 +178,8 @@ struct Game {
     stopping: Option<(f64, Hangup)>,
     /// The messages crawl sent before the client was told its gamedata (the web fetches it first).
     held: Option<Vec<Value>>,
+    /// Whether crawl has drawn a map yet (logged once: the log tells how far a game got).
+    mapped: bool,
 }
 
 /// The lobby and the relay around crawl (server.ts `OfflineServer`).
@@ -306,6 +325,7 @@ impl OfflineServer {
         let rc = read_rc(&self.user);
         match host::launch(&b, &self.user, extra, &rc, self.wake.clone()) {
             Ok((mut process, save_dir)) => {
+                log::info!("the offline game started ({}), saves in {save_dir}", b.label());
                 // the socket connection a server makes to the new process (connection.py)
                 process.control(&json!({ "msg": "attach", "primary": true }).to_string());
                 // A server sends game_client when crawl names its client_path, which only an
@@ -313,7 +333,7 @@ impl OfflineServer {
                 // it goes out now (natively) or once it is fetched (the web), and the client loads
                 // it while the engine boots.
                 let ready = host::gamedata_ready(&b.version, self.wake.clone());
-                self.game = Some(Game { process, save_dir, partial: String::new(), queueing: false, pending: Vec::new(), exit_reason: None, stopping: None, held: None });
+                self.game = Some(Game { process, save_dir, partial: String::new(), queueing: false, pending: Vec::new(), exit_reason: None, stopping: None, held: None, mapped: false });
                 self.emit(json!({ "msg": "game_started" }));
                 if ready {
                     self.emit(json!({ "msg": "game_client", "version": b.version, "content": "" }));
@@ -322,6 +342,7 @@ impl OfflineServer {
                 }
             }
             Err(e) => {
+                log::error!("the offline engine did not start: {e}");
                 self.emit(json!({ "msg": "game_ended", "reason": "error", "message": format!("The engine did not start: {e}") }));
                 self.emit(json!({ "msg": "go_lobby" }));
             }
@@ -436,6 +457,10 @@ impl OfflineServer {
             }
             return;
         }
+        if !g.mapped && m.get("msg").and_then(Value::as_str) == Some("map") {
+            g.mapped = true;
+            log::info!("the offline game drew its first map");
+        }
         if g.queueing {
             g.pending.push(m);
         } else {
@@ -450,13 +475,26 @@ impl OfflineServer {
         for m in batch {
             self.push(ConnEvent::Message(m));
         }
-        let (kind, message) = match (g.stopping.is_some(), g.exit_reason.take()) {
+        let (kind, mut message) = match (g.stopping.is_some(), g.exit_reason.take()) {
             // a hangup's save ends the game as crawl's own "saved"
             (true, Some((k, m))) if k != "unknown" && k != "error" => (k, m),
             (true, None) | (true, Some(_)) if code == 0 => ("saved".into(), None),
             (_, Some((k, m))) if k != "unknown" => (k, m),
             _ => (if code == 0 { "quit".into() } else { "crash".into() }, None),
         };
+        // a crash or an error goes to the log whole (logcat on Android, where nothing else shows
+        // it), and the dialog shows its first line when crawl said nothing itself
+        if kind == "crash" || kind == "error" {
+            if let Some(report) = g.process.crash_report() {
+                log::error!("the offline game stopped ({kind}, exit {code}):\n{report}");
+                if message.as_deref().is_none_or(|m| m.trim().is_empty()) {
+                    message = crash_headline(&report);
+                }
+            } else {
+                log::error!("the offline game stopped ({kind}, exit {code}) with no report");
+            }
+        }
+        log::info!("the offline game ended: {kind}{}", message.as_deref().map(|m| format!(" ({})", m.trim())).unwrap_or_default());
         let mut ended = json!({ "msg": "game_ended", "reason": kind });
         if let Some(m) = message {
             ended["message"] = m.into();
@@ -783,6 +821,11 @@ mod native {
         child: Child,
         socket: Box<dyn Socket>,
         run_dir: PathBuf,
+        /// Where crawl writes its crash files (its morgue folder), and when it started: a crash
+        /// file newer than that is this run's.
+        morgue: PathBuf,
+        started: std::time::SystemTime,
+        status: Option<std::process::ExitStatus>,
         output: Receiver<Output>,
         /// The pipe kept open as crawl's stdin, which it never reads from.
         _stdin: Option<std::process::ChildStdin>,
@@ -811,10 +854,35 @@ mod native {
 
         fn exited(&mut self) -> Option<i32> {
             match self.child.try_wait() {
-                Ok(Some(status)) => Some(status.code().unwrap_or(-1)),
+                Ok(Some(status)) => {
+                    self.status = Some(status);
+                    Some(status.code().unwrap_or(-1))
+                }
                 Ok(None) => None,
                 Err(_) => Some(-1),
             }
+        }
+
+        fn crash_report(&mut self) -> Option<String> {
+            let mut parts: Vec<String> = Vec::new();
+            #[cfg(unix)]
+            if let Some(sig) = self.status.and_then(|s| std::os::unix::process::ExitStatusExt::signal(&s)) {
+                parts.push(format!("crawl was stopped by signal {sig} ({})", signal_name(sig)));
+            }
+            let log = std::fs::read_to_string(self.run_dir.join("crawl.log")).unwrap_or_default();
+            let log = log.trim();
+            if !log.is_empty() {
+                // the end of it: what came last is what went wrong
+                let tail: Vec<&str> = log.lines().rev().take(60).collect();
+                parts.push(tail.into_iter().rev().collect::<Vec<_>>().join("\n"));
+            }
+            if let Some(file) = newest_crash_file(&self.morgue, self.started) {
+                if let Ok(text) = std::fs::read_to_string(&file) {
+                    let head: Vec<&str> = text.lines().take(80).collect();
+                    parts.push(format!("--- {}\n{}", file.display(), head.join("\n")));
+                }
+            }
+            (!parts.is_empty()).then(|| parts.join("\n"))
         }
 
         fn hangup(&mut self) -> Hangup {
@@ -841,6 +909,35 @@ mod native {
                 }
                 std::thread::sleep(Duration::from_millis(20));
             }
+        }
+    }
+
+    /// The crash file crawl wrote (`crash-<name>-<time>.txt` in its morgue folder) after `since`.
+    fn newest_crash_file(morgue: &Path, since: std::time::SystemTime) -> Option<PathBuf> {
+        std::fs::read_dir(morgue)
+            .ok()?
+            .flatten()
+            .filter(|e| e.file_name().to_string_lossy().starts_with("crash-"))
+            .filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path())))
+            .filter(|(t, _)| *t >= since)
+            .max_by_key(|(t, _)| *t)
+            .map(|(_, p)| p)
+    }
+
+    #[cfg(unix)]
+    fn signal_name(sig: i32) -> &'static str {
+        match sig {
+            libc::SIGSEGV => "SIGSEGV, a bad memory access",
+            libc::SIGABRT => "SIGABRT, an abort",
+            libc::SIGBUS => "SIGBUS",
+            libc::SIGILL => "SIGILL",
+            libc::SIGFPE => "SIGFPE",
+            libc::SIGSYS => "SIGSYS, a system call the system forbids",
+            libc::SIGKILL => "SIGKILL",
+            libc::SIGHUP => "SIGHUP",
+            libc::SIGTERM => "SIGTERM",
+            libc::SIGPIPE => "SIGPIPE",
+            _ => "a signal",
         }
     }
 
@@ -880,6 +977,7 @@ mod native {
         args.push("-rc".into());
         args.push(rc_path.display().to_string());
         let log = std::fs::File::create(run_dir.join("crawl.log")).ok();
+        let started = std::time::SystemTime::now();
         let mut command = Command::new(&i.crawl);
         // crawl hangs up with the app, as with a server: it saves and stops, and holds no save
         // locked for the next start
@@ -958,7 +1056,7 @@ mod native {
                 }
             })
             .map_err(|e| e.to_string())?;
-        let process = Child_ { child, socket, run_dir, output: rx, _stdin: stdin };
+        let process = Child_ { child, socket, run_dir, morgue, started, status: None, output: rx, _stdin: stdin };
         Ok((Box::new(process), save_dir.display().to_string()))
     }
 }
@@ -1200,5 +1298,19 @@ mod web {
         let args = serde_json::to_string(&args).unwrap_or_default();
         let handle = js_launch(&save_dir, &args, rc, on_output.as_ref().unchecked_ref(), on_exit.as_ref().unchecked_ref(), on_error.as_ref().unchecked_ref()).map_err(|e| format!("{e:?}"))?;
         Ok((Box::new(Worker { handle, inbox, _callbacks: [on_output, on_exit, on_error] }), save_dir))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::crash_headline;
+
+    #[test]
+    fn a_crash_report_is_headed_by_its_first_line_that_says_something() {
+        assert_eq!(crash_headline("\n  \ncrawl was stopped by signal 11 (SIGSEGV)\nmore").as_deref(), Some("crawl was stopped by signal 11 (SIGSEGV)"));
+        assert_eq!(crash_headline("--- /x/crash-a.txt\nASSERT(foo) in 'x.cc' at line 3 failed.").as_deref(), Some("ASSERT(foo) in 'x.cc' at line 3 failed."));
+        assert_eq!(crash_headline(" \n"), None);
+        let long = "x".repeat(400);
+        assert_eq!(crash_headline(&long).map(|l| l.chars().count()), Some(161));
     }
 }

@@ -84,6 +84,24 @@ jobs:
         with:
           name: Isorun-android
           path: native/target/release-packages/Isorun.apk
+      # what the smoke job plays on the emulator: the client's offline_smoke for x86_64, crawl
+      # beside it as libcrawl.so, and the engine's folder
+      - name: Smoke kit
+        run: |
+          NDK=$ANDROID_SDK_ROOT/ndk/27.2.12479018/toolchains/llvm/prebuilt/linux-x86_64/bin
+          export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER=$NDK/x86_64-linux-android26-clang
+          export CC_x86_64_linux_android=$NDK/x86_64-linux-android26-clang AR_x86_64_linux_android=$NDK/llvm-ar
+          (cd native && cargo build --release -p isorun-client --example offline_smoke --target x86_64-linux-android)
+          kit=$RUNNER_TEMP/smoke
+          mkdir -p "$kit"
+          cp native/target/x86_64-linux-android/release/examples/offline_smoke "$kit/"
+          cp engine/dist/native/android-x86_64/engine/crawl "$kit/libcrawl.so"
+          (cd engine/dist/native/android-x86_64 && tar --exclude ./engine/crawl -cf - ./engine) | (cd "$kit" && tar -xf -)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: smoke-kit
+          path: ${{ runner.temp }}/smoke
+          retention-days: 3
       - name: Add to the release
         if: github.event_name == 'release' || inputs.upload
         run: |
@@ -94,3 +112,40 @@ jobs:
           gh release upload "$tag" native/target/release-packages/Isorun.apk --clobber
         env:
           GH_TOKEN: ${{ github.token }}
+
+  # The APK on an x86_64 emulator (a phone's size, 411 x 914 dp): crawl from a shell, then the app
+  # itself (native/android/smoke.sh). Its logcat and screenshots are the run's smoke-out artifact.
+  smoke:
+    needs: apk
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Isorun-android
+          path: apk
+      - uses: actions/download-artifact@v4
+        with:
+          name: smoke-kit
+          path: smoke
+      - name: KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: sh native/android/smoke.sh apk/Isorun.apk smoke
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-out
+          path: smoke-out
+          retention-days: 7
