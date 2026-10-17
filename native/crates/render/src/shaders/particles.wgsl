@@ -57,6 +57,7 @@ fn result(colour: vec3<f32>, alpha: f32, normal: vec3<f32>) -> FragmentOut {
 fn lambert(in: VertexOut, diffuse: vec3<f32>, face: f32) -> vec3<f32> {
     var s: Surface;
     s.position = in.view_pos;
+    s.screen = in.clip.xy;
     s.normal = in.normal * face;
     s.view_dir = normalize(-in.view_pos);
     s.world = in.world;

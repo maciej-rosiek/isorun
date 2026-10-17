@@ -267,6 +267,16 @@ pub fn mip_count(size: u32) -> u32 {
 
 pub fn page_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler, colour: &wgpu::Texture, normal: &wgpu::Texture, surface: &wgpu::Texture) -> wgpu::BindGroup {
     let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
+    // the normal and surface pages are read without anisotropy, as the web build's are (only its
+    // colour page has 4): five of the ground's samples are of them, and on a software
+    // rasteriser an anisotropic sample costs several
+    let data = device.create_sampler(&wgpu::SamplerDescriptor {
+        label: Some("page data"),
+        mag_filter: wgpu::FilterMode::Linear,
+        min_filter: wgpu::FilterMode::Linear,
+        mipmap_filter: wgpu::MipmapFilterMode::Linear,
+        ..Default::default()
+    });
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("page"),
         layout,
@@ -275,6 +285,7 @@ pub fn page_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, sa
             wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&view(normal)) },
             wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&view(surface)) },
             wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(sampler) },
+            wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::Sampler(&data) },
         ],
     })
 }

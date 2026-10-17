@@ -19,6 +19,8 @@ struct Draw {
 @group(1) @binding(1) var normal_map: texture_2d<f32>;
 @group(1) @binding(2) var surface_map: texture_2d<f32>;
 @group(1) @binding(3) var page_sampler: sampler;
+// the normal and surface pages': no anisotropy (pages.rs `page_bind_group`)
+@group(1) @binding(4) var data_sampler: sampler;
 @group(2) @binding(0) var<uniform> draw: Draw;
 
 struct VertexIn {
@@ -89,7 +91,7 @@ fn vs_actor(v: VertexIn) -> VertexOut {
 
 // The normal from the map, whose strength follows the relief setting; `flatten` lays it flat.
 fn relief_normal(in: VertexOut, at: vec2<f32>, flatten: f32, face: f32, across: vec2<f32>, down: vec2<f32>) -> vec3<f32> {
-    let xy = (textureSampleGrad(normal_map, page_sampler, at, across, down).rg * 2.0 - 1.0) * (1.0 - flatten);
+    let xy = (textureSampleGrad(normal_map, data_sampler, at, across, down).rg * 2.0 - 1.0) * (1.0 - flatten);
     let z = sqrt(max(0.0, 1.0 - dot(xy, xy)));
     let map_n = vec3<f32>(xy * frame.shading0.z, z);
     let geometry = normalize(in.normal_view) * face;
@@ -116,7 +118,7 @@ fn parallax_uv(in: VertexOut, face: f32) -> vec2<f32> {
     if (depth > 0.0 && steps > 0.0) {
         for (var i = 0; i < 16; i = i + 1) {
             if (f32(i) < count && searching > 0.0) {
-                sunk = 1.0 - textureSampleLevel(normal_map, page_sampler, clamp(at, rect.xy, rect.zw), 0.0).b;
+                sunk = 1.0 - textureSampleLevel(normal_map, data_sampler, clamp(at, rect.xy, rect.zw), 0.0).b;
                 if (sunk <= layer) {
                     searching = 0.0;
                 } else {
@@ -182,6 +184,7 @@ fn gloss_shininess(gloss: f32) -> f32 {
 fn surface_of(in: VertexOut, normal: vec3<f32>, diffuse: vec3<f32>) -> Surface {
     var s: Surface;
     s.position = in.view_pos;
+    s.screen = in.clip.xy;
     s.normal = normal;
     s.view_dir = normalize(-in.view_pos);
     s.world = in.world;
@@ -228,9 +231,9 @@ fn fs_ground(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     if (colour.a * 1.0 < 0.5) {
         discard;
     }
-    let surface = textureSampleGrad(surface_map, page_sampler, sunk, across, down);
-    let height = textureSampleGrad(normal_map, page_sampler, sunk, across, down).b;
-    let around = textureSampleGrad(normal_map, page_sampler, sunk, across * CAVITY_SPREAD, down * CAVITY_SPREAD).b;
+    let surface = textureSampleGrad(surface_map, data_sampler, sunk, across, down);
+    let height = textureSampleGrad(normal_map, data_sampler, sunk, across, down).b;
+    let around = textureSampleGrad(normal_map, data_sampler, sunk, across * CAVITY_SPREAD, down * CAVITY_SPREAD).b;
     let cavity = frame.shading1.w;
     let hollow = saturate1((around - height) * CAVITY_SHARPNESS) * cavity;
     let ridge = saturate1((height - around) * CAVITY_SHARPNESS) * cavity;
@@ -260,7 +263,7 @@ fn fs_sprite(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     if (colour.a < 0.5) {
         discard;
     }
-    let surface = textureSample(surface_map, page_sampler, in.uv);
+    let surface = textureSample(surface_map, data_sampler, in.uv);
     let shade = memory_shade(memory_cell(in.world, normalize(in.normal_world)));
     let diffuse = colour.rgb * frame.shading1.x * shade * in.colour;
     let normal = relief_normal(in, in.uv, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
@@ -290,7 +293,7 @@ const DISSOLVE_EDGE: f32 = 0.12;
 fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     let face = select(-1.0, 1.0, front);
     let colour = textureSample(colour_map, page_sampler, in.uv);
-    let surface = textureSample(surface_map, page_sampler, in.uv);
+    let surface = textureSample(surface_map, data_sampler, in.uv);
     let opacity = draw.tint.w;
     let phase = draw.look.y;
     var harm = draw.harm;

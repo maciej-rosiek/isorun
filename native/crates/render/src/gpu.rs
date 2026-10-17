@@ -117,7 +117,7 @@ impl Gpu {
         });
         let page_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("page"),
-            entries: &[texture_entry(0, float, d2), texture_entry(1, float, d2), texture_entry(2, float, d2), sampler_entry(3, wgpu::SamplerBindingType::Filtering)],
+            entries: &[texture_entry(0, float, d2), texture_entry(1, float, d2), texture_entry(2, float, d2), sampler_entry(3, wgpu::SamplerBindingType::Filtering), sampler_entry(4, wgpu::SamplerBindingType::Filtering)],
         });
         let draw_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("draw"), entries: &[uniform_entry(0, std::mem::size_of::<DrawUniform>() as u64, true)] });
         let shadow_view_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("shadow view"), entries: &[uniform_entry(0, 96, true)] });

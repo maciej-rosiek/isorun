@@ -182,7 +182,22 @@ fn distance_attenuation(d: f32, cutoff: f32, decay: f32) -> f32 {
     return falloff;
 }
 
-fn sun_shadow(world: vec3<f32>, normal_world: vec3<f32>) -> f32 {
+// three's vogelDiskSample: the i-th of n points spread evenly over the unit disc, turned by phi.
+fn vogel_disk(i: f32, n: f32, phi: f32) -> vec2<f32> {
+    let r = sqrt((i + 0.5) / n);
+    let theta = i * 2.399963229728653 + phi;
+    return vec2<f32>(cos(theta), sin(theta)) * r;
+}
+
+// The turn of the shadows' sampling pattern at a pixel (three's interleavedGradientNoise times 2 pi),
+// so the five samples band nowhere.
+fn shadow_turn(screen: vec2<f32>) -> f32 {
+    return interleaved_gradient_noise(screen) * 6.28318530718;
+}
+
+// three's PCFShadowFilter: five compared samples on a Vogel disc turned for each pixel, each
+// filtered by the comparison sampler (four texels), over the shadow's radius.
+fn sun_shadow(world: vec3<f32>, normal_world: vec3<f32>, screen: vec2<f32>) -> f32 {
     if (frame.sun_dir.w < 0.5) {
         return 1.0;
     }
@@ -194,15 +209,12 @@ fn sun_shadow(world: vec3<f32>, normal_world: vec3<f32>) -> f32 {
     }
     let depth = ndc.z + frame.sun_shadow.x;
     let r = frame.sun_shadow.z * frame.sun_shadow.w;
-    var sum = textureSampleCompareLevel(sun_shadow_map, shadow_sampler, uv, depth);
-    let offsets = array<vec2<f32>, 8>(
-        vec2<f32>(-1.0, -1.0), vec2<f32>(0.0, -1.0), vec2<f32>(1.0, -1.0), vec2<f32>(-1.0, 0.0),
-        vec2<f32>(1.0, 0.0), vec2<f32>(-1.0, 1.0), vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0));
-    for (var i = 0u; i < 8u; i = i + 1u) {
-        sum = sum + textureSampleCompareLevel(sun_shadow_map, shadow_sampler, uv + offsets[i] * r, depth);
-        sum = sum + textureSampleCompareLevel(sun_shadow_map, shadow_sampler, uv + offsets[i] * r * 0.5, depth);
+    let phi = shadow_turn(screen);
+    var sum = 0.0;
+    for (var i = 0; i < 5; i = i + 1) {
+        sum = sum + textureSampleCompareLevel(sun_shadow_map, shadow_sampler, uv + vogel_disk(f32(i), 5.0, phi) * r, depth);
     }
-    return sum / 17.0;
+    return sum / 5.0;
 }
 
 // The face of a cube a direction points through, and where on it: the same layout the shadow
@@ -221,21 +233,27 @@ fn cube_face(d: vec3<f32>) -> vec3<f32> {
     return vec3<f32>(5.0, -d.x / a.z, -d.y / a.z);
 }
 
-fn point_shadow(light: Light, world: vec3<f32>, normal_world: vec3<f32>) -> f32 {
+// three's PointShadowFilter: five compared samples around the direction to the fragment, on a
+// Vogel disc in the plane across it, turned for each pixel.
+fn point_shadow(light: Light, world: vec3<f32>, normal_world: vec3<f32>, screen: vec2<f32>) -> f32 {
     if (light.shadow.x < 0.0) {
         return 1.0;
     }
     let p = world + normal_world * light.shadow.z - light.world.xyz;
-    let face = cube_face(p);
-    let uv = vec2<f32>(face.y * 0.5 + 0.5, face.z * 0.5 + 0.5);
-    let layer = i32(light.shadow.x) + i32(face.x);
     let depth = length(p) / light.shadow.w + light.shadow.y;
-    let r = frame.viewport.w;
-    var sum = textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv, layer, depth);
-    sum = sum + textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv + vec2<f32>(r, r), layer, depth);
-    sum = sum + textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv + vec2<f32>(-r, r), layer, depth);
-    sum = sum + textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv + vec2<f32>(r, -r), layer, depth);
-    sum = sum + textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv + vec2<f32>(-r, -r), layer, depth);
+    let dir = normalize(p);
+    let a = abs(dir);
+    let tangent = normalize(cross(dir, select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), a.x > a.z)));
+    let bitangent = cross(dir, tangent);
+    let texel = frame.viewport.w;
+    let phi = shadow_turn(screen);
+    var sum = 0.0;
+    for (var i = 0; i < 5; i = i + 1) {
+        let o = vogel_disk(f32(i), 5.0, phi);
+        let face = cube_face(dir + (tangent * o.x + bitangent * o.y) * texel);
+        let uv = vec2<f32>(face.y * 0.5 + 0.5, face.z * 0.5 + 0.5);
+        sum = sum + textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv, i32(light.shadow.x) + i32(face.x), depth);
+    }
     return sum / 5.0;
 }
 
@@ -252,6 +270,8 @@ struct Surface {
     shininess: f32,
     rim: f32,
     receive_shadow: bool,
+    // the fragment's pixel, which turns the shadows' sampling pattern
+    screen: vec2<f32>,
 };
 
 // ClayLightingModel.direct: wrapped, banded diffuse, a Blinn-Phong highlight, a rim light.
@@ -309,7 +329,7 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
     var out = irradiance * s.diffuse / PI;
     var sun = frame.sun_colour.rgb;
     if (s.receive_shadow) {
-        sun = sun * sun_shadow(s.world, s.normal_world);
+        sun = sun * sun_shadow(s.world, s.normal_world, s.screen);
     }
     out = out + direct(model, s, frame.sun_dir.xyz, sun);
     let count = u32(frame.viewport.z);
@@ -328,7 +348,7 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
         }
         var colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w);
         if (s.receive_shadow) {
-            colour = colour * point_shadow(light, s.world, s.normal_world);
+            colour = colour * point_shadow(light, s.world, s.normal_world, s.screen);
         }
         out = out + direct(model, s, to_light / d, colour);
     }
