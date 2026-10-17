@@ -164,16 +164,10 @@ pub fn scrollbar(ui: &mut egui::Ui, id: egui::Id, viewport: Rect, content_h: f32
     scroll.clamp(0.0, max)
 }
 
-/// The wheel over `viewport` moves `scroll`; returns the new scroll, kept in range.
+/// The wheel over `viewport`, or a finger dragging it, moves `scroll`; returns the new scroll,
+/// kept in range.
 pub fn wheel(ui: &egui::Ui, viewport: Rect, content_h: f32, scroll: f32) -> f32 {
-    let max = (content_h - viewport.height()).max(0.0);
-    let over = ui.input(|i| i.pointer.hover_pos()).is_some_and(|p| viewport.contains(p));
-    let mut s = scroll;
-    if over {
-        let d = ui.input(|i| i.smooth_scroll_delta.y);
-        s -= d;
-    }
-    s.clamp(0.0, max)
+    isorun_ui::scroll::scroll(ui, viewport, content_h, scroll)
 }
 
 /// `.touch-close`: a popup's round close button on a touch screen, over its top-right corner.

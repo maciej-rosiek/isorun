@@ -4,6 +4,7 @@ pub mod fonts;
 pub mod fullscreen;
 pub mod harness;
 pub mod safe;
+pub mod scroll;
 pub mod keys;
 pub mod text;
 pub mod theme;
