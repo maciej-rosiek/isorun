@@ -60,6 +60,18 @@ const SETTINGS_ICON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><
 /** How much the view zooms per css pixel of wheel scroll, and per second at full right stick. */
 const ZOOM_PER_WHEEL_PIXEL = 0.0015
 const ZOOM_PER_STICK_SECOND = 1.5
+/** two fingers dragged across the view turn the camera this many degrees a css pixel, a half turn over a phone held sideways */
+const TURN_PER_TWO_FINGER_PIXEL = 0.25
+/** two fingers dragged up or down tilt the camera this many degrees a css pixel */
+const TILT_PER_TWO_FINGER_PIXEL = 0.2
+
+/** Two fingers on the view: how far apart, where their midpoint is (css px) and the angle of the line between them (radians). */
+interface TwoFingers {
+  span: number
+  x: number
+  y: number
+  angle: number
+}
 /** How much the view tilts for one press of Alt with Up or Down, in degrees. */
 const TILT_PER_KEY = 5
 /** level-map cells per unit of right-stick look while the map is open */
@@ -237,7 +249,8 @@ export class GameScreen {
     h('button', { type: 'button', class: 'touch-settings', 'aria-label': 'Settings', html: SETTINGS_ICON, onclick: () => this.openSystemMenu() }),
   )
   private touches = new Map<number, { x: number; y: number }>()
-  private pinchSpan: number | null = null
+  /** two fingers on the view, as the last move left them (`fingersNow`): they pinch to zoom, drag to turn and tilt, and twist to turn */
+  private twoFingers: TwoFingers | null = null
   private longPressTimer = 0
   /** Lets go of a drag with no click behind it: the window lost focus, or the button was released out of sight. */
   private cancelDrag: () => void = () => {}
@@ -1666,7 +1679,7 @@ export class GameScreen {
       }
       if (this.touches.has(ev.pointerId)) {
         this.touches.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
-        if (this.pinchSpan !== null) return this.pinch()
+        if (this.twoFingers !== null) return this.pinch()
       }
       const d = this.drag
       if (!d || ev.pointerId !== d.id) return
@@ -1693,7 +1706,12 @@ export class GameScreen {
     })
     const end = (ev: PointerEvent) => {
       this.touches.delete(ev.pointerId)
-      if (this.touches.size < 2) this.pinchSpan = null
+      if (this.touches.size < 2 && this.twoFingers) {
+        this.twoFingers = null
+        // the turn ends on a whole step, so the screen-relative directions stay the compass's
+        this.view.snapTurn()
+        this.wake()
+      }
       const d = this.drag
       if (!d || ev.pointerId !== d.id) return
       clearTimeout(this.longPressTimer)
@@ -1811,19 +1829,26 @@ export class GameScreen {
     clearTimeout(this.longPressTimer)
     this.dropTouchHover()
     if (this.drag) this.drag.moved = true
-    this.pinchSpan = this.touchSpan()
+    this.twoFingers = this.fingersNow()
   }
 
+  /** The two fingers moved: the camera zooms by their spread, turns as they move across or twist, and tilts as they move up or down (down looks from higher). */
   private pinch() {
-    const span = this.touchSpan()
-    if (this.pinchSpan && span && !this.levelMap) this.view.zoomBy(span / this.pinchSpan)
-    this.pinchSpan = span
+    const was = this.twoFingers
+    const now = this.fingersNow()
+    this.twoFingers = now
+    if (!was || !now || this.levelMap) return
+    if (was.span && now.span) this.view.zoomBy(now.span / was.span)
+    const twist = ((((now.angle - was.angle) % (2 * Math.PI)) + 3 * Math.PI) % (2 * Math.PI)) - Math.PI
+    this.view.turn((now.x - was.x) * TURN_PER_TWO_FINGER_PIXEL - (twist * 180) / Math.PI)
+    this.view.tiltBy((now.y - was.y) * TILT_PER_TWO_FINGER_PIXEL)
     this.wake()
   }
 
-  private touchSpan(): number {
+  private fingersNow(): TwoFingers | null {
     const [a, b] = [...this.touches.values()]
-    return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0
+    if (!a || !b) return null
+    return { span: Math.hypot(a.x - b.x, a.y - b.y), x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, angle: Math.atan2(b.y - a.y, b.x - a.x) }
   }
 
   /**

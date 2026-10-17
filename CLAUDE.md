@@ -45,7 +45,7 @@ snapshot commit, without the history.
   end of the actions (`.dock-action.main`). On a coarse pointer: the full screen and menu (the system menu)
   buttons in the top-left corner, a close button on every popup (`touch-close`), a tap outside a menu or one of
   our windows closes it as Back does (`GameScreen.tapAway`), the touch bar (`touch-bar.ts`) with
-  the pad's bindings as buttons in every mode but command mode, a finger on the view puts the cursor on its cell (while held, and a moment after a tap: `touchHover`), a long press opens the cell menu (`cell-menu.ts`: the cell's details over Attack or Go here, the square's own actions on the player's cell, and Describe; outside command mode it describes the cell), two fingers zoom,
+  the pad's bindings as buttons in every mode but command mode, a finger on the view puts the cursor on its cell (while held, and a moment after a tap: `touchHover`), a long press opens the cell menu (`cell-menu.ts`: the cell's details over Attack or Go here, the square's own actions on the player's cell, and Describe; outside command mode it describes the cell), two fingers zoom, turn (across or twisting, ending on a 45-degree step: `IsoCamera.snapTurn`) and tilt (up or down),
   the walls drop to stubs over every floor cell within 6 cells of the player (`setCutAwayReach`), and the phone's
   Back is Escape (`back-button.ts`, `GameScreen.back`). Test it with `isMobile` and `hasTouch` in Playwright.
 - A level up (the message "You have reached level N") shows a banner (`level-up.ts`, `level-up.css`, owned by

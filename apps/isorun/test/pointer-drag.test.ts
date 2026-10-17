@@ -17,7 +17,7 @@ function harness(pointerType = 'mouse') {
   const dragView = vi.fn()
   const onPointer = vi.fn()
   const screen = Object.assign(Object.create(GameScreen.prototype), {
-    canvas, levelMap: null, drag: null, hover: null, hoverByTouch: false, touchHoverTimer: 0, pointerLive: false, tooltipTimer: 0, touches: new Map(), pinchSpan: null, longPressTimer: 0,
+    canvas, levelMap: null, drag: null, hover: null, hoverByTouch: false, touchHoverTimer: 0, pointerLive: false, tooltipTimer: 0, touches: new Map(), twoFingers: null, longPressTimer: 0,
     view: { drag: dragView }, hud: { hideTooltip: vi.fn() }, session: { state: initialState() },
     inputFrom: vi.fn(), wake: vi.fn(), armCellTooltip: vi.fn(), onPointer,
   }) as { attachPointer(c: HTMLCanvasElement): void; cancelDrag(): void; drag: unknown; hover: unknown; pointerLive: boolean }
@@ -97,5 +97,34 @@ describe('a finger on the view', () => {
     h.at('pointerup', 200, 100, 0)
     expect(h.screen.hover).toBe(null)
     expect(h.onPointer).not.toHaveBeenCalled()
+  })
+})
+
+describe('two fingers on the view', () => {
+  it('turn as they move across, tilt as they move down, and the turn ends on a whole step', () => {
+    const canvas = document.createElement('canvas')
+    Object.assign(canvas, { setPointerCapture: vi.fn(), releasePointerCapture: vi.fn(), hasPointerCapture: () => true, getBoundingClientRect: () => ({ left: 0, top: 0, width: 800, height: 600 }) })
+    const view = { drag: vi.fn(), zoomBy: vi.fn(), turn: vi.fn(), tiltBy: vi.fn(), snapTurn: vi.fn() }
+    const screen = Object.assign(Object.create(GameScreen.prototype), {
+      canvas, levelMap: null, drag: null, hover: null, hoverByTouch: false, touchHoverTimer: 0, pointerLive: false, tooltipTimer: 0, touches: new Map(), twoFingers: null, longPressTimer: 0,
+      view, hud: { hideTooltip: vi.fn() }, session: { state: initialState() },
+      inputFrom: vi.fn(), wake: vi.fn(), armCellTooltip: vi.fn(), onPointer: vi.fn(),
+    }) as { attachPointer(c: HTMLCanvasElement): void }
+    screen.attachPointer(canvas)
+    const at = (type: string, id: number, x: number, y: number) =>
+      canvas.dispatchEvent(Object.assign(new Event(type), { pointerId: id, pointerType: 'touch', button: 0, buttons: 1, clientX: x, clientY: y, pageX: x, pageY: y }))
+    at('pointerdown', 1, 100, 300)
+    at('pointerdown', 2, 300, 300)
+    // both move 40 px right and 20 px down, as far apart and at the same angle as before
+    at('pointermove', 1, 140, 320)
+    at('pointermove', 2, 340, 320)
+    const turned = view.turn.mock.calls.reduce((sum, [d]) => sum + d, 0)
+    const tilted = view.tiltBy.mock.calls.reduce((sum, [d]) => sum + d, 0)
+    expect(turned).toBeGreaterThan(0)
+    expect(tilted).toBeGreaterThan(0)
+    expect(view.drag).not.toHaveBeenCalled()
+    expect(view.snapTurn).not.toHaveBeenCalled()
+    at('pointerup', 2, 340, 320)
+    expect(view.snapTurn).toHaveBeenCalledOnce()
   })
 })

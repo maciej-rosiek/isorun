@@ -95,6 +95,12 @@ export class IsoCamera {
     this.yawTarget += degrees * DEG
   }
 
+  /** End a free turn (two fingers) on the nearest whole step of TURN_DEGREES. */
+  snapTurn() {
+    const step = TURN_DEGREES * DEG
+    this.yawTarget = Math.round(this.yawTarget / step) * step
+  }
+
   tiltBy(degrees: number) {
     this.tiltTarget = Math.min(TILT_MAX, Math.max(TILT_MIN, this.tiltTarget + degrees))
   }
