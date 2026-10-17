@@ -211,20 +211,14 @@ fn to_front(ev: &PadEvent) -> Option<FrontPad> {
     }
 }
 
-impl eframe::App for IsorunApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        match &mut self.screen {
-            Screen::Game(game) => {
-                let Some(outcome) = game.ui(ui) else { return };
-                let Screen::Game(mut game) = std::mem::replace(&mut self.screen, Screen::Front) else { unreachable!() };
 /// Android's app is always full screen, and a phone's screen is all the game's: no Full screen
 /// row there.
 fn can_fullscreen(phone: bool) -> bool {
     !cfg!(target_os = "android") && !phone
 }
 
-                game.close();
-                let GameScreen { session, pads, .. } = *game;
+impl eframe::App for IsorunApp {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         // a phone is told by its window (the first frame's size is the real one, the app's start
         // may not know it yet)
         let size = ui.ctx().content_rect().size();
@@ -232,6 +226,12 @@ fn can_fullscreen(phone: bool) -> bool {
         isorun_front::settings::set_phone(phone);
         self.front.options.can_fullscreen = can_fullscreen(phone);
         self.opts.can_fullscreen = can_fullscreen(phone);
+        match &mut self.screen {
+            Screen::Game(game) => {
+                let Some(outcome) = game.ui(ui) else { return };
+                let Screen::Game(mut game) = std::mem::replace(&mut self.screen, Screen::Front) else { unreachable!() };
+                game.close();
+                let GameScreen { session, pads, .. } = *game;
                 self.pads = pads;
                 self.front.game_over(match outcome {
                     Outcome::Lobby => GameEnd::Lobby(session),
