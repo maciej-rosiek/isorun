@@ -31,7 +31,7 @@ esac
 # getrandom's web backend, for what pulls it in (uuid, rand)
 (cd "$NATIVE" && RUSTFLAGS="${RUSTFLAGS:-} --cfg getrandom_backend=\"wasm_js\"" cargo build $flag -p isorun-app --lib --target wasm32-unknown-unknown)
 rm -rf "$OUT"/pkg "$OUT"/pkg-*
-wasm-bindgen --target web --no-typescript --out-dir "$OUT/pkg" "$NATIVE/target/wasm32-unknown-unknown/$dir/isorun_app.wasm"
+wasm-bindgen --target web --no-typescript --out-dir "$OUT/pkg" "${CARGO_TARGET_DIR:-$NATIVE/target}/wasm32-unknown-unknown/$dir/isorun_app.wasm"
 if command -v wasm-opt >/dev/null && [ "$PROFILE" != dev ]; then
     wasm-opt -O2 --enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext --enable-mutable-globals --enable-reference-types --enable-multivalue -o "$OUT/pkg/isorun_app_bg.wasm" "$OUT/pkg/isorun_app_bg.wasm"
 fi

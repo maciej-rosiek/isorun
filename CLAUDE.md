@@ -168,7 +168,8 @@ snapshot commit, without the history.
   show states, not animation timing.
 - Headless Chromium falls back to WebGL2, which hides WebGPU limits. Test real WebGPU with
   `--enable-unsafe-webgpu --enable-features=Vulkan --use-vulkan=swiftshader
-  --use-webgpu-adapter=swiftshader`. WebGPU allows 16 sampled textures per shader, and every
+  --use-webgpu-adapter=swiftshader --use-angle=swiftshader` (without the last a WebGPU canvas
+  cannot be presented and the GPU process dies). WebGPU allows 16 sampled textures per shader, and every
   shadow-casting light takes one.
 - The desktop app (`desktop/`, not an npm workspace, so `npm install` there; README there):
   Electron, for a Steam Deck or a ROG Ally. `STEAM.md` (shown in the game at `/app/steam`, under Get the

@@ -5,7 +5,10 @@
 //   node native/web/test.mjs [out dir]        # screenshots there (default: /tmp/isorun-web-test)
 //
 // CHROMIUM picks the browser (default: Playwright's). Headless Chromium has no WebGPU, so the
-// app runs on WebGL2 (SwiftShader): this is the WebGL2 check too.
+// app runs on WebGL2 (SwiftShader): this is the WebGL2 check too. A second browser with
+// SwiftShader's WebGPU (Dawn on its Vulkan; `--use-angle=swiftshader` too, or the canvas cannot be
+// presented and the GPU process dies) checks that the browsers' shader compiler (Tint) takes the
+// shaders, which naga's checks do not show.
 import { createServer } from 'node:http'
 import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs'
 import { extname, join, normalize, sep } from 'node:path'
@@ -43,14 +46,18 @@ const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 })
+const webgpu = await chromium.launch({
+  executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan', '--use-vulkan=swiftshader', '--use-webgpu-adapter=swiftshader', '--use-angle=swiftshader', '--ignore-gpu-blocklist'],
+})
 const failures = []
 const check = (ok, what) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${what}`)
   if (!ok) failures.push(what)
 }
 
-async function open(query) {
-  const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
+async function open(query, on = browser) {
+  const page = await on.newPage({ viewport: { width: 1280, height: 800 } })
   const log = []
   page.on('console', (m) => log.push(`[${m.type()}] ${m.text()}`))
   page.on('pageerror', (e) => log.push(`[pageerror] ${e.message}`))
@@ -95,6 +102,18 @@ try {
     if (process.env.VERBOSE) console.log(log.slice(0, 60).join('\n'))
     await page.close()
   }
+  // the test bed on WebGPU: every shader compiles and the frame renders
+  {
+    const { page, log, loaded } = await open('?testbed', webgpu)
+    check(loaded, 'the test bed page starts on WebGPU')
+    await page.waitForTimeout(Number(process.env.TESTBED_WAIT ?? 20_000))
+    const backend = log.find((l) => /backend: (BrowserWebGpu|Gl)/.test(l))?.match(/backend: (\w+)/)?.[1] ?? 'unknown'
+    check(backend === 'BrowserWebGpu', `the test bed runs on WebGPU (${backend})`)
+    await page.screenshot({ path: join(OUT, 'testbed-webgpu.png'), timeout: 120_000 })
+    const errors = log.filter((l) => /panicked|RuntimeError|pageerror|\[error\]|Error while parsing WGSL|is invalid/.test(l))
+    check(errors.length === 0, `no errors in the test bed on WebGPU ${errors.slice(0, 3).join(' | ')}`)
+    await page.close()
+  }
   // an offline game through the bridge: the engine boots in a worker and draws its first map
   {
     const { page, loaded } = await open('')
@@ -133,6 +152,7 @@ try {
   }
 } finally {
   await browser.close()
+  await webgpu.close()
   server.close()
 }
 if (failures.length) {
