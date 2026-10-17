@@ -318,7 +318,7 @@ impl Session {
             result = Some(Err(e));
         } else if now - load.progress_at > LOAD_STALL_SECONDS && load.assembling.is_none() {
             result = Some(Err(format!("no progress in {}s", LOAD_STALL_SECONDS)));
-        } else if load.requests.is_empty() && load.files.len() == load.total {
+        } else if load.assembling.is_some() || load.requests.is_empty() && load.files.len() == load.total {
             match &load.assembling {
                 None => {
                     let slot = Arc::new(Mutex::new(None));
