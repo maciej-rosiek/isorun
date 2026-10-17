@@ -26,6 +26,9 @@ pub fn native_options() -> eframe::NativeOptions {
     eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default().with_title(servers::APP_NAME).with_inner_size([1600.0, 1000.0]).with_min_inner_size([320.0, 240.0]),
         wgpu_options: isorun_ui::wgpu_options(),
+        // the window opens at its own size each time: a remembered one outlives what it was for
+        // (a run at a phone's size for a test opened every later run as small)
+        persist_window: false,
         ..Default::default()
     }
 }
