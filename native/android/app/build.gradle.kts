@@ -13,8 +13,10 @@ android {
     namespace = "io.github.maciejrosiek.isorun"
     compileSdk = 35
     defaultConfig {
-        // the Capacitor app's id (mobile/), signed with the same key: it installs over that one
-        applicationId = "io.github.maciejrosiek.isorun"
+        // its own id while it is a preview: it installs beside the Capacitor app (mobile/) and never
+        // over it, so trying it cannot cost a player the Capacitor app's saves. It takes over the
+        // Capacitor app's id (and the key it already shares) once it replaces that app.
+        applicationId = "io.github.maciejrosiek.isorun.native"
         minSdk = 26
         targetSdk = 35
         versionCode = appVersionCode
