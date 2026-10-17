@@ -66,7 +66,8 @@ impl Metrics {
     }
 
     pub fn row_height(&self) -> f32 {
-        3.4 * self.rem
+        // a short window (a phone on its side) fits more rows: still a finger's height
+        if self.short { 2.9 * self.rem } else { 3.4 * self.rem }
     }
 
     pub fn label_inset(&self) -> f32 {
@@ -372,13 +373,26 @@ impl FrontEnd {
             _ => (38.0 * m.rem).min(full.width()),
         };
         let gap = 0.6 * m.rem;
+        // a short wide window (a phone on its side): what stands under the rows (the settings, a
+        // document, the roster) takes a column of its own at the right, the whole height, and the
+        // head, the rows and the message line stand at the left
+        let two_columns = m.short && m.w > m.h && full.width() >= 560.0 && !matches!(s.below, Below::None);
+        let right_column = two_columns.then(|| {
+            let left_w = (0.36 * full.width()).clamp(14.0 * m.rem, 22.0 * m.rem).min(0.5 * full.width());
+            (left_w, Rect::from_min_max(pos2(full.left() + left_w + 1.5 * m.rem, full.top()), full.max))
+        });
+        let width = right_column.map_or(width, |(w, _)| w);
+        // a short wide window with only rows (the accounts, the servers, a form): the head stands
+        // in a column at the left and the rows take the height beside it
+        let side_head = m.short && m.w > m.h && full.width() >= 560.0 && matches!(s.below, Below::None);
+        let head_w = if side_head { (0.3 * full.width()).clamp(12.0 * m.rem, 20.0 * m.rem) } else { width };
         // the head: the screen's name in the wordmark's face, the line under it in small caps
         let title_size = if m.narrow { m.fs.min(1.6 * m.rem) } else { (0.06 * m.w).clamp(2.4 * m.rem, 3.2 * m.rem) };
-        let title = galley(&ctx, &s.title, &Style::new(title_size, m.faces.title(), GOLD_BRIGHT).line(1.05 * title_size), width);
+        let title = galley(&ctx, &s.title, &Style::new(title_size, m.faces.title(), GOLD_BRIGHT).line(1.05 * title_size), head_w);
         let lede_size = if m.narrow { m.fs.min(1.05 * m.rem) } else { 0.85 * m.rem };
-        let lede = s.lede.as_ref().map(|l| galley(&ctx, &upper(l), &Style::new(lede_size, m.faces.bold(), INK_DIM).spacing(if m.narrow { 0.0 } else { 0.14 * lede_size }).line(1.5 * lede_size), width));
+        let lede = s.lede.as_ref().map(|l| galley(&ctx, &upper(l), &Style::new(lede_size, m.faces.bold(), INK_DIM).spacing(if m.narrow { 0.0 } else { 0.14 * lede_size }).line(1.5 * lede_size), head_w));
         let mut y = full.top();
-        let x = full.left();
+        let mut x = full.left();
         shadowed(ui.painter(), pos2(x, y), &title, GOLD_BRIGHT, 0.6);
         y += title.size().y;
         if let Some(l) = &lede {
@@ -388,11 +402,18 @@ impl FrontEnd {
         }
         y += 0.6 * m.rem + gap;
         for n in &s.notices {
-            let g = self.notice_galley(&ctx, n, m, width);
+            let g = self.notice_galley(&ctx, n, m, head_w);
             let h = g.size().y + if n.ask { 3.0 * m.rem } else { 0.0 };
-            self.paint_notice(ui, n, g, pos2(x, y), m, width, clicks);
+            self.paint_notice(ui, n, g, pos2(x, y), m, head_w, clicks);
             y += h + gap;
         }
+        let width = if side_head {
+            x = full.left() + head_w + 1.5 * m.rem;
+            y = full.top();
+            width.min(full.right() - x)
+        } else {
+            width
+        };
         // the rows, in a region of their own when they would not fit the window
         let help_h = self.help_height(&ctx, s, m, width).max(1.5 * m.note());
         let rows_h = self.rows_height(&ctx, s, m, width);
@@ -420,7 +441,10 @@ impl FrontEnd {
             y = self.paint_rows(ui, s, m, pos2(x, y), width, clicks);
         }
         // what stands under the rows takes the room left over the message line
-        let region = Rect::from_min_max(pos2(x, y + gap + 0.6 * m.rem), pos2(x + width, full.bottom() - foot));
+        let region = match right_column {
+            Some((_, r)) => r,
+            None => Rect::from_min_max(pos2(x, y + gap + 0.6 * m.rem), pos2(x + width, full.bottom() - foot)),
+        };
         let used = match &s.below {
             Below::None => 0.0,
             Below::Doc(body) => self.paint_doc(ui, body, m, region),
@@ -429,7 +453,7 @@ impl FrontEnd {
             Below::Settings(group) => self.paint_settings(ui, group, m, region, clicks),
             Below::Controls => self.paint_controls(ui, m, region),
         };
-        if used > 0.0 {
+        if used > 0.0 && right_column.is_none() {
             y = region.top() + used;
         }
         if !s.links.is_empty() {
