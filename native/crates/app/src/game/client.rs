@@ -368,7 +368,34 @@ impl ClientMenu {
         let first = if self.focus >= shown { self.focus + 1 - shown } else { 0 };
         // the tabs stand in for the title (overlays.ts installTabs, packTabs): a strip with the tabs' icons
         let tabbed = matches!(self.kind, Kind::Actions(..) | Kind::System { .. });
-        let title_h = if tabbed { 32.0 * scale + 0.35 * 2.0 * rem + 4.0 } else { size * 1.3 + 0.8 * rem };
+        // the palette's category chips follow its title and wrap onto more lines on a narrow screen
+        let chips: Vec<(String, egui::Rect)> = match &self.kind {
+            Kind::Palette { mode, .. } => {
+                let title_w = ctx.fonts_mut(|f| f.layout_no_wrap(self.title.clone(), mono.clone(), egui::Color32::WHITE).size().x);
+                let left = screen.center().x - width / 2.0 + 0.8 * rem;
+                let right = screen.center().x + width / 2.0 - 0.8 * rem;
+                let line_h = 0.82 * rem * 1.5;
+                let mut x = left + (14.0 * size).max(title_w + 1.4 * size);
+                let mut line = 0.0;
+                categories_for(mode_name(*mode))
+                    .into_iter()
+                    .map(|c| {
+                        let w = ctx.fonts_mut(|f| f.layout_no_wrap(c.clone(), small.clone(), egui::Color32::WHITE).size().x);
+                        if x + w > right && x > left {
+                            // the first wrapped line goes under the title
+                            line = if line == 0.0 { size * 1.3 } else { line + line_h };
+                            x = left;
+                        }
+                        let r = egui::Rect::from_min_size(egui::pos2(x, line), egui::vec2(w, line_h));
+                        x += w + 0.9 * size;
+                        (c, r)
+                    })
+                    .collect()
+            }
+            _ => vec![],
+        };
+        let chips_h = chips.iter().map(|c| c.1.top() + size * 1.3).fold(0.0, f32::max);
+        let title_h = if tabbed { 32.0 * scale + 0.35 * 2.0 * rem + 4.0 } else { (size * 1.3).max(chips_h) + 0.8 * rem };
         let body_h = match &self.kind {
             Kind::Actions(..) => 3.6 * rem,
             Kind::Palette { .. } => shown as f32 * row_h + 2.4 * rem,
@@ -400,66 +427,32 @@ impl ClientMenu {
         let mut chip = None;
         match &self.kind {
             Kind::Actions(cur, _) => {
-                let mut x = rect.left() + pad;
-                for t in ACTION_TABS.iter() {
-                    let on = t.id == *cur;
-                    let colour = if on { egui::Color32::WHITE } else { INK_DIM };
-                    let icon = 32.0 * scale;
-                    let g = painter.layout_no_wrap(t.label.to_string(), mono.clone(), colour);
-                    let r = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(icon + 0.35 * size + g.size().x, title_h - 0.6 * rem));
-                    if let Some(id) = tiles.id_of(t.tile) {
-                        tiles.paint_id(&painter, id, egui::Rect::from_min_size(egui::pos2(x, r.center().y - icon / 2.0), egui::vec2(icon, icon)));
-                    }
-                    painter.galley(egui::pos2(x + icon + 0.35 * size, r.center().y - g.size().y / 2.0), g, colour);
-                    if on {
-                        painter.line_segment([egui::pos2(r.left(), r.bottom()), egui::pos2(r.right(), r.bottom())], egui::Stroke::new(2.0, GOLD_BRIGHT));
-                    }
-                    if clicked_at(r) && !on {
-                        out = Some(ClientEvent::Tab(t.id));
-                    }
-                    x = r.right() + 1.4 * size;
+                let tabs: Vec<(&str, &str, bool)> = ACTION_TABS.iter().map(|t| (t.label, t.tile, t.id == *cur)).collect();
+                let strip = egui::Rect::from_min_max(egui::pos2(rect.left() + pad, y), egui::pos2(rect.right() - pad, y + title_h - 0.6 * rem));
+                if let Some(i) = tab_strip(&painter, tiles, &tabs, strip, &mono, scale, egui::Color32::WHITE, &clicked_at) {
+                    out = Some(ClientEvent::Tab(ACTION_TABS[i].id));
                 }
             }
-            Kind::Palette { mode, category, .. } => {
+            Kind::Palette { category, .. } => {
                 let g = painter.layout_no_wrap(self.title.clone(), mono.clone(), egui::Color32::WHITE);
                 painter.galley(egui::pos2(rect.left() + pad, y), g, egui::Color32::WHITE);
-                let mut x = rect.left() + pad + 14.0 * size;
-                for (i, c) in categories_for(mode_name(*mode)).iter().enumerate() {
-                    let on = i == *category;
-                    let g = painter.layout_no_wrap(c.clone(), small.clone(), if on { GOLD_BRIGHT } else { INK_DIM });
-                    let r = egui::Rect::from_min_size(egui::pos2(x, y), g.size());
-                    if x + g.size().x > rect.right() - pad {
-                        break;
-                    }
+                for (i, (c, r)) in chips.iter().enumerate() {
+                    let r = r.translate(egui::vec2(0.0, y));
+                    let g = painter.layout_no_wrap(c.clone(), small.clone(), if i == *category { GOLD_BRIGHT } else { INK_DIM });
                     painter.galley(r.min, g, egui::Color32::WHITE);
                     if clicked_at(r) {
                         // the chips are a choice of their own: the list is rebuilt at once
                         chip = Some(i);
                     }
-                    x = r.right() + 0.9 * size;
                 }
             }
             Kind::System { tab, opts } => {
-                let mut x = rect.left() + pad;
-                let tabs: &[(&str, &str)] = if opts.spectating { &[("System", "CMD_GAME_MENU")] } else { &[("Character", "CMD_DISPLAY_CHARACTER_STATUS"), ("System", "CMD_GAME_MENU")] };
-                for (i, (label, tile)) in tabs.iter().enumerate() {
-                    let index = if opts.spectating { 1 } else { i };
-                    let on = index == *tab;
-                    let colour = if on { GOLD_BRIGHT } else { INK_DIM };
-                    let icon = 32.0 * scale;
-                    let g = painter.layout_no_wrap(label.to_string(), mono.clone(), colour);
-                    let r = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(icon + 0.35 * size + g.size().x, title_h - 0.6 * rem));
-                    if let Some(id) = tiles.id_of(tile) {
-                        tiles.paint_id(&painter, id, egui::Rect::from_min_size(egui::pos2(x, r.center().y - icon / 2.0), egui::vec2(icon, icon)));
-                    }
-                    painter.galley(egui::pos2(x + icon + 0.35 * size, r.center().y - g.size().y / 2.0), g, colour);
-                    if on {
-                        painter.line_segment([egui::pos2(r.left(), r.bottom()), egui::pos2(r.right(), r.bottom())], egui::Stroke::new(2.0, GOLD_BRIGHT));
-                    }
-                    if clicked_at(r) && !on {
-                        chip = Some(index);
-                    }
-                    x = r.right() + 1.4 * size;
+                let all: &[(&str, &str)] = if opts.spectating { &[("System", "CMD_GAME_MENU")] } else { &[("Character", "CMD_DISPLAY_CHARACTER_STATUS"), ("System", "CMD_GAME_MENU")] };
+                let index = |i: usize| if opts.spectating { 1 } else { i };
+                let tabs: Vec<(&str, &str, bool)> = all.iter().enumerate().map(|(i, (l, t))| (*l, *t, index(i) == *tab)).collect();
+                let strip = egui::Rect::from_min_max(egui::pos2(rect.left() + pad, y), egui::pos2(rect.right() - pad, y + title_h - 0.6 * rem));
+                if let Some(i) = tab_strip(&painter, tiles, &tabs, strip, &mono, scale, GOLD_BRIGHT, &clicked_at) {
+                    chip = Some(index(i));
                 }
             }
             Kind::Choices => {
@@ -532,18 +525,26 @@ impl ClientMenu {
                             x += w;
                         }
                     }
-                    let g = painter.layout_no_wrap(row.label.clone(), mono.clone(), colour);
-                    painter.galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, colour);
                     let right = match (&self.kind, &row.key, &row.sub) {
                         (Kind::Palette { .. }, _, Some(sub)) => Some(sub.clone()),
                         (Kind::System { tab: 1, .. }, _, _) => None,
                         (_, Some(k), _) => Some(k.clone()),
                         _ => None,
                     };
+                    let mut right_x = r.right() - 0.6 * size;
                     if let Some(k) = right {
-                        let g = painter.layout_no_wrap(k, small.clone(), INK_DIM);
-                        painter.galley(egui::pos2(r.right() - 0.6 * size - g.size().x, r.center().y - g.size().y / 2.0), g, INK_DIM);
+                        // the key or the hint, cut short on a narrow screen before the label is
+                        let mut job = egui::text::LayoutJob::simple_singleline(k, small.clone(), INK_DIM);
+                        job.wrap = egui::text::TextWrapping::truncate_at_width((0.45 * (r.width() - (x - r.left()))).max(3.0 * size));
+                        let g = painter.ctx().fonts_mut(|f| f.layout_job(job));
+                        right_x -= g.size().x;
+                        painter.galley(egui::pos2(right_x, r.center().y - g.size().y / 2.0), g, INK_DIM);
+                        right_x -= 0.6 * size;
                     }
+                    let mut job = egui::text::LayoutJob::simple_singleline(row.label.clone(), mono.clone(), colour);
+                    job.wrap = egui::text::TextWrapping::truncate_at_width((right_x - x).max(size));
+                    let g = painter.ctx().fonts_mut(|f| f.layout_job(job));
+                    painter.galley(egui::pos2(x, r.center().y - g.size().y / 2.0), g, colour);
                     if hovered(r) && ctx.input(|i| i.pointer.delta() != egui::Vec2::ZERO) {
                         self.focus = i;
                     }
@@ -585,6 +586,54 @@ impl ClientMenu {
         });
         (out, stays)
     }
+}
+
+/// A strip of tabs, an icon and a label each (overlays.ts installTabs): where they do not all fit
+/// the width (a phone), the gaps close up, then only the current tab keeps its label, then none
+/// does. Returns the tab clicked that is not the current one.
+#[allow(clippy::too_many_arguments)]
+fn tab_strip(painter: &egui::Painter, tiles: &mut TileIcons, tabs: &[(&str, &str, bool)], strip: egui::Rect, mono: &egui::FontId, scale: f32, lit: egui::Color32, clicked_at: &dyn Fn(egui::Rect) -> bool) -> Option<usize> {
+    let size = mono.size;
+    let icon = 32.0 * scale;
+    let galleys: Vec<_> = tabs.iter().map(|(l, _, on)| painter.layout_no_wrap(l.to_string(), mono.clone(), if *on { lit } else { INK_DIM })).collect();
+    let width_of = |labels: &dyn Fn(usize) -> bool, gap: f32| -> f32 {
+        galleys.iter().enumerate().map(|(i, g)| icon + if labels(i) { 0.35 * size + g.size().x } else { 0.0 }).sum::<f32>() + gap * (tabs.len().saturating_sub(1)) as f32
+    };
+    let all = |_: usize| true;
+    let current = |i: usize| tabs[i].2;
+    let none = |_: usize| false;
+    let fits = |l: &dyn Fn(usize) -> bool, gap: f32| width_of(l, gap) <= strip.width();
+    let (labels, gap): (&dyn Fn(usize) -> bool, f32) = if fits(&all, 1.4 * size) {
+        (&all, 1.4 * size)
+    } else if fits(&all, 0.7 * size) {
+        (&all, 0.7 * size)
+    } else if fits(&current, 0.9 * size) {
+        (&current, ((strip.width() - width_of(&current, 0.0)) / (tabs.len().saturating_sub(1).max(1)) as f32).min(1.4 * size))
+    } else {
+        (&none, ((strip.width() - width_of(&none, 0.0)) / (tabs.len().saturating_sub(1).max(1)) as f32).clamp(0.0, 1.4 * size))
+    };
+    let mut x = strip.left();
+    let mut clicked = None;
+    for (i, ((_, tile, on), g)) in tabs.iter().zip(galleys).enumerate() {
+        let colour = if *on { lit } else { INK_DIM };
+        let w = icon + if labels(i) { 0.35 * size + g.size().x } else { 0.0 };
+        let r = egui::Rect::from_min_size(egui::pos2(x, strip.top()), egui::vec2(w, strip.height()));
+        if let Some(id) = tiles.id_of(tile) {
+            tiles.paint_id(painter, id, egui::Rect::from_min_size(egui::pos2(x, r.center().y - icon / 2.0), egui::vec2(icon, icon)));
+        }
+        if labels(i) {
+            painter.galley(egui::pos2(x + icon + 0.35 * size, r.center().y - g.size().y / 2.0), g, colour);
+        }
+        if *on {
+            painter.line_segment([egui::pos2(r.left(), r.bottom()), egui::pos2(r.right(), r.bottom())], egui::Stroke::new(2.0, GOLD_BRIGHT));
+        }
+        // a tab takes the taps of half the gaps beside it
+        if clicked_at(r.expand2(egui::vec2(gap / 2.0, 0.0))) && !on {
+            clicked = Some(i);
+        }
+        x = r.right() + gap;
+    }
+    clicked
 }
 
 #[cfg(test)]
