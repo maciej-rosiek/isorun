@@ -42,6 +42,25 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
+      - name: Release key
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: the APK is signed with the debug key."
+            exit 0
+          fi
+          # a secret pasted on a phone often carries a line break, or spaces in the base64
+          printf '%s' "$KEYSTORE_BASE64" | tr -d ' \r\n' | base64 -d > "$RUNNER_TEMP/isorun.keystore"
+          password=$(printf '%s' "$KEYSTORE_PASSWORD" | tr -d '\r\n')
+          if ! keytool -list -keystore "$RUNNER_TEMP/isorun.keystore" -storepass "$password" > /dev/null; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD does not open the keystore in ANDROID_KEYSTORE_BASE64."
+            exit 1
+          fi
+          echo "ISORUN_KEYSTORE=$RUNNER_TEMP/isorun.keystore" >> "$GITHUB_ENV"
+          echo "::add-mask::$password"
+          echo "ISORUN_KEYSTORE_PASSWORD=$password" >> "$GITHUB_ENV"
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       - name: Tools for the engine
         run: |
           sudo apt-get update -q
@@ -59,15 +78,8 @@ jobs:
       - run: npm ci
         working-directory: mobile
       - name: APK
-        run: |
-          if [ -n "$KEYSTORE_BASE64" ]; then
-            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/isorun.keystore"
-            export ISORUN_KEYSTORE="$RUNNER_TEMP/isorun.keystore"
-          fi
-          node mobile/package.mjs ${{ (github.event_name == 'release' || inputs.upload) && '--publish' || '' }}
+        run: node mobile/package.mjs ${{ (github.event_name == 'release' || inputs.upload) && '--publish' || '' }}
         env:
-          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ISORUN_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           GH_TOKEN: ${{ github.token }}
       - uses: actions/upload-artifact@v4
         with:
