@@ -1,0 +1,36 @@
+[package]
+name = "isorun-audio"
+description = "The game's sound: effects, ambient beds and music on kira, and the cues that turn a game into sounds."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[features]
+default = ["device"]
+# Play on the default sound device (cpal: ALSA on Linux, WASAPI on Windows, AAudio on Android,
+# WebAudio on the web). Without it the engine runs with no output.
+device = ["kira/cpal"]
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-render = { path = "../render" }
+isorun-webtiles = { path = "../webtiles" }
+kira = { version = "0.12.5", default-features = false, features = ["ogg", "vorbis"] }
+regex = { workspace = true }
+once_cell = { workspace = true }
+log = "0.4"
+web-time = "1"
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+js-sys = "0.3"
+web-sys = { version = "0.3", features = ["Window", "Response", "HtmlAudioElement", "HtmlMediaElement"] }
+
+[dev-dependencies]
+hound = "3"
+
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+isorun-ui = { path = "../ui" }
+egui = { workspace = true }
+eframe = { workspace = true }
