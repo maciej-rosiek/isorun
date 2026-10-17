@@ -5,6 +5,13 @@
 //! rect; outer shadows are egui's own blurred rects. A box of the same style and size is the
 //! same texture, so the 80 sockets of the inventory are one upload.
 //!
+//! Painting is a frame's cost: a screen's panel on a phone (DPR 2.6) is two million texels. The
+//! rows go over the cores; the inside of a box, where no edge, border or inset shadow reaches,
+//! takes the layers alone, and a layer the same along a row or down a column is worked out once
+//! for it. A big box, or any once a frame has spent its budget, is shown first at fewer texels
+//! and painted sharp on a thread for the next frames; and the textures are kept for minutes, not
+//! frames, so a screen opened again is drawn at once (`RUST_LOG=isorun::boxes=debug` logs each).
+//!
 //! Colours are sRGB with straight alpha, as CSS writes them; gradients interpolate in
 //! premultiplied sRGB as browsers do.
 
@@ -411,87 +418,301 @@ impl Prepared {
     }
 }
 
-/// The box painted into an image `px` texels a point: everything but the outer shadows.
-pub fn rasterise(style: &BoxStyle, size: Vec2, px: f32) -> egui::ColorImage {
-    let w = (size.x * px).ceil().max(1.0) as usize;
-    let h = (size.y * px).ceil().max(1.0) as usize;
-    let layers: Vec<Prepared> = style.layers.iter().map(|l| prepare(l, size)).collect();
-    let half = size / 2.0;
-    let b = style.border;
-    // the padding box: the border's inside edge, its radii less the border (CSS's inner radii)
-    let inner_min = egui::vec2(b.w[3], b.w[0]);
-    let inner_size = egui::vec2(size.x - b.w[1] - b.w[3], size.y - b.w[0] - b.w[2]).max(Vec2::ZERO);
-    let inner_half = inner_size / 2.0;
-    let inner_centre = inner_min + inner_half;
-    let r = style.radius;
-    let inner_r = [(r[0] - b.w[3].max(b.w[0])).max(0.0), (r[1] - b.w[1].max(b.w[0])).max(0.0), (r[2] - b.w[1].max(b.w[2])).max(0.0), (r[3] - b.w[3].max(b.w[2])).max(0.0)];
-    let has_border = b.w.iter().any(|w| *w > 0.0);
-    let aa = 0.5 / px;
-    let mut pixels = Vec::with_capacity(w * h);
-    for y in 0..h {
-        for x in 0..w {
-            let p = egui::pos2((x as f32 + 0.5) / px, (y as f32 + 0.5) / px);
-            let d = sd_round_box(p - half.to_pos2(), half, r);
-            let cover = (0.5 - d * px).clamp(0.0, 1.0);
-            if cover <= 0.0 {
-                pixels.push(Color32::TRANSPARENT);
-                continue;
+/// A box ready to paint, pixel by pixel or a row at a time.
+struct Raster<'a> {
+    style: &'a BoxStyle,
+    size: Vec2,
+    px: f32,
+    w: usize,
+    h: usize,
+    layers: Vec<Prepared>,
+    /// the layers in runs (the first on top) of those the same along a row (a vertical gradient,
+    /// a colour), the same down a column (a horizontal one), or neither: a run of the first two is
+    /// worked out once a row or column and composed into one colour, as `over` is associative
+    groups: Vec<(Along, Vec<usize>)>,
+    half: Vec2,
+    inner_centre: Vec2,
+    inner_half: Vec2,
+    inner_r: [f32; 4],
+    has_border: bool,
+    aa: f32,
+    /// the texels inside which no edge, border or inset shadow reaches: only the layers there
+    plain: (usize, usize, usize, usize),
+}
+
+#[derive(Clone, Copy, PartialEq)]
+enum Along {
+    Any,
+    Row,
+    Column,
+}
+
+impl<'a> Raster<'a> {
+    fn new(style: &'a BoxStyle, size: Vec2, px: f32) -> Raster<'a> {
+        let w = (size.x * px).ceil().max(1.0) as usize;
+        let h = (size.y * px).ceil().max(1.0) as usize;
+        let layers: Vec<Prepared> = style.layers.iter().map(|l| prepare(l, size)).collect();
+        let mut groups: Vec<(Along, Vec<usize>)> = vec![];
+        for (i, l) in layers.iter().enumerate() {
+            let a = match l {
+                Prepared::Solid(_) => Along::Row,
+                Prepared::Linear { dir, .. } if dir.x.abs() < 1e-6 => Along::Row,
+                Prepared::Linear { dir, .. } if dir.y.abs() < 1e-6 => Along::Column,
+                _ => Along::Any,
+            };
+            match groups.last_mut() {
+                Some((last, run)) if *last == a && a != Along::Any => run.push(i),
+                _ => groups.push((a, vec![i])),
             }
-            let mut c = P::default();
-            for l in layers.iter().rev() {
-                c = l.at(p, size).over(c);
-            }
-            let di = sd_round_box(p.to_vec2() - inner_centre, inner_half, inner_r);
-            for s in style.insets.iter().rev() {
-                // the shadow lies outside a copy of the padding box moved by its offset and shrunk
-                // by its spread, blurred by half its blur radius, and only inside the padding box
-                let q = p.to_vec2() - inner_centre - egui::vec2(s.x, s.y);
-                let ds = sd_round_box(q, (inner_half - Vec2::splat(s.spread)).max(Vec2::ZERO), inner_r.map(|r| (r - s.spread).max(0.0)));
-                let k = if s.blur > 0.0 { phi(ds / (s.blur / 2.0)) } else { (0.5 + ds * px).clamp(0.0, 1.0) };
-                let clip = (0.5 - di * px).clamp(0.0, 1.0);
-                c = P::from(s.c).scale(k * clip).over(c);
-            }
-            if has_border {
-                let edge = (0.5 + di * px).clamp(0.0, 1.0);
-                if edge > 0.0 {
-                    // which side's colour: the one whose edge is nearest, as CSS splits the corners
-                    let side = [p.y, size.x - p.x, size.y - p.y, p.x];
-                    let rel = [side[0] / b.w[0].max(aa), side[1] / b.w[1].max(aa), side[2] / b.w[2].max(aa), side[3] / b.w[3].max(aa)];
-                    let mut k = 0;
-                    for i in 1..4 {
-                        if rel[i] < rel[k] {
-                            k = i;
-                        }
+        }
+        let b = style.border;
+        // the padding box: the border's inside edge, its radii less the border (CSS's inner radii)
+        let inner_min = egui::vec2(b.w[3], b.w[0]);
+        let inner_size = egui::vec2(size.x - b.w[1] - b.w[3], size.y - b.w[0] - b.w[2]).max(Vec2::ZERO);
+        let inner_half = inner_size / 2.0;
+        let r = style.radius;
+        let inner_r = [(r[0] - b.w[3].max(b.w[0])).max(0.0), (r[1] - b.w[1].max(b.w[0])).max(0.0), (r[2] - b.w[1].max(b.w[2])).max(0.0), (r[3] - b.w[3].max(b.w[2])).max(0.0)];
+        // how far in from the box's edge something other than the layers is painted: the corners,
+        // the border, and each inset shadow, which reaches its offset and spread in and fades over
+        // twice its blur (the normal curve is under a 255th of its colour there)
+        let edge = 2.0 / px;
+        let mut margin = r.iter().fold(0.0f32, |m, r| m.max(*r)) + b.w.iter().fold(0.0f32, |m, w| m.max(*w)) + edge;
+        for s in &style.insets {
+            margin = margin.max(b.w.iter().fold(0.0f32, |m, w| m.max(*w)) + r.iter().fold(0.0f32, |m, r| m.max(*r)) + s.spread.max(0.0) + s.x.abs().max(s.y.abs()) + 2.0 * s.blur + edge);
+        }
+        let m = (margin * px).ceil() as usize;
+        let plain = if 2 * m < w && 2 * m < h { (m, w - m, m, h - m) } else { (0, 0, 0, 0) };
+        Raster { style, size, px, w, h, layers, groups, half: size / 2.0, inner_centre: inner_min + inner_half, inner_half, inner_r, has_border: b.w.iter().any(|w| *w > 0.0), aa: 0.5 / px, plain }
+    }
+
+    fn point(&self, x: usize, y: usize) -> Pos2 {
+        egui::pos2((x as f32 + 0.5) / self.px, (y as f32 + 0.5) / self.px)
+    }
+
+    /// One texel, with everything.
+    fn texel(&self, x: usize, y: usize, fixed: &[P], columns: &[Vec<P>]) -> Color32 {
+        let style = self.style;
+        let px = self.px;
+        let p = self.point(x, y);
+        let d = sd_round_box(p - self.half.to_pos2(), self.half, style.radius);
+        let cover = (0.5 - d * px).clamp(0.0, 1.0);
+        if cover <= 0.0 {
+            return Color32::TRANSPARENT;
+        }
+        let mut c = self.fill(p, x, fixed, columns);
+        let di = sd_round_box(p.to_vec2() - self.inner_centre, self.inner_half, self.inner_r);
+        for s in style.insets.iter().rev() {
+            // the shadow lies outside a copy of the padding box moved by its offset and shrunk
+            // by its spread, blurred by half its blur radius, and only inside the padding box
+            let q = p.to_vec2() - self.inner_centre - egui::vec2(s.x, s.y);
+            let ds = sd_round_box(q, (self.inner_half - Vec2::splat(s.spread)).max(Vec2::ZERO), self.inner_r.map(|r| (r - s.spread).max(0.0)));
+            let k = if s.blur > 0.0 { phi(ds / (s.blur / 2.0)) } else { (0.5 + ds * px).clamp(0.0, 1.0) };
+            let clip = (0.5 - di * px).clamp(0.0, 1.0);
+            c = P::from(s.c).scale(k * clip).over(c);
+        }
+        if self.has_border {
+            let b = style.border;
+            let edge = (0.5 + di * px).clamp(0.0, 1.0);
+            if edge > 0.0 {
+                // which side's colour: the one whose edge is nearest, as CSS splits the corners
+                let side = [p.y, self.size.x - p.x, self.size.y - p.y, p.x];
+                let aa = self.aa;
+                let rel = [side[0] / b.w[0].max(aa), side[1] / b.w[1].max(aa), side[2] / b.w[2].max(aa), side[3] / b.w[3].max(aa)];
+                let mut k = 0;
+                for i in 1..4 {
+                    if rel[i] < rel[k] {
+                        k = i;
                     }
-                    c = P::from(b.c[k]).scale(edge).over(c);
                 }
+                c = P::from(b.c[k]).scale(edge).over(c);
             }
-            let c = c.scale(cover * style.opacity);
-            if c.a <= 0.0 {
-                pixels.push(Color32::TRANSPARENT);
-            } else {
-                pixels.push(Color32::from_rgba_premultiplied(c.r.round().clamp(0.0, 255.0) as u8, c.g.round().clamp(0.0, 255.0) as u8, c.b.round().clamp(0.0, 255.0) as u8, (c.a * 255.0).round().clamp(0.0, 255.0) as u8));
+        }
+        out(c.scale(cover * style.opacity))
+    }
+
+    /// A run of layers composed at a point.
+    fn group_at(&self, run: &[usize], p: Pos2) -> P {
+        run.iter().rev().fold(P::default(), |c, i| self.layers[*i].at(p, self.size).over(c))
+    }
+
+    /// The runs the same down a column, at each column.
+    fn columns(&self) -> Vec<Vec<P>> {
+        self.groups.iter().map(|(a, run)| if *a == Along::Column { (0..self.w).map(|x| self.group_at(run, egui::pos2((x as f32 + 0.5) / self.px, self.half.y))).collect() } else { vec![] }).collect()
+    }
+
+    /// The layers alone at a point, the runs the same along its row taken from `fixed` and those
+    /// the same down its column from `columns`.
+    fn fill(&self, p: Pos2, x: usize, fixed: &[P], columns: &[Vec<P>]) -> P {
+        let mut c = P::default();
+        for (g, (a, run)) in self.groups.iter().enumerate().rev() {
+            let v = match a {
+                Along::Row => fixed[g],
+                Along::Column => columns[g][x],
+                Along::Any => self.group_at(run, p),
+            };
+            c = v.over(c);
+        }
+        c
+    }
+
+    /// Paint row `y` into `row`.
+    fn row(&self, y: usize, row: &mut [Color32], columns: &[Vec<P>]) {
+        let py = (y as f32 + 0.5) / self.px;
+        let fixed: Vec<P> = self.groups.iter().map(|(a, run)| if *a == Along::Row { self.group_at(run, egui::pos2(self.half.x, py)) } else { P::default() }).collect();
+        let (x0, x1, y0, y1) = self.plain;
+        let inside = y >= y0 && y < y1;
+        for (x, t) in row.iter_mut().enumerate() {
+            *t = if inside && x >= x0 && x < x1 { out(self.fill(self.point(x, y), x, &fixed, columns).scale(self.style.opacity)) } else { self.texel(x, y, &fixed, columns) };
+        }
+    }
+}
+
+fn out(c: P) -> Color32 {
+    // rounded by adding a half to what is clamped to 0..255 and truncating: `round` is a call
+    // into libm on an x86-64 without SSE4.1, four of them a texel the most of a box's time
+    let byte = |v: f32| (v.clamp(0.0, 255.0) + 0.5) as u8;
+    if c.a <= 0.0 {
+        Color32::TRANSPARENT
+    } else {
+        Color32::from_rgba_premultiplied(byte(c.r), byte(c.g), byte(c.b), byte(c.a * 255.0))
+    }
+}
+
+/// Texels of a box past which its rows are painted on several threads.
+const THREADED_TEXELS: usize = 64 * 1024;
+
+/// The box painted into an image `px` texels a point: everything but the outer shadows. Big
+/// boxes (a screen's panel on a phone is two million texels) go row by row over the CPU's cores:
+/// they are painted when the screen opens, and that frame waits for them.
+pub fn rasterise(style: &BoxStyle, size: Vec2, px: f32) -> egui::ColorImage {
+    rasterise_on(style, size, px, cores())
+}
+
+/// `rasterise` on at most `threads` threads.
+fn rasterise_on(style: &BoxStyle, size: Vec2, px: f32, threads: usize) -> egui::ColorImage {
+    let r = Raster::new(style, size, px);
+    let (w, h) = (r.w, r.h);
+    let columns = r.columns();
+    let mut pixels = vec![Color32::TRANSPARENT; w * h];
+    let threads = if w * h >= THREADED_TEXELS { threads.max(1) } else { 1 };
+    if threads > 1 {
+        let rows_each = h.div_ceil(threads);
+        std::thread::scope(|scope| {
+            for (i, chunk) in pixels.chunks_mut(rows_each * w).enumerate() {
+                let (r, columns) = (&r, &columns);
+                scope.spawn(move || {
+                    for (j, row) in chunk.chunks_mut(w).enumerate() {
+                        r.row(i * rows_each + j, row, columns);
+                    }
+                });
             }
+        });
+    } else {
+        for (y, row) in pixels.chunks_mut(w).enumerate() {
+            r.row(y, row, &columns);
         }
     }
     egui::ColorImage::new([w, h], pixels)
+}
+
+/// The cores to paint on (one on the web, which has no threads here).
+fn cores() -> usize {
+    #[cfg(target_arch = "wasm32")]
+    {
+        1
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        static N: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+        *N.get_or_init(|| std::thread::available_parallelism().map(|n| n.get()).unwrap_or(1).min(8))
+    }
+}
+
+/// A box's texture: its style's key, its size in eighths of a point, the texels a point in
+/// hundredths.
+type BoxKey = (String, u32, u32, u32);
+
+struct Kept {
+    texture: egui::TextureHandle,
+    /// seconds
+    used: f64,
+    bytes: usize,
+    /// painted at fewer texels than the screen has while the sharp one is painted on a thread
+    soft: bool,
+}
+
+/// How long a box nobody drew is kept: a screen opened again within it opens at once (the
+/// inventory's panel on a phone is half a second of painting on one core).
+const KEEP_SECONDS: f64 = 300.0;
+/// and at most this much of them, the least recently drawn going first
+const KEEP_BYTES: usize = 128 << 20;
+/// Boxes of more texels than this are painted on a thread and shown meanwhile at fewer texels,
+/// softer: a frame that opens a screen never waits for its panels (the inventory's on a phone is
+/// two million texels, half a second on one core)
+const SHARP_TEXELS: usize = 96 * 1024;
+/// the most texels a soft box has, and the least ninth of its sharp ones
+const SOFT_TEXELS: usize = 48 * 1024;
+/// and once a frame has spent this long painting boxes, every other box but the smallest is soft
+/// (the inventory's sockets: a dozen colours and states, a few ms each on a phone)
+const FRAME_BUDGET_MS: f64 = 6.0;
+
+/// A box to paint sharp on the painting thread (none on the web).
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+struct Job {
+    key: BoxKey,
+    style: BoxStyle,
+    size: Vec2,
+    px: f32,
 }
 
 /// The boxes as textures, by their key and size. Keep one for the HUD; it drops what was not
 /// drawn for a while.
 #[derive(Default)]
 pub struct BoxCache {
-    textures: HashMap<(String, u32, u32, u32), (egui::TextureHandle, u64)>,
+    textures: HashMap<BoxKey, Kept>,
     frame: u64,
+    /// the sharp rasters painted on threads, waiting to be uploaded
+    done: std::sync::Arc<std::sync::Mutex<Vec<(BoxKey, egui::ColorImage)>>>,
+    painting: std::collections::HashSet<BoxKey>,
+    /// the boxes to paint sharp, sent to a thread when the frame that asked is over
+    jobs: Vec<Job>,
+    ctx: Option<egui::Context>,
+    /// ms spent painting boxes this frame
+    spent: f64,
 }
 
 impl BoxCache {
-    /// Start a frame: textures not drawn for ten seconds' worth of frames go.
+    /// Start a frame: the sharp boxes painted meanwhile replace their soft ones, and textures
+    /// not drawn for KEEP_SECONDS (or past KEEP_BYTES) go.
     pub fn begin_frame(&mut self) {
         self.frame += 1;
-        if self.frame % 600 == 0 {
-            let f = self.frame;
-            self.textures.retain(|_, (_, used)| f - *used < 600);
+        self.spent = 0.0;
+        self.send_jobs();
+        let done = std::mem::take(&mut *self.done.lock().unwrap_or_else(|e| e.into_inner()));
+        for (k, img) in done {
+            self.painting.remove(&k);
+            if let Some(kept) = self.textures.get_mut(&k) {
+                kept.bytes = img.width() * img.height() * 4;
+                kept.texture.set(img, egui::TextureOptions::LINEAR);
+                kept.soft = false;
+            }
+        }
+        if self.frame % 120 == 0 {
+            let now = isorun_client::platform::seconds();
+            self.textures.retain(|_, k| now - k.used < KEEP_SECONDS);
+            let mut total: usize = self.textures.values().map(|k| k.bytes).sum();
+            if total > KEEP_BYTES {
+                let mut by_age: Vec<(f64, BoxKey)> = self.textures.iter().map(|(k, v)| (v.used, k.clone())).collect();
+                by_age.sort_by(|a, b| a.0.total_cmp(&b.0));
+                for (_, k) in by_age {
+                    if total <= KEEP_BYTES {
+                        break;
+                    }
+                    if let Some(v) = self.textures.remove(&k) {
+                        total -= v.bytes;
+                    }
+                }
+            }
         }
     }
 
@@ -500,15 +721,57 @@ impl BoxCache {
     pub fn texture(&mut self, ctx: &egui::Context, key: &str, size: Vec2, style: impl FnOnce() -> BoxStyle) -> egui::TextureHandle {
         let px = ctx.pixels_per_point();
         let k = (key.to_string(), (size.x * 8.0).round() as u32, (size.y * 8.0).round() as u32, (px * 100.0).round() as u32);
-        let frame = self.frame;
-        if let Some((t, used)) = self.textures.get_mut(&k) {
-            *used = frame;
-            return t.clone();
+        let now = isorun_client::platform::seconds();
+        self.ctx.get_or_insert_with(|| ctx.clone());
+        if let Some(kept) = self.textures.get_mut(&k) {
+            kept.used = now;
+            return kept.texture.clone();
         }
-        let img = rasterise(&style(), size, px);
-        let t = ctx.load_texture(format!("hud-box:{key}"), img, egui::TextureOptions::LINEAR);
-        self.textures.insert(k, (t.clone(), frame));
-        t
+        let style = style();
+        let texels = ((size.x * px).ceil() * (size.y * px).ceil()) as usize;
+        let soft = cores() > 1 && (texels > SHARP_TEXELS || (self.spent > FRAME_BUDGET_MS && texels > 1024));
+        let at = if soft { px * ((texels / 9).min(SOFT_TEXELS) as f32 / texels as f32).sqrt() } else { px };
+        let img = rasterise(&style, size, at);
+        let ms = (isorun_client::platform::seconds() - now) * 1000.0;
+        self.spent += ms;
+        log::debug!(target: "isorun::boxes", "raster {key} {:.0}x{:.0} at {at:.2}: {ms:.2} ms", size.x, size.y);
+        let bytes = img.width() * img.height() * 4;
+        let texture = ctx.load_texture(format!("hud-box:{key}"), img, egui::TextureOptions::LINEAR);
+        if soft && self.painting.insert(k.clone()) {
+            self.jobs.push(Job { key: k.clone(), style, size, px });
+        }
+        self.textures.insert(k, Kept { texture: texture.clone(), used: now, bytes, soft });
+        texture
+    }
+
+    /// The boxes asked for sharp in the last frame, painted on one thread (each over the cores)
+    /// the biggest first; the frame after each is done shows it.
+    fn send_jobs(&mut self) {
+        if self.jobs.is_empty() {
+            return;
+        }
+        let mut jobs = std::mem::take(&mut self.jobs);
+        jobs.sort_by_key(|j| std::cmp::Reverse((j.size.x * j.size.y) as u64));
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let Some(ctx) = self.ctx.clone() else { return };
+            let done = self.done.clone();
+            let spawned = std::thread::Builder::new().name("hud-boxes".into()).spawn(move || {
+                for j in jobs {
+                    let started = isorun_client::platform::seconds();
+                    // a core left to the frames, which go on meanwhile
+                    let img = rasterise_on(&j.style, j.size, j.px, cores() - 1);
+                    log::debug!(target: "isorun::boxes", "raster {} {:.0}x{:.0} at {} on a thread: {:.2} ms", j.key.0, j.size.x, j.size.y, j.px, (isorun_client::platform::seconds() - started) * 1000.0);
+                    done.lock().unwrap_or_else(|e| e.into_inner()).push((j.key, img));
+                    ctx.request_repaint();
+                }
+            });
+            if spawned.is_err() {
+                log::warn!("no thread to paint the boxes on");
+            }
+        }
+        #[cfg(target_arch = "wasm32")]
+        let _ = jobs;
     }
 
     /// Paint a box with its outer shadows, `style` built every call (it is cheap; the raster is
@@ -616,6 +879,145 @@ pub fn gradient_rect(painter: &egui::Painter, rect: Rect, vertical: bool, stops:
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The box painted into (texel by texel, everything everywhere: the tests' reference) an image `px` texels a point: everything but the outer shadows.
+    fn rasterise_reference(style: &BoxStyle, size: Vec2, px: f32) -> egui::ColorImage {
+        let w = (size.x * px).ceil().max(1.0) as usize;
+        let h = (size.y * px).ceil().max(1.0) as usize;
+        let layers: Vec<Prepared> = style.layers.iter().map(|l| prepare(l, size)).collect();
+        let half = size / 2.0;
+        let b = style.border;
+        // the padding box: the border's inside edge, its radii less the border (CSS's inner radii)
+        let inner_min = egui::vec2(b.w[3], b.w[0]);
+        let inner_size = egui::vec2(size.x - b.w[1] - b.w[3], size.y - b.w[0] - b.w[2]).max(Vec2::ZERO);
+        let inner_half = inner_size / 2.0;
+        let inner_centre = inner_min + inner_half;
+        let r = style.radius;
+        let inner_r = [(r[0] - b.w[3].max(b.w[0])).max(0.0), (r[1] - b.w[1].max(b.w[0])).max(0.0), (r[2] - b.w[1].max(b.w[2])).max(0.0), (r[3] - b.w[3].max(b.w[2])).max(0.0)];
+        let has_border = b.w.iter().any(|w| *w > 0.0);
+        let aa = 0.5 / px;
+        let mut pixels = Vec::with_capacity(w * h);
+        for y in 0..h {
+            for x in 0..w {
+                let p = egui::pos2((x as f32 + 0.5) / px, (y as f32 + 0.5) / px);
+                let d = sd_round_box(p - half.to_pos2(), half, r);
+                let cover = (0.5 - d * px).clamp(0.0, 1.0);
+                if cover <= 0.0 {
+                    pixels.push(Color32::TRANSPARENT);
+                    continue;
+                }
+                let mut c = P::default();
+                for l in layers.iter().rev() {
+                    c = l.at(p, size).over(c);
+                }
+                let di = sd_round_box(p.to_vec2() - inner_centre, inner_half, inner_r);
+                for s in style.insets.iter().rev() {
+                    // the shadow lies outside a copy of the padding box moved by its offset and shrunk
+                    // by its spread, blurred by half its blur radius, and only inside the padding box
+                    let q = p.to_vec2() - inner_centre - egui::vec2(s.x, s.y);
+                    let ds = sd_round_box(q, (inner_half - Vec2::splat(s.spread)).max(Vec2::ZERO), inner_r.map(|r| (r - s.spread).max(0.0)));
+                    let k = if s.blur > 0.0 { phi(ds / (s.blur / 2.0)) } else { (0.5 + ds * px).clamp(0.0, 1.0) };
+                    let clip = (0.5 - di * px).clamp(0.0, 1.0);
+                    c = P::from(s.c).scale(k * clip).over(c);
+                }
+                if has_border {
+                    let edge = (0.5 + di * px).clamp(0.0, 1.0);
+                    if edge > 0.0 {
+                        // which side's colour: the one whose edge is nearest, as CSS splits the corners
+                        let side = [p.y, size.x - p.x, size.y - p.y, p.x];
+                        let rel = [side[0] / b.w[0].max(aa), side[1] / b.w[1].max(aa), side[2] / b.w[2].max(aa), side[3] / b.w[3].max(aa)];
+                        let mut k = 0;
+                        for i in 1..4 {
+                            if rel[i] < rel[k] {
+                                k = i;
+                            }
+                        }
+                        c = P::from(b.c[k]).scale(edge).over(c);
+                    }
+                }
+                let c = c.scale(cover * style.opacity);
+                if c.a <= 0.0 {
+                    pixels.push(Color32::TRANSPARENT);
+                } else {
+                    pixels.push(Color32::from_rgba_premultiplied(c.r.round().clamp(0.0, 255.0) as u8, c.g.round().clamp(0.0, 255.0) as u8, c.b.round().clamp(0.0, 255.0) as u8, (c.a * 255.0).round().clamp(0.0, 255.0) as u8));
+                }
+            }
+        }
+        egui::ColorImage::new([w, h], pixels)
+    }
+
+    /// Styles like the screens' (a panel, a socket, a card), each with every kind of layer.
+    fn styles(u: f32) -> Vec<(BoxStyle, Vec2)> {
+        vec![
+            (
+                BoxStyle {
+                    layers: vec![
+                        Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.0), vec![sa(rgba(120, 90, 40, 0.16)), s(TRANSPARENT, 0.6)]),
+                        Layer::RepeatingLinear(0.0, vec![Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)), Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0)), Stop(TRANSPARENT, At::Pt(2.0)), Stop(TRANSPARENT, At::Pt(6.0))]),
+                        Layer::Linear(180.0, vec![sa(hex(0x1b1612)), sa(hex(0x0c0a08))]),
+                    ],
+                    radius: [6.0 * u; 4],
+                    border: Border::all(1.0, hex(0x6b5426)),
+                    insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000)), inset(0.0, 0.0, 0.0, 4.0 * u, rgba(184, 145, 63, 0.14))],
+                    ..Default::default()
+                },
+                egui::vec2(404.0, 809.0),
+            ),
+            (
+                BoxStyle { layers: vec![Layer::Radial(RadialSize::Ellipse(0.45, 0.4), (0.5, 0.45), vec![sa(rgba(216, 180, 95, 0.12)), s(TRANSPARENT, 0.7)]), Layer::Solid(rgba(0, 0, 0, 0.38))], radius: [5.0 * u; 4], border: Border::all(1.0, hex(0x33280f)), insets: vec![inset(0.0, 0.0, 24.0 * u, 0.0, rgba(0, 0, 0, 0.7))], ..Default::default() },
+                egui::vec2(312.0, 431.0),
+            ),
+            (
+                BoxStyle { layers: vec![Layer::Linear(90.0, vec![sa(hex(0x2a221a)), sa(hex(0x120e0a))]), Layer::Conic(30.0, (0.4, 0.5), vec![sa(hex(0x102030)), sa(hex(0x302010))])], radius: [4.0 * u, 0.0, 9.0 * u, 2.0], border: Border { w: [1.0, 2.0, 1.0, 3.0], c: [hex(0xff0000), hex(0x00ff00), hex(0x0000ff), hex(0xffffff)] }, insets: vec![inset(2.0, 3.0, 14.0 * u, 1.0, rgba(0, 0, 0, 0.9))], opacity: 0.5, ..Default::default() },
+                egui::vec2(207.0, 162.0),
+            ),
+        ]
+    }
+
+    #[test]
+    fn rows_paint_as_texels_do() {
+        for (st, size) in styles(0.75) {
+            let started = std::time::Instant::now();
+            let fast = rasterise(&st, size, 2.6);
+            let fast_ms = started.elapsed().as_secs_f64() * 1000.0;
+            let started = std::time::Instant::now();
+            let slow = rasterise_reference(&st, size, 2.6);
+            let slow_ms = started.elapsed().as_secs_f64() * 1000.0;
+            let r = Raster::new(&st, size, 2.6);
+            let started = std::time::Instant::now();
+            let mut row = vec![Color32::TRANSPARENT; r.w];
+            let columns = r.columns();
+            for y in 0..r.h {
+                r.row(y, &mut row, &columns);
+            }
+            let one_ms = started.elapsed().as_secs_f64() * 1000.0;
+            eprintln!("{size:?}: {fast_ms:.1} ms, on one thread {one_ms:.1}, texel by texel {slow_ms:.1} ms");
+            assert_eq!(fast.size, slow.size);
+            let worst = fast.pixels.iter().zip(&slow.pixels).map(|(a, b)| a.to_array().iter().zip(b.to_array()).map(|(x, y)| (*x as i32 - y as i32).abs()).max().unwrap()).max().unwrap();
+            assert!(worst <= 1, "{size:?}: off by {worst}");
+        }
+    }
+
+    /// `cargo test --release -p isorun-hud --lib bench_rows -- --ignored --nocapture` under
+    /// `time`: the user time over 5 is the CPU a panel costs on one core, whatever else runs
+    #[test]
+    #[ignore]
+    fn bench_rows() {
+        let which: usize = std::env::var("BENCH_STYLE").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
+        let mut all = styles(0.75);
+        all.push((BoxStyle { layers: vec![Layer::Solid(hex(0x102030))], ..Default::default() }, egui::vec2(404.0, 809.0)));
+        all.push((BoxStyle { layers: vec![Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.0), vec![sa(rgba(120, 90, 40, 0.16)), s(TRANSPARENT, 0.6)])], ..Default::default() }, egui::vec2(404.0, 809.0)));
+        let (st, size) = all.swap_remove(which);
+        let r = Raster::new(&st, size, 2.6);
+        let mut row = vec![Color32::TRANSPARENT; r.w];
+        let columns = r.columns();
+        for _ in 0..5 {
+            for y in 0..r.h {
+                r.row(y, &mut row, &columns);
+            }
+        }
+        eprintln!("{} texels", r.w * r.h);
+    }
 
     #[test]
     fn stops_spread_like_css() {

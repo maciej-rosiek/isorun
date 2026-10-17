@@ -16,7 +16,7 @@ compact dock of `touch.css`), `quick-slots.ts`, `dock-actions.ts`, `dock-memory.
 | `damage_numbers`, `chat` | the numbers over the actors; the WebTiles chat box | |
 | `quick_slots`, `dock_actions`, `dock_memory`, `gear`, `item_compare`, `pack_tabs` | pure logic, unit-tested | the same names |
 | `grid` | the console grid (`fit`, `game_split`), text rows, the stats and message panes as rows, the action panel's arithmetic, `paint_row` | `grid/*.ts` |
-| `paint` | CSS boxes: gradients (linear, radial, conic, repeating), borders and inset shadows rasterised once into textures (`BoxCache`), outer shadows, text shadows | `dock.css`, `styles.css` |
+| `paint` | CSS boxes: gradients (linear, radial, conic, repeating), borders and inset shadows rasterised once into textures (`BoxCache`: big ones soft at first and sharp from a thread, kept for minutes), outer shadows, text shadows | `dock.css`, `styles.css` |
 | `style` | the colours of `dock.css :root`, Cinzel's 600/700/900 weights, `--hu` (`hud_unit`), the compact window | `hud-unit.ts`, `touch.ts` |
 
 ## Driving it

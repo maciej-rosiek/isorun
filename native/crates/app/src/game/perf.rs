@@ -114,6 +114,11 @@ impl FrameProfile {
 
     pub fn end(&mut self) {
         let total = now_ms() - self.frame_start;
+        // every frame, for a hitch that one key or tap makes (RUST_LOG=isorun::frames=debug)
+        if log::log_enabled!(target: "isorun::frames", log::Level::Debug) {
+            let parts: Vec<String> = self.cur.iter().map(|(n, t)| format!("{n} {t:.1}")).collect();
+            log::debug!(target: "isorun::frames", "gap {:.1} body {total:.1} | {} {}", self.gap.unwrap_or(0.0), parts.join(" "), self.tags.join(" "));
+        }
         self.frames.push_back(Frame { at: self.at, gap: self.gap, total, parts: std::mem::take(&mut self.cur), tags: std::mem::take(&mut self.tags) });
         self.newest = self.newest.max(self.at);
         let from = self.newest - WINDOW_MS;

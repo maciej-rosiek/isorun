@@ -69,6 +69,8 @@ const IDLE_TICK_MS: f64 = 250.0;
 /// it rests (game.ts `ACTIVE_MS`): play is a stream of events, and frames that came only when a
 /// packet did would judder.
 const ACTIVE_MS: f64 = 500.0;
+/// a screen of the dock (the inventory) that leaves less of the view than this in sight stops it
+const SCREEN_LEAVES: f32 = 0.5;
 /// While a pad is plugged in the resting screen still reads it this often: gilrs and the Gamepad
 /// API are polled, and wake nothing on their own. The dungeon is not drawn again for it.
 const PAD_POLL_MS: f64 = 33.0;
@@ -567,7 +569,16 @@ impl GameScreen {
                 if log::log_enabled!(target: "isorun::idle", log::Level::Debug) {
                     log::debug!(target: "isorun::idle", "camera {moving} renderer {:?} active {}", self.parts.view.renderer.animating_why(), now - self.last_active < ACTIVE_MS);
                 }
-                let redraw = always_draw() || self.animating || now - self.last_active < ACTIVE_MS || now - self.last_3d >= IDLE_TICK_MS;
+                let mut redraw = always_draw() || self.animating || now - self.last_active < ACTIVE_MS || now - self.last_3d >= IDLE_TICK_MS;
+                // under the inventory or the character sheet crawl waits for a command and nothing
+                // moves: the dungeon is drawn only for what still plays out (the camera settling, a
+                // hop), not for the pointer or the fingers on the screen nor for the ambient on the
+                // idle tick, and not at all where the panel hides most of it (a phone's)
+                if let Some(panel) = self.parts.hud.screen_panel() {
+                    let hidden = if panel.intersects(layout.view) { panel.intersect(layout.view).area() } else { 0.0 };
+                    let seen = layout.view.area() - hidden;
+                    redraw = always_draw() || (seen > layout.view.area() * SCREEN_LEAVES && self.animating);
+                }
                 drew = self.parts.view.paint_if(ui, &self.rs, layout.view, redraw);
                 if redraw {
                     self.last_3d = now;
@@ -605,6 +616,9 @@ impl GameScreen {
                 self.draw_minimap(ui, &scene, layout.minimap);
             }
             self.draw_hud(ui, &scene, layout.view, now);
+            if self.perf.enabled {
+                self.perf.profile.mark("hud");
+            }
             self.draw_overlays(&ctx, now);
             self.draw_client(&ctx);
             self.draw_touch(ui, now);
