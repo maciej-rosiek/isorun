@@ -8,7 +8,7 @@ import { GameScreen } from '../src/game'
  * so the drag has to be let go of some other way: the page losing focus, or
  * the next move arriving with nothing held.
  */
-function harness() {
+function harness(pointerType = 'mouse') {
   const canvas = document.createElement('canvas')
   Object.assign(canvas, {
     setPointerCapture: vi.fn(), releasePointerCapture: vi.fn(), hasPointerCapture: () => true,
@@ -17,13 +17,13 @@ function harness() {
   const dragView = vi.fn()
   const onPointer = vi.fn()
   const screen = Object.assign(Object.create(GameScreen.prototype), {
-    canvas, levelMap: null, drag: null, hover: null, pointerLive: false, tooltipTimer: 0, touches: new Map(), pinchSpan: null, longPressTimer: 0,
+    canvas, levelMap: null, drag: null, hover: null, hoverByTouch: false, touchHoverTimer: 0, pointerLive: false, tooltipTimer: 0, touches: new Map(), pinchSpan: null, longPressTimer: 0,
     view: { drag: dragView }, hud: { hideTooltip: vi.fn() }, session: { state: initialState() },
     inputFrom: vi.fn(), wake: vi.fn(), armCellTooltip: vi.fn(), onPointer,
-  }) as { attachPointer(c: HTMLCanvasElement): void; cancelDrag(): void; drag: unknown }
+  }) as { attachPointer(c: HTMLCanvasElement): void; cancelDrag(): void; drag: unknown; hover: unknown; pointerLive: boolean }
   screen.attachPointer(canvas)
   const at = (type: string, x: number, y: number, buttons: number) => {
-    canvas.dispatchEvent(Object.assign(new Event(type), { pointerId: 1, pointerType: 'mouse', button: 0, buttons, clientX: x, clientY: y, pageX: x, pageY: y }))
+    canvas.dispatchEvent(Object.assign(new Event(type), { pointerId: 1, pointerType, button: 0, buttons, clientX: x, clientY: y, pageX: x, pageY: y }))
   }
   return { screen, at, dragView, onPointer }
 }
@@ -69,5 +69,33 @@ describe('a drag whose release the page never saw', () => {
     expect(blurs.length).toBe(2)
     expect(new Set(blurs).size).toBe(1)
     add.mockRestore()
+  })
+})
+
+describe('a finger on the view', () => {
+  it('puts the cursor under it while held, and on the tapped cell a moment after it lifts', () => {
+    vi.useFakeTimers()
+    const h = harness('touch')
+    h.at('pointerdown', 100, 120, 1)
+    expect(h.screen.hover).toEqual({ x: 100, y: 120 })
+    expect(h.screen.pointerLive).toBe(true)
+    h.at('pointermove', 102, 121, 1)
+    expect(h.screen.hover).toEqual({ x: 102, y: 121 })
+    h.at('pointerup', 102, 121, 0)
+    expect(h.onPointer).toHaveBeenCalledWith(102, 121, 0)
+    expect(h.screen.hover).toEqual({ x: 102, y: 121 })
+    vi.advanceTimersByTime(1000)
+    expect(h.screen.hover).toBe(null)
+    vi.useRealTimers()
+  })
+
+  it('takes the cursor away once it drags the map', () => {
+    const h = harness('touch')
+    h.at('pointerdown', 100, 100, 1)
+    h.at('pointermove', 200, 100, 1)
+    expect(h.screen.hover).toBe(null)
+    h.at('pointerup', 200, 100, 0)
+    expect(h.screen.hover).toBe(null)
+    expect(h.onPointer).not.toHaveBeenCalled()
   })
 })

@@ -48,6 +48,8 @@ const ACTIVE_MS = 500
 /** css pixels a touch must travel before a press becomes a drag of the view */
 const DRAG_SLOP = 6
 const LONG_PRESS_MS = 450
+/** how long the cursor stays on a tapped cell after the finger lifts */
+const TAP_CURSOR_MS = 500
 const RIGHT_BUTTON = 2
 const TOUCH_CUT_AWAY_CELLS = 6
 const COMPACT_MESSAGE_ROWS = { portrait: 4, landscape: 2 }
@@ -240,6 +242,9 @@ export class GameScreen {
   private onWindowBlur?: () => void
   /** where the pointer is aiming, in canvas css pixels: the hovering mouse, or the finger on a touch screen */
   private hover: { x: number; y: number } | null = null
+  /** `hover` is a finger's: it goes when the finger lifts or drags (`dropTouchHover`) */
+  private hoverByTouch = false
+  private touchHoverTimer = 0
   /** dungeon_renderer.js tooltip_timeout: the cell tooltip waits half a second under a still pointer */
   private tooltipTimer = 0
   /** the pointer moved since the last target sent: keyboard cursor moves and turns never fight the mouse */
@@ -476,6 +481,7 @@ export class GameScreen {
     this.runner.abortSequence()
     clearTimeout(this.tooltipTimer)
     clearTimeout(this.longPressTimer)
+    clearTimeout(this.touchHoverTimer)
     this.sound.dispose()
     this.damageNumbers.dispose()
     this.hud.destroy()
@@ -1625,12 +1631,17 @@ export class GameScreen {
       if (this.drag) return
       this.drag = { id: ev.pointerId, x: ev.clientX, y: ev.clientY, x0: ev.clientX, y0: ev.clientY, moved: false, button: ev.button }
       c.setPointerCapture(ev.pointerId)
-      if (ev.pointerType === 'touch') this.armLongPress(ev.clientX, ev.clientY)
+      if (ev.pointerType === 'touch') {
+        this.armLongPress(ev.clientX, ev.clientY)
+        this.touchHover(ev.clientX, ev.clientY)
+      }
     })
     c.addEventListener('pointermove', (ev) => {
       if (ev.pointerType === 'mouse') {
         const rect = this.canvas.getBoundingClientRect()
         this.hover = { x: ev.clientX - rect.left, y: ev.clientY - rect.top }
+        this.hoverByTouch = false
+        clearTimeout(this.touchHoverTimer)
         this.hoverMoved = true
         this.pointerLive = true
         // the hovered cell is picked again next frame; only a change of cell draws one
@@ -1653,7 +1664,12 @@ export class GameScreen {
       const dy = ev.clientY - d.y
       d.x = ev.clientX
       d.y = ev.clientY
-      if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < DRAG_SLOP) return
+      if (!d.moved && Math.hypot(ev.clientX - d.x0, ev.clientY - d.y0) < DRAG_SLOP) {
+        // the cursor follows the finger within the slop, onto the cell its tap would act on
+        if (ev.pointerType === 'touch') this.touchHover(ev.clientX, ev.clientY)
+        return
+      }
+      if (!d.moved) this.dropTouchHover()
       d.moved = true
       clearTimeout(this.longPressTimer)
       // the drag grabs the map: it follows the pointer until the player moves
@@ -1673,6 +1689,12 @@ export class GameScreen {
         const rect = this.canvas.getBoundingClientRect()
         this.onPointer(ev.clientX - rect.left, ev.clientY - rect.top, d.button)
       }
+      // a tap leaves the cursor on its cell a moment, so the player sees where it sent them
+      if (this.hoverByTouch && !d.moved && ev.type === 'pointerup') {
+        this.pointerLive = true
+        clearTimeout(this.touchHoverTimer)
+        this.touchHoverTimer = window.setTimeout(() => this.dropTouchHover(), TAP_CURSOR_MS)
+      } else this.dropTouchHover()
     }
     // a drag does not survive leaving the page: the button released out there
     // sends no pointerup, and coming back should not still be a press
@@ -1685,6 +1707,7 @@ export class GameScreen {
       this.drag = null
       if (c.hasPointerCapture(d.id)) c.releasePointerCapture(d.id)
       if (d.moved) this.needsRender = true
+      this.dropTouchHover()
     }
     c.addEventListener('pointerup', end)
     c.addEventListener('pointercancel', end)
@@ -1693,6 +1716,26 @@ export class GameScreen {
       clearTimeout(this.tooltipTimer)
       this.hud.hideTooltip()
     })
+  }
+
+  /** A finger on the view puts the cursor on the cell under it, as a hovering mouse does, so the player sees where a tap goes. */
+  private touchHover(clientX: number, clientY: number) {
+    const rect = this.canvas.getBoundingClientRect()
+    clearTimeout(this.touchHoverTimer)
+    this.hover = { x: clientX - rect.left, y: clientY - rect.top }
+    this.hoverByTouch = true
+    this.pointerLive = true
+    this.pickDirty = true
+    this.wake()
+  }
+
+  private dropTouchHover() {
+    clearTimeout(this.touchHoverTimer)
+    if (!this.hoverByTouch) return
+    this.hoverByTouch = false
+    this.hover = null
+    this.pickDirty = true
+    this.wake()
   }
 
   private armLongPress(x: number, y: number) {
@@ -1708,6 +1751,7 @@ export class GameScreen {
 
   private startPinch() {
     clearTimeout(this.longPressTimer)
+    this.dropTouchHover()
     if (this.drag) this.drag.moved = true
     this.pinchSpan = this.touchSpan()
   }
