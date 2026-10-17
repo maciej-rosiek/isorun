@@ -1,0 +1,24 @@
+[package]
+name = "isorun-front"
+description = "Isorun's front end on egui: the title screen over the turning room, the accounts and servers, the login, the lobby's play and watch lists, the rc editor, the settings and the system menu."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-scene = { path = "../scene" }
+isorun-scene-webtiles = { path = "../scene-webtiles" }
+isorun-webtiles = { path = "../webtiles" }
+isorun-render = { path = "../render" }
+isorun-client = { path = "../client" }
+isorun-ui = { path = "../ui" }
+eframe = { workspace = true }
+egui = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+regex = { workspace = true }
+log = "0.4"
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+env_logger = "0.11"
