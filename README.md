@@ -2,62 +2,47 @@
 
 # Isorun
 
-**Dungeon Crawl Stone Soup drawn isometrically, played with a gamepad, keyboard or mouse.**
+**Dungeon Crawl Stone Soup drawn isometrically, played with a gamepad, keyboard, mouse or touch.**
 
 Isorun is an unofficial client for [Dungeon Crawl Stone
 Soup](https://crawl.develz.org/). It talks to the public DCSS servers over
 [WebTiles](https://crawl.develz.org/wordpress/howto), the same protocol the
 official client uses, and replaces everything you see and touch: the DCSS
 tiles are stood up in 3D and drawn from an isometric camera that turns, tilts
-and zooms, with lights, shadows, fog of war, water, doors and stairs. It runs
-in the browser, on your own WebTiles account (or offline, with no server).
+and zooms, with lights, shadows, fog of war, water, doors and stairs. It plays
+on your own WebTiles account, or offline with crawl built in.
 
 Isorun is a fork of [Orbrun](https://github.com/Caeous/orbrun) by Caeous.
 
 **Play it in the browser: <https://isorun.maciej-rosiek.workers.dev>.** No
 install, and no Isorun account: log in with your WebTiles account, register
-one, or watch without one. What the hosted app counts is in
+one, or watch without one. What the hosted page counts is in
 [ABOUT.md](ABOUT.md#security-and-privacy).
 
-## Run it
+**Or get the app** from the [latest release](https://github.com/maciej-rosiek/isorun/releases/latest),
+with offline games: `Isorun-x86_64.AppImage` (Linux, a Steam Deck or a ROG Ally; [STEAM.md](STEAM.md)
+puts it in Steam's library), `Isorun-linux-x86_64.tar.gz`, `Isorun-win-x64.zip` (Windows) and
+`Isorun.apk` (Android).
+
+## Build it
+
+Isorun is one Rust app (egui and wgpu) for the desktop, Android and the web, in
+[`native/`](native/PORTING.md):
 
 ```sh
-npm install
-npm run dev
+engine/native.sh stable                            # crawl, for offline games (once)
+cd native
+cargo run --release -p isorun-app --bin isorun     # the desktop app
+cargo test --workspace
 ```
 
-Then open `http://localhost:5173/` for the client, or
-`http://localhost:5173/testbed/iso.html` for the renderer test bed. Online play
-works on the public WebTiles servers. Offline play needs the engine built, see
-[engine/README.md](engine/README.md).
+- the desktop packages: [native/desktop](native/desktop/README.md);
+- the APK: [native/android](native/android/README.md);
+- the web build, the hosted page's site: [native/web](native/web/README.md), served by the
+  Cloudflare Worker in [worker/](worker/index.ts);
+- crawl itself, native and WebAssembly: [engine/](engine/README.md).
 
-Other commands: `npm test` (vitest), `npm run typecheck` (`tsc -b`),
-`npm run build` (`apps/isorun/dist`). Public servers don't send CORS headers,
-so the dev and preview servers include a small proxy that fetches gamedata
-(tile tables and atlases) from the connected server.
-
-The desktop app (Linux, SteamOS and Windows; for a Steam Deck or a ROG Ally) is in
-[desktop](desktop/README.md): the game and the offline engine in an Electron window, from the
-[releases](https://github.com/maciej-rosiek/isorun/releases) (on Linux a self-updating AppImage).
-[STEAM.md](STEAM.md) puts it in a Steam Deck's library. The Android app is in
-[mobile](mobile/README.md): the game and the offline engine in an APK, also from the releases.
-
-## Packages
-
-Isorun is an npm workspace. The game lives in `apps/isorun`; what it knows
-about DCSS lives in small packages under `packages/`, each with a README.
-
-| Package | What it does |
-|---------|--------------|
-| [`@isorun/webtiles`](packages/webtiles) | The WebTiles protocol: keycodes and messages, a WebSocket connection, a reducer from server messages to a `GameState` |
-| [`@isorun/gamedata`](packages/gamedata) | Loads a server's own `enums.js`, `tileinfo-*.js` and atlases at runtime |
-| [`@isorun/scene`](packages/scene) | The world model a renderer draws: cells, billboards, camera, directions |
-| [`@isorun/scene-webtiles`](packages/scene-webtiles) | `GameState` + gamedata to `Scene`: all the DCSS knowledge |
-| [`@isorun/render-iso`](packages/render-iso) | The isometric three.js renderer of a `Scene` |
-| [`@isorun/render-2d`](packages/render-2d) | Canvas 2D renderer of a `Scene`; draws the level map |
-| [`@isorun/vault`](packages/vault) | A subset of DCSS's `.des` vault format, compiled to a `Scene` |
-| [`@isorun/offline`](packages/offline) | Runs the WebAssembly engine in a Web Worker behind a WebTiles connection |
-
+Most crates have a README; [native/PORTING.md](native/PORTING.md) maps them.
 [CONTRIBUTING.md](CONTRIBUTING.md) is the short guide, [ABOUT.md](ABOUT.md)
 the tour and the credits, [CHANGELOG.md](CHANGELOG.md) what's new.
 

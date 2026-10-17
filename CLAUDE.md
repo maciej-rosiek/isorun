@@ -1,263 +1,147 @@
 # Isorun: notes for Claude
 
-Isorun is a fork of [Orbrun](https://github.com/Caeous/orbrun) (a controller-first WebTiles client
-for DCSS) that draws the dungeon isometrically instead of in first person. AGPL-3.0-or-later, like
-upstream.
+Isorun is a client for DCSS (Dungeon Crawl Stone Soup) that speaks WebTiles to the public servers
+and draws the dungeon isometrically, for pad, keyboard, mouse and touch. It is one Rust app
+(`native/`: egui and wgpu) for the desktop (Linux, SteamOS, Windows), Android and the web
+(wasm), with crawl built in for offline games. It began as a hard fork of
+[Orbrun](https://github.com/Caeous/orbrun) (TypeScript, first person), was rewritten as a
+TypeScript isometric client, and that client was ported to Rust and then deleted (git history
+before the commit "the TypeScript client goes" has it). AGPL-3.0-or-later.
 
 **Work directly on `main`: commit and push to `main` when a change is done, without asking and
 without feature branches or pull requests.** (This overrides any session default to develop on a
-separate branch.) The repository moved here from `maciej-rosiek/vg` (its `isorun/` folder) as one
-snapshot commit, without the history.
+separate branch.) Other agents often share this checkout: commit your own paths only
+(`git commit -- <paths>`), `git pull --rebase --autostash origin main` before a push, and never
+`cargo clean`.
 
-- A hard fork of Orbrun: no upstream pulls; the code is ours to change and clean up.
-- Every package has a README; `CONTRIBUTING.md` is the short guide.
-- The client (`apps/isorun`, `npm run dev`, then `/`): `game.ts` draws the game with `IsoRender3d`
-  and an `IsoCamera` (`packages/render-iso/src/camera.ts`: follow spring, 45-degree turns, tilt,
-  zoom, drag; its angles and zoom kept in `isorun.camera`, saved when a turn or zoom comes to rest). Directions are screen-relative (`runner.ts`
-  `absolute` rotates by the camera's `facing`); `runner.heading` is the way the player last stepped,
-  what the contextual action calls "ahead". The level map (X) opens in 2D (`Render2d`) on its own
-  canvas over the iso view. Fights come from the message lines (`combat.ts` `combatEvents`, read on
-  each `state` event before the scene they come with) and play through `IsoRender3d.act`. Camera:
-  wheel zoom, Shift-wheel and Alt-Left / Right turn, Alt-Up / Down tilt, a drag pans, the right
-  stick turns and zooms, R3 resets. The settings (`servers.ts`, `isorun.settings`) have a Graphics
-  group: Quality (`QUALITY`), Look (`LIGHTS`, or Custom) and Tune the look, which opens the lights
-  panel (`src/lights-panel.ts`, shared with the test bed) over the game; its values are Custom. The front end's room (`src/room`) draws the places
-  in iso with a camera that turns slowly.
-- The HUD setting (`hud`, Dock by default) puts the dock along the foot of the screen (`src/dock.ts`,
-  styles in `src/dock.css`): orbs, the status lights as chips with their descriptions, AC, EV, SH and the
-  attributes, quick slots (`quick-slots.ts`, kept per character in
-  `dock-memory.ts`), the square's actions (`dock-actions.ts`) and buttons for every screen. The
-  inventory and character screens are the client's own (`screens.ts`, `Overlays.showScreen`); what is
-  worn is read off crawl's pack, opened unseen behind the inventory (`game.ts` `probeGear`, `gear.ts`),
-  since the `player` message names only the weapons. Spells and abilities are learned from crawl's
-  menus whenever they are up. L3 puts the pad's cursor on the dock. An action from a screen puts it
-  away and brings it back once crawl is done (`trackResume`).
-  The dock and its screens size by `--hu` (dock.css; `hud-unit.ts` computes the same for the tile
-  canvases): 1px at 1080 lines, more on a taller window, times the UI scale. Tooltips are cards
-  (`tooltip.ts`: title, rule, lines, keycaps and the pad glyph for the real key each thing sends). In the
-  inventory a click, Enter or A opens an item's actions beside it (`Screen.input` takes the keys while
-  it is up), and hovering an item shows its card beside what it would replace, with base stats
-  from crawl's item-prop.cc (`item-compare.ts`). In command mode `i` and `@` open the inventory and
-  character screens.
-- Touch screens and phones (`touch.ts`, `touch.css`): a window under 900 x 560 css px gets the compact dock
-  (`Dock` `compact`, bars in place of the orbs, two message rows in landscape and four in portrait, the view's
-  centre lifted above the panes with `IsoRender3d.setCentreLift`). Autofight or Explore is a larger button at the right
-  end of the actions (`.dock-action.main`). On a coarse pointer: the full screen and menu (the system menu)
-  buttons in the top-left corner, a close button on every popup (`touch-close`), a tap outside a menu or one of
-  our windows closes it as Back does (`GameScreen.tapAway`), the touch bar (`touch-bar.ts`) with
-  the pad's bindings as buttons in every mode but command mode, a finger on the view puts the cursor on its cell (while held, and a moment after a tap: `touchHover`), a long press opens the cell menu (`cell-menu.ts`: the cell's details over Attack or Go here, the square's own actions on the player's cell, and Describe; outside command mode it describes the cell), two fingers zoom, turn (across or twisting, ending on a 45-degree step: `IsoCamera.snapTurn`) and tilt (up or down),
-  the walls drop to stubs over every floor cell within 6 cells of the player (`setCutAwayReach`), and the phone's
-  Back is Escape (`back-button.ts`, `GameScreen.back`). Test it with `isMobile` and `hasTouch` in Playwright.
-- A level up (the message "You have reached level N") shows a banner (`level-up.ts`, `level-up.css`, owned by
-  `Overlays.levelUp`) with the gains read off the `player` message; it fades on its own, a key or click dismisses it
-  (one that answers a --more-- lets it stay a moment for the gains). Crawl's stat-gain prompt
-  (`ParsedPrompt.statGain`) is drawn as three cards on the same screen instead of the prompt card.
-- `IsoRender3d` builds the level geometry again only when a cell, an item or a doorway changes
-  (`staticsRevision`) or the set of cut-away walls changes (`cutAwayKey`), never for a monster's
-  move. The geometry is in chunks of 8x8 cells (`CHUNK_CELLS`); a rebuild builds only the chunks
-  whose input key changed, and doors, stairs (`TileFeatures`) and water build only when their
-  cells change. A chunk's matrices are set once (`matrixWorldAutoUpdate = false`). Tiles are upscaled on
-  first use onto 4096-texel pages (`enhance.ts` `EnhancedPage`, `materials.ts`), not whole atlases,
-  so every GPU's texture limit holds.
-- The offline engine (`engine/build.sh stable`, into the ignored `engine/dist`, served by the dev
-  server at `/engine/`) builds on this NixOS machine in a `nix shell nixpkgs#nodejs_26
-  nixpkgs#emscripten nixpkgs#pkg-config`, with a python3 that has PyYAML on `PATH`, and
-  `PKG_CONFIG_PATH` and `LD_LIBRARY_PATH` pointing at nixpkgs `libpng` and `zlib` (crawl's native
-  `tilegen` links them). With it the title screen offers Play on this device: real games to test.
-- Testing against real games: spectate on a public server that allows anonymous spectating (CUE
-  `wss://underhound.eu:8080/socket` does; CAO does not): open `/watch/cue/<anyone>` and click a
-  player.
-- Our code: `packages/render-iso` (the isometric renderer `IsoRender3d`, and `stickToDir` for
-  screen-relative steering) and the test bed `apps/isorun/testbed/iso.html` (`npm run dev`, then
-  `/testbed/iso.html`). The test bed has one look and one camera (rotation 45, elevation 34 at zoom
-  68, lower when zoomed in and higher when zoomed out; wall height 1; the view follows the player on
-  a spring that is slower during mouse travel; Q / E turn it by 45 degrees, R / F tilt it, and a Camera box on the view (`testbed/camera-panel.ts`, kept in `localStorage` `isorun.camera`) has sliders and presets for them and for Perspective, the field of view: 0 is the isometric view, more switches `IsoRender3d` to a perspective camera, `IsoView.fov`), an FPS counter, and a lights menu (`testbed/lights-panel.ts`) for the
-  values in `packages/render-iso/src/lights.ts`. The menu keeps its values in `localStorage`
-  (`isorun.lights.current`, and named presets in `isorun.lights.saved`).
-- `IsoRender3d` runs on three's `WebGPURenderer` (WebGL2 when WebGPU is missing, as in headless
-  Chromium), with node materials and a TSL `RenderPipeline` (`post.ts`: GTAO, outlines, a painted
-  Kuwahara filter, bloom, a tilt-shift blur, a colour grade and a vignette). Every tile material is
-  a `ClayMaterial` (`shading.ts`, a Phong node material with its own lighting model); its uniforms
-  are shared, so clones follow the settings. Sprites (actors, items) use a second material per
-  atlas whose colour follows the sprite light (`spriteColour`), so bright sprites keep their detail.
-  The ground and wall material steps into the tile's height (`parallaxUV`, the Shading Depth, 0.075
-  by default): the normal page's blue channel is the height (`enhance.ts` `tileDepth`), the normal's z is
-  rebuilt from x and y, and each quad carries its texture rect (`UV_RECT`) so the steps stay on it.
-  The loop has no early exit, as WGSL wants the same path for every pixel after it.
-  Every tile has a label (`tools/labels`, README there): material, relief and joints, gloss, wet,
-  glow, sparkle, see-through, motion, made by Claude Haiku agents from contact sheets of every
-  tile and found by a hash of the tile's pixels (`tile-labels.ts`, `tile-labels.json`). `enhance.ts`
-  builds from it a floor or wall tile's height (its brightness against the mean over one part, so
-  bricks stand up from their joints) and a third page, the surface (red gloss, green glow, blue
-  sparkle, alpha see-through). `shading.ts` `dressGround`, `dressSprite` and `actorMaterial` read
-  it: Blinn-Phong highlights and a rim light in `ClayLightingModel`, dirt in the hollows and wear
-  on the edges (the height against a blurred mip), a little colour for each cell, wet ground and
-  puddles near water (the memory mask's `wetness`), glowing parts and glints into the `emission`
-  target (the screen blooms it while a glowing tile is placed). An actor hovers or flickers by its
-  label and shows crawl's statuses (`Billboard.effects` from the status icons: petrified, burning,
-  poisoned, corroded, berserk, glowing, summoned, wet; each monster of the test bed has one, `STATUSES` in
-  `testbed/iso.ts`), and its death dissolves with a glowing edge. The Surfaces section of the lights menu
-  has their strengths; the surface detail sets the parallax steps.
-  The liquids have depth: the ground under water and murky water is seen lower by the water's depth
-  and bent by ripples (the wetness map's green, `underWater`); the liquids' surfaces have ripple
-  normals and highlights (`liquidNormal`, a gloss per palette); starwater's stars lie in three
-  layers at different depths under the nebula; the lava's crust takes the light on domed plates and
-  its molten rock shines from under the cracks. Dust drifts up in the air before each lit torch whose
-  cell is in sight (`dust.ts` `TorchDust`, one instanced sprite moved in the shader; the Torch dust setting).
-  The Surface detail setting (`applySurfaceDetail`, `SURFACE_DETAILS`: off, low, medium, high) gates the
-  look's strengths, the parallax steps (0, 0, 8, 16), the statuses, the liquids' depth (`liquidDepth`)
-  and the dust, and the glow's bloom follows `glowShown()`; a change of level builds no shader.
-  The aim pointer writes 1 to the pass's `overlay` output (`overlayOutput()` as its `mrtNode`), so
-  the screen effects leave it as it is; it is depth tested, so the player hides it. The presets
-  in `lights.ts` are variations of `DIORAMA`.
-  Fog of war: the renderer hides `unseen` cells, draws `remembered` cells darker, shows monsters
-  only on `visible` cells, and stacks layers of drifting fog (`fog.ts`: a dense body with a puffy edge that the noise moves; Softness is the width of that edge) over the unexplored cells
-  around the explored area; the fog finds the ground cell behind each of its points on the screen (along the ray from the camera)
-  and fades over explored cells; the fog's shape and the explored mask are textures over the
-  map, and a new explored area blends them from the shape on screen to the new one (`FADE_SECONDS`). Water is drawn (`water.ts`): the nearest land's floor tile lies
-  under it, and a surface with a rounded shore, shallow to deep colour, drifting light lines and
-  foam covers it. The mouse picks the ground cell, or the nearest floor cell on the
-  screen over a wall or the fog; walls in front of that cell drop to stubs, as for the player
-  (`cutAwayFocus`). The paint settings (`enhance.ts`) change the
-  upscaled tiles, so a change rebuilds the atlas materials and the actor sprites.
-  `NodeMaterial.clone()` drops `alphaTest`; set it again on clones.
-- Liquids: `liquidOf` (`packages/scene-webtiles`) names a cell's liquid from its tile (crawl puts
-  `TILE_FLAG_WATER` on lava too): water, murky water, starwater, toxic bog, mud (liquefied ground),
-  slime and acid floor, or lava, deep or shallow. `WaterLayer` draws the waters, the bog, the mud and
-  the slime and acid films over their floor tile (`water.ts` palettes, shallow cells stay light),
-  `StarwaterLayer` the stars, `LavaLayer` the lava; starwater and lava write the `emission` target
-  that `IsoPost` blooms only while one is in view (`setEmission`). The liquid grids rebuild only when
-  the renderer's cell revision changes. The test bed has a patch of each.
-- The test bed's level is `apps/isorun/testbed/iso.des`. Its atlas (`apps/isorun/public/iso`) is
-  packed with `node tools/build/pack-room.mjs <images dir> apps/isorun/testbed/iso.des
-  apps/isorun/public/iso`; `apps/isorun/public/room/README.md` says how to fetch the images.
-- The look ("DCSS HD-2D"): DCSS tiles upscaled 4x with generated normal maps (`enhance.ts`),
-  lights and shadows, doors and stairs in 3D (`tile-features.ts`). The wall torch is
-  `torch_mounted.glb` from KayKit Dungeon Remastered (CC0, Kay Lousberg), copied as it is into
-  `apps/isorun/public/iso/models`.
-- Actors (the player and monsters with an id on `ref`) persist between scenes and animate: a move
-  hops, `act(id, 'attack' | 'hit' | 'death', target)` plays an action. An attack pulls back, then
-  strikes; a hit or a kill lands when the strike reaches the target (`IMPACT_DELAY`), with blood
-  that stays on the floor, sparks, a flash of light, a camera shake and a hit stop (`combat.ts`, the
-  Combat menu section). `setDanger(0..1)` turns the screen edge softly red, for low hit points.
-  Damage numbers (`damage-numbers.ts`, `.css`, the Interface setting) pop over the struck actor in
-  `onShown`: a DOM layer over the canvas, placed by `screenOf` each frame only while one is up. The
-  amount comes from the hit line's " for N", which only our engine writes
-  (`engine/patches/11-damage-numbers.patch`); on a server's crawl a hit on the player takes the drop of
-  the hit points instead, and a monster's hit shows crawl's "!"s.
-  A hop raises dust when the actor lifts off and lands, and leaves footprints that fade
-  (`steps.ts`, the Steps menu section).
-- Graphics quality (`quality.ts`, `setQuality`, kept apart from the look): a limit on the pixel
-  ratio, the ambient occlusion's resolution (0 turns it off) and samples, 4x MSAA on the scene pass
-  (`antialias`, about a third of the GPU time of a full screen; High only), shadows on or off, how many
-  torches cast shadows, and whether the monsters cast torch shadows too (High only); presets Low,
-  Medium (the default) and High. The game's Graphics settings add Resolution, Ambient occlusion,
-  Antialiasing and Torch shadows over the preset (Auto takes the preset's; `graphics.ts` `qualityFor`)
-  and Surface detail (`applySurfaceDetail`; a phone starts at Off and stops at Medium). The test bed's Graphics box (`testbed/quality-panel.ts`,
-  `localStorage` `isorun.quality`) sits under the Camera box. Shadow maps are drawn only when they
-  go stale: the statics are built again, a light moves to another torch, a door swings or an actor
-  that casts a shadow moves (not its breath; on Medium that is the sun's map alone). The sun
-  follows the camera a whole cell at a time. A torch shadow is six renders, so one of them is drawn
-  a frame, and a light that goes to another torch waits at its last one until its turn. The shadow
-  cameras see only the casters (`SHADOW_LAYER`, `ACTOR_SHADOW_LAYER` in `shading.ts`), and the
-  scene's matrices are updated once a frame, not again in each shadow render. A new tile is
-  uploaded alone and copied into its atlas page on the GPU (`AtlasMaterials.upload`): a page is
-  4096 texels square. The statics are built again only for a cell change the 3D view draws, not
-  for its glyph or colour (`UNDRAWN_CELL_FIELDS`).
-- Headless Chromium (no GPU) renders the look at about 2 frames per second, so screenshots
-  show states, not animation timing.
-- Headless Chromium falls back to WebGL2, which hides WebGPU limits. Test real WebGPU with
-  `--enable-unsafe-webgpu --enable-features=Vulkan --use-vulkan=swiftshader
-  --use-webgpu-adapter=swiftshader --use-angle=swiftshader` (without the last a WebGPU canvas
-  cannot be presented and the GPU process dies). WebGPU allows 16 sampled textures per shader, and every
-  shadow-casting light takes one.
-- The desktop app (`desktop/`, not an npm workspace, so `npm install` there; README there):
-  Electron, for a Steam Deck or a ROG Ally. `STEAM.md` (shown in the game at `/app/steam`, under Get the
-  app) puts the AppImage in Steam; `tools/build/brand.mjs` writes its artwork to `public/steam/art`. `src/main.ts` takes every https request and answers the
-  ones to `https://isorun.localhost` from `src/serve.ts` (the built app, `engine/dist` at `/engine/`, the
-  gamedata and morgue proxies), so the page has a real https origin: Cache Storage and the service
-  worker work as on the web. It loads `/?fullscreen`, so the Quit row shows. `npm run package`
-  (`package.mjs`, electron-builder) builds the app with offline on and writes a Linux AppImage, a Linux tar.gz and a
-  Windows zip to `desktop/dist/release`; the app is staged in the temp folder, since electron-builder takes in
-  every `node_modules` above its project. Only the AppImage updates itself, from this repository's
-  GitHub releases (electron-updater, `updateInBackground`): `npm run release` uploads a draft
-  release `v<version>` (the version of `apps/isorun/package.json`), and publishing the draft
-  ships it. The prebuilt Electron does not run on NixOS: test with the nixpkgs `electron`
-  (`electron desktop`) under `xvfb-run`, with `--ozone-platform=x11` and `ELECTRON_RUN_AS_NODE`
-  unset (this shell sets it). The AppImage runs with `--appimage-extract-and-run` and an
-  `LD_LIBRARY_PATH` of the nixpkgs libraries Electron needs (nss, nspr, gtk3, alsa-lib, libgbm).
-- The Android app (`mobile/`, not an npm workspace, so `npm install` there; README there): Capacitor,
-  the native project in `mobile/android`. `stage.mjs` builds the game with `VITE_PLATFORM=android`
-  (`servers.ts` `androidApp`: no service worker and no Cache Storage, as the engine is in the APK; the
-  proxies and the visit beacon go to the hosted page, `hostedBase`) and copies the stable channel of
-  `engine/dist` beside it; `npm run package` makes `dist/release/Isorun.apk` (needs a JDK 21 and the
-  Android SDK). `.github/workflows/isorun-android.yml` builds the engine and the APK
-  on GitHub, by hand only now: the native app (`native/android`, `isorun-native-android.yml`)
-  replaces it, with the same id and key, and releases carry it as `Isorun.apk`; the release key is the
-  `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets. The engine needs a WebView with
-  JSPI (137+).
-- Hosting: the `isorun` Worker (`wrangler.jsonc`, `apps/isorun/worker/index.ts`) at
-  https://isorun.maciej-rosiek.workers.dev, deployed by `.github/workflows/isorun-cloudflare.yml` on
-  a push to `main`. The offline engine's Worker is not deployed, so `/engine/*` is a 404 there and
-  the build has `VITE_OFFLINE=off` (`offlineOffered`): no offline player, and no service worker (one
-  installed before is unregistered). The home screen's Get the app (`appDownloadsOffered`, `showApp`) links
-  the desktop app's packages of the latest release there.
-  Visit counts: the page (`src/visits.ts`, not in dev) sends beacons to `/api/visit`
-  (`src/visit-beacon.ts`): a visit, each game started, and a beat every 30 s while the tab is
-  visible, with the seconds a game was on screen. The `VisitLog` Durable Object
-  (`worker/visit-log.ts`) keeps one row per page load (a random id, no cookie, the country) and
-  `/stats?key=<STATS_KEY>` shows who is on the page and in a game now, and visits, players and play
-  time per day. `STATS_KEY` comes from the `ISORUN_STATS_KEY` repository secret.
-- `npm run check` runs the typecheck and the tests. Two test files fail without the network and a
-  built engine (`packages/offline/test/engine.test.ts` and one live test); they fail without them.
-- Performance: `node tools/perf/explore.mjs` (set `CHROMIUM` to the Chromium binary; the dev server
-  and a built engine must run) starts an offline game, explores with `o` and prints the frame times
-  of each explore burst with the CPU 4 times slower (`--throttle`), as a weaker machine. `--profile`
-  adds a CPU profile (Chrome DevTools Protocol `Profiler`) and prints the functions with the most
-  time. A frame budget problem that the Graphics Quality setting does not change is CPU work: look
-  for work done each step or each frame over the whole level (a full rebuild, a traversal), and key
-  it by its own inputs. Found this way: the full level rebuild on each explore step (now chunks).
-  `node tools/perf/play.mjs` plays as a player does (explore, fight, go down) and prints the slow
-  frames and a profile of them; its header lists the options. Measure at the player's screen: a
-  5120x1440 screen at 120 Hz has 8.3 ms a frame for 7.4 million pixels, which only
-  `--width 5120 --height 1440 --dpr 1 --unlimited --slow 8.4` shows (at 1600x1000 and 60 Hz every
-  frame fits). A slow frame whose time is in `writeBuffer`, `submit` or `createCommandEncoder`
-  waits for the GPU. For the GPU cost of a setting, measure the test bed (`/testbed/iso.html`) at
-  that size with `isorun.quality` and `isorun.lights.current` set by an init script. Found this
-  way: the tilt-shift blur of the shaded image drew it whole once more (it now blurs the scene's
-  colour and shades after) and took 21 taps a pass where 9 do (`BLUR_STEP`). Other sessions share
-  this machine: check `/proc/loadavg` before a run, and check that the dev server serves the
-  edited file (`curl` the module), as its watcher can miss edits.
-  Three frees a mesh's render objects (bindings, uniform buffers) only when its material is
-  disposed, not when the mesh leaves the scene or its geometry is disposed: a mesh made and dropped
-  again and again with a shared material goes through `MeshPool` (`mesh-pool.ts`), or the heap and
-  the garbage collections grow (found with a heap snapshot: thousands of `Mesh` and `RenderObject`).
-  A material that changes a property in its cache key (`transparent`, a define) builds a new shader:
-  per-object looks go through `onObjectUpdate` uniforms (`setActorLook`). Nothing the level's geometry
-  is built from may change every frame: a key that held the camera's exact yaw rebuilt every chunk in
-  every frame of a turn. In sight or remembered is the `MemoryMask` texture, not the geometry. New
-  tiles are enhanced on workers (`tile-enhancer.ts`). The minimap is drawn after the frame
-  (`afterFrame`). With Resolution on Auto, `DynamicResolution` lowers the pixel ratio (to 70%) while
-  frames come late. GPU time per pass: time every render pass with timestamp queries from an init
-  script (wrap `GPUCommandEncoder.beginRenderPass` to add `timestampWrites`, resolve after
-  `GPUQueue.submit`, `--enable-webgpu-developer-features`); the test bed's `?level=stress` level
-  fills the screen. 4x MSAA on the scene pass cost a third of the GPU time; it is on High only.
-  To count the objects three.js updates each frame, expose the `THREE.Scene` on `globalThis` for
-  one run and walk it with `page.evaluate`.
-  To check a walk, log the player's `Actor.moveTo` and each hop's start, length and lateness with
-  `console.debug` for one run and read them with `page.on('console')`: a hop that starts in the past
-  is a skip, a gap between hops a stop. Found this way: hops that started where the last one ended,
-  however late the next step came (a walk that skipped more and more), and crawl's wait before the
-  first step of a travel or explore (`engine/patches/10-travel-delay.patch`). A hop takes the time
-  between the server's steps (`pace`), and fight sounds play when the renderer shows the blow
-  (`IsoRender3d.act`'s `onShown`), not on a timer.
-- Sound (`apps/isorun/src/audio/`): `SoundEngine` (`engine.ts`, one `audio` for the page, started by the
-  first key or click; WebAudio, effects decoded once into voices with a pitch and volume spread and
-  limits per sound and in total, the beds and music streamed from `<audio>` elements, buses under one
-  master gain that follows the Audio settings, asleep while the tab is hidden). `catalog.ts` lists the
-  sounds, beds and tracks; `cues.ts` has the pure mappings (message line to sound, combat event to
-  cues, hearing by distance and screen side, mood and bed by place) and `director.ts` (`GameAudio`,
-  one per `GameScreen`) feeds them from the message lines, `IsoRender3d.onHop` and `onDoor`, the level
-  and the hit points. Files are in `public/audio` (sources in `ATTRIBUTION.md`). `?audio-trace` on the
-  page keeps the names of the sounds played in `window.isorunAudioTrace`, and
-  `node tools/perf/audio.mjs` plays a game and counts them.
+## Layout
+
+- `native/`: the Cargo workspace (every `crates/*`), one shared `target/`. `native/PORTING.md`
+  has the crate map and the rules for working in a crate (each part in its own crate, examples
+  in the harness, faithful ports of behaviour with their reasons in the comments); the crates'
+  READMEs say what each does. `crates/app` is the game (`main.rs` the desktop binary `isorun`,
+  `lib.rs` the Android `android_main` and the web `start`).
+- `native/assets/`: what the app embeds or the web page serves: the sounds (`audio/`, sources in
+  `ATTRIBUTION.md`), the front end's room (`room/places.json`, `room/places/<id>.{json,png}`), the
+  orb, the icons, the favicon, the Steam art `STEAM.md` links, the command catalogue
+  (`commands.json`). The test bed's level and atlas are `native/crates/client/assets` (`iso.des`,
+  `atlas.{png,json}` packed by `tools/build/pack-room.mjs`, the KayKit torch `torch_mounted.glb`).
+- `native/fixtures/`: test fixtures: recorded sessions (`*.ndjson`), menus (`menus/`), one
+  gamedata version's scripts (`gamedata/<sha>`).
+- `native/desktop/`, `native/android/`, `native/web/`: the three packagings (READMEs there).
+- `engine/`: crawl itself, upstream plus `patches/`: `native.sh` builds it natively (the desktop,
+  Windows by mingw, Android by the NDK), `build.sh` for WebAssembly (the web build's offline
+  games). `engine/.work` (the crawl trees) and `engine/dist` are ignored.
+- `worker/`: the hosted page's Cloudflare Worker (`wrangler.jsonc` at the root).
+- `tools/`: `build/brand.mjs` (the icons, favicon, Steam art and `assets/logo.svg` from the orb),
+  `build/pack-room.mjs` and `rltiles.mjs` (packs a `.des` file's tiles into an atlas),
+  `build/tile-sheets.mjs` and `labels/` (the tile labels the renderer reads,
+  `native/crates/render/src/tile-labels.json`), `record/` (records sessions and menus from a server
+  into fixtures). Their outputs are committed; no build runs them.
+- `ABOUT.md`, `CHANGELOG.md`, `STEAM.md` are shown in the app (`crates/front`, `include_str!`);
+  `CHANGELOG.md` is public: one short line per change, what it means to a player.
+- The root `package.json` holds only the JavaScript beside the app (the Worker, the web build's
+  engine bridge, the tools): `npm install`, `npm run check` (tsc and vitest over `worker/` and
+  `native/web`).
+
+## Build, run, test
+
+    cd native
+    cargo build -p <crate>; cargo test -p <crate>     # or --workspace (CI runs that)
+    cargo run --release -p isorun-app --bin isorun     # the desktop app
+
+The app's flags: `--testbed` (the renderer's test level), `--perf` (frame and wire timing, `?perf`
+on the web), `--touch`, `--audio-trace`, `--open <path>`. Environment: `ISORUN_DATA_DIR` and
+`ISORUN_PROFILE` (where settings and saves go: use your own while testing),
+`ISORUN_ENGINE_DIR` (an engine folder), `ISORUN_TOUCH_SIM=1` (the mouse is a finger),
+`ISORUN_NO_VISITS` (no visit beacons; a debug build sends none anyway).
+
+No screen here: run under Xvfb with Mesa's software Vulkan (lavapipe), drive it with `xdotool`
+and screenshot with `import`, as `native/PORTING.md` "See it" says. Software rendering is a few
+frames a second: screenshots show states, not timing. Stop only the processes you started, by PID.
+
+The offline engine natively: `engine/native.sh stable` builds crawl into `engine/.work/stable`,
+where a checkout's app finds it with no setup. It needs a C++ compiler, python3 with PyYAML, perl
+and pkg-config with libpng and zlib. The WebAssembly engine (`engine/build.sh stable`, into
+`engine/dist`) builds on this NixOS machine in a `nix shell nixpkgs#nodejs_26 nixpkgs#emscripten
+nixpkgs#pkg-config`, with a python3 that has PyYAML on `PATH`, and `PKG_CONFIG_PATH` and
+`LD_LIBRARY_PATH` pointing at nixpkgs `libpng` and `zlib` (crawl's native `tilegen` links them).
+
+The web build: `native/web/build.sh [out]` (needs the `wasm32-unknown-unknown` target,
+wasm-bindgen-cli of `Cargo.lock`'s version, and `npm install` for esbuild) writes the whole site
+into `native/web/dist`; `node native/web/test.mjs` serves it with `engine/dist` and checks it in
+headless Chromium (the page, the test bed on WebGL2 and WebGPU, an offline game, the visit
+beacon). `PROFILE=release` builds quicker than the default `web` profile (fat LTO). Headless
+Chromium: WebGL2 with `--use-angle=swiftshader --enable-unsafe-swiftshader`; real WebGPU with
+`--enable-unsafe-webgpu --enable-features=Vulkan --use-vulkan=swiftshader
+--use-webgpu-adapter=swiftshader --use-angle=swiftshader`. WebGPU allows 16 sampled textures per
+shader. `hasTouch` and `isMobile` emulate a phone (a `deviceScaleFactor` above 1 does not work).
+
+Testing against real games: spectate on a public server that allows anonymous spectating (CUE
+`wss://underhound.eu:8080/socket` does; CAO does not), from the front end's Watch.
+
+## Release
+
+The version is `native/Cargo.toml`'s `[workspace.package] version` (the app, the desktop
+packages, the APK's version code: 0.1.5 is 105, and the release tag `v<version>`). Bump it and
+add the `CHANGELOG.md` entry, then publish a GitHub release `v<version>` (`gh release create
+v<version> --title ... --notes ...`). On `release: published`:
+
+- `.github/workflows/isorun-desktop.yml` (also every push touching `native/`, the engine's
+  patches or the shown documents: `cargo test --workspace`, the wasm check, the packages)
+  adds `Isorun-linux-x86_64.tar.gz`, `Isorun-x86_64.AppImage` (+ `.zsync`, its update
+  information `gh-releases-zsync|maciej-rosiek|isorun|latest|Isorun-x86_64.AppImage.zsync`)
+  and `Isorun-win-x64.zip` (`native/desktop/package.sh`, crawl from `engine/native.sh`).
+- `.github/workflows/isorun-android.yml` (also every push, with an emulator smoke test,
+  `native/android/smoke.sh`) adds `Isorun.apk`, signed with the release key from the
+  `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` secrets (`native/android/README.md`):
+  the key and id of the Capacitor app it replaced, so it installs over it.
+
+A manual run of either with "upload" adds its packages to the release `v<version>`. The front
+end's Get the app (on the web build) and `STEAM.md` link these names under
+`releases/latest/download/`. The app updates nowhere by itself: AppImageUpdate or Gear Lever for
+the AppImage, a newer APK (or Obtainium) on Android.
+
+## Hosting
+
+The `isorun` Worker (`wrangler.jsonc`, `worker/index.ts`) at
+https://isorun.maciej-rosiek.workers.dev, deployed by `.github/workflows/isorun-cloudflare.yml`
+on a push to `main` (secrets `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`): it checks the
+Worker (tsc, vitest), builds the web build, `wrangler deploy`s it as the site's static assets,
+then checks the live page. The Worker serves:
+
+- the build at `/` (its `_headers` keep `/pkg-*` for good); a page load of any path that is no
+  file, the web build's old `/native/` among them, goes home (301). The Rust app does not route on
+  the path.
+- `/gamedata-proxy/<host>/gamedata/<version>/<file>` and `/morgue-proxy/<host>/<path>.txt|.where`
+  (`worker/gamedata-proxy.ts`): servers send no CORS headers, so the web build fetches a server's
+  gamedata and morgues through these (`client::servers`); the desktop and Android apps go direct.
+- the visit counts: `client::visits` sends beacons (a POST to `/api/visit`: a visit, each game
+  started, a beat every 30 s while shown with the seconds a game was on screen, a beat when the
+  tab is hidden or closed; one random id a run, no cookie) from every platform, the web to its
+  own origin, the apps to the hosted page. The `VisitLog` Durable Object (`worker/visit-log.ts`)
+  keeps one row per run (the id and the country) and `/stats?key=<STATS_KEY>` shows who is on
+  the page and in a game now, and visits, players and play time per day. `STATS_KEY` comes from
+  the `ISORUN_STATS_KEY` repository secret.
+- `/engine/*`: the offline engine's Worker (`engine/wrangler.jsonc`, `engine/DEPLOYMENT.md`)
+  through a service binding, which is not deployed, so it is a 404 and the hosted page offers no
+  offline games. Every engine file fits Cloudflare's 25 MiB per-file limit (the largest,
+  `crawl.data` and `crawl.wasm`, are about 12 MB), so deploying that Worker and binding it would
+  turn them on.
+
+`wrangler dev` (no login needed) serves the Worker and `native/web/dist` locally. The agents'
+network here cannot reach workers.dev: check the live page from the workflow's Live check step.
+
+## Performance
+
+Measure at the player's screen: a 5120x1440 screen at 120 Hz has 8.3 ms a frame for 7.4 million
+pixels. `--perf` shows the frame times and the wire's in the app (a tap writes its log). A frame
+budget problem that the Graphics Quality setting does not change is CPU work: look for work done
+each step or each frame over the whole level (a full rebuild, a traversal) and key it by its own
+inputs; nothing the level's geometry is built from may change every frame (a key that held the
+camera's exact yaw once rebuilt every chunk in every frame of a turn). The level geometry is
+built in chunks and rebuilt only for the chunks whose cells changed, not for a monster's move.
+For the GPU cost of a setting, time the render passes on the test bed (for instance with wgpu's timestamp queries)
+at that size. Other sessions share this machine: check `/proc/loadavg` before timing anything,
+and the disk (`df -h /`): the shared `native/target` fills it; stale incremental session folders
+(`target/*/incremental/*/*` older than an hour) are safe to remove.

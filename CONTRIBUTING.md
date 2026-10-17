@@ -7,23 +7,23 @@ keyboard.
 
 ## Layout
 
-npm workspaces. `apps/isorun` is the Vite app; `packages/*` are the
-libraries, each with a README (see [README](README.md)); `tools/record`
-captures fixtures from a live server; `tools/build` packs the front room's
-tiles and draws the brand artwork. Those outputs are committed, so an ordinary
-build never runs the tools.
+`native/` is the app, a Cargo workspace of small crates, most with a README
+([native/PORTING.md](native/PORTING.md) maps them); `native/assets` and
+`native/fixtures` hold what it embeds and what its tests replay. `engine/` builds
+crawl, `worker/` is the hosted page's Cloudflare Worker, `tools/record` captures
+fixtures from a live server and `tools/build` packs tiles and draws the brand
+artwork. Those outputs are committed, so an ordinary build never runs the tools.
 
 ## Commands
 
 ```
-npm test            # vitest run
-npm run typecheck   # tsc -b
-npm run build       # build apps/isorun
-npm run dev         # dev server (Vite, with the gamedata proxy)
+cd native && cargo test --workspace     # the app's tests
+npm install && npm run check            # the Worker and the web build's engine bridge
+native/web/build.sh && node native/web/test.mjs   # the web build, in headless Chromium
 ```
 
-Run `npm test` and `npm run typecheck` before calling a change done. The
-renderer test bed is at `/testbed/iso.html` on the dev server.
+Run the tests of what you touched before calling a change done. The renderer's
+test bed is `isorun --testbed` (`?testbed` on the web build).
 
 ## Fixtures
 
@@ -31,16 +31,17 @@ Prefer a recorded fixture over a hand-written one.
 
 - `npm run record -- wss://crawl.dcss.io/socket 60 out.ndjson` spectates the
   least idle player for 60 seconds and writes every server message to NDJSON.
-  Spectating needs no login. The reducer tests replay such files.
+  Spectating needs no login. The reducer tests replay such files
+  (`native/fixtures`).
 - `node tools/record/menus.mjs wss://crawl.dcss.io/socket 30 outdir` collects
-  every menu the spectated players open, one JSON fixture per menu type.
+  every menu the spectated players open, one JSON fixture per menu type
+  (`native/fixtures/menus`).
 
 ## Live testing
 
-Anything that logs in to a real server reads its credentials from `.env`,
-which is gitignored. Copy `.env.example` to `.env`, fill it in, and run such
-scripts with `node --env-file=.env ...`. Never commit `.env` and never paste a
-password into a fixture.
+Spectating needs no account: CUE (`wss://underhound.eu:8080/socket`) lets
+anyone watch. Anything that logs in to a real server reads its credentials from
+a gitignored `.env`; never commit it and never paste a password into a fixture.
 
 ## Changelog
 
