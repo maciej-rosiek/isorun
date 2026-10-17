@@ -582,7 +582,7 @@ impl Screen {
             let _ = resp;
         });
         let area = egui::Area::new(egui::Id::unique("hud-screen")).order(egui::Order::Foreground).fixed_pos(screen.min).interactable(true);
-        area.show(ctx, |ui| {
+        let shown = area.show(ctx, |ui| {
             ui.set_clip_rect(screen);
             events = match self.id {
                 ScreenId::Inventory => self.inventory(ui, data, tiles, boxes, u, screen),
@@ -593,6 +593,9 @@ impl Screen {
                 events.append(&mut keyed);
             }
         });
+        // egui raises a layer that is pressed: the full-screen blocker under the panel would rise
+        // over it at the first tap and take every later one; the panel stays on top
+        ctx.move_to_top(shown.response.layer_id);
         // the pad's buttons under the panel, while the pad speaks
         if let (Some(kind), Some(panel)) = (data.pad, self.panel) {
             let chips = self.pad_chips(data);
@@ -1292,6 +1295,7 @@ impl Screen {
             }
             ry += rh + 6.0 * u;
         }
+        isorun_ui::scroll::paint_bar(ui.painter(), view, content_h, self.scroll);
         if data.pad.is_none() {
             footer(ui.painter(), boxes, rect.center().x, rect.bottom() - 1.0 - 6.0 * u - footer_h, u);
         }
