@@ -722,12 +722,12 @@ impl Overlays {
         let font = screen.popup_font();
         // text laid out in columns (the overview's gods, the help's index, a character dump's
         // tables) wraps into a muddle on a phone: there it is set smaller, to fit the width if it
-        // can, but no smaller than 8px or two thirds of the size; prose wraps as it is
+        // can, but no smaller than 7px; prose wraps as it is
         let font = if screen.compact() && m.sections.iter().any(|s| matches!(s, Section::Body(b) if b.iter().any(columned))) {
             let base = TextStyle::new(ctx, font, hex(0xdddddd));
             let natural = m.sections.iter().map(|s| if let Section::Body(b) = s { body_natural(ctx, b, &base) } else { 0.0 }).fold(0.0, f32::max);
             let room = screen.popup_max_w() - 2.0 - 2.0 * 0.8 * screen.rem() - frame::SCROLLBAR_W;
-            if natural > room { (font * room / natural).max((2.0 / 3.0 * font).max(8.0)).min(font) } else { font }
+            if natural > room { (font * room / natural).max(7.0).min(font) } else { font }
         } else {
             font
         };
