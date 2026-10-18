@@ -291,8 +291,9 @@ fn recorded_pickup_a_marks_and_once_one_is_marked_start_sends_enter() {
     }
     let ctx = derive_context(&st, &Scene::default(), 0, Layer::Micro);
     assert_eq!(resolve(&PadEvent::Press { button: Button::A, t: 0.0 }, &ctx), Some(Action::menu(isorun_input::bindings::MenuOp::Select)));
-    // nothing marked yet: Enter would take nothing, and Start is not offered
-    assert_eq!(resolve(&PadEvent::Press { button: Button::Start, t: 1.0 }, &ctx), None);
+    // nothing marked yet: Enter would take nothing; Start is there (the touch bar keeps its
+    // rows) but not the situation's, so no prompt stands for it
+    assert!(matches!(resolve(&PadEvent::Press { button: Button::Start, t: 1.0 }, &ctx), Some(Action::Keys { contextual: false, .. })));
     // the server marks the row (menu.cc MenuEntry::get_text: `a + ...`), and Start takes it
     let menu = st.menus.last_mut().unwrap();
     let row = menu.items.iter().position(|it| it.as_ref().is_some_and(|it| it.hotkeys.as_ref().is_some_and(|h| !h.is_empty()))).unwrap();

@@ -500,7 +500,10 @@ fn start_is_enter_only_where_enter_is_not_a() {
     let start = binding_table(&Context { mode: Mode::Menu, menu: Some(menu(true)), ..ctx() }).get(Button::Start).cloned();
     assert_eq!(seq_of(start.as_ref()), key(Keys::ENTER));
     assert_eq!(start.as_ref().and_then(|a| a.label()), Some("accept"));
-    assert_eq!(binding_table(&Context { mode: Mode::Menu, menu: Some(menu(false)), ..ctx() }).get(Button::Start), None);
+    // with nothing marked it is still there (the touch bar keeps its rows), but not the situation's
+    let bare = binding_table(&Context { mode: Mode::Menu, menu: Some(menu(false)), ..ctx() }).get(Button::Start).cloned();
+    assert_eq!(seq_of(bare.as_ref()), key(Keys::ENTER));
+    assert!(matches!(bare, Some(Action::Keys { contextual: false, .. })));
     assert_eq!(seq_of(binding_table(&Context { mode: Mode::Macro, ..ctx() }).get(Button::Start)), key(Keys::ENTER));
     assert_eq!(binding_table(&Context { mode: Mode::Menu, ..ctx() }).get(Button::A), Some(&Action::menu(MenuOp::Select)));
     assert_eq!(binding_table(&Context { mode: Mode::Menu, ..ctx() }).get(Button::RT), None);

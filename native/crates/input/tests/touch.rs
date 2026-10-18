@@ -9,7 +9,10 @@ use isorun_input::osk::*;
 use isorun_input::router::*;
 use isorun_input::runner::{Env, Runner, RunnerHooks};
 use isorun_input::touch::*;
-use isorun_input::touch_bar::{shown_labels, touch_labels};
+use isorun_input::bindings::prompt_labels;
+use isorun_input::context::MenuContext;
+use isorun_input::touch_bar::{prominent, shown_labels, touch_labels};
+use isorun_webtiles::{MenuItem, MenuState};
 use isorun_render::camera::{CameraAngles, IsoCamera};
 use isorun_scene::Scene;
 use isorun_webtiles::{cm, initial_state, GameState, MouseMode};
@@ -85,6 +88,91 @@ fn the_touch_bar_shows_each_label_once_b_first_a_last_and_not_in_command_mode() 
     assert!(shown_labels(&menu, false).is_empty());
     let more = Context { mode: Mode::More, ..Default::default() };
     assert_eq!(touch_labels(&more).into_iter().map(|l| l.label).collect::<Vec<_>>(), vec!["Skip", "--more--"]);
+}
+
+fn menu_ctx(tag: &str, flags: i64, more: &str, items: &[&str], f: impl FnOnce(&mut MenuContext)) -> Context {
+    let menu = MenuState {
+        tag: tag.into(),
+        flags,
+        kind: Some("menu".into()),
+        last_hovered: 1,
+        more: more.into(),
+        items: items.iter().enumerate().map(|(i, t)| Some(MenuItem { text: (*t).into(), level: Some(if t.starts_with(' ') { 2 } else { 1 }), hotkeys: t.starts_with(' ').then(|| vec![97 + i as i64]), ..Default::default() })).collect(),
+        ..Default::default()
+    };
+    let mut st = initial_state();
+    st.phase = isorun_webtiles::Phase::Playing;
+    st.menus.push(menu);
+    let mut c = Context { mode: Mode::Menu, menu: isorun_input::context::menu_context(&st), ..Default::default() };
+    f(c.menu.as_mut().unwrap());
+    c
+}
+fn bar(c: &Context) -> Vec<String> {
+    touch_labels(c).into_iter().map(|l| format!("{} {}", l.button.name(), l.label)).collect()
+}
+
+const PICKUP_MORE: &str = "<lightgrey>[<w>Up</w>|<w>Down</w>] select\n[<w>Esc</w>] exit\nLetters toggle    [<w>.</w>|<w>Space</w>] toggle selected\n[<w>Enter</w>] accept (1 chosen)   [<w>top</w>]</lightgrey>";
+
+#[test]
+fn a_menu_of_marks_offers_accept_on_touch_gold_and_last_with_the_count() {
+    // the pickup menu of the report (arrows select, multiselect), one row marked
+    let c = menu_ctx("pickup", 0x40004, PICKUP_MORE, &["Hand Weapons", " a + a +1 trident of protection", "Armour", " b - a +0 animal skin", " c - a +0 helmet"], |_| {});
+    let labels = bar(&c);
+    assert_eq!(labels.last().map(String::as_str), Some("START accept (1)"), "{labels:?}");
+    assert_eq!(labels.first().map(String::as_str), Some("B exit"));
+    // A marks the row, as LT does: shown once, on A
+    assert!(labels.contains(&"A toggle selected".to_string()), "{labels:?}");
+    assert!(!labels.iter().any(|l| l.starts_with("LT ")), "{labels:?}");
+    assert!(labels.contains(&"R3 Select all".to_string()), "{labels:?}");
+    assert_eq!(prominent(&touch_labels(&c)), Some(Button::Start));
+    // the pad has the same accept on Start, and its prompts name it
+    let prompts: Vec<String> = prompt_labels(&c).iter().map(|l| format!("{} {}", l.button.name(), l.label)).collect();
+    assert!(prompts.contains(&"START accept (1)".to_string()), "{prompts:?}");
+    // the footer's count wins over the rows marked (a part of a stack is `#`)
+    let two = menu_ctx("pickup", 0x40004, &PICKUP_MORE.replace("(1 chosen)", "(2 chosen)"), &["Hand Weapons", " a + a +1 trident", " b # 3 darts"], |_| {});
+    assert_eq!(bar(&two).last().map(String::as_str), Some("START accept (2)"));
+    // without a count in the footer, the rows marked
+    let rows = menu_ctx("pickup", 0x40004, "", &["Hand Weapons", " a + a +1 trident", " b + 3 darts", " c - a club"], |_| {});
+    assert_eq!(bar(&rows).last().map(String::as_str), Some("START accept (2)"));
+}
+
+#[test]
+fn a_menu_of_marks_with_nothing_chosen_keeps_its_accept_but_a_is_gold() {
+    // crawl's accept does nothing with nothing chosen (menu.cc CMD_MENU_ACCEPT_SELECTION), but the
+    // button stays, so the bar keeps its rows and the menu does not move under the finger
+    let c = menu_ctx("pickup", 0x40004, &PICKUP_MORE.replace("(1 chosen)", "(0 chosen)"), &["Hand Weapons", " a - a +1 trident", " b - a club"], |_| {});
+    let labels = bar(&c);
+    assert_eq!(labels.last().map(String::as_str), Some("START accept"), "{labels:?}");
+    assert!(labels.contains(&"A toggle selected".to_string()));
+    assert_eq!(prominent(&touch_labels(&c)), Some(Button::A));
+}
+
+#[test]
+fn the_drop_menu_a_paged_inventory_accepts_but_selects_all_by_category() {
+    // drop (MF_PAGED_INVENTORY): accept, toggle, exit; no `,`, its headers select a category each
+    let c = menu_ctx("drop", 0x40004 | isorun_webtiles::MenuFlag::PAGED_INVENTORY, &PICKUP_MORE.replace("(1 chosen)", "(3 chosen)"), &["Hand Weapons", " a + a club", " b + a dagger", " c + 3 darts"], |_| {});
+    let labels = bar(&c);
+    assert_eq!(labels.last().map(String::as_str), Some("START accept (3)"), "{labels:?}");
+    assert!(labels.contains(&"A toggle selected".to_string()));
+    assert!(labels.contains(&"B exit".to_string()));
+    assert!(!labels.iter().any(|l| l.starts_with("R3")), "{labels:?}");
+}
+
+#[test]
+fn a_single_select_menu_keeps_select_on_a_gold_and_no_accept() {
+    let c = menu_ctx("inventory", 0x40002, "", &["Hand Weapons", " a - a club", " b - a dagger"], |_| {});
+    let labels = bar(&c);
+    assert_eq!(labels.last().map(String::as_str), Some("A select"), "{labels:?}");
+    assert!(!labels.iter().any(|l| l.starts_with("START") || l.starts_with("R3")), "{labels:?}");
+    assert_eq!(prominent(&touch_labels(&c)), Some(Button::A));
+}
+
+#[test]
+fn start_and_r3_stay_off_the_bar_outside_menus() {
+    for mode in [Mode::More, Mode::Popup, Mode::Targeting, Mode::Crt] {
+        let labels = bar(&Context { mode, ..Default::default() });
+        assert!(!labels.iter().any(|l| l.starts_with("START") || l.starts_with("R3")), "{mode:?} {labels:?}");
+    }
 }
 
 // ---------------------------------------------------------------------------

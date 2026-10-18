@@ -7,14 +7,28 @@ use crate::context::{Context, Mode};
 use crate::gamepad::Button;
 use isorun_webtiles::formatted_string_to_text;
 
-const TOUCHED_BUTTONS: [Button; 8] = [Button::B, Button::LB, Button::LT, Button::X, Button::Y, Button::RT, Button::RB, Button::A];
+const TOUCHED_BUTTONS: [Button; 10] = [Button::B, Button::LB, Button::LT, Button::X, Button::Y, Button::R3, Button::RT, Button::RB, Button::A, Button::Start];
 const BARE_MODES: [Mode; 9] = [Mode::Command, Mode::Macro, Mode::Text, Mode::Yesno, Mode::Prompt, Mode::Lobby, Mode::Spectating, Mode::Newgame, Mode::Dialog];
 
+/// Whether the bar has a button for `l`. R3 and Start are the pad's own elsewhere (examine, the
+/// Isorun menu, which the screen's corners hold on touch), but in a menu R3 selects all and Start
+/// is the menu's Enter: a menu of marks takes what is marked only with it (menu.cc
+/// CMD_MENU_ACCEPT_SELECTION), and a phone has no Enter, so without them a pickup could not be
+/// finished. The shop's Start comes only where it is the situation's (buy), not its plain
+/// describe, which A does already.
+fn touched(l: &BindingLabel, ctx: &Context) -> bool {
+    match l.button {
+        Button::R3 => ctx.mode == Mode::Menu,
+        Button::Start => ctx.mode == Mode::Menu && (l.contextual || ctx.menu.as_ref().is_some_and(|m| m.shop.is_none())),
+        b => TOUCHED_BUTTONS.contains(&b),
+    }
+}
+
 /// The bar's buttons: the bindings of the touched buttons that do something here, each label
-/// once, A last (at the right, under the thumb), B first.
+/// once, A last (at the right, under the thumb) but for a menu's accept after it, B first.
 pub fn touch_labels(ctx: &Context) -> Vec<BindingLabel> {
     let order = |b: Button| TOUCHED_BUTTONS.iter().position(|x| *x == b).unwrap_or(usize::MAX);
-    let mut labels: Vec<BindingLabel> = bar_labels(ctx).into_iter().filter(|l| TOUCHED_BUTTONS.contains(&l.button) && !l.teaching && !l.label.is_empty() && l.label != NO_ACTION).collect();
+    let mut labels: Vec<BindingLabel> = bar_labels(ctx).into_iter().filter(|l| touched(l, ctx) && !l.teaching && !l.label.is_empty() && l.label != NO_ACTION).collect();
     // sorted from A back to B, so the first of a label kept is the one nearest A
     labels.sort_by(|a, b| order(b.button).cmp(&order(a.button)));
     let mut seen: Vec<String> = Vec::new();
@@ -28,6 +42,16 @@ pub fn touch_labels(ctx: &Context) -> Vec<BindingLabel> {
     }
     out.reverse();
     out
+}
+
+/// The bar's prominent (gold) button: the one that finishes what the screen is for. A, but in a
+/// menu of marks the accept (Start, Enter) once something is marked, since A there only marks a row.
+pub fn prominent(labels: &[BindingLabel]) -> Option<Button> {
+    if labels.iter().any(|l| l.button == Button::Start && l.contextual) {
+        Some(Button::Start)
+    } else {
+        labels.iter().any(|l| l.button == Button::A).then_some(Button::A)
+    }
 }
 
 /// The labels the bar shows now: none where it is hidden.
@@ -52,6 +76,7 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
     if labels.is_empty() {
         return (None, None);
     }
+    let gold = prominent(&labels);
     let caps = crate::cell_menu::caps_family(ui.ctx());
     let font = egui::FontId::new(13.0, caps);
     let (gap, pad, h) = (6.0, 8.0, 42.0);
@@ -92,7 +117,10 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
     // quick slot under it)
     let ectx = ui.ctx().clone();
     egui::Area::new(egui::Id::unique("isorun-touch-bar-area")).order(egui::Order::Foreground).fixed_pos(bar.min).show(&ectx, |ui| {
-    ui.interact(bar, egui::Id::unique("isorun-touch-bar-block"), egui::Sense::click());
+    // allocated, not only interacted: the area is as large as the bar, so the layer under a
+    // finger on the bar is the bar's (`layer_id_at`), and the game does not take the tap for one
+    // outside crawl's menu (Back: Escape, the menu gone before the button's Enter came)
+    ui.allocate_rect(bar, egui::Sense::click());
     for (r, row) in rows.iter().enumerate() {
         // wrap-reverse: the first row is the bottom one
         let y = bar.bottom() - pad - h - r as f32 * (h + gap);
@@ -104,7 +132,7 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
             x += widths[i] + gap;
             let resp = ui.interact(rect, egui::Id::unique(("isorun-touch-button", l.button)), egui::Sense::click());
             let (top, bottom, border, ink) = match l.button {
-                Button::A => (egui::Color32::from_rgba_unmultiplied(74, 58, 30, 245), egui::Color32::from_rgba_unmultiplied(24, 18, 10, 245), BRONZE, BRONZE_BRIGHT),
+                b if Some(b) == gold => (egui::Color32::from_rgba_unmultiplied(74, 58, 30, 245), egui::Color32::from_rgba_unmultiplied(24, 18, 10, 245), BRONZE, BRONZE_BRIGHT),
                 Button::B => (egui::Color32::from_rgba_unmultiplied(42, 36, 29, 242), egui::Color32::from_rgba_unmultiplied(14, 12, 9, 242), BRONZE_DIM, INK_DIM),
                 _ => (egui::Color32::from_rgba_unmultiplied(42, 36, 29, 242), egui::Color32::from_rgba_unmultiplied(14, 12, 9, 242), BRONZE_DIM, INK),
             };

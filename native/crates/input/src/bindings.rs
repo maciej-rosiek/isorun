@@ -343,9 +343,15 @@ fn menu_table(m: Option<&MenuContext>, ctx: &Context) -> Table {
         if m.menu.flags & MenuFlag::PAGED_INVENTORY == 0 {
             t.set(R3, k(",", "Select all"));
         }
-        // Start is Enter here (screen_key): it takes what is marked, so it is there once something is
+        // Start is Enter here (screen_key): it takes what is marked. It is always there, so the
+        // touch bar keeps its rows (a button coming and going moved the menu under the finger), and
+        // it is the situation's once something is marked (with nothing, crawl's accept does
+        // nothing: menu.cc CMD_MENU_ACCEPT_SELECTION), with the count the footer prints
         if m.any_marked {
-            t.set(Start, situational(kc(Keys::ENTER, "accept")));
+            let label = if m.chosen > 0 { format!("accept ({})", m.chosen) } else { "accept".into() };
+            t.set(Start, situational(kc(Keys::ENTER, &label)));
+        } else {
+            t.set(Start, kc(Keys::ENTER, "accept"));
         }
     }
     // Select stays the filter; the palette's menu section holds the rest
@@ -1034,6 +1040,9 @@ pub fn action_label(a: &Action, ctx: &Context) -> String {
                 MenuOp::PagePrev => "page up",
                 MenuOp::First => "First",
                 MenuOp::Last => "Last",
+                // in a menu of marks A marks the row under the cursor (Space on an arrows menu, its
+                // letter on the rest), as LT does: the same words, so a touch bar shows it once
+                MenuOp::Select if ctx.menu.as_ref().is_some_and(|m| m.multiselect && !m.toggles_at_once) => "toggle selected",
                 MenuOp::Select => "select",
                 MenuOp::AltSelect => "List",
                 MenuOp::Examine => "Examine",

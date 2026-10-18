@@ -161,6 +161,9 @@ pub struct MenuContext {
     pub sections: bool,
     /// some row is marked: Enter would take something (a multiselect's accept does nothing with none)
     pub any_marked: bool,
+    /// how many are chosen, as the footer prints it (`[Enter] accept (2 chosen)`), else the rows
+    /// marked; 0 where neither says
+    pub chosen: usize,
     /// the key the menu's own help is on, when it names one ("_ for help"); absent, it has none
     pub help_key: Option<String>,
     /// a row picked takes effect at once (the known-items menu's autopickup): nothing is marked, nothing accepted
@@ -725,10 +728,13 @@ re!(MARKED_RE, r"^\s*\S\s[+#]\s");
 // The known-items menu, `\\` (invent.cc `KnownMenu`): picking a row toggles its autopickup there
 // and then, and its `+` says autopickup is on, not that the row is marked.
 re!(KNOWN_ITEMS_RE, r"^Recognised items\.");
+// the footer's count of a menu of marks (menu.cc `Menu::get_keyhelp`): "[Enter] accept (1 chosen)"
+re!(CHOSEN_RE, r"accept \((\d+) chosen\)");
 // The help a menu offers, as its title or footer names the key: "(_ for help)", "[?] help"
 re!(MENU_HELP_RE, r"\(([_?]) for help\)|\[<?\w*>?\s*([_?])\s*</?\w*>?\]\s*help");
 
-fn menu_context(state: &GameState) -> Option<MenuContext> {
+/// The top menu as the bindings read it (none when no menu is up).
+pub fn menu_context(state: &GameState) -> Option<MenuContext> {
     let menu = state.top_menu()?;
     let arrows_select = menu.flags & 0x40000 != 0;
     let level = |i: usize| menu.items.get(i).and_then(|it| it.as_ref()).and_then(|it| it.level).unwrap_or(2);
@@ -747,7 +753,9 @@ fn menu_context(state: &GameState) -> Option<MenuContext> {
     }
     // a marked row says so between its letter and its text: `a + club`, `a # 3 darts` for some of a stack
     let known = KNOWN_ITEMS_RE.is_match(&formatted_string_to_text(&menu.title.text));
-    let any_marked = !known && menu.items.iter().flatten().any(|it| MARKED_RE.is_match(&formatted_string_to_text(&it.text)));
+    let marked = if known { 0 } else { menu.items.iter().flatten().filter(|it| MARKED_RE.is_match(&formatted_string_to_text(&it.text))).count() };
+    let chosen = CHOSEN_RE.captures(&formatted_string_to_text(&format!("{}\n{}", menu.more, menu.alt_more))).and_then(|c| c[1].parse().ok()).unwrap_or(marked);
+    let any_marked = !known && (marked > 0 || chosen > 0);
     let help_src = formatted_string_to_text(&format!("{}\n{}\n{}", menu.title.text, menu.more, menu.alt_more));
     let help_key = MENU_HELP_RE.captures(&help_src).and_then(|c| c.get(1).or(c.get(2))).map(|m| m.as_str().to_string());
     let mut ctx = MenuContext {
@@ -759,6 +767,7 @@ fn menu_context(state: &GameState) -> Option<MenuContext> {
         filter: menu.flags & 0x0100 != 0,
         sections: blocks >= 2,
         any_marked,
+        chosen: if known { 0 } else { chosen },
         help_key,
         toggles_at_once: known,
         ..Default::default()

@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## Unreleased
 
+- On a phone, menus where you choose several things (pick up, drop) have an Accept button that takes what you chose, gold and with the count ("Accept (2)"), and Select all where crawl has it; a tap on the bar's buttons no longer closes the menu. On a pad, Start accepts.
 - Every screen that scrolls shows a thin gold scroll bar, on a phone too: the title screen, accounts, servers, Watch, What's new, About, the rc file, character creation and crawl's menus.
 - A Minimap setting (Settings, Interface): Auto hides the minimap on a phone, where it covered the view, and shows it on a bigger screen; On and Off always do. The level map (X) is there either way.
 - The minimap is smaller on a mid-size window (about 250 points on 1024x768, where it was 380).
