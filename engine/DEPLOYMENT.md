@@ -80,7 +80,7 @@ the browser has JSPI (`native/web/engine-bridge.ts`).
 
 `.github/workflows/isorun-cloudflare.yml` deploys it, before the site, on
 every push to `main` and nightly. Its `engine` job builds the stable channel
-on GitHub (`build.sh stable`, about half an hour: emsdk at `emsdk-version`,
+on GitHub (`build.sh stable`, about eight minutes with its tools: emsdk at `emsdk-version`,
 node at `.node-version`, PyYAML, libpng and zlib for tilegen), cached by
 crawl's stable commit, the recipe (`recipe.mjs`) and the emsdk version, so a
 run builds only when one of them moved: a new stable commit upstream, which

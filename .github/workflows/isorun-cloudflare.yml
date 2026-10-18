@@ -95,7 +95,7 @@ jobs:
           base=https://isorun-engine.maciej-rosiek.workers.dev
           want=$(node -p 'require("./engine/dist/stable/engine.json").build')
           for i in 1 2 3 4 5 6; do
-            live=$(curl -fsS "$base/stable/engine.json" | node -p 'JSON.parse(require("fs").readFileSync(0)).build' || true)
+            live=$(curl -fsS "$base/stable/engine.json" 2>/dev/null | node -p 'JSON.parse(require("fs").readFileSync(0)).build' 2>/dev/null || true)
             [ "$live" = "$want" ] && break
             [ "$i" = 6 ] && { echo "::error::$base/stable/engine.json is build '$live', not $want"; exit 1; }
             sleep 10
