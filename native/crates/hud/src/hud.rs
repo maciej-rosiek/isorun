@@ -95,6 +95,8 @@ pub struct HudLayout {
     pub centre_lift: f32,
     /// the minimap's slot (the 2D renderer draws there); empty with no sidebar
     pub minimap: Rect,
+    /// the cell the minimap is drawn at in it, in points (`style::minimap_cell`)
+    pub minimap_cell: f32,
     /// the sidebar's column, whose foot the chat stands at
     pub sidebar: Rect,
     pub panes: PaneLayout,
@@ -307,8 +309,10 @@ impl Hud {
         let free = if map_view { view_cells } else { cells.clear };
         let column = CellRect { h: cells.sidebar.h, ..cells.sidebar };
         let prompts = if dock_on && cells.sidebar.w > 0 { column } else { free };
-        let panes = self.classic.layout(grid, cells, free, hide_stats, hide_sidebar, hide_messages || choosing, prompts, settings.minimap_tiles, settings.minimap_cell);
-        let l = HudLayout { grid, cells, view, clear, dock: dock_on, dock_height, centre_lift, minimap: panes.minimap, sidebar: grid.rect(cells.sidebar), panes };
+        let minimap_cell = style::minimap_cell(settings.minimap_cell, screen.size());
+        let minimap = style::minimap_shown(&settings.minimap, screen.size()).then_some((settings.minimap_tiles, minimap_cell));
+        let panes = self.classic.layout(grid, cells, free, hide_stats, hide_sidebar, hide_messages || choosing, prompts, minimap);
+        let l = HudLayout { grid, cells, view, clear, dock: dock_on, dock_height, centre_lift, minimap: panes.minimap, minimap_cell: minimap_cell as f32, sidebar: grid.rect(cells.sidebar), panes };
         self.layout = Some(l);
         l
     }

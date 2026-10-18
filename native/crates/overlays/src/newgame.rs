@@ -409,7 +409,7 @@ impl Overlays {
                 }
                 let _ = (l.index, l.sub);
             }
-            isorun_ui::scroll::paint_bar(&pt, main_view, body_h, new_scroll);
+            new_scroll = frame::scrollbar(ui, egui::Id::unique(("isorun-ng-bar", key)), main_view, body_h, new_scroll);
             // the details: the hero of the button under the cursor, and its description
             let details = if compact {
                 Rect::from_min_max(Pos2::new(rect.left() + 1.0, choices.bottom() + 1.0), Pos2::new(rect.right() - 1.0, rect.bottom() - 1.0))

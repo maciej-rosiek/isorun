@@ -142,32 +142,13 @@ pub fn backdrop(ctx: &egui::Context, id: egui::Id, colour: Color32) {
     ctx.move_to_top(area.response.layer_id);
 }
 
-/// A scrolling box's bar: a thin thumb over the box's right edge that takes no room from the
-/// text (the web build is read in a browser whose bars overlay the page; styles.css colours its
-/// own lists' bars `rgba(191, 191, 191, 0.25)`). Returns the scroll after a drag on it.
+/// A scrolling box's bar: the shared one (`isorun_ui::scroll::bar`), a thin thumb over the box's
+/// right edge that takes no room from the text (the web build is read in a browser whose bars
+/// overlay the page). Returns the scroll after a drag on it.
 pub const SCROLLBAR_W: f32 = 0.0;
 
 pub fn scrollbar(ui: &mut egui::Ui, id: egui::Id, viewport: Rect, content_h: f32, scroll: f32) -> f32 {
-    let max = (content_h - viewport.height()).max(0.0);
-    if max <= 0.0 {
-        return 0.0;
-    }
-    let track = Rect::from_min_max(Pos2::new(viewport.right() - 8.0, viewport.top() + 2.0), Pos2::new(viewport.right() - 2.0, viewport.bottom() - 2.0));
-    let thumb_h = (track.height() * viewport.height() / content_h).clamp(17.0, track.height());
-    let y = track.top() + (track.height() - thumb_h) * (scroll / max);
-    let thumb = Rect::from_min_size(Pos2::new(track.left(), y), Vec2::new(track.width(), thumb_h));
-    let resp = ui.interact(track, id, Sense::click_and_drag());
-    let alpha = if resp.hovered() || resp.dragged() { 0.45 } else { 0.25 };
-    ui.painter().rect_filled(thumb, 3.0, isorun_ui::widgets::rgba(191, 191, 191, alpha));
-    let mut scroll = scroll;
-    if resp.dragged() {
-        scroll += resp.drag_delta().y * content_h / track.height().max(1.0);
-    } else if resp.clicked() {
-        if let Some(pos) = resp.interact_pointer_pos() {
-            scroll += if pos.y < thumb.top() { -viewport.height() } else if pos.y > thumb.bottom() { viewport.height() } else { 0.0 };
-        }
-    }
-    scroll.clamp(0.0, max)
+    isorun_ui::scroll::bar(ui, id, viewport, content_h, scroll)
 }
 
 /// The wheel over `viewport`, or a finger dragging it, moves `scroll`; returns the new scroll,

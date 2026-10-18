@@ -613,7 +613,7 @@ impl GameScreen {
 
         if playing {
             if !self.parts.map_shown {
-                self.draw_minimap(ui, &scene, layout.minimap);
+                self.draw_minimap(ui, &scene, layout.minimap, layout.minimap_cell);
             }
             self.draw_hud(ui, &scene, layout.view, now);
             if self.perf.enabled {
@@ -1367,12 +1367,14 @@ impl GameScreen {
         let _ = r;
     }
 
-    fn draw_minimap(&mut self, ui: &mut egui::Ui, scene: &Arc<Scene>, rect: egui::Rect) {
+    /// The minimap in `rect` (none when empty: the setting hides it), at `cell` points a tile (the
+    /// HUD's, the setting's cell fitted to the window).
+    fn draw_minimap(&mut self, ui: &mut egui::Ui, scene: &Arc<Scene>, rect: egui::Rect, cell: f32) {
         if rect.width() <= 0.0 {
             return;
         }
         let st = &self.session.state;
-        self.minimap.cell = self.client_settings.minimap_cell as f32;
+        self.minimap.cell = cell;
         self.minimap.set_options(&st.options);
         let cam = self.camera.camera();
         // the minimap turns with the view, so up on the map is up on the screen

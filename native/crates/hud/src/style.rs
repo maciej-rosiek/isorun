@@ -132,6 +132,26 @@ pub fn compact_window(screen: egui::Vec2) -> bool {
     screen.x < 900.0 || screen.y < 560.0
 }
 
+/// The "Minimap" setting on a window this size: Auto hides it on the compact window (a phone's,
+/// where a map in the corner covers a good part of a small view, and the level map is a tap
+/// away), and shows it on a bigger one; On and Off are what they say.
+pub fn minimap_shown(setting: &str, screen: egui::Vec2) -> bool {
+    match setting {
+        "on" => true,
+        "off" => false,
+        _ => !compact_window(screen),
+    }
+}
+
+/// The minimap's cell on a window this size, from the "Minimap tile size" setting `cell`, which
+/// is meant at the reference 1600 x 1000 window: on a smaller one the cell shrinks with it (to no
+/// less than 0.6 of it), so a 1024 x 768 window shows the same tiles in a map of about 250 points
+/// rather than the 380 that took a third of its width.
+pub fn minimap_cell(cell: u32, screen: egui::Vec2) -> u32 {
+    let fit = (screen.x / 1600.0).min(screen.y / 1000.0).clamp(0.6, 1.0);
+    ((cell.max(1) as f32 * fit).round() as u32).max(4)
+}
+
 pub fn landscape_window(screen: egui::Vec2) -> bool {
     screen.x > screen.y
 }
@@ -198,5 +218,17 @@ mod tests {
         assert_eq!(hud_unit(egui::vec2(5120.0, 2880.0), 1.0), 1.6);
         assert!(compact_window(egui::vec2(844.0, 390.0)));
         assert!(!compact_window(egui::vec2(1600.0, 1000.0)));
+    }
+
+    #[test]
+    fn minimap_setting() {
+        let (phone, tilted, desk) = (egui::vec2(412.0, 915.0), egui::vec2(915.0, 412.0), egui::vec2(1600.0, 1000.0));
+        assert!(!minimap_shown("auto", phone) && !minimap_shown("auto", tilted) && minimap_shown("auto", desk));
+        assert!(minimap_shown("on", phone) && !minimap_shown("off", desk));
+        // the setting's cell at the reference window, smaller on a mid-size one, never under 0.6 of it
+        assert_eq!(minimap_cell(20, desk), 20);
+        assert_eq!(minimap_cell(20, egui::vec2(2560.0, 1440.0)), 20);
+        assert_eq!(minimap_cell(20, egui::vec2(1024.0, 768.0)), 13);
+        assert_eq!(minimap_cell(20, phone), 12);
     }
 }

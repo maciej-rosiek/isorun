@@ -185,12 +185,14 @@ impl Classic {
     /// along the bottom. `free` is the part of the view no pane lies over; the prompts stack up
     /// from the last row of `prompts`.
     #[allow(clippy::too_many_arguments)]
-    pub fn layout(&mut self, grid: Grid, cells: GameLayout, free: CellRect, hide_stats: bool, hide_sidebar: bool, hide_messages: bool, prompts: CellRect, minimap_tiles: u32, minimap_cell: u32) -> PaneLayout {
+    /// `minimap` is the minimap's tiles and cell, None when it is hidden (the monster list and the
+    /// action panel then take its room).
+    pub fn layout(&mut self, grid: Grid, cells: GameLayout, free: CellRect, hide_stats: bool, hide_sidebar: bool, hide_messages: bool, prompts: CellRect, minimap: Option<(u32, u32)>) -> PaneLayout {
         let free_px = grid.rect(free);
         let view_px = grid.rect(cells.view);
         let side_px = grid.rect(cells.sidebar);
         let stats_px = grid.rect(cells.stats);
-        let w = minimap_box(side_px.width(), side_px.height(), grid.cols as f32 * grid.cw, minimap_tiles, minimap_cell);
+        let w = minimap.map_or(0.0, |(tiles, cell)| minimap_box(side_px.width(), side_px.height(), grid.cols as f32 * grid.cw, tiles, cell));
         let sidebar = (!hide_sidebar && cells.sidebar.w > 0).then_some(side_px);
         let stats = (!hide_stats && cells.stats.w > 0).then_some(stats_px);
         let minimap = if sidebar.is_some() && w > 0.0 { Rect::from_min_size(egui::pos2(side_px.right() - w, side_px.top()), Vec2::splat(w)) } else { Rect::NOTHING };
@@ -290,8 +292,13 @@ impl Classic {
 
     /// The status strip: the player's own corner badges blown up, leftward from the minimap.
     fn paint_status_strip(&self, painter: &Painter, inp: &PaneInput, tiles: &mut TileIcons, grid: Grid) {
-        let mm = self.layout.minimap;
-        if mm == Rect::NOTHING || st_glyphs(inp.state) {
+        // beside the minimap, or where it would be when it is hidden: the column's top left
+        let mm = match (self.layout.minimap, self.layout.sidebar) {
+            (m, _) if m != Rect::NOTHING => m,
+            (_, Some(side)) => Rect::from_min_size(side.min, Vec2::ZERO),
+            _ => return,
+        };
+        if st_glyphs(inp.state) {
             return;
         }
         let Some(me) = player_billboard(inp.scene) else { return };

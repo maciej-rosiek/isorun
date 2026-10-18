@@ -315,7 +315,8 @@ impl FrontEnd {
         } else {
             // a window too short for the whole title screen: it scrolls, the head on top
             let scroll_to = std::mem::take(&mut self.scroll_to_cursor);
-            egui::ScrollArea::vertical().id_salt("home-scroll").max_height(full.height()).show(ui, |ui| {
+            let area = egui::ScrollArea::vertical().id_salt("home-scroll").max_height(full.height());
+            isorun_ui::scroll::area(ui, egui::Id::unique("front-home-scroll"), area, |ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(full.width(), total), Sense::hover());
                 draw(self, ui, r.min, total);
                 if scroll_to {
@@ -424,7 +425,8 @@ impl FrontEnd {
             let area = Rect::from_min_max(pos2(x, y), pos2(full.right(), full.bottom() - foot));
             let mut c = ui.new_child(egui::UiBuilder::new().max_rect(area));
             let scroll_to = std::mem::take(&mut self.scroll_to_cursor);
-            egui::ScrollArea::vertical().id_salt(("rows", format!("{:?}", self.view))).max_height(area.height()).show(&mut c, |ui| {
+            let rows_area = egui::ScrollArea::vertical().id_salt(("rows", format!("{:?}", self.view))).max_height(area.height());
+            isorun_ui::scroll::area(&mut c, egui::Id::unique(("front-rows", format!("{:?}", self.view))), rows_area, |ui| {
                 let at = ui.cursor().min;
                 let (r, _) = ui.allocate_exact_size(vec2(width, rows_h), Sense::hover());
                 let _ = r;

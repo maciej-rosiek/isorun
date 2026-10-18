@@ -1303,7 +1303,7 @@ impl Screen {
             }
             ry += rh + 6.0 * u;
         }
-        isorun_ui::scroll::paint_bar(ui.painter(), view, content_h, self.scroll);
+        self.scroll = isorun_ui::scroll::bar(ui, ui.scope_id().with("char-bar"), view, content_h, self.scroll);
         if data.pad.is_none() {
             footer(ui.painter(), boxes, rect.center().x, rect.bottom() - 1.0 - 6.0 * u - footer_h, u);
         }

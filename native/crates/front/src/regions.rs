@@ -20,12 +20,6 @@ impl FrontEnd {
     fn region(&mut self, ui: &mut egui::Ui, rect: Rect, salt: &str, panel: bool, pad: egui::Vec2, scroll: Option<f32>, content: &mut dyn FnMut(&mut Self, &mut egui::Ui, f32)) -> (f32, f32, f32) {
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(rect).layout(egui::Layout::top_down(egui::Align::Min)));
         child.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        // `scrollbar-width: thin`, a faint thumb on no track
-        let sb = &mut child.spacing_mut().scroll;
-        *sb = egui::style::ScrollStyle::thin();
-        sb.bar_width = 4.0;
-        child.visuals_mut().widgets.inactive.bg_fill = rgba(191, 191, 191, 0.25);
-        child.visuals_mut().extreme_bg_color = Color32::TRANSPARENT;
         let mut area = egui::ScrollArea::vertical().id_salt(salt).max_height(rect.height()).auto_shrink([false, true]);
         if let Some(off) = scroll {
             area = area.vertical_scroll_offset(off);
@@ -35,7 +29,8 @@ impl FrontEnd {
         if panel {
             shape = Some(bg.add(egui::Shape::Noop));
         }
-        let out = area.show(&mut child, |ui| {
+        // the shared scroll bar, always there while the region scrolls
+        let out = isorun_ui::scroll::area(&mut child, egui::Id::unique(("front-region", salt)), area, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             let inner = Rect::from_min_size(ui.cursor().min + pad, vec2(rect.width() - 2.0 * pad.x, 0.0));
             let mut c = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(inner.min, vec2(inner.width(), f32::INFINITY))).layout(egui::Layout::top_down(egui::Align::Min)));
@@ -416,7 +411,8 @@ impl FrontEnd {
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(box_rect.shrink2(vec2(m.rem, 0.8 * m.rem))));
         let font = egui::FontId::new(m.note(), m.faces.text());
         let mut out = None;
-        egui::ScrollArea::both().id_salt("rc-scroll").max_height(box_rect.height() - 1.6 * m.rem).auto_shrink([false, false]).show(&mut child, |ui| {
+        let area = egui::ScrollArea::both().id_salt("rc-scroll").max_height(box_rect.height() - 1.6 * m.rem).auto_shrink([false, false]);
+        isorun_ui::scroll::area(&mut child, egui::Id::unique("front-rc-scroll"), area, |ui| {
             let edit = egui::TextEdit::multiline(&mut rc.text).id(egui::Id::NULL.with("rc-text")).font(font.clone()).text_color(colour).frame(egui::Frame::NONE).code_editor().desired_width(f32::INFINITY).interactive(ready).lock_focus(true);
             out = Some(ui.add(edit));
         });

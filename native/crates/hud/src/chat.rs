@@ -148,7 +148,7 @@ impl Chat {
                 }
                 let names = st.spectators.as_ref().map(|s| server_text(&s.names)).unwrap_or_default();
                 ui.label(egui::RichText::new(if names.is_empty() { " ".into() } else { names }).color(hex(0xaaaaaa).to_color32()));
-                egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.28).stick_to_bottom(true).show(ui, |ui| {
+                isorun_ui::scroll::area(ui, egui::Id::unique("hud-chat-scroll"), egui::ScrollArea::vertical().max_height(ctx.content_rect().height() * 0.28).stick_to_bottom(true), |ui| {
                     for l in &st.chat {
                         let t = chat_text(l);
                         ui.horizontal_wrapped(|ui| {

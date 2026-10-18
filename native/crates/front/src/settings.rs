@@ -55,6 +55,7 @@ pub fn defaults() -> Settings {
     let v = json!({
         "uiScale": 1,
         "confirmStairs": false,
+        "minimap": "auto",
         "minimapTiles": 19,
         "minimapCell": 20,
         "hints": "adaptive",
@@ -115,6 +116,7 @@ pub fn from_stored(saved: &Value) -> Settings {
     keep(&mut s, "graphics", &|v| matches!(v.as_str(), Some("low" | "medium" | "high")));
     keep(&mut s, "look", &|v| v.as_str().is_some_and(|l| l == "custom" || isorun_render::lights(l).is_some()));
     keep(&mut s, "hud", &|v| matches!(v.as_str(), Some("dock" | "classic")));
+    keep(&mut s, "minimap", &|v| matches!(v.as_str(), Some("auto" | "on" | "off")));
     keep(&mut s, "uiScale", &|v| v.as_f64().is_some_and(|x| x.is_finite() && x > 0.2 && x < 4.0));
     s
 }
@@ -362,6 +364,11 @@ pub fn rows() -> Vec<SettingRow> {
         }),
         row("Interface", "HUD", "hud", strs(&["dock", "classic"]), "Dock: health and magic orbs, quick slots and a button for every screen along the foot of the screen, all usable with the mouse and the pad. Classic: the WebTiles panes, as the official client lays them out.", |v| if v.as_str() == Some("dock") { "Dock".into() } else { "Classic".into() }),
         row("Interface", "UI scale", "uiScale", nums(&[1.0, 1.15, 1.3, 1.5, 0.85]), "The size of the HUD, menus and messages.", |v| format!("{}%", (v.as_f64().unwrap_or(1.0) * 100.0).round())),
+        row("Interface", "Minimap", "minimap", strs(&["auto", "on", "off"]), "The small map of the level around you in the corner. Auto hides it on a small screen (a phone's), where it covers the view, and shows it on a bigger one. The level map (X) is there either way.", |v| match v.as_str() {
+            Some("on") => "On".into(),
+            Some("off") => "Off".into(),
+            _ => "Auto".into(),
+        }),
         row("Interface", "Minimap size", "minimapTiles", minimap_tiles(), "How many tiles across the minimap shows: it grows out of its corner over the view, at the same cell size.", |v| format!("{} tiles", plain(v))),
         row("Interface", "Minimap tile size", "minimapCell", nums(&MINIMAP_CELLS), "How big each minimap tile is drawn: the same tiles, larger, until the map runs out of room over the view.", |v| format!("{}px", plain(v))),
         row("Interface", "Damage numbers", "damageNumbers", vec![json!(true), json!(false)], "Numbers over the fighters as blows land: the damage dealt, and the damage taken in red, bigger the more of your life it took.", |v| if v.as_bool() == Some(true) { "On".into() } else { "Off".into() }),
@@ -450,6 +457,9 @@ mod tests {
         assert_eq!(num_of(&s, "resolution"), 85.0);
         assert_eq!(str_of(&s, "look"), "diorama");
         assert!(!s.contains_key("bogus"));
+        assert_eq!(str_of(&s, "minimap"), "auto");
+        assert_eq!(client_settings(&from_stored(&json!({ "minimap": "off" }))).minimap, "off");
+        assert_eq!(str_of(&from_stored(&json!({ "minimap": "sometimes" })), "minimap"), "auto");
     }
 
     #[test]
@@ -501,6 +511,7 @@ mod tests {
         assert_eq!(read("look"), "Diorama");
         assert_eq!(read("masterVolume"), "70%");
         assert_eq!(read("minimapTiles"), "19 tiles");
+        assert_eq!(read("minimap"), "Auto");
     }
 
     #[test]

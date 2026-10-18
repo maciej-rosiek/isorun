@@ -2,6 +2,12 @@
 
 Notable changes to Isorun, newest first.
 
+## Unreleased
+
+- Every screen that scrolls shows a thin gold scroll bar, on a phone too: the title screen, accounts, servers, Watch, What's new, About, the rc file, character creation and crawl's menus.
+- A Minimap setting (Settings, Interface): Auto hides the minimap on a phone, where it covered the view, and shows it on a bigger screen; On and Off always do. The level map (X) is there either way.
+- The minimap is smaller on a mid-size window (about 250 points on 1024x768, where it was 380).
+
 ## 0.1.5 — 2026-10-16
 
 - Starwater shows a night sky: dark blue water with drifting violet and stars that twinkle and glow.

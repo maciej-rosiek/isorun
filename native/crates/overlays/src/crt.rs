@@ -103,7 +103,7 @@ impl Overlays {
             for (i, g) in galleys.iter().enumerate() {
                 bp.galley(Pos2::new(left, top_y + i as f32 * line_h), g.clone(), st.colour);
             }
-            isorun_ui::scroll::paint_bar(&p, view, content_h, new_scroll);
+            new_scroll = frame::scrollbar(ui, egui::Id::unique(("isorun-crt-bar", stack)), view, content_h, new_scroll);
         });
         self.scroll.insert(key, new_scroll);
         if let Some(k) = clicked {

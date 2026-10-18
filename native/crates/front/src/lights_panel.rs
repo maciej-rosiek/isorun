@@ -292,7 +292,7 @@ impl LightsPanel {
                         out = Some(LightsEvent::Close);
                     }
                 });
-                egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+                isorun_ui::scroll::area(ui, egui::Id::unique("lights-panel-scroll"), egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
                     ui.label(egui::RichText::new("Lights").color(accent));
                     ui.horizontal_wrapped(|ui| {
                         for name in LIGHTS_NAMES {

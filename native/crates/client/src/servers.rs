@@ -407,6 +407,9 @@ pub struct Settings {
     pub ui_scale: f32,
     #[serde(rename = "confirmStairs")]
     pub confirm_stairs: bool,
+    /// The "Minimap" setting: "auto" (hidden on a compact window, a phone's, shown on a bigger
+    /// one), "on" or "off".
+    pub minimap: String,
     #[serde(rename = "minimapTiles")]
     pub minimap_tiles: u32,
     #[serde(rename = "minimapCell")]
@@ -451,6 +454,7 @@ impl Default for Settings {
         Settings {
             ui_scale: 1.0,
             confirm_stairs: false,
+            minimap: "auto".into(),
             minimap_tiles: 19,
             minimap_cell: 20,
             hints: "adaptive".into(),
