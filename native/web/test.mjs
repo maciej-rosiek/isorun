@@ -164,6 +164,72 @@ try {
     check(result.ok, `an offline game starts in the worker (${result.ms ?? result.why} ms) ${result.tail ?? ''}`)
     await page.close()
   }
+  // a phone's browser (touch events, as Chrome on Android hands them to eframe): an offline game
+  // is started, a tap on the dungeon must walk (crawl is sent a click_cell), and the Settings over
+  // the game must take taps on their rows and arrows (the HUD row's > writes the stored setting)
+  // and a tap beside them. The places tapped are the layout's at 412x915.
+  // Needs the offline engine (Play is the first row with it).
+  if (!process.env.SKIP_PHONE) {
+    const ctx = await browser.newContext({ viewport: { width: 412, height: 915 }, hasTouch: true, isMobile: true })
+    const page = await ctx.newPage()
+    const log = []
+    page.on('console', (m) => log.push(`[${m.type()}] ${m.text()}`))
+    page.on('pageerror', (e) => log.push(`[pageerror] ${e.message}`))
+    await page.goto(`${base}/`)
+    await page.waitForFunction(() => !document.getElementById('loading') && globalThis.isorunEngine, null, { timeout: 120_000 })
+    const engine = await page.evaluate(async () => globalThis.isorunEngine.channel())
+    check(!!engine, 'a phone: the engine is served')
+    // what the app sends crawl, and what crawl says
+    await page.evaluate(() => {
+      const e = globalThis.isorunEngine
+      const launch = e.launch
+      globalThis.__sent = []
+      globalThis.__heard = ''
+      e.launch = (dir, args, rc, out, exit, err) => {
+        const h = launch(dir, args, rc, (t) => { globalThis.__heard += t; out(t) }, exit, err)
+        const { control, keys } = h
+        h.control = (json) => { globalThis.__sent.push(json); control(json) }
+        h.keys = (text) => { globalThis.__sent.push(text); keys(text) }
+        return h
+      }
+    })
+    const heard = (s, ms) => page.waitForFunction((s) => globalThis.__heard.includes(s), s, { timeout: ms }).then(() => true, () => false)
+    const tap = async (x, y, wait = 2500) => { await page.touchscreen.tap(x, y); await page.waitForTimeout(wait) }
+    await page.waitForTimeout(3000)
+    await tap(140, 521) // Play
+    check(await heard('"newgame-choice"', 180_000), 'a phone: a tap on Play starts an offline game')
+    for (const k of ['a', 'a', 'a']) {
+      await page.keyboard.press(k)
+      await page.waitForTimeout(3000)
+    }
+    check(await heard('"msg":"map"', 120_000), 'a phone: the game draws its map')
+    await page.waitForTimeout(8000)
+    // a cell near the player: above, or left or right below where a wall or the fog leaves no floor
+    await page.evaluate(() => { globalThis.__sent = [] })
+    let sent = []
+    for (const [x, y] of [[206, 300], [150, 420], [260, 420]]) {
+      await tap(x, y, 4000)
+      sent = await page.evaluate(() => globalThis.__sent)
+      if (sent.some((m) => m.includes('click_cell'))) break
+    }
+    check(sent.some((m) => m.includes('click_cell')), `a phone: a tap on the dungeon walks (${sent.slice(0, 3).join(' ') || 'nothing sent'})`)
+    await page.screenshot({ path: join(OUT, 'phone-game.png') })
+    await tap(76, 28) // the gear: the Isorun menu
+    await tap(210, 75) // its System tab
+    await tap(90, 265) // Settings
+    await tap(100, 144) // Interface
+    await tap(380, 99) // the HUD row's >
+    const stored = await page.evaluate(() => localStorage.getItem('isorun.settings') ?? '')
+    check(stored.includes('classic'), `a phone: the Settings take taps on a row and its arrow (${stored || 'nothing stored'})`)
+    await page.screenshot({ path: join(OUT, 'phone-settings.png') })
+    await tap(380, 99) // back to the dock
+    await tap(200, 700) // beside the panel: back to the groups
+    await tap(200, 700) // and again: back to the Isorun menu
+    await page.screenshot({ path: join(OUT, 'phone-tap-away.png') })
+    const errors = log.filter((l) => /panicked|RuntimeError|pageerror/.test(l))
+    check(errors.length === 0, `a phone: no panics ${errors.slice(0, 3).join(' | ')}`)
+    await ctx.close()
+  }
 } finally {
   await browser.close()
   await webgpu.close()
