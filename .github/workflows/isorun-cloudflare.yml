@@ -39,8 +39,6 @@ jobs:
         with:
           # the engine's build and its smoke test need JSPI (engine/.node-version)
           node-version-file: engine/.node-version
-          cache: npm
-          cache-dependency-path: package-lock.json
       - name: Which build
         id: key
         run: |
@@ -78,6 +76,12 @@ jobs:
         with:
           path: engine/dist
           key: ${{ steps.key.outputs.key }}
+      # the lock file is npm 10's (node 22, as the site's job): node 25's npm takes it for out of date
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
       - run: npm ci
       # stages engine/dist (and any channel live but not built here) into engine/.publish, checks
       # Cloudflare's limits (25 MiB a file, 20,000 files) and deploys isorun-engine
