@@ -422,7 +422,8 @@ impl Classic {
         }
         // a tooltip on the cell after half a second
         if let Some((i, since)) = self.panel_hover {
-            if inp.now - since > 0.5 {
+            // on touch only under a finger held on the cell (a long press), not a tap's leftover hover
+            if inp.now - since > 0.5 && (!isorun_ui::pointer::touch_mode(ui.ctx()) || isorun_ui::pointer::card_shows(ui.ctx(), true, area)) {
                 let text = panel_tip(i, &items);
                 if !text.is_empty() {
                     let pos = resp.hover_pos().unwrap_or(area.center()) + egui::vec2(10.0, 10.0);

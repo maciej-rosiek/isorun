@@ -750,6 +750,11 @@ impl Screen {
         boxes.paint_box(&painter, "inv-bag", bag, &panel_style(u, false, false));
         let mut stops = vec![];
         let mut hover_tip: Option<(Vec<(Tip, CardKind)>, Rect)> = None;
+        // a card beside what the mouse is over or the pad's cursor is on; on touch only while a
+        // finger rests on it (a long press): a tap's pointer stays where it was as a hover, and
+        // the cursor stays on the item tapped, which stood a card over the backpack after a tap
+        let touch_cards = isorun_ui::pointer::touch_mode(&ctx) && data.pad.is_none();
+        let card = |hovered: bool, focused: bool, rect: Rect| if touch_cards { isorun_ui::pointer::card_shows(&ctx, hovered, rect) } else { hovered || focused };
         let pad = data.pad;
 
         // the doll: the figure in the middle, the places around it
@@ -773,10 +778,10 @@ impl Screen {
                 Some(item) => {
                     self.item_socket(&painter, boxes, tiles, srect, item, true, hot, u);
                     stops.push(Stop2 { id: format!("item:{}", item.letter), rect: srect, row: r, col: c });
-                    if hot && self.menu.is_none() {
+                    if card(resp.hovered(), focused, srect) && self.menu.is_none() {
                         hover_tip = Some((self.item_cards(item, data, &doll, &on_doll), srect));
                     }
-                    if resp.clicked() || resp.secondary_clicked() {
+                    if isorun_ui::pointer::tap(&ctx, resp.clicked()) || (resp.secondary_clicked() && !resp.long_touched()) {
                         self.focus = Some(format!("item:{}", item.letter));
                         self.open_menu(item, srect, data);
                     }
@@ -796,11 +801,11 @@ impl Screen {
                         icons::paint(tiles, &painter, &placed, Rect::from_center_size(srect.center(), Vec2::splat(56.0 * u)), tint);
                     }
                     stops.push(Stop2 { id: format!("place:{}", p.id()), rect: srect, row: r, col: c });
-                    if hot && self.menu.is_none() {
+                    if card(resp.hovered(), focused, srect) && self.menu.is_none() {
                         let t = Tip { title: place_label(p).into(), sub: Some("Nothing here".into()), hints: vec![KeyHint::keys(&["Click"]).pad(Glyph::A).label("Put something on")], ..Default::default() };
                         hover_tip = Some((vec![(t, CardKind::Small)], srect));
                     }
-                    if resp.clicked() {
+                    if isorun_ui::pointer::tap(&ctx, resp.clicked()) {
                         events.push(ScreenEvent::Fill(p, place_label(p)));
                     }
                 }
@@ -820,15 +825,16 @@ impl Screen {
                 continue;
             };
             let resp = ui.interact(srect, ui.scope_id().with(("bag", i)), Sense::click());
-            let hot = resp.hovered() || self.focus.as_deref() == Some(&format!("item:{}", item.letter));
+            let focused = self.focus.as_deref() == Some(&format!("item:{}", item.letter));
+            let hot = resp.hovered() || focused;
             self.item_socket(&painter, boxes, tiles, srect, item, false, hot, u);
             // stacked, the backpack's rows come after the doll's six
             let (row, col) = if stacked { (6 + r, c) } else { (r, 4 + c) };
             stops.push(Stop2 { id: format!("item:{}", item.letter), rect: srect, row, col });
-            if hot && self.menu.is_none() {
+            if card(resp.hovered(), focused, srect) && self.menu.is_none() {
                 hover_tip = Some((self.item_cards(item, data, &doll, &on_doll), srect));
             }
-            if resp.clicked() || resp.secondary_clicked() {
+            if isorun_ui::pointer::tap(&ctx, resp.clicked()) || (resp.secondary_clicked() && !resp.long_touched()) {
                 self.focus = Some(format!("item:{}", item.letter));
                 self.open_menu(item, srect, data);
             }

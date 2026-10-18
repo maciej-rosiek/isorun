@@ -1411,7 +1411,7 @@ impl GameScreen {
     }
 
     /// The details card about the cell the aim or the server's cursor is on (game.ts `updateInspect`).
-    fn inspect(&self, scene: &Scene) -> Option<(Vec<isorun_hud::classic::InspectLine>, Vec<String>)> {
+    fn inspect(&self, ctx: &egui::Context, scene: &Scene) -> Option<(Vec<isorun_hud::classic::InspectLine>, Vec<String>)> {
         if self.parts.map_shown || self.parts.cell_menu.is_some() {
             return None;
         }
@@ -1419,6 +1419,11 @@ impl GameScreen {
             Some(d) => (scene.player.0 + isorun_scene::DIR8_DX[d as usize], scene.player.1 + isorun_scene::DIR8_DY[d as usize]),
             None => {
                 let c = self.last_cursor.filter(|c| c.mode != CursorMode::Map)?;
+                // on touch the card about the cell under the finger shows only while it rests
+                // there (a long press), not for the moment a tap leaves its cursor on the cell
+                if self.cursor_is_ours && isorun_ui::pointer::touch_mode(ctx) && !isorun_ui::pointer::card_shows(ctx, true, self.parts.view.rect) {
+                    return None;
+                }
                 (c.x, c.y)
             }
         };
@@ -1458,7 +1463,7 @@ impl GameScreen {
         let labels = self.pad_labels();
         let prompts = convert::prompts(&labels);
         let holding = self.router.holding.map(|(b, f)| isorun_hud::classic::HoldProgress { button: convert::glyph(b), fraction: f });
-        let inspect = self.inspect(scene);
+        let inspect = self.inspect(ui.ctx(), scene);
         let st = &self.session.state;
         let (device, _) = convert::device(self.parts.last_input);
         let renderer = &self.parts.view.renderer;

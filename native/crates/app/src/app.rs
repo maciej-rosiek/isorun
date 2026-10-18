@@ -312,6 +312,8 @@ impl eframe::App for IsorunApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        // who spoke last, a finger or a mouse, for the hover cards (isorun_ui::pointer::card_shows)
+        isorun_ui::pointer::note_frame(ui.ctx(), self.opts.touch);
         // a phone is told by its window (the first frame's size is the real one, the app's start
         // may not know it yet)
         #[cfg(target_os = "android")]

@@ -406,7 +406,10 @@ impl Hud {
             self.update_view(cx);
             let frame = DockFrame::new(screen, cx.settings.ui_scale, cx.touch);
             let (events, tip) = self.dock.ui(ui, &frame, &self.view, cx.tiles, &mut self.boxes, cx.now);
-            if let Some(t) = tip.filter(|_| self.screen.is_none()) {
+            // on touch a card shows only while a finger rests on its button (a long press); the
+            // pad's cursor shows its stop's as ever
+            let pad = cx.device == Device::Pad;
+            if let Some(t) = tip.filter(|t| self.screen.is_none() && (pad || isorun_ui::pointer::card_shows(&ctx, true, t.over))) {
                 paint_tip(&ctx, &mut self.boxes, screen, &t, frame.u, (cx.device == Device::Pad).then_some(cx.pad));
             }
             for e in events {
