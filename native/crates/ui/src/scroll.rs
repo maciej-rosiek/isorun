@@ -49,7 +49,7 @@ pub fn paint_bar(painter: &egui::Painter, viewport: Rect, content_h: f32, scroll
 /// The bar's track and thumb, or None when the body fits.
 fn bar_rects(viewport: Rect, content_h: f32, scroll: f32) -> Option<(Rect, Rect)> {
     let max = content_h - viewport.height();
-    if max <= 0.5 || viewport.height() < 12.0 {
+    if max <= 1.0 || viewport.height() < 12.0 {
         return None;
     }
     let track = Rect::from_min_max(egui::pos2(viewport.right() - 6.0, viewport.top() + 4.0), egui::pos2(viewport.right() - 2.0, viewport.bottom() - 4.0));
