@@ -1,7 +1,7 @@
 {
   // isorun: the hosted page (https://isorun.maciej-rosiek.workers.dev). One Worker serves the
   // app's web build (native/web/build.sh writes the whole site into native/web/dist), the
-  // gamedata and morgue proxies, and the visit counts (VisitLog, a Durable Object;
+  // gamedata and morgue proxies, the offline engine (isorun-engine, bound below), and the visit counts (VisitLog, a Durable Object;
   // /stats?key=<STATS_KEY> shows them). worker/README.md has the routes.
   //
   // Deployed by .github/workflows/isorun-cloudflare.yml from the repository root, after the web
@@ -20,10 +20,10 @@
     // below) and /native/ (the web build's old place), which redirects to /.
     "run_worker_first": ["/gamedata-proxy/*", "/morgue-proxy/*", "/engine/*", "/api/visit", "/stats", "/native", "/native/*"]
   },
-  // the offline engine's files are a Worker of their own (engine/wrangler.jsonc),
-  // so a new engine build never redeploys the app; once it is deployed, bind it with
-  //   "services": [{ "binding": "ENGINE", "service": "isorun-engine" }]
-  // without it /engine/* is a 404 and the page offers no offline games
+  // the offline engine's files are a Worker of their own (engine/wrangler.jsonc), deployed
+  // before this one by the same workflow: /engine/* goes to it, and the page offers offline games
+  // where its stable/engine.json answers
+  "services": [{ "binding": "ENGINE", "service": "isorun-engine" }],
   "durable_objects": { "bindings": [{ "name": "VISITS", "class_name": "VisitLog" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["VisitLog"] }],
   "observability": {

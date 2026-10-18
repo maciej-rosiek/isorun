@@ -9,6 +9,7 @@ folders, notes and rc files on one origin, so its saves play on).
 
     native/web/build.sh [out dir]      # default native/web/dist (the whole site); PROFILE=release or dev for quicker builds
     node native/web/test.mjs [dir]     # headless Chromium: the page, ?testbed on WebGL2 and WebGPU, the engine
+    BASE=<url> node native/web/test.mjs  # the same against a page served elsewhere (wrangler dev)
 
 The build is the whole site: the page, the app's module, the bridge, and the files the page
 fetches by path (the sounds at `/audio/`, the icons, the favicon and the Steam art that
@@ -18,11 +19,13 @@ page looks for the engine at `/engine/` on its origin, or at `?engine=<url>`.
 
 The hosted page (https://isorun.maciej-rosiek.workers.dev) serves it at its root, through the
 Worker in `worker/` (`wrangler.jsonc`, deployed by `.github/workflows/isorun-cloudflare.yml`); its
-old place, `/native/`, redirects to `/`. The hosted page has no engine (`/engine/*` is a 404), so
-it offers no offline games: every file of a build fits Cloudflare's 25 MiB limit (the largest,
-`crawl.data` and `crawl.wasm`, are about 12 MB), but the engine's own Worker
-(`engine/wrangler.jsonc`, `engine/DEPLOYMENT.md`) is not deployed. The page sends the visit
-counts of `/stats` (`client::visits`) to its own origin.
+old place, `/native/`, redirects to `/`. Its `/engine/` is the engine's own Worker
+(`engine/wrangler.jsonc`, `engine/DEPLOYMENT.md`) through a service binding, deployed by the same
+workflow. The page offers offline games where `stable/engine.json` under the engine base answers
+with JSON and the browser has JSPI (`WebAssembly.Suspending`: Chrome and Edge 137+); elsewhere
+`isorunEngine.channel()` is null and Offline is not offered. The engine needs no cross-origin
+isolation (no threads). The page sends the visit counts of `/stats` (`client::visits`) to its own
+origin.
 
 ## What the page does that the desktop does not
 

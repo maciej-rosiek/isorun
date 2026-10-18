@@ -2,7 +2,7 @@
 // into the binary (the patches, wasm/, build.sh), by content, so a working
 // tree and its commit hash alike. engine.json records it (pointer.mjs), and a
 // channel whose recipe changed is built again even when crawl has not moved
-// (plan.mjs).
+// (the Cloudflare workflow keys its cached build by it and crawl's commit).
 //
 //   node engine/recipe.mjs
 

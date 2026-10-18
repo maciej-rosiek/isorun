@@ -3,6 +3,8 @@
 // engine/dist at /engine/ itself, as the hosted page lays them out.
 //
 //   node native/web/test.mjs [out dir]        # screenshots there (default: /tmp/isorun-web-test)
+//   BASE=http://127.0.0.1:8787 node native/web/test.mjs   # a page served elsewhere: the Workers
+//                                                          # under `wrangler dev`, or the live site
 //
 // CHROMIUM picks the browser (default: Playwright's). Headless Chromium has no WebGPU, so the
 // app runs on WebGL2 (SwiftShader): this is the WebGL2 check too. A second browser with
@@ -46,8 +48,10 @@ const server = createServer((req, res) => {
   res.statusCode = 404
   res.end()
 })
-await new Promise((r) => server.listen(0, '127.0.0.1', r))
-const base = `http://127.0.0.1:${server.address().port}`
+// with BASE, the page and its engine are served there, and the visit beacons go to its Worker
+const external = process.env.BASE?.replace(/\/$/, '')
+if (!external) await new Promise((r) => server.listen(0, '127.0.0.1', r))
+const base = external ?? `http://127.0.0.1:${server.address().port}`
 
 const browser = await chromium.launch({
   executablePath: process.env.CHROMIUM ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
@@ -95,7 +99,7 @@ try {
     const panics = log.filter((l) => /panicked|RuntimeError|pageerror/.test(l))
     check(panics.length === 0, `no panics on the home screen ${panics.slice(0, 3).join(' | ')}`)
     // a dev build sends none (client::visits)
-    if (process.env.PROFILE !== 'dev') check(visits.some((v) => v.includes('e=visit')), `the visit beacon is posted (${visits.length} so far)`)
+    if (process.env.PROFILE !== 'dev' && !external) check(visits.some((v) => v.includes('e=visit')), `the visit beacon is posted (${visits.length} so far)`)
     console.log(log.slice(0, 20).join('\n'))
     await page.close()
   }
@@ -163,7 +167,7 @@ try {
 } finally {
   await browser.close()
   await webgpu.close()
-  server.close()
+  if (!external) server.close()
 }
 if (failures.length) {
   console.error(`${failures.length} failed`)

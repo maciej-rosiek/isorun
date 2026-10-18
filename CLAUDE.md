@@ -123,13 +123,20 @@ then checks the live page. The Worker serves:
   keeps one row per run (the id and the country) and `/stats?key=<STATS_KEY>` shows who is on
   the page and in a game now, and visits, players and play time per day. `STATS_KEY` comes from
   the `ISORUN_STATS_KEY` repository secret.
-- `/engine/*`: the offline engine's Worker (`engine/wrangler.jsonc`, `engine/DEPLOYMENT.md`)
-  through a service binding, which is not deployed, so it is a 404 and the hosted page offers no
-  offline games. Every engine file fits Cloudflare's 25 MiB per-file limit (the largest,
-  `crawl.data` and `crawl.wasm`, are about 12 MB), so deploying that Worker and binding it would
-  turn them on.
+- `/engine/*`: the offline engine, the `isorun-engine` Worker (`engine/wrangler.jsonc`,
+  `engine/DEPLOYMENT.md`, also at https://isorun-engine.maciej-rosiek.workers.dev) through the
+  `ENGINE` service binding, so the page offers Play on this device (the WebAssembly crawl, saves
+  in IndexedDB) in a browser with JSPI (Chrome and Edge 137+; elsewhere no offline games). The
+  same workflow's `engine` job deploys it before the site, and nightly: it builds the stable
+  channel on GitHub (`engine/build.sh stable`), cached by crawl's stable commit, the recipe
+  (`node engine/recipe.mjs`) and the emsdk version, plays it (`engine/smoke.mjs`) and publishes it
+  (`engine/publish.mjs`, which checks the 25 MiB a file and 20,000 files limits).
 
-`wrangler dev` (no login needed) serves the Worker and `native/web/dist` locally. The agents'
+`wrangler dev` (no login needed) serves the Worker and `native/web/dist` locally; with the engine's
+Worker in a second `wrangler dev -c engine/wrangler.jsonc` (each in its own process: the binding
+fails in one; `engine/.publish` staged by `node engine/publish.mjs --dry-run`),
+`BASE=http://127.0.0.1:8787 node native/web/test.mjs` checks the page and an offline game
+against them (`engine/DEPLOYMENT.md`). The agents'
 network here cannot reach workers.dev: check the live page from the workflow's Live check step.
 
 ## Performance

@@ -1,28 +1,113 @@
 name: Deploy Isorun to Cloudflare
 
-# The hosted page (https://isorun.maciej-rosiek.workers.dev): the app's web build (native/web) at
-# the site's root, the gamedata and morgue proxies and the visit counts in one Worker (worker/,
-# wrangler.jsonc). The offline engine is not hosted (/engine/* is a 404), so the page offers no
-# offline games. Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and CLOUDFLARE_ACCOUNT_ID
-# repository secrets, and ISORUN_STATS_KEY for the /stats page.
+# The hosted page (https://isorun.maciej-rosiek.workers.dev), two Workers:
+#
+# - engine: the offline engine, isorun-engine (engine/wrangler.jsonc): the WebAssembly crawl's
+#   stable channel (engine/build.sh stable), cached by the engine's recipe (engine/recipe.mjs), crawl's
+#   stable commit and the emsdk version, so it is built only when one of them moves; played under
+#   node (engine/smoke.mjs) before it is published (engine/publish.mjs). Nightly too, for a new
+#   stable commit upstream.
+# - deploy: after it, the app's web build (native/web) at the site's root, the gamedata and morgue
+#   proxies, the visit counts, and /engine/* handed to isorun-engine through the ENGINE service
+#   binding (worker/, wrangler.jsonc), so the page offers offline games.
+#
+# Needs the CLOUDFLARE_API_TOKEN (Workers Scripts: Edit) and CLOUDFLARE_ACCOUNT_ID repository
+# secrets, and ISORUN_STATS_KEY for the /stats page.
 
 on:
   push:
     branches: [main]
-    paths-ignore: ['engine/**', 'native/android/**', 'native/desktop/**']
+    paths-ignore: ['native/android/**', 'native/desktop/**']
+  schedule:
+    - cron: '23 4 * * *'
   workflow_dispatch:
-
-concurrency:
-  group: isorun-cloudflare
-  cancel-in-progress: true
 
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  engine:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    # an engine build is long: a newer push waits for it rather than throw it away
+    concurrency:
+      group: isorun-engine
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          # the engine's build and its smoke test need JSPI (engine/.node-version)
+          node-version-file: engine/.node-version
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - name: Which build
+        id: key
+        run: |
+          # crawl's stable commit as build.sh resolves it: the newest stone_soup-* branch
+          commit=$(git ls-remote https://github.com/crawl/crawl.git 'refs/heads/stone_soup-*' | awk '{print $2" "$1}' | sort -V | tail -1 | cut -d' ' -f2)
+          [ -n "$commit" ] || { echo "::error::no stone_soup branch upstream"; exit 1; }
+          recipe=$(node engine/recipe.mjs)
+          echo "stable $commit, recipe $recipe, emsdk $(cat engine/emsdk-version)"
+          echo "key=engine-stable-$commit-$recipe-emsdk$(cat engine/emsdk-version)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache/restore@v4
+        id: cache
+        with:
+          path: engine/dist
+          key: ${{ steps.key.outputs.key }}
+      - name: Tools for the engine
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -yq libpng-dev zlib1g-dev pkg-config python3-yaml
+          git clone --quiet --depth 1 https://github.com/emscripten-core/emsdk.git "$RUNNER_TEMP/emsdk"
+          "$RUNNER_TEMP/emsdk/emsdk" install "$(cat engine/emsdk-version)"
+          "$RUNNER_TEMP/emsdk/emsdk" activate "$(cat engine/emsdk-version)"
+      - name: Engine
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          node_bin=$(dirname "$(command -v node)")
+          . "$RUNNER_TEMP/emsdk/emsdk_env.sh"
+          # emsdk_env puts its own node first, which is older than JSPI needs
+          PATH=$node_bin:$PATH sh engine/build.sh stable
+      - name: Smoke test of the engine
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: node engine/smoke.mjs engine/dist/stable
+      - uses: actions/cache/save@v4
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: engine/dist
+          key: ${{ steps.key.outputs.key }}
+      - run: npm ci
+      # stages engine/dist (and any channel live but not built here) into engine/.publish, checks
+      # Cloudflare's limits (25 MiB a file, 20,000 files) and deploys isorun-engine
+      - name: Deploy the engine
+        run: node engine/publish.mjs
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      - name: Live check of the engine
+        run: |
+          base=https://isorun-engine.maciej-rosiek.workers.dev
+          want=$(node -p 'require("./engine/dist/stable/engine.json").build')
+          for i in 1 2 3 4 5 6; do
+            live=$(curl -fsS "$base/stable/engine.json" | node -p 'JSON.parse(require("fs").readFileSync(0)).build' || true)
+            [ "$live" = "$want" ] && break
+            [ "$i" = 6 ] && { echo "::error::$base/stable/engine.json is build '$live', not $want"; exit 1; }
+            sleep 10
+          done
+          echo "isorun-engine serves stable $want"
+
   deploy:
+    # after the engine, whose Worker the site binds; a failed engine build leaves the live engine
+    # as it was, and the site deploys on it
+    needs: engine
+    if: ${{ !cancelled() && github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    concurrency:
+      group: isorun-cloudflare
+      cancel-in-progress: true
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -57,7 +142,8 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           STATS_KEY: ${{ secrets.ISORUN_STATS_KEY }}
-      # the deployed page: the build's own page at /, and the web build's old place sent home
+      # the deployed page: the build's own page at /, the web build's old place sent home, and the
+      # offline engine through the service binding
       - name: Live check
         run: |
           base=https://isorun.maciej-rosiek.workers.dev
@@ -71,4 +157,16 @@ jobs:
           curl -sS -o /dev/null -w '/native/ -> %{http_code} %{redirect_url}\n' "$base/native/" | tee native.txt
           grep -q "^/native/ -> 301 $base/$" native.txt
           curl -fsS -o /dev/null -w '/audio/sfx/hit1.ogg -> %{http_code}\n' "$base/audio/sfx/hit1.ogg"
-          curl -sS -o /dev/null -w '/engine/stable/engine.json -> %{http_code}\n' "$base/engine/stable/engine.json"
+          # the engine: the page offers offline games when this is JSON (native/web/engine-bridge.ts)
+          curl -fsS -D engine.h -o engine.json "$base/engine/stable/engine.json"
+          grep -i '^content-type:' engine.h
+          grep -qi '^content-type: application/json' engine.h || { echo "::error::/engine/stable/engine.json is not JSON"; exit 1; }
+          build=$(node -p 'require("./engine.json").build')
+          echo "/engine/stable/engine.json -> 200, build $build ($(node -p 'require("./engine.json").version'))"
+          # its biggest files: the wasm MIME (streaming compilation), kept for good, compressed
+          for f in crawl.wasm crawl.data; do
+            curl -fsS -o /dev/null -D "$f.h" -H 'Accept-Encoding: br, gzip' -w "/engine/builds/$build/$f -> %{http_code}, %{size_download} bytes\n" "$base/engine/builds/$build/$f"
+            grep -iE '^(content-type|cache-control|content-encoding):' "$f.h"
+            grep -qi '^cache-control: public, max-age=31536000, immutable' "$f.h" || { echo "::error::$f is not cached for good"; exit 1; }
+          done
+          grep -qi '^content-type: application/wasm' crawl.wasm.h || { echo "::error::crawl.wasm is not application/wasm"; exit 1; }

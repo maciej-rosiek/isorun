@@ -72,46 +72,62 @@ channel's worktree in `.work/<channel>`, and keep the header.
 ## Deploying
 
 The builds are served by their own Worker, `isorun-engine` (`wrangler.jsonc`,
-`worker/`), which isorun.app forwards `/engine/*` to. A new build never
-redeploys the app.
+`worker/`), at https://isorun-engine.maciej-rosiek.workers.dev, which the
+hosted page (https://isorun.maciej-rosiek.workers.dev) forwards `/engine/*`
+to through its `ENGINE` service binding (the root `wrangler.jsonc`). The page
+offers offline games where `/engine/stable/engine.json` answers with JSON and
+the browser has JSPI (`native/web/engine-bridge.ts`).
+
+`.github/workflows/isorun-cloudflare.yml` deploys it, before the site, on
+every push to `main` and nightly. Its `engine` job builds the stable channel
+on GitHub (`build.sh stable`, about half an hour: emsdk at `emsdk-version`,
+node at `.node-version`, PyYAML, libpng and zlib for tilegen), cached by
+crawl's stable commit, the recipe (`recipe.mjs`) and the emsdk version, so a
+run builds only when one of them moved: a new stable commit upstream, which
+the nightly run picks up, or a change to `patches/`, `wasm/` or `build.sh`.
+A new build is played under node (`smoke.mjs`) before it is published; a
+failed build or smoke publishes nothing, so players keep the build they have,
+and the site still deploys on it. Then `publish.mjs` deploys it, and the job
+checks that the Worker serves the new `stable/engine.json`. The same
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets as the site's.
+
+By hand:
 
 ```sh
 engine/build.sh stable && node engine/publish.mjs
 ```
 
 A deploy replaces every file, so `publish.mjs` stages what was built here
-and copies any channel that was not from the live Worker, into
-`engine/.publish`, which is what Wrangler uploads. Only files whose content
-Cloudflare does not have go up. Never run a bare `wrangler deploy` here.
+and copies any channel that was not from the live Worker (trunk, if it was
+ever published), into `engine/.publish`, which is what Wrangler uploads, and
+checks Cloudflare's limits first: every file under 25 MiB (the largest,
+`crawl.data` and `crawl.wasm`, are about 12 MB) and at most 20,000 files a
+version (a channel is about 50). Only files whose content Cloudflare does not
+have go up. Never run a bare `wrangler deploy` here.
 
-Nightly, the same Worker's crons call a Workers Builds deploy hook (the
-`DEPLOY_HOOK` secret), which runs `ci.sh` on a fresh machine: `plan.mjs`
-picks the one channel whose live build is behind upstream or was made with
-another recipe (stable first), then `build.sh`, `smoke.mjs`, `publish.mjs`.
-A run has 20 minutes, so one channel a run, and two runs a night. A failed
-build or smoke publishes nothing, so players keep the build they have.
-`ci.sh` installs what the machine lacks under `.work/ci`: emsdk at
-`emsdk-version`, node at `.node-version`, PyYAML.
+### What a browser needs
 
-Workers Builds, set up once in the dashboard for `isorun-engine`: this
-repo, root directory `engine`, production branch `main`, build command
-empty, deploy command `sh ci.sh`, build watch paths `engine/*`, builds for
-other branches off; then a deploy hook, stored with
-`npx wrangler secret put DEPLOY_HOOK -c engine/wrangler.jsonc`.
+- **JSPI** (`WebAssembly.Suspending`): the engine waits for the player in a
+  JSPI suspension. Chrome and Edge 137 and newer have it. Where it is missing
+  (Safari, Firefox without it), the page does not offer offline games, and
+  watching and playing on servers work as anywhere.
+- **No cross-origin isolation**: the engine has no threads, so it needs no
+  SharedArrayBuffer and no COOP/COEP headers.
+- **Headers** (`worker/index.ts`): `crawl.wasm` as `application/wasm` (for
+  streaming compilation); `crawl.data` and `prewarm.bin` as
+  `application/x-protobuf`, which Cloudflare compresses (about 5 MB on the
+  wire instead of 24); a build's and a commit's gamedata files kept for good,
+  a channel's `engine.json` asked again each time.
 
-### Build emails
-
-The Worker emails the `NOTIFY_EMAIL` secret when a build fails, is
-canceled, or publishes (a run with nothing new sends nothing). Workers
-Builds puts its events on the `isorun-engine-builds` queue, which the
-Worker consumes, and sends from `engine@isorun.app` through Email Routing,
-so `NOTIFY_EMAIL` must be a verified destination address. Set up once,
-before the first deploy that carries the consumer:
+Locally, each Worker under its own `wrangler dev`: the site's binding finds
+the engine's through Wrangler's dev registry. (One `wrangler dev` with both
+configs answers every request through the binding with an empty 500 when
+both Workers have static assets, as Wrangler 4.129 does.) With a proxy in the
+environment, `NO_PROXY=127.0.0.1,localhost`.
 
 ```sh
-npx wrangler email routing enable isorun.app
-npx wrangler queues create isorun-engine-builds
-npx wrangler queues subscription create isorun-engine-builds --source workersBuilds.worker --worker-name isorun-engine \
-  --events build.succeeded,build.failed,build.canceled
-npx wrangler secret put NOTIFY_EMAIL -c engine/wrangler.jsonc
+ENGINE_LIVE=<a base that 404s> node engine/publish.mjs --dry-run   # stages engine/.publish
+npx wrangler dev -c engine/wrangler.jsonc --port 8788 &
+npx wrangler dev --port 8787 &                                      # the site, with native/web/dist
+BASE=http://127.0.0.1:8787 node native/web/test.mjs                 # the page, and an offline game through the binding
 ```

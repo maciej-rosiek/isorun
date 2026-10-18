@@ -15,8 +15,16 @@ import type { FromWorker, ToWorker } from './engine/worker.js'
 const base = new URL(new URLSearchParams(location.search).get('engine') ?? '/engine/', location.href).href
 const saves = browserSaveBook()
 
-/** The stable build the page serves, as JSON for engine.rs; null when there is none. */
+/**
+ * Whether this browser can run the engine: it waits for the player in a JSPI suspension
+ * (`WebAssembly.Suspending`, Chrome and Edge 137+). It needs no SharedArrayBuffer (no threads), so
+ * no cross-origin isolation.
+ */
+const jspi = typeof (WebAssembly as unknown as { Suspending?: unknown }).Suspending === 'function'
+
+/** The stable build the page serves, as JSON for engine.rs; null when there is none, or the browser cannot run it. */
 async function channel(): Promise<string | null> {
+  if (!jspi) return null
   try {
     const res = await fetch(new URL('stable/engine.json', base), { cache: 'no-cache' })
     if (!res.ok || !(res.headers.get('content-type') ?? '').includes('json')) return null

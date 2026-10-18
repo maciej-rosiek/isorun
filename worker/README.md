@@ -13,8 +13,8 @@ paths `run_worker_first` names and for any path that is no file.
 | `/morgue-proxy/<host>/<path>.txt` or `.where` | a server's morgue or `.where` file, briefly cached |
 | `POST /api/visit?id&e&m&s&t` | a visit beacon (`client::visits` in the app; `visit-beacon.ts` the format), into the `VisitLog` Durable Object (`visit-log.ts`) |
 | `/stats?key=<STATS_KEY>` | who is on the page and in a game now, and visits, players and play time per day |
-| `/engine/*` | the offline engine's Worker through the `ENGINE` service binding; unbound, a 404 |
+| `/engine/*` | the offline engine's Worker, `isorun-engine` (`engine/wrangler.jsonc`), through the `ENGINE` service binding; unbound, a 404 |
 
 `npm run check` at the root typechecks it and runs `test/` (vitest; `visits.test.ts` uses
 `node:sqlite`, Node 22.5+). `npx wrangler dev` serves it with the built site locally, without a
-login. `.github/workflows/isorun-cloudflare.yml` deploys it.
+login. `.github/workflows/isorun-cloudflare.yml` deploys it, after the engine's Worker it binds.
