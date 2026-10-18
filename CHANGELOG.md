@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## Unreleased
 
+- On a phone crawl's text prompts (Find with Ctrl-F, inscribe, naming, a menu's filter) bring up the phone's keyboard, in the app and in the browser; the field stands at the top where the keyboard cannot cover it, with Cancel and OK buttons, and a tap on it brings the keyboard back.
 - On a touch screen an item's card (and the dock's, the action panel's and the cell's) shows only while your finger rests on it and goes when you lift it; a tap opens the item's actions with no card left over the backpack.
 - In a phone's browser a tap on the dungeon walks there again, and the Settings over the game take taps (a finger that moved a little chose nothing); a tap beside them goes back.
 - On a phone, menus where you choose several things (pick up, drop) have an Accept button that takes what you chose, gold and with the count ("Accept (2)"), and Select all where crawl has it; a tap on the bar's buttons no longer closes the menu. On a pad, Start accepts.

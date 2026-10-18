@@ -312,6 +312,26 @@ impl eframe::App for IsorunApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        self.screens(ui);
+        // the soft keyboard follows the text field that wants it (android_keyboard)
+        #[cfg(target_os = "android")]
+        crate::android_keyboard::follow(ui.ctx());
+    }
+
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        [0.0, 0.0, 0.0, 1.0]
+    }
+
+    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
+        if let Screen::Game(g) = &mut self.screen {
+            g.save_view();
+        }
+    }
+}
+
+impl IsorunApp {
+    /// The frame's screen: the game, the test bed or the front end.
+    fn screens(&mut self, ui: &mut egui::Ui) {
         // who spoke last, a finger or a mouse, for the hover cards (isorun_ui::pointer::card_shows)
         isorun_ui::pointer::note_frame(ui.ctx(), self.opts.touch);
         // a phone is told by its window (the first frame's size is the real one, the app's start
@@ -371,16 +391,6 @@ impl eframe::App for IsorunApp {
                     None => {}
                 }
             }
-        }
-    }
-
-    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
-        [0.0, 0.0, 0.0, 1.0]
-    }
-
-    fn save(&mut self, _storage: &mut dyn eframe::Storage) {
-        if let Screen::Game(g) = &mut self.screen {
-            g.save_view();
         }
     }
 }

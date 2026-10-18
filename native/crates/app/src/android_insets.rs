@@ -13,6 +13,11 @@ pub fn set_app(app: &AndroidApp) {
     let _ = APP.set(app.clone());
 }
 
+/// The activity, for the other JNI calls (the soft keyboard).
+pub fn app() -> Option<&'static AndroidApp> {
+    APP.get()
+}
+
 /// Read the insets now and then; they are in pixels, the safe area in points.
 pub fn poll(ctx: &egui::Context) {
     let now = ctx.input(|i| i.time);

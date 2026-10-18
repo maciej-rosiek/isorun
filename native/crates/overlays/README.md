@@ -17,7 +17,10 @@ and the part of `context.ts` that reads crawl's prompts. It draws:
 - **the prompt card**: a yes/no (A Yes, B No, Enter crawl's default as the chip says), a choice
   prompt (a row of chips the cursor walks), the letter picker of `=`;
 - **the text field** of crawl's text prompts (history, the prompts' own hotkeys: textinput.js),
-  with the input crate's on-screen keyboard over it when the pad speaks (osk.ts; `osk_op`);
+  with the input crate's on-screen keyboard over it when the pad speaks (osk.ts; `osk_op`); on
+  a touch screen it stands high, with Cancel and OK, and asks the platform for its soft keyboard
+  (egui's `PlatformOutput::ime`, which only a focused `TextEdit` sets otherwise), taking the
+  keyboard's composed words (`Ime` events); a menu's filter field asks for it too;
 - **the level-up banner** with the gains read off the `player` message, and crawl's stat-gain
   prompt as three cards;
 - the `show_dialog` html's buttons.

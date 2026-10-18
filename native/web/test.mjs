@@ -214,6 +214,28 @@ try {
     }
     check(sent.some((m) => m.includes('click_cell')), `a phone: a tap on the dungeon walks (${sent.slice(0, 3).join(' ') || 'nothing sent'})`)
     await page.screenshot({ path: join(OUT, 'phone-game.png') })
+    // crawl's text prompt (Ctrl-F's "Search for what?"): the phone's keyboard comes with it (eframe's
+    // text agent, the hidden <input> it focuses, has the focus), comes back on a tap on the field
+    // after it was put away, takes what is typed, and the popup's OK sends it
+    {
+      await page.evaluate(() => { globalThis.__sent = [] })
+      await page.keyboard.press('Control+f')
+      check(await heard('stash_search', 20_000), 'a phone: Ctrl-F asks crawl what to search for')
+      await page.waitForTimeout(3000)
+      const agent = () => page.evaluate(() => document.activeElement?.tagName === 'INPUT')
+      check(await agent(), 'a phone: the text prompt brings the keyboard (the text agent has the focus)')
+      await page.evaluate(() => document.activeElement?.blur())
+      await tap(200, 107) // the field, high on a phone's screen
+      check(await agent(), 'a phone: a tap on the text field brings the keyboard back')
+      await page.keyboard.type('stair', { delay: 150 })
+      await page.waitForTimeout(2000)
+      await page.screenshot({ path: join(OUT, 'phone-text-prompt.png') })
+      await tap(300, 150) // OK
+      sent = await page.evaluate(() => globalThis.__sent)
+      check(sent.some((m) => m.includes('stair')), `a phone: the prompt's OK sends what was typed (${sent.slice(-3).join(' ') || 'nothing sent'})`)
+      await page.keyboard.press('Escape') // crawl's results
+      await page.waitForTimeout(2000)
+    }
     await tap(76, 28) // the gear: the Isorun menu
     await tap(210, 75) // its System tab
     await tap(90, 265) // Settings

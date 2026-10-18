@@ -4,6 +4,8 @@
 pub mod app;
 #[cfg(target_os = "android")]
 mod android_insets;
+#[cfg(target_os = "android")]
+mod android_keyboard;
 
 use isorun_client::servers;
 #[cfg(target_os = "android")]

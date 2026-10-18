@@ -235,6 +235,23 @@ impl Overlays {
         let mut clicked_switch: Option<String> = None;
         let mut new_scroll = scroll;
         let mut close = false;
+        // on touch the filter's field asks for the soft keyboard (text_field::soft_keyboard); a
+        // soft keyboard's words come as IME events
+        let soft = top && tp.is_some() && !cx.watching && (cx.touch || isorun_ui::pointer::touch_mode(ctx));
+        let mut filter_rect = None;
+        if soft {
+            for e in ctx.input(|i| i.events.iter().filter_map(|e| if let egui::Event::Ime(ime) = e { Some(ime.clone()) } else { None }).collect::<Vec<_>>()) {
+                match e {
+                    egui::ImeEvent::Commit(t) => self.menu_filter.extend(t.chars().filter(|c| !c.is_control())),
+                    egui::ImeEvent::DeleteSurrounding { before_chars, .. } => {
+                        for _ in 0..before_chars {
+                            self.menu_filter.pop();
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
         let field = if tp.is_some() { self.field_text_for_menu() } else { None };
         frame::layer(ctx, id, rect, |ui, _resp| {
             let p = ui.painter().clone();
@@ -252,7 +269,12 @@ impl Overlays {
                 let g = rich::galley(ui.ctx(), rich::plain(field.as_deref().unwrap_or(""), &base.clone().colour(Color32::WHITE), 0.0));
                 let tp0 = Pos2::new(frect.left() + 0.4 * font, frect.center().y - g.size().y / 2.0);
                 p.galley(tp0, g.clone(), Color32::WHITE);
-                p.rect_filled(Rect::from_min_size(Pos2::new(tp0.x + g.size().x + 1.0, tp0.y), Vec2::new(1.0, g.size().y)), 0.0, Color32::WHITE);
+                let caret = Rect::from_min_size(Pos2::new(tp0.x + g.size().x + 1.0, tp0.y), Vec2::new(1.0, g.size().y));
+                p.rect_filled(caret, 0.0, Color32::WHITE);
+                if soft {
+                    let tapped = ui.interact(frect, id.with("filter"), egui::Sense::click()).clicked();
+                    filter_rect = Some((frect, caret, tapped));
+                }
             }
             let by = rect.top() + 1.0 + title_h;
             widgets::rule(&p, rect.left() + 1.0..=rect.right() - 1.0, by - 1.0, rule);
@@ -317,6 +339,9 @@ impl Overlays {
                 close = frame::touch_close(ui, id.with("close"), rect);
             }
         });
+        if let Some((frect, caret, tapped)) = filter_rect {
+            crate::text_field::soft_keyboard(ctx, frect, caret, tapped);
+        }
         if (new_scroll - scroll).abs() > 0.1 {
             self.scroll.insert(scroll_key, new_scroll);
             if top {
