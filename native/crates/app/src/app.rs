@@ -48,6 +48,7 @@ pub struct IsorunApp {
     #[allow(dead_code)]
     pads: Pads,
     touch_sim: TouchSim,
+    buttons: ButtonDedupe,
     /// The visit counts of the hosted page's /stats (client::visits).
     visits: isorun_client::visits::Visits,
 }
@@ -84,7 +85,7 @@ impl IsorunApp {
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
         let pads: Pads = ();
-        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default(), visits: Default::default() };
+        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default(), buttons: ButtonDedupe::default(), visits: Default::default() };
         if let Some(path) = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned() {
             app.front.open(&path);
         }
@@ -226,6 +227,34 @@ fn can_fullscreen(_phone: bool) -> bool {
     !cfg!(target_os = "android")
 }
 
+/// The pointer's buttons as egui is told them, each press once and each release once. eframe's
+/// web runner hands a finger on twice: its `pointerdown` and its `touchstart` each push a press,
+/// its `pointerup` and its `touchend` each a release (the second press in another frame than the
+/// first, the second release after the click was made). egui took the second press for a new one
+/// (where it began, when, which widget it may click) and lost the drag and the click a moving
+/// finger had started: a tap on the web whose finger moved a point chose nothing. A press of a
+/// button already down, or a release of one already up, is dropped here; one handed on by a
+/// mouse, natively or on the web, is never a repeat and stays. What is held starts from egui's
+/// own state each frame, so a release the window never saw does not swallow the next press.
+#[derive(Default)]
+struct ButtonDedupe;
+
+impl ButtonDedupe {
+    fn dedupe(&mut self, ctx: &egui::Context, raw: &mut egui::RawInput) {
+        use egui::PointerButton as B;
+        let mut down = ctx.input(|i| [B::Primary, B::Secondary, B::Middle, B::Extra1, B::Extra2].map(|b| i.pointer.button_down(b)));
+        raw.events.retain(|e| match e {
+            egui::Event::PointerButton { button, pressed, .. } => {
+                let held = &mut down[*button as usize];
+                let fresh = *held != *pressed;
+                *held = *pressed;
+                fresh
+            }
+            _ => true,
+        });
+    }
+}
+
 /// `ISORUN_TOUCH_SIM=1`: the mouse acts as a finger, as egui-winit hands a touch screen's
 /// input on: a press is a Touch Start with its emulated button press, a held move a Touch
 /// Move, a release a Touch End with the button's release and then PointerGone, and the mouse
@@ -275,7 +304,8 @@ impl TouchSim {
 }
 
 impl eframe::App for IsorunApp {
-    fn raw_input_hook(&mut self, _ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+    fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        self.buttons.dedupe(ctx, raw_input);
         if TouchSim::on() {
             self.touch_sim.rewrite(raw_input);
         }

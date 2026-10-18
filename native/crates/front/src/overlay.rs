@@ -396,10 +396,20 @@ impl GameMenus {
         painter.line_segment([pos2(rect.left(), line_y), pos2(rect.right(), line_y)], egui::Stroke::new(1.0, Color32::from_gray(0x33)));
         let view = Rect::from_min_size(pos2(rect.left(), line_y + 0.5), vec2(width, view_h - 0.5));
         let mut scroll = self.scroll;
-        egui::Area::new(egui::Id::NULL.with("game-menu-scroll")).order(egui::Order::Foreground).fixed_pos(view.min).show(ctx, |ui| {
-            ui.allocate_exact_size(view.size(), Sense::hover());
+        // the panel's own layer, under the rows' (Order::Middle, below their Foreground): it marks
+        // the panel as the game screen's (a press there is not the world's) and reads the wheel and
+        // a finger's drag. It was a Foreground area of its own, which a press could raise over the
+        // rows (egui puts the layer a press lands on on top): from then on no row had the pointer,
+        // and a tap whose finger moved a point between down and up chose nothing, as on a phone,
+        // whose fingers always do
+        egui::Area::new(egui::Id::NULL.with("game-menu-scroll")).order(egui::Order::Middle).fixed_pos(rect.min).show(ctx, |ui| {
+            ui.allocate_exact_size(rect.size(), Sense::hover());
             scroll = isorun_ui::scroll::scroll(ui, view, body_h, scroll);
         });
+        // a press outside the panel is Back, as a tap away from crawl's menus is (game.ts
+        // `tapAway`): a page up, or the game from the top one
+        // (read off the events: a quick tap's press, release and PointerGone can come in one frame)
+        let away = isorun_ui::pointer::pressed_at(ctx, egui::PointerButton::Primary).is_some_and(|p| !rect.expand(4.0).contains(p));
         // the cursor moved: its row into view
         let here = (self.title(), self.cursor);
         if self.scrolled_to.as_ref() != Some(&here) {
@@ -419,65 +429,73 @@ impl GameMenus {
         let s = self.settings.clone();
         let mut chosen = None;
         let mut turned = None;
-        for (i, it) in items.iter().enumerate() {
-            if it.sep {
-                y += 0.3 * size;
-            }
-            let r = Rect::from_min_size(pos2(rect.left() + 0.4 * rem, y), vec2(width - 0.8 * rem, row_h));
-            // a row scrolled out of sight takes no taps
-            let seen = view.contains(r.center());
-            let resp = egui::Area::new(egui::Id::NULL.with(("game-menu-row", i))).order(egui::Order::Foreground).fixed_pos(r.min).show(ctx, |ui| ui.allocate_exact_size(if seen { r.size() } else { vec2(0.0, 0.0) }, Sense::click()).1).inner;
-            let focused = i == self.cursor;
-            if focused {
-                painter.rect_filled(r, 0.0, rgba(255, 212, 92, 0.2));
-                painter.rect_stroke(r, 0.0, egui::Stroke::new(1.0, rgba(255, 212, 92, 0.6)), egui::StrokeKind::Inside);
-            }
-            let colour = if it.off { C8 } else if focused || resp.hovered() { Color32::WHITE } else { C7 };
-            let k = galley(ctx, &((b'a' + i as u8) as char).to_string(), &Style::new(size, face.clone(), Color32::WHITE), f32::INFINITY);
-            let mut x = r.left() + 0.6 * size;
-            painter.galley(pos2(x + 1.2 * size - k.size().x, r.center().y - k.size().y / 2.0), k, Color32::WHITE);
-            x += 1.2 * size + 0.5 * size;
-            let dash = galley(ctx, "-", &Style::new(size, face.clone(), Color32::from_gray(0xaa)), f32::INFINITY);
-            painter.galley(pos2(x, r.center().y - dash.size().y / 2.0), dash.clone(), Color32::from_gray(0xaa));
-            x += dash.size().x + 0.5 * size;
-            let label = galley(ctx, &it.label, &Style::new(size, face.clone(), colour), f32::INFINITY);
-            let label_end = x + label.size().x;
-            painter.galley(pos2(x, r.center().y - label.size().y / 2.0), label, colour);
-            if let Some(key) = it.setting {
-                let row = settings::rows().into_iter().find(|rr| rr.key == key);
-                let value = row.map(|rr| rr.value(&s)).unwrap_or_default();
-                let vcol = if it.off { C8 } else if focused { Color32::WHITE } else if resp.hovered() { Color32::from_gray(0xdd) } else { C7 };
-                let acol = if it.off { Color32::from_gray(0x44) } else if focused { ACCENT } else { Color32::from_gray(0x66) };
-                let right = r.right() - 0.6 * size;
-                let gt = galley(ctx, ">", &Style::new(size, face.clone(), acol), f32::INFINITY);
-                let lt = galley(ctx, "<", &Style::new(size, face.clone(), acol), f32::INFINITY);
-                let gt_r = Rect::from_min_size(pos2(right - gt.size().x - 0.7 * size, r.top()), vec2(gt.size().x + 0.7 * size, r.height()));
-                // the value's column: ten letters wide, wider for a long value where the label leaves
-                // room, and a long value set smaller where it does not (a phone)
-                let natural_v = galley(ctx, &value, &Style::new(size, face.clone(), vcol), f32::INFINITY).size().x + 0.4 * size;
-                let room = (gt_r.left() - 0.6 * size - (lt.size().x + 0.7 * size) - 0.6 * size - (label_end + 0.8 * size)).max(4.0 * size);
-                let val_w = natural_v.max(10.0 * size).min(room);
-                let val_r = Rect::from_min_size(pos2(gt_r.left() - 0.6 * size - val_w, r.top()), vec2(val_w, r.height()));
-                let lt_r = Rect::from_min_size(pos2(val_r.left() - 0.6 * size - lt.size().x - 0.7 * size, r.top()), vec2(lt.size().x + 0.7 * size, r.height()));
-                let vsize = if natural_v > val_w { (size * val_w / natural_v).max(0.7 * size) } else { size };
-                let mut job = egui::text::LayoutJob::simple_singleline(value.clone(), egui::FontId::new(vsize, face.clone()), vcol);
-                job.wrap = egui::text::TextWrapping::truncate_at_width(val_w);
-                let v = ctx.fonts_mut(|f| f.layout_job(job));
-                painter.galley(pos2(val_r.center().x - v.size().x / 2.0, r.center().y - v.size().y / 2.0), v, vcol);
-                for (d, g, ar) in [(-1, lt, lt_r), (1, gt, gt_r)] {
-                    let ares = egui::Area::new(egui::Id::NULL.with(("game-menu-arrow", i, d))).order(egui::Order::Foreground).fixed_pos(ar.min).show(ctx, |ui| ui.allocate_exact_size(if seen { ar.size() } else { vec2(0.0, 0.0) }, Sense::click()).1).inner;
-                    let c = if ares.hovered() && !it.off { Color32::WHITE } else { acol };
-                    painter.galley(pos2(ar.center().x - g.size().x / 2.0, r.center().y - g.size().y / 2.0), g, c);
-                    if ares.clicked() && !it.off {
-                        turned = Some((i, d));
+        // the rows and their arrows on one layer, each a rect of its own on it: a press raises the
+        // layer it lands on over the others, so rows on layers of their own came to lie over the
+        // arrows of the row pressed last (or a bigger layer over them all), and the press went to
+        // the wrong one or to none
+        let cursor = self.cursor;
+        egui::Area::new(egui::Id::NULL.with("game-menu-rows")).order(egui::Order::Foreground).fixed_pos(view.min).show(ctx, |ui| {
+            ui.allocate_exact_size(view.size(), Sense::hover());
+            for (i, it) in items.iter().enumerate() {
+                if it.sep {
+                    y += 0.3 * size;
+                }
+                let r = Rect::from_min_size(pos2(rect.left() + 0.4 * rem, y), vec2(width - 0.8 * rem, row_h));
+                // a row scrolled out of sight takes no taps
+                let seen = view.contains(r.center());
+                let resp = ui.interact(if seen { r } else { Rect::from_min_size(r.min, vec2(0.0, 0.0)) }, egui::Id::NULL.with(("game-menu-row", i)), Sense::click());
+                let focused = i == cursor;
+                if focused {
+                    painter.rect_filled(r, 0.0, rgba(255, 212, 92, 0.2));
+                    painter.rect_stroke(r, 0.0, egui::Stroke::new(1.0, rgba(255, 212, 92, 0.6)), egui::StrokeKind::Inside);
+                }
+                let colour = if it.off { C8 } else if focused || resp.hovered() { Color32::WHITE } else { C7 };
+                let k = galley(ctx, &((b'a' + i as u8) as char).to_string(), &Style::new(size, face.clone(), Color32::WHITE), f32::INFINITY);
+                let mut x = r.left() + 0.6 * size;
+                painter.galley(pos2(x + 1.2 * size - k.size().x, r.center().y - k.size().y / 2.0), k, Color32::WHITE);
+                x += 1.2 * size + 0.5 * size;
+                let dash = galley(ctx, "-", &Style::new(size, face.clone(), Color32::from_gray(0xaa)), f32::INFINITY);
+                painter.galley(pos2(x, r.center().y - dash.size().y / 2.0), dash.clone(), Color32::from_gray(0xaa));
+                x += dash.size().x + 0.5 * size;
+                let label = galley(ctx, &it.label, &Style::new(size, face.clone(), colour), f32::INFINITY);
+                let label_end = x + label.size().x;
+                painter.galley(pos2(x, r.center().y - label.size().y / 2.0), label, colour);
+                if let Some(key) = it.setting {
+                    let row = settings::rows().into_iter().find(|rr| rr.key == key);
+                    let value = row.map(|rr| rr.value(&s)).unwrap_or_default();
+                    let vcol = if it.off { C8 } else if focused { Color32::WHITE } else if resp.hovered() { Color32::from_gray(0xdd) } else { C7 };
+                    let acol = if it.off { Color32::from_gray(0x44) } else if focused { ACCENT } else { Color32::from_gray(0x66) };
+                    let right = r.right() - 0.6 * size;
+                    let gt = galley(ctx, ">", &Style::new(size, face.clone(), acol), f32::INFINITY);
+                    let lt = galley(ctx, "<", &Style::new(size, face.clone(), acol), f32::INFINITY);
+                    let gt_r = Rect::from_min_size(pos2(right - gt.size().x - 0.7 * size, r.top()), vec2(gt.size().x + 0.7 * size, r.height()));
+                    // the value's column: ten letters wide, wider for a long value where the label leaves
+                    // room, and a long value set smaller where it does not (a phone)
+                    let natural_v = galley(ctx, &value, &Style::new(size, face.clone(), vcol), f32::INFINITY).size().x + 0.4 * size;
+                    let room = (gt_r.left() - 0.6 * size - (lt.size().x + 0.7 * size) - 0.6 * size - (label_end + 0.8 * size)).max(4.0 * size);
+                    let val_w = natural_v.max(10.0 * size).min(room);
+                    let val_r = Rect::from_min_size(pos2(gt_r.left() - 0.6 * size - val_w, r.top()), vec2(val_w, r.height()));
+                    let lt_r = Rect::from_min_size(pos2(val_r.left() - 0.6 * size - lt.size().x - 0.7 * size, r.top()), vec2(lt.size().x + 0.7 * size, r.height()));
+                    let vsize = if natural_v > val_w { (size * val_w / natural_v).max(0.7 * size) } else { size };
+                    let mut job = egui::text::LayoutJob::simple_singleline(value.clone(), egui::FontId::new(vsize, face.clone()), vcol);
+                    job.wrap = egui::text::TextWrapping::truncate_at_width(val_w);
+                    let v = ctx.fonts_mut(|f| f.layout_job(job));
+                    painter.galley(pos2(val_r.center().x - v.size().x / 2.0, r.center().y - v.size().y / 2.0), v, vcol);
+                    for (d, g, ar) in [(-1, lt, lt_r), (1, gt, gt_r)] {
+                        let ares = ui.interact(if seen { ar } else { Rect::from_min_size(ar.min, vec2(0.0, 0.0)) }, egui::Id::NULL.with(("game-menu-arrow", i, d)), Sense::click());
+                        let c = if ares.hovered() && !it.off { Color32::WHITE } else { acol };
+                        painter.galley(pos2(ar.center().x - g.size().x / 2.0, r.center().y - g.size().y / 2.0), g, c);
+                        if ares.clicked() && !it.off {
+                            turned = Some((i, d));
+                        }
                     }
                 }
+                if resp.clicked() && turned.is_none() {
+                    chosen = Some(i);
+                }
+                y += row_h;
             }
-            if resp.clicked() && turned.is_none() {
-                chosen = Some(i);
-            }
-            y += row_h;
-        }
+        });
         let mut yy = y + 0.3 * rem;
         for side in &sheet {
             for (k, g) in side {
@@ -494,7 +512,9 @@ impl GameMenus {
         y += hint_g.size().y + 0.4 * rem;
         painter.line_segment([pos2(rect.left(), y), pos2(rect.right(), y)], egui::Stroke::new(1.0, Color32::from_gray(0x33)));
         painter.galley(pos2(rect.left() + 0.8 * rem, y + 0.4 * rem), footer_g, Color32::from_gray(0xaa));
-        if let Some((i, d)) = turned {
+        if away {
+            out.extend(self.back());
+        } else if let Some((i, d)) = turned {
             out.extend(self.choose(i, d));
         } else if let Some(i) = chosen {
             out.extend(self.choose(i, 1));

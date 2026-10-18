@@ -891,7 +891,7 @@ impl Screen {
             }
             // a press outside the menu puts it away
             // where the press began, not the hover: a finger has no hover but on its own press frame
-            let pressed_at = ui.input(|i| if i.pointer.any_pressed() { i.pointer.press_origin().or(i.pointer.interact_pos()) } else { None });
+            let pressed_at = isorun_ui::pointer::any_pressed_at(ui.ctx()).map(|(p, _)| p);
             if let Some(p) = pressed_at.filter(|p| !self.menu_rect(&ctx, host, tu).is_some_and(|r| r.contains(*p)) && !self.menu.as_ref().is_some_and(|m| m.anchor.contains(*p))) {
                 let _ = p;
                 self.menu = None;

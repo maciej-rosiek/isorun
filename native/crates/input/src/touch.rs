@@ -170,6 +170,9 @@ impl Gestures {
                     self.seen_touch = true;
                     self.emulated = true;
                     let id = id.0;
+                    if *phase == egui::TouchPhase::Start {
+                        self.drop_emulated_mouse();
+                    }
                     match phase {
                         egui::TouchPhase::Start => self.down(id, PointerKind::Touch, *pos, 0, now),
                         egui::TouchPhase::Move => self.moved(id, PointerKind::Touch, *pos, true),
@@ -263,6 +266,19 @@ impl Gestures {
         } else {
             self.out.push(Gesture::Zoom((-dy * ZOOM_PER_WHEEL_PIXEL).exp()));
         }
+    }
+
+    /// A browser hands a finger on as a pointer too: its `pointerdown` reaches eframe's web runner
+    /// (as a mouse button's press, in a frame of its own) before the `touchstart`, so the press
+    /// that came just before a Touch Start is that finger's, not a mouse's. Its drag goes, or it
+    /// would hold the one drag there is and the finger's tap would never be a click (the browser's
+    /// taps walked nowhere), and the button is not held.
+    fn drop_emulated_mouse(&mut self) {
+        if self.drag.is_some_and(|d| d.id == MOUSE_ID && !d.moved) {
+            self.drag = None;
+            self.long_press = None;
+        }
+        self.mouse_buttons = 0;
     }
 
     pub fn down(&mut self, id: u64, kind: PointerKind, pos: egui::Pos2, button: i32, now: f64) {

@@ -357,10 +357,8 @@ impl LevelUp {
         });
         ctx.move_to_top(backdrop.response.layer_id);
         // a click anywhere off the panel answers it
-        if ctx.input(|i| i.pointer.any_pressed()) {
-            if let Some(pos) = ctx.input(|i| i.pointer.interact_pos()) {
-                outside = !panel.contains(pos);
-            }
+        if let Some((pos, _)) = isorun_ui::pointer::any_pressed_at(ctx) {
+            outside = !panel.contains(pos);
         }
         crate::frame::layer(ctx, egui::Id::unique("isorun-level-up"), panel, |ui, resp| {
             let p = ui.painter().clone();

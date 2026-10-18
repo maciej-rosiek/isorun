@@ -830,7 +830,9 @@ impl GameScreen {
         // wherever it lands, the mirror of the right click that opened a describe; a tap outside a
         // menu or one of our windows on a touch screen is Back (game.ts `tapAway`)
         let mut swallowed = false;
-        if let Some((pos, button)) = ctx.input(|i| i.pointer.press_origin().filter(|_| i.pointer.any_pressed()).map(|p| (p, if i.pointer.secondary_pressed() { 2 } else { 0 }))) {
+        // the press read off the events: a quick tap's press, release and PointerGone can come in
+        // one frame (a browser's frames often do), which leaves the pointer no press origin
+        if let Some((pos, button)) = isorun_ui::pointer::any_pressed_at(&ctx).map(|(p, b)| (p, if b == egui::PointerButton::Secondary { 2 } else { 0 })) {
             let outside = !pointer_over_panel_at(&ctx, pos);
             let touch = events.iter().any(|e| matches!(e, egui::Event::Touch { .. }));
             let screen_panel = self.parts.hud.screen_panel();
@@ -1668,7 +1670,7 @@ impl GameScreen {
                     }
                     isorun_input::cell_menu::CellMenuRun::Action(a) => self.parts.deferred.push(Deferred::Execute(a)),
                 }
-            } else if ctx.input(|i| i.pointer.any_pressed()) && ctx.input(|i| i.pointer.interact_pos()).is_some_and(|p| !r.rect.contains(p)) {
+            } else if isorun_ui::pointer::any_pressed_at(&ctx).is_some_and(|(p, _)| !r.rect.contains(p)) {
                 // a press outside the cell menu only puts it away
                 self.parts.cell_menu = None;
             }
