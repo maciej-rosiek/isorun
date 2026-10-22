@@ -108,9 +108,11 @@ impl Build {
     }
 }
 
-/// What crawl sent: a flush of its output (newline-ended JSON lines), or a failure of the channel.
+/// What crawl sent: a piece of its output (newline-ended JSON lines, cut anywhere: crawl sends
+/// its socket's datagrams 2048 bytes at a time, through a UTF-8 character as readily as between
+/// two), or a failure of the channel.
 enum Output {
-    Text(String),
+    Bytes(Vec<u8>),
     Error(String),
 }
 
@@ -145,6 +147,11 @@ trait Process {
     fn retire(&mut self) {
         self.kill();
     }
+    /// The game is put away after a hangup: wait up to `seconds` for its save, then retire it.
+    fn finish(mut self: Box<Self>, seconds: f64) {
+        self.wait_exit(seconds);
+        self.retire();
+    }
     /// What it left behind when it stopped badly: how it stopped (a signal), what it wrote to its
     /// error output and crawl's own crash file. None when there is nothing to tell.
     fn crash_report(&mut self) -> Option<String> {
@@ -171,7 +178,8 @@ struct Game {
     process: Box<dyn Process>,
     /// The key its save's words are kept under (`saves.ts`).
     save_dir: String,
-    partial: String,
+    /// Crawl's output after its last newline: a line still coming, as bytes (see [`Output`]).
+    partial: Vec<u8>,
     queueing: bool,
     pending: Vec<Value>,
     exit_reason: Option<(String, Option<String>)>,
@@ -333,7 +341,7 @@ impl OfflineServer {
                 // it goes out now (natively) or once it is fetched (the web), and the client loads
                 // it while the engine boots.
                 let ready = host::gamedata_ready(&b.version, self.wake.clone());
-                self.game = Some(Game { process, save_dir, partial: String::new(), queueing: false, pending: Vec::new(), exit_reason: None, stopping: None, held: None, mapped: false });
+                self.game = Some(Game { process, save_dir, partial: Vec::new(), queueing: false, pending: Vec::new(), exit_reason: None, stopping: None, held: None, mapped: false });
                 self.emit(json!({ "msg": "game_started" }));
                 if ready {
                     self.emit(json!({ "msg": "game_client", "version": b.version, "content": "" }));
@@ -382,29 +390,42 @@ impl OfflineServer {
             }
         }
         let Some(g) = &mut self.game else { return };
+        let started = crate::platform::seconds();
         let mut chunks = Vec::new();
         g.process.poll(&mut chunks);
         let mut lines = Vec::new();
         let mut errors = Vec::new();
+        let mut bytes = 0;
         for o in chunks {
             match o {
-                Output::Text(t) => {
-                    let all = std::mem::take(&mut g.partial) + &t;
-                    let mut parts: Vec<&str> = all.split('\n').collect();
-                    g.partial = parts.pop().unwrap_or("").to_string();
-                    lines.extend(parts.into_iter().filter(|l| !l.is_empty()).map(str::to_string));
+                Output::Bytes(b) => {
+                    bytes += b.len();
+                    split_lines(&mut g.partial, &b, &mut lines);
                 }
                 Output::Error(e) => errors.push(e),
             }
         }
+        let split = crate::platform::seconds();
         for e in errors {
             self.diag(e);
         }
+        let count = lines.len();
+        let mut slowest = (0.0, 0usize, String::new());
         for line in lines {
+            let t = crate::platform::seconds();
             self.line(&line);
+            let took = crate::platform::seconds() - t;
+            if took > slowest.0 {
+                slowest = (took, line.len(), line.chars().take(40).collect());
+            }
             if self.game.is_none() {
                 return;
             }
+        }
+        // the next report's clue: what of crawl's output held the frame
+        let total = crate::platform::seconds() - started;
+        if total >= 0.25 {
+            log::warn!("slow frame: crawl's output took {:.0} ms ({bytes} bytes in {:.0} ms, {count} lines, the slowest {} bytes in {:.0} ms: {})", total * 1000.0, (split - started) * 1000.0, slowest.1, slowest.0 * 1000.0, slowest.2);
         }
         let Some(g) = &mut self.game else { return };
         let exited = g.process.exited();
@@ -508,6 +529,24 @@ impl OfflineServer {
     }
 }
 
+/// Crawl's output in pieces to its lines: `chunk` goes after the line still coming (`partial`),
+/// and every line it ends is decoded whole, so a character cut between two of crawl's datagrams
+/// comes out as it was sent. Only the new piece is searched for the newline: a long line (a
+/// level's map, a long menu) arrives in hundreds of pieces, and joining and splitting the whole
+/// line again for each one cost the frame time that grew with the square of its length.
+fn split_lines(partial: &mut Vec<u8>, chunk: &[u8], lines: &mut Vec<String>) {
+    let mut rest = chunk;
+    while let Some(i) = rest.iter().position(|&b| b == b'\n') {
+        partial.extend_from_slice(&rest[..i]);
+        if !partial.is_empty() {
+            lines.push(String::from_utf8_lossy(partial).into_owned());
+        }
+        partial.clear();
+        rest = &rest[i + 1..];
+    }
+    partial.extend_from_slice(rest);
+}
+
 /// What crawl itself says, held back until the client has its gamedata; the lobby's own
 /// messages are not.
 fn is_game_output(m: &Value) -> bool {
@@ -528,9 +567,8 @@ impl Transport for OfflineServer {
     fn close(&mut self) {
         self.stop();
         // the game saves on its own time; the app waits for it on the way out (shutdown)
-        if let Some(mut g) = self.game.take() {
-            g.process.wait_exit(STOP_SAVE);
-            g.process.retire();
+        if let Some(g) = self.game.take() {
+            g.process.finish(STOP_SAVE);
         }
         self.closed = true;
         self.push(ConnEvent::Closed { code: 1000, reason: String::new() });
@@ -874,7 +912,8 @@ mod native {
 
     struct Child_ {
         child: Child,
-        socket: Box<dyn Socket>,
+        /// What goes to crawl, written by its own thread ([`write_to_crawl`]).
+        input: std::sync::mpsc::Sender<Vec<u8>>,
         run_dir: PathBuf,
         /// Where crawl writes its crash files (its morgue folder), and when it started: a crash
         /// file newer than that is this run's.
@@ -896,9 +935,8 @@ mod native {
 
     impl Process for Child_ {
         fn control(&mut self, json: &str) {
-            if let Err(e) = self.socket.send(json.as_bytes()) {
-                log::warn!("crawl socket send: {e}");
-            }
+            // never written here, on the app's thread: see write_to_crawl
+            let _ = self.input.send(json.as_bytes().to_vec());
         }
 
         fn poll(&mut self, out: &mut Vec<Output>) {
@@ -956,6 +994,30 @@ mod native {
             let _ = self.child.kill();
         }
 
+        /// On Unix crawl has its hangup already (a signal, sent at once): it saves by itself, and
+        /// the wait for it is a thread's, not the app's (Leave from a game blocked the frame for up
+        /// to five seconds, an ANR on Android). Should the app end first, crawl's parent-death
+        /// hangup has it save all the same. On Windows the hangup is a message on crawl's input,
+        /// which the app must live to send: the wait stays here.
+        fn finish(self: Box<Self>, seconds: f64) {
+            let mut me = self;
+            #[cfg(unix)]
+            {
+                let spawned = std::thread::Builder::new().name("crawl exit".into()).spawn(move || {
+                    me.wait_exit(seconds);
+                    me.retire();
+                });
+                if let Err(e) = spawned {
+                    log::warn!("no thread to wait for crawl's save: {e}");
+                }
+            }
+            #[cfg(not(unix))]
+            {
+                me.wait_exit(seconds);
+                me.retire();
+            }
+        }
+
         fn wait_exit(&mut self, seconds: f64) {
             let deadline = Instant::now() + Duration::from_secs_f64(seconds);
             while Instant::now() < deadline {
@@ -963,6 +1025,42 @@ mod native {
                     break;
                 }
                 std::thread::sleep(Duration::from_millis(20));
+            }
+        }
+    }
+
+    /// A send that waits this long for crawl is logged: what kept crawl is the next report's clue.
+    const SLOW_SEND: Duration = Duration::from_millis(500);
+
+    /// Crawl's input, written on a thread of its own. Crawl reads its socket only between its
+    /// commands (`await_input`, and `kbhit` while it runs or rests): while it works on a turn, makes
+    /// a level, writes a save or sleeps in its own `delay` (a 100 ms flash for every command at low
+    /// health, an animation's frames), what is sent waits in its socket, which holds ten datagrams
+    /// (`net.unix.max_dgram_qlen`) and then blocks the sender. Written on the app's thread, a
+    /// player's taps in a fight blocked the frame for up to the 2 s write timeout a message, and
+    /// Android's input dispatch, which waits on that thread, called the app not responding after
+    /// five. Here the thread waits instead, as long as crawl takes, and keeps the order; it ends
+    /// when the game's channel is dropped, or when crawl is gone (a send refused).
+    fn write_to_crawl(socket: Box<dyn Socket>, rx: Receiver<Vec<u8>>) {
+        while let Ok(bytes) = rx.recv() {
+            let started = Instant::now();
+            loop {
+                match socket.send(&bytes) {
+                    Ok(()) => break,
+                    // the write timeout: crawl has not read for a while; it gets the message when it does
+                    Err(e) if matches!(e.kind(), std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut | std::io::ErrorKind::Interrupted) => continue,
+                    Err(e) => {
+                        log::warn!("crawl socket send: {e}");
+                        if matches!(e.kind(), std::io::ErrorKind::ConnectionRefused | std::io::ErrorKind::NotFound | std::io::ErrorKind::BrokenPipe) {
+                            return;
+                        }
+                        break;
+                    }
+                }
+            }
+            let waited = started.elapsed();
+            if waited >= SLOW_SEND {
+                log::warn!("crawl took {} ms to read a message (it was busy: a turn, a level, a save or its own delay)", waited.as_millis());
             }
         }
     }
@@ -1111,6 +1209,8 @@ mod native {
         };
         let (tx, rx) = channel();
         let mut read = socket.reader().map_err(|e| e.to_string())?;
+        let (input, input_rx) = channel();
+        std::thread::Builder::new().name("crawl input".into()).spawn(move || write_to_crawl(socket, input_rx)).map_err(|e| e.to_string())?;
         std::thread::Builder::new()
             .name("crawl output".into())
             .spawn(move || {
@@ -1118,7 +1218,7 @@ mod native {
                 loop {
                     match read(&mut buf) {
                         Ok(n) => {
-                            if tx.send(Output::Text(String::from_utf8_lossy(&buf[..n]).into_owned())).is_err() {
+                            if tx.send(Output::Bytes(buf[..n].to_vec())).is_err() {
                                 return;
                             }
                             wake();
@@ -1132,7 +1232,7 @@ mod native {
                 }
             })
             .map_err(|e| e.to_string())?;
-        let process = Child_ { child, socket, run_dir, morgue, started, status: None, output: rx, _stdin: stdin };
+        let process = Child_ { child, input, run_dir, morgue, started, status: None, output: rx, _stdin: stdin };
         Ok((Box::new(process), save_dir.display().to_string()))
     }
 }
@@ -1354,7 +1454,7 @@ mod web {
         let (i, w) = (inbox.clone(), wake.clone());
         let on_output = Closure::<dyn FnMut(JsValue)>::new(move |text: JsValue| {
             if let Some(t) = text.as_string() {
-                i.borrow_mut().output.push_back(Output::Text(t));
+                i.borrow_mut().output.push_back(Output::Bytes(t.into_bytes()));
             }
             w();
         });
@@ -1367,7 +1467,7 @@ mod web {
         let on_error = Closure::<dyn FnMut(JsValue)>::new(move |message: JsValue| {
             let mut i = i.borrow_mut();
             i.output.push_back(Output::Error(format!("offline engine: {}", message.as_string().unwrap_or_default())));
-            i.output.push_back(Output::Text(format!("*{}\n", json!({ "msg": "exit_reason", "type": "error", "message": message.as_string().unwrap_or_default() }))));
+            i.output.push_back(Output::Bytes(format!("*{}\n", json!({ "msg": "exit_reason", "type": "error", "message": message.as_string().unwrap_or_default() })).into_bytes()));
             i.exit = Some(-1);
             w();
         });
@@ -1379,7 +1479,37 @@ mod web {
 
 #[cfg(test)]
 mod tests {
-    use super::crash_headline;
+    use super::{crash_headline, split_lines};
+
+    #[test]
+    fn crawls_output_is_cut_into_lines_where_its_newlines_are() {
+        // "·" (two bytes) cut between two datagrams, a line in three pieces, an empty line
+        let text = "{\"g\":\"·\"}\n\n{\"msg\":\"map\"}\n{\"tail";
+        let bytes = text.as_bytes();
+        let cut = text.find('·').unwrap() + 1;
+        let mut partial = Vec::new();
+        let mut lines = Vec::new();
+        for piece in [&bytes[..cut], &bytes[cut..cut + 4], &bytes[cut + 4..]] {
+            split_lines(&mut partial, piece, &mut lines);
+        }
+        assert_eq!(lines, ["{\"g\":\"·\"}", "{\"msg\":\"map\"}"]);
+        assert_eq!(partial, b"{\"tail");
+    }
+
+    #[test]
+    fn a_long_line_in_many_pieces_costs_its_length_once() {
+        // a level's map: half a megabyte in crawl's 2048-byte datagrams
+        let line = format!("{{\"msg\":\"map\",\"cells\":\"{}\"}}\n", "x".repeat(512 * 1024));
+        let mut partial = Vec::new();
+        let mut lines = Vec::new();
+        let t = std::time::Instant::now();
+        for piece in line.as_bytes().chunks(2048) {
+            split_lines(&mut partial, piece, &mut lines);
+        }
+        assert_eq!(lines.len(), 1);
+        assert!(partial.is_empty());
+        assert!(t.elapsed() < std::time::Duration::from_millis(200), "{:?}", t.elapsed());
+    }
 
     #[test]
     fn a_crash_report_is_headed_by_its_first_line_that_says_something() {

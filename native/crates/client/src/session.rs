@@ -56,6 +56,10 @@ struct GamedataLoad {
     progress_at: f64,
 }
 
+/// A poll or a scene build that takes this long goes to the log (logcat on Android) with what it
+/// did: a frame stalled by the messages is then told from one stalled elsewhere.
+const SLOW_SECONDS: f64 = 0.25;
+
 /// A load that makes no progress for this long is given up as stalled.
 const LOAD_STALL_SECONDS: f64 = 30.0;
 
@@ -168,7 +172,17 @@ impl Session {
     /// the gamedata load moved on.
     pub fn poll(&mut self) -> Vec<SessionEvent> {
         let mut out = Vec::new();
-        for e in self.conn.poll() {
+        let started = crate::platform::seconds();
+        let events = self.conn.poll();
+        let polled = crate::platform::seconds();
+        let count = events.len();
+        let mut slowest: (f64, String) = (0.0, String::new());
+        for e in events {
+            let t = crate::platform::seconds();
+            let kind = match &e {
+                ConnEvent::Message(m) => m.get("msg").and_then(Value::as_str).unwrap_or("").to_string(),
+                _ => String::new(),
+            };
             match e {
                 ConnEvent::Open => {
                     let who = self.username.clone();
@@ -196,8 +210,16 @@ impl Session {
                 }
                 ConnEvent::Diagnostic(d) => self.diag(d),
             }
+            let took = crate::platform::seconds() - t;
+            if took > slowest.0 {
+                slowest = (took, kind);
+            }
         }
         self.progress_load(&mut out);
+        let total = crate::platform::seconds() - started;
+        if total >= SLOW_SECONDS {
+            log::warn!("slow frame: the session's poll took {:.0} ms ({:.0} ms reading the connection, {count} events, the slowest a \"{}\" in {:.0} ms)", total * 1000.0, (polled - started) * 1000.0, slowest.1, slowest.0 * 1000.0);
+        }
         out
     }
 
@@ -378,7 +400,12 @@ impl Session {
             return false;
         }
         self.last_scene_rev = r;
+        let started = crate::platform::seconds();
         let scene = build_scene(&self.state, &gd.gd, BuildOptions { previous: Some(&self.scene), dirty: Some(Dirty::of(&self.state)), record: Some(&mut self.record) });
+        let took = crate::platform::seconds() - started;
+        if took >= SLOW_SECONDS {
+            log::warn!("slow frame: the scene took {:.0} ms to build ({} cells built, {} carried)", took * 1000.0, self.record.rebuilt(), self.record.carried());
+        }
         self.state.clear_dirty();
         self.scene = Arc::new(scene);
         true

@@ -51,6 +51,37 @@ pub struct IsorunApp {
     buttons: ButtonDedupe,
     /// The visit counts of the hosted page's /stats (client::visits).
     visits: isorun_client::visits::Visits,
+    /// When the last frame's work ended, for [`FrameWatch`].
+    watch: FrameWatch,
+}
+
+/// The frames that keep the app's thread too long, to the log (logcat on Android, where a thread
+/// held five seconds is "app is not responding"): a frame of ours over [`SLOW_FRAME`], and a wait
+/// between two frames over [`FRAME_GAP`] while a game is up (the game asks for a frame at least
+/// every 250 ms), which is time spent outside our frame: the drawing, the system, or the app in
+/// the background. Cheap: two clock reads a frame.
+#[derive(Default)]
+struct FrameWatch {
+    last_end: Option<f64>,
+}
+
+const SLOW_FRAME: f64 = 0.5;
+const FRAME_GAP: f64 = 2.0;
+
+impl FrameWatch {
+    fn frame(&mut self, started: f64, ended: f64, screen: &str, in_game: bool) {
+        let took = ended - started;
+        if took >= SLOW_FRAME {
+            log::warn!("slow frame: {:.0} ms in the {screen}", took * 1000.0);
+        }
+        if let Some(last) = self.last_end {
+            let gap = started - last;
+            if in_game && gap >= FRAME_GAP {
+                log::warn!("no frame for {:.0} ms in a game (drawing or the system held the app's thread, or the app was in the background)", gap * 1000.0);
+            }
+        }
+        self.last_end = Some(ended);
+    }
 }
 
 impl IsorunApp {
@@ -85,7 +116,7 @@ impl IsorunApp {
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
         let pads: Pads = ();
-        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default(), buttons: ButtonDedupe::default(), visits: Default::default() };
+        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default(), buttons: ButtonDedupe::default(), visits: Default::default(), watch: FrameWatch::default() };
         if let Some(path) = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned() {
             app.front.open(&path);
         }
@@ -312,7 +343,14 @@ impl eframe::App for IsorunApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let started = isorun_client::platform::seconds();
         self.screens(ui);
+        let (screen, in_game) = match &self.screen {
+            Screen::Game(_) => ("game", true),
+            Screen::Testbed(_) => ("test bed", false),
+            Screen::Front => ("front end", false),
+        };
+        self.watch.frame(started, isorun_client::platform::seconds(), screen, in_game);
         // the soft keyboard follows the text field that wants it (android_keyboard)
         #[cfg(target_os = "android")]
         crate::android_keyboard::follow(ui.ctx());
