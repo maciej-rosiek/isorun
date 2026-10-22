@@ -142,7 +142,10 @@ network here cannot reach workers.dev: check the live page from the workflow's L
 ## Performance
 
 Measure at the player's screen: a 5120x1440 screen at 120 Hz has 8.3 ms a frame for 7.4 million
-pixels. `--perf` shows the frame times and the wire's in the app (a tap writes its log). A frame
+pixels. `--perf` shows the frame times and the wire's in the app (a tap writes its log). Every
+build logs a frame over 500 ms in a game, and what took it (`slow frame:`, logcat on Android).
+`cargo run --release -p isorun-client --example offline_stress [seconds] [key gap ms]` plays an
+offline fighter faster than crawl reads and fails on any frame or send over 500 ms. A frame
 budget problem that the Graphics Quality setting does not change is CPU work: look for work done
 each step or each frame over the whole level (a full rebuild, a traversal) and key it by its own
 inputs; nothing the level's geometry is built from may change every frame (a key that held the

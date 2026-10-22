@@ -14,6 +14,13 @@ the data folders (EACCES in the shell's on the emulator). A game that ends badly
 report (its signal, its error output, its crash file) under the tag `isorun`: `adb logcat -s
 isorun:* Crawl:*`.
 
+A freeze leaves its own lines under `isorun`: a frame over 500 ms or no frame for 2 s in a game
+(`slow frame: …`, `no frame for …`, with the session poll, the scene build or crawl's output that
+took the time) and a key crawl took over 500 ms to read. Keys go to crawl from a thread of their
+own (`client::engine`), so a busy crawl never holds the frame or Android's input. For a player's
+report: `adb logcat -d -s isorun:* ActivityManager:* InputDispatcher:*`, or a bug report
+(Developer options › Take bug report), which also has the not-responding stacks.
+
 It is `io.github.maciejrosiek.isorun`, the id of the Capacitor app it replaced, with the version
 code that app had (from the version in `native/Cargo.toml`: 0.1.5 is 105) and the same release
 key, so it installs over that app; releases carry it as `Isorun.apk`. It does not read the
