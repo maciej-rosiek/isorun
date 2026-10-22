@@ -165,6 +165,11 @@ impl GameHost for Host<'_> {
     fn text_entry_focused(&self) -> bool {
         // the chat line, or a field of crawl's (its text prompt, a menu's filter): the game screen
         // hands the keys to it (`Overlays::text_key`), as the web's focused `<input>` takes them
+        // the Find screen's search field takes its keys itself; crawl's stash prompt under the
+        // screen is the screen's (it answers it), not the keys'
+        if self.p.find.open() {
+            return self.p.find_typing;
+        }
         self.p.chat_capturing || (!self.watching && self.p.overlays.text_entry(self.state))
     }
 
@@ -224,7 +229,7 @@ impl GameHost for Host<'_> {
     }
 
     fn client_overlay(&self) -> bool {
-        self.p.client.is_some() || self.p.menus.is_open() || self.p.hud.screen_open().is_some()
+        self.p.client.is_some() || self.p.find.open() || self.p.menus.is_open() || self.p.hud.screen_open().is_some()
     }
 
     fn open_menu(&self) -> Option<OverlayMenu> {
@@ -257,6 +262,31 @@ impl GameHost for Host<'_> {
         if let Some(c) = self.p.client.as_mut() {
             let r = c.input(op);
             self.client_result(r);
+            return true;
+        }
+        if self.p.find.open() {
+            // the Find screen: the cursor walks the results, left and right (and the bumpers) the
+            // categories, A travels, X shows the details, Y switches the sort, B closes
+            use isorun_find::FindOp as F;
+            let f = match op {
+                OverlayOp::Close => {
+                    self.p.find_screen.close();
+                    return true;
+                }
+                OverlayOp::Select | OverlayOp::Submit => F::Select,
+                OverlayOp::Cancel => F::Cancel,
+                OverlayOp::Keyboard => F::Details,
+                OverlayOp::Alt => F::Sort,
+                OverlayOp::Next => F::Next,
+                OverlayOp::Prev => F::Prev,
+                OverlayOp::Left | OverlayOp::BumperPrev => F::Left,
+                OverlayOp::Right | OverlayOp::BumperNext => F::Right,
+                OverlayOp::PageNext => F::PageNext,
+                OverlayOp::PagePrev => F::PagePrev,
+                OverlayOp::First => F::First,
+                OverlayOp::Last => F::Last,
+            };
+            self.p.find_screen.op(f);
             return true;
         }
         if self.p.hud.screen_open().is_some() {
@@ -292,6 +322,10 @@ impl GameHost for Host<'_> {
         if let Some(c) = self.p.client.as_mut() {
             let r = c.hotkey(key);
             self.client_result(r);
+            return true;
+        }
+        if self.p.find.open() {
+            self.p.find_screen.hotkey(key);
             return true;
         }
         false

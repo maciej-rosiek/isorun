@@ -1672,6 +1672,7 @@ dependencies = [
  "env_logger",
  "isorun-audio",
  "isorun-client",
+ "isorun-find",
  "isorun-front",
  "isorun-hud",
  "isorun-input",
@@ -1741,6 +1742,19 @@ dependencies = [
  "web-sys",
  "web-time",
  "wgpu",
+]
+
+[[package]]
+name = "isorun-find"
+version = "0.1.5"
+dependencies = [
+ "egui",
+ "isorun-client",
+ "isorun-gamedata",
+ "isorun-ui",
+ "isorun-webtiles",
+ "log",
+ "serde_json",
 ]
 
 [[package]]

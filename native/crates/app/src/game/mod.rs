@@ -157,6 +157,11 @@ pub struct Parts {
     pub system_at: (usize, [usize; 2]),
     /// the player left from the Isorun menu (a spectator's Stop watching)
     pub leave: bool,
+    /// the Find screen: crawl's stash search behind it (isorun_find), and the screen
+    pub find: isorun_find::Driver,
+    pub find_screen: isorun_find::FindScreen,
+    /// the Find screen's search field has the keys
+    pub find_typing: bool,
 }
 
 impl Parts {
@@ -289,6 +294,9 @@ impl GameScreen {
             system_opts: client::SystemOpts::default(),
             system_at: (0, [0; 2]),
             leave: false,
+            find: isorun_find::Driver::default(),
+            find_screen: isorun_find::FindScreen::new(),
+            find_typing: false,
         };
         let perf = perf::PerfOverlay::new(opts.perf);
         let mut s = GameScreen {
@@ -485,6 +493,7 @@ impl GameScreen {
             self.last_state_rev = self.session.state.rev.any;
             self.on_state(now);
         }
+        self.update_find(now);
         if self.perf.enabled {
             self.perf.profile.mark("state");
         }
@@ -620,6 +629,7 @@ impl GameScreen {
                 self.perf.profile.mark("hud");
             }
             self.draw_overlays(&ctx, now);
+            self.draw_find(&ctx, now);
             self.draw_client(&ctx);
             self.draw_touch(ui, now);
         }
@@ -785,7 +795,7 @@ impl GameScreen {
                         }
                         let mut took = false;
                         self.route(now, |r, io| took = r.key_down(&key, repeat, io));
-                        if !took && !watching && self.parts.overlays.text_entry(&self.session.state) {
+                        if !took && !watching && !self.parts.find.hides() && self.parts.overlays.text_entry(&self.session.state) {
                             self.overlay_keys(now, |o, cx| o.text_key(&key, cx));
                         }
                     }
@@ -845,7 +855,7 @@ impl GameScreen {
                 // a tap or click beside the cell menu puts it away, and does nothing else
                 swallowed = true;
                 self.parts.cell_menu = None;
-            } else if touch && !watching && (self.parts.client.is_some() || self.ctx.mode == Mode::Menu) && outside {
+            } else if touch && !watching && (self.parts.client.is_some() || self.parts.find.open() || self.ctx.mode == Mode::Menu) && outside {
                 swallowed = true;
                 self.route(now, |r, io| r.back(io));
             } else if !watching && self.parts.client.is_none() && !menus_keys && matches!(self.ctx.mode, Mode::Popup | Mode::Dialog) && mouse_control(&self.session.state) && (outside || button == 2) {
@@ -854,7 +864,7 @@ impl GameScreen {
             }
         }
         // the pointer and the fingers over the view; none while a screen of ours or a panel covers it
-        let covered = swallowed || self.parts.client.is_some() || self.parts.hud.screen_open().is_some() || menus_keys || pointer_over_panel(&ctx);
+        let covered = swallowed || self.parts.client.is_some() || self.parts.find.open() || self.parts.hud.screen_open().is_some() || menus_keys || pointer_over_panel(&ctx);
         self.gestures.view = view_rect;
         // what takes the pointer (the dock, the touch bar, the corner buttons, panels): a press
         // there is that widget's for its whole gesture, never the view's
@@ -1620,7 +1630,9 @@ impl GameScreen {
         let st = &self.session.state;
         let mut out = Vec::new();
         let hide = self.parts.hud.screen_open() == Some(isorun_hud::screens::ScreenId::Inventory);
-        let probing = |m: &isorun_webtiles::MenuState| hide && isorun_input::pack_tabs::is_pack(m);
+        // crawl's stash search under the Find screen is the screen's: its menu is not drawn
+        let finding = self.parts.find.hides();
+        let probing = |m: &isorun_webtiles::MenuState| (hide && isorun_input::pack_tabs::is_pack(m)) || (finding && isorun_find::entry::is_stash_menu(m));
         let mut back = false;
         {
             let mut on_back = || back = true;
@@ -1633,6 +1645,7 @@ impl GameScreen {
             cx.hide_menu = Some(&probing);
             cx.back = Some(&mut on_back);
             cx.bottom = self.parts.touch_bar_h;
+            cx.hide_text = finding && isorun_find::driver::stash_prompt(st);
             self.parts.overlays.ui(ctx, &mut cx);
         }
         for m in out {
@@ -1640,6 +1653,53 @@ impl GameScreen {
         }
         if back {
             self.back(now);
+        }
+    }
+
+    /// The Find screen's driver follows crawl: it answers crawl's stash search prompt and reads
+    /// its results (isorun_find::Driver). The screen opens with it.
+    fn update_find(&mut self, now: f64) {
+        let was = self.parts.find.open();
+        let gd = self.session.gamedata.clone();
+        let name_of = |r: &isorun_webtiles::TileRef| gd.as_ref().and_then(|g| isorun_find::entry::tile_name(&g.gd, r)).map(str::to_string);
+        let mut out = Vec::new();
+        self.parts.find.update(&self.session.state, self.session.watching(), now, &name_of, &mut out);
+        if !was && self.parts.find.open() {
+            self.parts.find_screen.opened();
+        }
+        for m in out {
+            self.send(m, now);
+        }
+    }
+
+    /// The Find screen, while it is up.
+    fn draw_find(&mut self, ctx: &egui::Context, now: f64) {
+        if !self.parts.find.open() {
+            self.parts.find_typing = false;
+            return;
+        }
+        let p = &self.session.state.player;
+        let here = isorun_find::entry::level_label(&p.place, p.depth);
+        let events = {
+            let view = isorun_find::View { driver: &self.parts.find, here: &here, scale: self.client_settings.ui_scale.max(0.5), pad: self.parts.last_input == InputDevice::Pad, touch: self.touch };
+            self.parts.find_screen.ui(ctx, &view, &mut self.parts.icons)
+        };
+        self.parts.find_typing = self.parts.find_screen.typing(ctx);
+        let mut out = Vec::new();
+        for e in events {
+            match e {
+                isorun_find::FindEvent::Travel(entry) => self.parts.find.travel(&entry, &mut out),
+                isorun_find::FindEvent::Close => self.parts.find.close(&self.session.state, now, &mut out),
+                isorun_find::FindEvent::Search(words) => self.parts.find.search(&words, now, &mut out),
+                isorun_find::FindEvent::ToggleUseless => self.parts.find.toggle_useless(&mut out),
+            }
+        }
+        if !self.parts.find.open() {
+            self.parts.find_typing = false;
+            ctx.memory_mut(|m| m.surrender_focus(isorun_find::screen::field_id()));
+        }
+        for m in out {
+            self.send(m, now);
         }
     }
 
@@ -1687,7 +1747,7 @@ impl GameScreen {
         if !self.touch {
             return;
         }
-        let shown = !self.session.watching() && self.parts.client.is_none() && !self.parts.menus.is_open() && !self.parts.chat_capturing && !self.parts.overlays.level_up.choosing();
+        let shown = !self.session.watching() && self.parts.client.is_none() && !self.parts.find.open() && !self.parts.menus.is_open() && !self.parts.chat_capturing && !self.parts.overlays.level_up.choosing();
         let screen = isorun_ui::safe::rect(ui.ctx());
         let ctx = self.ctx.clone();
         let (a, bar) = isorun_input::touch_bar::touch_bar(ui, &ctx, shown, screen);

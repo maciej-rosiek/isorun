@@ -4,6 +4,8 @@ Notable changes to Isorun, newest first.
 
 ## Unreleased
 
+- Find (Ctrl-F, the dock's Find) is a screen to browse: everything you have seen, on every level, in categories (weapons, armour, potions, scrolls, wands, jewellery, stairs, altars, shops, portals and more) with counts, your level first and new things on top; a tap travels there, a long press shows the details, and the search box still asks crawl.
+- Offline games no longer freeze the app (and Android no longer says it is not responding) when you tap or press keys faster than crawl answers, as in a fight at low health; your keys wait for crawl instead of the screen.
 - On a phone crawl's text prompts (Find with Ctrl-F, inscribe, naming, a menu's filter) bring up the phone's keyboard, in the app and in the browser; the field stands at the top where the keyboard cannot cover it, with Cancel and OK buttons, and a tap on it brings the keyboard back.
 - On a touch screen an item's card (and the dock's, the action panel's and the cell's) shows only while your finger rests on it and goes when you lift it; a tap opens the item's actions with no card left over the backpack.
 - In a phone's browser a tap on the dungeon walks there again, and the Settings over the game take taps (a finger that moved a little chose nothing); a tap beside them goes back.

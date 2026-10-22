@@ -15,7 +15,7 @@ use winit::platform::android::activity::AndroidApp;
 /// Follow the frame's `ime` output: call once a frame, after the screens drew.
 pub fn follow(ctx: &egui::Context) {
     let ime = ctx.output(|o| o.ime);
-    let key = egui::Id::new("isorun-android-keyboard");
+    let key = egui::Id::unique("isorun-android-keyboard");
     let was: bool = ctx.data(|d| d.get_temp(key)).unwrap_or(false);
     let want = ime.is_some();
     let tapped = ime.is_some_and(|ime| ctx.input(|i| i.events.iter().any(|e| matches!(e, Event::PointerButton { pos, pressed: false, .. } if ime.rect.contains(*pos)))));

@@ -63,11 +63,14 @@ pub struct OverlayCx<'a> {
     pub back: Option<&'a mut dyn FnMut()>,
     /// the height a bar at the foot of the screen takes (the touch bar): the popups stand clear of it
     pub bottom: f32,
+    /// crawl's text prompt is answered by the game itself (the Find screen answers crawl's stash
+    /// search): its field is not drawn
+    pub hide_text: bool,
 }
 
 impl<'a> OverlayCx<'a> {
     pub fn new(state: &'a GameState, tiles: &'a mut TileIcons, out: &'a mut Vec<Value>) -> Self {
-        OverlayCx { state, tiles, out, watching: false, device: Device::Keyboard, touch: false, dock: true, ui_scale: 1.0, hide_menu: None, back: None, bottom: 0.0 }
+        OverlayCx { state, tiles, out, watching: false, device: Device::Keyboard, touch: false, dock: true, ui_scale: 1.0, hide_menu: None, back: None, bottom: 0.0, hide_text: false }
     }
     fn send(&mut self, m: Value) {
         if !self.watching {
@@ -540,13 +543,15 @@ impl Overlays {
         if let Some(html) = st.dialog.clone() {
             self.draw_dialog(ctx, cx, &html, &screen);
         }
-        if self.field.as_ref().is_some_and(|f| f.source.kind.as_deref() != Some("seed-selection")) {
+        if !cx.hide_text && self.field.as_ref().is_some_and(|f| f.source.kind.as_deref() != Some("seed-selection")) {
             self.draw_text_input(ctx, cx, &screen, cx.dock);
         }
         if matches!(derive_mode(st), Mode::Yesno | Mode::Prompt) {
             self.draw_card(ctx, cx, &screen);
         }
-        self.draw_osk(ctx, cx);
+        if !cx.hide_text {
+            self.draw_osk(ctx, cx);
+        }
         let lit = self.nav.current().map(|f| f.key().to_string());
         let mut out = Vec::new();
         if self.level_up.draw(ctx, &screen, cx.tiles, lit.as_deref(), &mut out, self.now) {

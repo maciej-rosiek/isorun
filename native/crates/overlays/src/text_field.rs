@@ -262,16 +262,16 @@ impl Overlays {
             }
             if touch {
                 // a tap on the field asks for the keyboard again (it may have been put away)
-                tapped = ui.interact(fr, egui::Id::new("isorun-text-input-field"), egui::Sense::click()).clicked();
+                tapped = ui.interact(fr, egui::Id::unique("isorun-text-input-field"), egui::Sense::click()).clicked();
                 let by = fr.bottom() + pad_y;
                 let gap = 0.6 * screen.rem();
                 let bw = ((fr.width() - gap) / 2.0).floor();
                 let cancel = Rect::from_min_size(Pos2::new(fr.left(), by), Vec2::new(bw, button_h));
                 let ok = Rect::from_min_size(Pos2::new(fr.right() - bw, by), Vec2::new(bw, button_h));
-                if widgets::button(ui, cancel, egui::Id::new("isorun-text-input-cancel"), "Cancel", widgets::ButtonLook::Bronze).clicked() {
+                if widgets::button(ui, cancel, egui::Id::unique("isorun-text-input-cancel"), "Cancel", widgets::ButtonLook::Bronze).clicked() {
                     pressed = Some(FieldKey::Escape);
                 }
-                if widgets::button(ui, ok, egui::Id::new("isorun-text-input-ok"), "OK", widgets::ButtonLook::BronzePrimary).clicked() {
+                if widgets::button(ui, ok, egui::Id::unique("isorun-text-input-ok"), "OK", widgets::ButtonLook::BronzePrimary).clicked() {
                     pressed = Some(FieldKey::Enter);
                 }
             }

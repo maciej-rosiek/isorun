@@ -18,6 +18,7 @@ what each crate was ported from. This file is the shared brief for whoever works
 | `hud` | the dock, its screens (inventory, character), the classic HUD's panes, chat, tooltips | `hud.ts`, `dock.ts`, `screens.ts`, `grid/*` |
 | `overlays` | crawl's screens over the game: menus, popups, describe, character creation, prompts, the level-up banner | `overlays.ts`, `menu-nav.ts` |
 | `input` | keys, pad and touch to crawl's messages: bindings, the runner, the pad, gestures, the on-screen keyboard | `keys.ts`, `bindings.ts`, `runner.ts`, `gamepad.ts`, `touch.ts` |
+| `find` | the Find screen: crawl's stash search behind it, by category and sorted, a tap to travel | crawl's stash search (new) |
 | `audio` | the sound: effects, beds and music, and the cues from the game | `audio/*` |
 | `render2d` | crawl's 2D tile view: the level map (X) and the minimap | `packages/render-2d` |
 | `app` | the game: the game screen, the platforms' entry points (`main.rs`, `lib.rs`) | `main.ts`, `game.ts` |

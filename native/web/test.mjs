@@ -214,13 +214,15 @@ try {
     }
     check(sent.some((m) => m.includes('click_cell')), `a phone: a tap on the dungeon walks (${sent.slice(0, 3).join(' ') || 'nothing sent'})`)
     await page.screenshot({ path: join(OUT, 'phone-game.png') })
-    // crawl's text prompt (Ctrl-F's "Search for what?"): the phone's keyboard comes with it (eframe's
-    // text agent, the hidden <input> it focuses, has the focus), comes back on a tap on the field
-    // after it was put away, takes what is typed, and the popup's OK sends it
+    // crawl's text prompt (`!` `.`: "New annotation for D:1"): the phone's keyboard comes with it
+    // (eframe's text agent, the hidden <input> it focuses, has the focus), comes back on a tap on
+    // the field after it was put away, takes what is typed, and the popup's OK sends it
     {
       await page.evaluate(() => { globalThis.__sent = [] })
-      await page.keyboard.press('Control+f')
-      check(await heard('stash_search', 20_000), 'a phone: Ctrl-F asks crawl what to search for')
+      await page.keyboard.press('!')
+      await page.waitForTimeout(1500)
+      await page.keyboard.press('.')
+      check(await heard('New annotation', 20_000), 'a phone: crawl asks for a text (a level annotation)')
       await page.waitForTimeout(3000)
       const agent = () => page.evaluate(() => document.activeElement?.tagName === 'INPUT')
       check(await agent(), 'a phone: the text prompt brings the keyboard (the text agent has the focus)')
@@ -233,8 +235,21 @@ try {
       await tap(300, 150) // OK
       sent = await page.evaluate(() => globalThis.__sent)
       check(sent.some((m) => m.includes('stair')), `a phone: the prompt's OK sends what was typed (${sent.slice(-3).join(' ') || 'nothing sent'})`)
-      await page.keyboard.press('Escape') // crawl's results
+    }
+    // the Find screen (Ctrl-F): crawl's stash search is answered behind it with everything (`..`),
+    // its results come, and Escape puts both away
+    {
+      await page.evaluate(() => { globalThis.__sent = []; globalThis.__heard = '' })
+      await page.keyboard.press('Control+f')
+      check(await heard('"tag":"stash"', 20_000), 'a phone: Ctrl-F opens Find on crawl\'s results')
+      sent = await page.evaluate(() => globalThis.__sent)
+      check(sent.some((m) => m.includes('"text":"..\\r"')), `a phone: Find answers crawl's search with everything (${sent.slice(-3).join(' ')})`)
+      await page.waitForTimeout(3000)
+      await page.screenshot({ path: join(OUT, 'phone-find.png') })
+      await page.keyboard.press('Escape')
       await page.waitForTimeout(2000)
+      sent = await page.evaluate(() => globalThis.__sent)
+      check(sent.some((m) => m.includes('"keycode":27')), 'a phone: Escape closes Find and crawl\'s menu')
     }
     await tap(76, 28) // the gear: the Isorun menu
     await tap(210, 75) // its System tab

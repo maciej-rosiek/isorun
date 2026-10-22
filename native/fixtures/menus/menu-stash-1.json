@@ -1,0 +1,417 @@
+{
+  "server": "offline",
+  "version": "Dungeon Crawl Stone Soup 0.34.1-4-g0e95e087e2",
+  "player": "FindRec",
+  "tag": "menu-stash",
+  "msgs": [
+    {
+      "msg": "menu",
+      "ui-centred": false,
+      "tag": "stash",
+      "flags": 262722,
+      "last_hovered": 9,
+      "title": {
+        "text": "<white>26 matches<lightgrey>: <white>travel<lightgrey> [toggle: <white>!<lightgrey>], by <white>dist<lightgrey> [<white>/<lightgrey>], <white>hide<lightgrey> useless & duplicates [<white>=<lightgrey>]<lightgrey>"
+      },
+      "more": "<lightgrey>[<white>Up<lightgrey>|<white>Down<lightgrey>] select  [<white>PgDn<lightgrey>|<white>><lightgrey>] page down  [<white>PgUp<lightgrey>|<white><<<lightgrey>] page up  [<white>Esc<lightgrey>] exit<lightgrey>        <lightgrey>[<white>XXX<lightgrey>]<lightgrey>",
+      "alt_more": "",
+      "total_items": 28,
+      "chunk_start": 0,
+      "items": [
+        {
+          "text": "Results at your position <lightgrey>([<w>,</w>] to cycle)</lightgrey>",
+          "colour": 11,
+          "level": 1
+        },
+        {
+          "text": " a - [carried] a - a +0 rapier (weapon)",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            97
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3640,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " b - [carried] b - a +0 scale mail (worn)",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            98
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3895,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " c - [carried] c - a +0 buckler (worn)",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            99
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3951,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " d - [carried] c - a scroll labelled SAR EJOKU ITA",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            100
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 4124,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " e - [carried] d - a +4 ring of slaying",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            101
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 4174,
+              "tex": 4
+            },
+            {
+              "t": 4203,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " f - [carried] d - a murky emerald potion",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            102
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 4288,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " g - [carried] m - 2 potions of might",
+          "q": 1,
+          "colour": 8,
+          "hotkeys": [
+            103
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 4281,
+              "tex": 4
+            },
+            {
+              "t": 4300,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": "Results elsewhere <lightgrey>([<w>,</w>] to cycle)</lightgrey>",
+          "colour": 11,
+          "level": 1
+        },
+        {
+          "text": " h - [D:2] 4 poisoned darts",
+          "q": 1,
+          "hotkeys": [
+            104
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3840,
+              "tex": 4
+            },
+            {
+              "t": 3774,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " i - [D:2] a falchion",
+          "q": 1,
+          "hotkeys": [
+            105
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3646,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " j - [D:2] a +0 dagger (3 further duplicates)",
+          "q": 1,
+          "hotkeys": [
+            106
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3634,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " k - [D:2] a stone staircase leading down",
+          "q": 1,
+          "hotkeys": [
+            107
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3024,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " l - [D:2] a +0 short sword",
+          "q": 1,
+          "hotkeys": [
+            108
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3637,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " m - [D:2] a stone staircase leading up",
+          "q": 1,
+          "hotkeys": [
+            109
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3025,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " n - [D:2] an escape hatch in the ceiling",
+          "q": 1,
+          "hotkeys": [
+            110
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3027,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " o - [D:2] a stone staircase leading up",
+          "q": 1,
+          "hotkeys": [
+            111
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3025,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " p - [D:2] a stone staircase leading up",
+          "q": 1,
+          "hotkeys": [
+            112
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3025,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " q - [D:2] a leather armour",
+          "q": 1,
+          "hotkeys": [
+            113
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3889,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " r - [D:2] a spore talisman",
+          "q": 1,
+          "hotkeys": [
+            114
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 4606,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " s - [D:1] 4 stones",
+          "q": 1,
+          "hotkeys": [
+            115
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3786,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " t - [D:1] a +0 robe",
+          "q": 1,
+          "hotkeys": [
+            116
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3883,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " u - [D:1] a +0 whip",
+          "q": 1,
+          "hotkeys": [
+            117
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3621,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " v - [D:1] a dagger",
+          "q": 1,
+          "hotkeys": [
+            118
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3634,
+              "tex": 4
+            }
+          ]
+        },
+        {
+          "text": " w - [D:1] a staircase leading out of the dungeon",
+          "q": 1,
+          "hotkeys": [
+            119
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3023,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " x - [D:1] a stone staircase leading down",
+          "q": 1,
+          "hotkeys": [
+            120
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3024,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " y - [D:1] a stone staircase leading down",
+          "q": 1,
+          "hotkeys": [
+            121
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3024,
+              "tex": 2
+            }
+          ]
+        },
+        {
+          "text": " z - [D:1] a stone staircase leading down",
+          "q": 1,
+          "hotkeys": [
+            122
+          ],
+          "level": 2,
+          "tiles": [
+            {
+              "t": 3024,
+              "tex": 2
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

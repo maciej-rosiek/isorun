@@ -1,0 +1,17 @@
+[package]
+name = "isorun-find"
+description = "The Find screen: what crawl's stash tracker knows (Ctrl-F's search, run behind the scenes), in categories with smart sorting, travelled to with a tap."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+isorun-webtiles = { path = "../webtiles" }
+isorun-gamedata = { path = "../gamedata" }
+isorun-ui = { path = "../ui" }
+egui = { workspace = true }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+isorun-client = { path = "../client" }
+log = "0.4"

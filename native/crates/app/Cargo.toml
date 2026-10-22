@@ -27,6 +27,7 @@ isorun-front = { path = "../front" }
 isorun-hud = { path = "../hud" }
 isorun-input = { path = "../input" }
 isorun-overlays = { path = "../overlays" }
+isorun-find = { path = "../find" }
 isorun-audio = { path = "../audio" }
 isorun-render2d = { path = "../render2d" }
 isorun-scene-webtiles = { path = "../scene-webtiles" }
