@@ -190,14 +190,16 @@ impl IsoRenderer {
         changed
     }
 
-    fn add_tile_torch(&self, chunk: &mut Chunk, x: i32, y: i32, normal: (i32, i32), wall_height: f32) {
+    fn add_tile_torch(&self, chunk: &mut Chunk, x: i32, y: i32, normal: (i32, i32), standing: bool) {
         let Some(model) = &self.torch_model else { return };
-        let height = TORCH_HEIGHT * (wall_height / 0.85).min(1.0);
+        let height = TORCH_HEIGHT * (self.view.wall_height / 0.85).min(1.0);
         let (nx, ny) = (normal.0 as f32, normal.1 as f32);
         let at = Vec3::new(x as f32 + 0.5 + nx * 0.5, height, y as f32 + 0.5 + ny * 0.5);
         let rotation = glam::Quat::from_axis_angle(Vec3::Y, nx.atan2(ny));
         let matrix = Mat4::from_scale_rotation_translation(Vec3::splat(crate::torches::KIT_SCALE), rotation, at) * model.matrix;
-        chunk.placements.push(TorchPlacement { model: matrix, glow: Vec3::new(x as f32 + 0.5 + nx * 0.62, height + 0.2, y as f32 + 0.5 + ny * 0.62) });
+        if standing {
+            chunk.placements.push(TorchPlacement { model: matrix, glow: Vec3::new(x as f32 + 0.5 + nx * 0.62, height + 0.2, y as f32 + 0.5 + ny * 0.62) });
+        }
         chunk.torches.push(Torch { position: Vec3::new(x as f32 + 0.5 + nx * 0.75, height + 0.2, y as f32 + 0.5 + ny * 0.75), phase: ((x * 7 + y * 13) % 10) as f32, cell: (x + normal.0, y + normal.1) });
     }
 
@@ -257,8 +259,8 @@ impl IsoRenderer {
                     let cz = |z: f32| z.clamp(z0, z1);
                     caps.add([[cx(ax), h, cz(ay)], [cx(bx), h, cz(by)], [bx, face_top, by], [ax, face_top, ay]], 0.0, 0.0, 1.0, 1.0, cap_colour);
                 }
-                if h >= self.view.wall_height && has_torch(w.x, w.y, face.side) {
-                    torch_faces.push((w.x, w.y, info.normal, h));
+                if has_torch(w.x, w.y, face.side) {
+                    torch_faces.push((w.x, w.y, info.normal, h >= self.view.wall_height));
                 }
             }
         }
@@ -300,8 +302,8 @@ impl IsoRenderer {
             }
         }
         self.pages = Some(pages_owned);
-        for (x, y, normal, h) in torch_faces {
-            self.add_tile_torch(&mut chunk, x, y, normal, h);
+        for (x, y, normal, standing) in torch_faces {
+            self.add_tile_torch(&mut chunk, x, y, normal, standing);
         }
         chunk.glows = glows;
         let device = &self.gpu.device;

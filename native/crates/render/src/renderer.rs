@@ -19,6 +19,7 @@ use crate::plan::{aim_colour, cut_away_cells, cut_away_focus, ground_basis, grou
 use crate::post::{Post, PostFrame};
 use crate::shadows::{cube_face_view, Shadows, SUN_DISTANCE, SUN_REACH};
 use crate::steps::StepLayer;
+use crate::torch_light::TorchLightMap;
 use crate::torches::{TorchLayer, TorchModel, TorchPlacement};
 use crate::uniforms::{DrawBuffer, DrawUniform, FrameUniform, LightUniform, MAX_LIGHTS};
 use crate::{now_seconds, TileSource};
@@ -148,6 +149,7 @@ pub struct IsoRenderer {
     mipmapper: Mipmapper,
     post: Post,
     memory: MemoryMask,
+    torch_light: TorchLightMap,
     shadows: Shadows,
     pipelines: Option<Pipelines>,
     frame_buffer: wgpu::Buffer,
@@ -333,7 +335,8 @@ impl IsoRenderer {
         let shadows = Shadows::new(&gpu, QUALITY_MEDIUM.torch_shadows);
         let frame_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("frame"), size: std::mem::size_of::<FrameUniform>() as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let noise = crate::fog::noise_texture(&gpu);
-        let frame_group = Self::frame_group(&gpu, &frame_buffer, &shadows, &memory, &noise);
+        let torch_light = TorchLightMap::new(&gpu);
+        let frame_group = Self::frame_group(&gpu, &frame_buffer, &shadows, &memory, &noise, &torch_light);
         let draws = DrawBuffer::new(&gpu.device, &gpu.draw_layout, 256);
         let (cap, door) = (cap_texture(&gpu), door_texture(&gpu));
         let blank = gpu.texture_with("blank", 1, 1, wgpu::TextureFormat::Rgba8Unorm, &[128, 128, 255, 0]);
@@ -353,6 +356,7 @@ impl IsoRenderer {
             mipmapper,
             post,
             memory,
+            torch_light,
             shadows,
             pipelines: None,
             frame_buffer,
@@ -431,7 +435,7 @@ impl IsoRenderer {
         r
     }
 
-    fn frame_group(gpu: &Gpu, buffer: &wgpu::Buffer, shadows: &Shadows, memory: &MemoryMask, noise: &wgpu::Texture) -> wgpu::BindGroup {
+    fn frame_group(gpu: &Gpu, buffer: &wgpu::Buffer, shadows: &Shadows, memory: &MemoryMask, noise: &wgpu::Texture, torch_light: &TorchLightMap) -> wgpu::BindGroup {
         let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frame"),
@@ -447,6 +451,7 @@ impl IsoRenderer {
                 wgpu::BindGroupEntry { binding: 7, resource: wgpu::BindingResource::Sampler(&gpu.linear_sampler) },
                 wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(&view(noise)) },
                 wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::Sampler(&gpu.repeat_sampler) },
+                wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&view(&torch_light.texture)) },
             ],
         })
     }
@@ -517,7 +522,7 @@ impl IsoRenderer {
         self.quality = quality;
         if shadows {
             self.shadows = Shadows::new(&self.gpu, quality.torch_shadows);
-            self.frame_group = Self::frame_group(&self.gpu, &self.frame_buffer, &self.shadows, &self.memory, &self.noise);
+            self.frame_group = Self::frame_group(&self.gpu, &self.frame_buffer, &self.shadows, &self.memory, &self.noise, &self.torch_light);
             self.undrawn = [true; TORCH_LIGHTS];
         }
         self.post.set_ao_resolution(quality.ao_resolution);

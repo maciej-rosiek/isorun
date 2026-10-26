@@ -217,7 +217,7 @@ pub fn diorama() -> IsoLights {
         ao: Ao { enabled: true, intensity: 1.0, radius: 0.85 },
         outline: Outline { enabled: false, thickness: 1.0, strength: 0.6, colour: 0x2a1e16 },
         painted: Painted { enabled: false, radius: 0.5 },
-        pixelate: Pixelate { enabled: false, size: 3.0 },
+        pixelate: Pixelate { enabled: false, size: 2.5 },
         bloom: Bloom { enabled: false, strength: 0.5, radius: 0.4, threshold: 0.6 },
         tilt_shift: TiltShift { enabled: true, blur: 0.2, focus: 0.45, falloff: 0.5 },
         grade: Grade { saturation: 0.95, shadows: 0xf0f1ff, highlights: 0xfef2e1, vignette: 0.2 },
@@ -267,7 +267,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
         }),
         "pixel" => variation(|l| {
             l.label = "Pixel";
-            l.pixelate = Pixelate { enabled: true, size: 3.0 };
+            l.pixelate = Pixelate { enabled: true, size: 2.5 };
             l.tilt_shift.enabled = false;
         }),
         "dusk" => variation(|l| {

@@ -27,6 +27,7 @@ mod renderer;
 pub mod scalefx;
 pub mod shadows;
 pub mod steps;
+pub mod torch_light;
 pub mod torches;
 pub mod uniforms;
 

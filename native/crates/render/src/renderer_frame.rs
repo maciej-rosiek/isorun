@@ -156,6 +156,12 @@ impl IsoRenderer {
             let lit: Vec<Option<Torch>> = self.lit.iter().map(|t| t.filter(|t| scene.as_ref().and_then(|s| s.cell(t.cell.0, t.cell.1)).is_some_and(|c| c.visibility == Visibility::Visible))).collect();
             self.torches.place_dust(&self.gpu, &lit);
         }
+        if let Some(scene) = self.scene.clone() {
+            self.torch_light.bake(&scene, &self.tile_torches, self.tile_torches_version, self.lights.torch.distance, self.lights.torch.decay);
+        }
+        let real: Vec<(Torch, f32)> = self.lit.iter().flatten().map(|t| (*t, fade(t))).collect();
+        self.torch_light.weigh(&real);
+        self.torch_light.upload(&self.gpu);
         draw_now
     }
 
@@ -229,6 +235,7 @@ impl IsoRenderer {
             shading3: [detail.depth_steps as f32, detail.liquids as u8 as f32, detail.statuses as u8 as f32, (now - self.start) as f32],
             viewport: [self.width, self.height, MAX_LIGHTS as f32, self.lights.shadow_softness / crate::shadows::SHADOW_MAP_SIZE as f32],
             up: [up.x, up.y, up.z, gate(detail.dust, s.dust)],
+            torch_light: [colour[0] * spec.intensity, colour[1] * spec.intensity, colour[2] * spec.intensity, self.tile_torches.first().map_or(1.0, |t| t.position.y)],
             lights,
         }
     }

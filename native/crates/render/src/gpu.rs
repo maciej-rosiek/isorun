@@ -113,6 +113,7 @@ impl Gpu {
                 sampler_entry(7, wgpu::SamplerBindingType::Filtering),
                 texture_entry(8, float, d2),
                 sampler_entry(9, wgpu::SamplerBindingType::Filtering),
+                texture_entry(10, float, d2),
             ],
         });
         let page_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {

@@ -49,6 +49,7 @@ struct Frame {
     viewport: vec4<f32>,
     // view-space up, w = dust strength
     up: vec4<f32>,
+    torch_light: vec4<f32>,
     lights: array<Light, MAX_LIGHTS>,
 };
 
@@ -62,6 +63,7 @@ struct Frame {
 @group(0) @binding(7) var linear_sampler: sampler;
 @group(0) @binding(8) var noise_map: texture_2d<f32>;
 @group(0) @binding(9) var repeat_sampler: sampler;
+@group(0) @binding(10) var torch_light_map: texture_2d<f32>;
 
 fn time() -> f32 {
     return frame.shading3.w;
@@ -270,15 +272,20 @@ struct Surface {
     shininess: f32,
     rim: f32,
     receive_shadow: bool,
+    all_round: bool,
     // the fragment's pixel, which turns the shadows' sampling pattern
     screen: vec2<f32>,
 };
 
 // ClayLightingModel.direct: wrapped, banded diffuse, a Blinn-Phong highlight, a rim light.
-fn clay_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
+fn clay_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: bool) -> vec3<f32> {
     let wrap = frame.shading0.x;
     let bands = frame.shading0.y;
-    let wrapped = saturate1((dot(s.normal, dir) + wrap) / (wrap + 1.0));
+    var facing = dot(s.normal, dir);
+    if (all_round) {
+        facing = mix(ALL_ROUND_LEAST, 1.0, abs(facing));
+    }
+    let wrapped = saturate1((facing + wrap) / (wrap + 1.0));
     var shade = wrapped;
     if (bands > 0.5) {
         shade = ceil(wrapped * bands) / max(bands, 1.0);
@@ -312,14 +319,37 @@ const MODEL_CLAY: u32 = 0u;
 const MODEL_PHONG: u32 = 1u;
 const MODEL_LAMBERT: u32 = 2u;
 
-fn direct(model: u32, s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
+const ALL_ROUND_LEAST: f32 = 0.6;
+
+fn direct(model: u32, s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: bool) -> vec3<f32> {
     if (model == MODEL_PHONG) {
         return phong_direct(s, dir, colour);
     }
     if (model == MODEL_LAMBERT) {
         return lambert_direct(s, dir, colour);
     }
-    return clay_direct(s, dir, colour);
+    return clay_direct(s, dir, colour, all_round);
+}
+
+const TORCH_LIGHT_TEXELS: f32 = 4.0;
+
+fn on_lit_side(s: Surface, to_light_world: vec3<f32>) -> f32 {
+    if (s.all_round) {
+        return 1.0;
+    }
+    return smoothstep(-0.05, 0.1, dot(s.normal_world, normalize(to_light_world)));
+}
+
+fn baked_torch_light(model: u32, s: Surface) -> vec3<f32> {
+    let at = s.world.xz + s.normal_world.xz * (0.5 / TORCH_LIGHT_TEXELS);
+    let baked = textureSampleLevel(torch_light_map, linear_sampler, at / MEMORY_CELLS, 0.0);
+    if (baked.a <= 0.0001) {
+        return vec3<f32>(0.0);
+    }
+    let across = baked.rb / baked.a;
+    let to_torch = vec3<f32>(across.x, frame.torch_light.w - s.world.y, across.y);
+    let towards = (frame.view * vec4<f32>(normalize(to_torch), 0.0)).xyz;
+    return direct(model, s, towards, frame.torch_light.rgb * baked.a * on_lit_side(s, to_torch), s.all_round);
 }
 
 // Every light on the surface: the hemisphere light, the sun and the point lights.
@@ -331,7 +361,8 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
     if (s.receive_shadow) {
         sun = sun * sun_shadow(s.world, s.normal_world, s.screen);
     }
-    out = out + direct(model, s, frame.sun_dir.xyz, sun);
+    out = out + direct(model, s, frame.sun_dir.xyz, sun, false);
+    out = out + baked_torch_light(model, s);
     let count = u32(frame.viewport.z);
     for (var i = 0u; i < MAX_LIGHTS; i = i + 1u) {
         if (i >= count) {
@@ -346,11 +377,11 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
         if (light.position.w > 0.0 && d >= light.position.w) {
             continue;
         }
-        var colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w);
+        var colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w) * on_lit_side(s, light.world.xyz - s.world);
         if (s.receive_shadow) {
             colour = colour * point_shadow(light, s.world, s.normal_world, s.screen);
         }
-        out = out + direct(model, s, to_light / d, colour);
+        out = out + direct(model, s, to_light / d, colour, s.all_round);
     }
     return out;
 }

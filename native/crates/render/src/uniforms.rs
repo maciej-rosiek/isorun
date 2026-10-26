@@ -34,6 +34,7 @@ pub struct FrameUniform {
     pub shading3: [f32; 4],
     pub viewport: [f32; 4],
     pub up: [f32; 4],
+    pub torch_light: [f32; 4],
     pub lights: [LightUniform; MAX_LIGHTS],
 }
 

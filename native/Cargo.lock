@@ -1854,6 +1854,7 @@ dependencies = [
  "bytemuck",
  "glam 0.30.10",
  "gltf",
+ "half",
  "isorun-scene",
  "isorun-vault",
  "log",
