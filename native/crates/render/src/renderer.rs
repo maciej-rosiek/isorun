@@ -38,8 +38,6 @@ const HEAD_HEIGHT: f32 = 1.0;
 const SHORE_SEARCH: i32 = 4;
 const MAX_UPRIGHT_STRETCH: f32 = 2.5;
 pub const TORCH_LIGHTS: usize = 8;
-const TORCH_FADE_START: f32 = 6.0;
-const TORCH_FADE_END: f32 = 9.0;
 const SUN_ELEVATION: f32 = 55.0 * std::f32::consts::PI / 180.0;
 const SUN_FRONT: f32 = 0.35;
 const CAMERA_DISTANCE: f32 = 60.0;
@@ -130,7 +128,6 @@ struct Pipelines {
     samples: u32,
     world: HashMap<Material, wgpu::RenderPipeline>,
     shadow_sun: wgpu::RenderPipeline,
-    shadow_point: wgpu::RenderPipeline,
 }
 
 /// What happened in a frame that the client acts on: blows shown, hops started, doors moved.
@@ -198,10 +195,6 @@ pub struct IsoRenderer {
     nearest: Vec<Torch>,
     nearest_from: (f32, f32, u64),
     lit: [Option<Torch>; TORCH_LIGHTS],
-    stale: [bool; TORCH_LIGHTS],
-    undrawn: [bool; TORCH_LIGHTS],
-    light_positions: [Vec3; TORCH_LIGHTS],
-    light_intensity: [f32; TORCH_LIGHTS],
     sun_stale: bool,
     sun_at: Vec3,
     sun_target: Vec3,
@@ -332,7 +325,7 @@ impl IsoRenderer {
         let mipmapper = Mipmapper::new(&gpu.device);
         let post = Post::new(&gpu);
         let memory = MemoryMask::new(&gpu);
-        let shadows = Shadows::new(&gpu, QUALITY_MEDIUM.torch_shadows);
+        let shadows = Shadows::new(&gpu, 0);
         let frame_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("frame"), size: std::mem::size_of::<FrameUniform>() as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let noise = crate::fog::noise_texture(&gpu);
         let torch_light = TorchLightMap::new(&gpu);
@@ -405,10 +398,6 @@ impl IsoRenderer {
             nearest: Vec::new(),
             nearest_from: (f32::NAN, f32::NAN, u64::MAX),
             lit: [None; TORCH_LIGHTS],
-            stale: [true; TORCH_LIGHTS],
-            undrawn: [true; TORCH_LIGHTS],
-            light_positions: [Vec3::ZERO; TORCH_LIGHTS],
-            light_intensity: [0.0; TORCH_LIGHTS],
             sun_stale: true,
             sun_at: Vec3::ZERO,
             sun_target: Vec3::ZERO,
@@ -518,13 +507,7 @@ impl IsoRenderer {
     }
 
     pub fn set_quality(&mut self, quality: IsoQuality) {
-        let shadows = quality.torch_shadows != self.quality.torch_shadows;
         self.quality = quality;
-        if shadows {
-            self.shadows = Shadows::new(&self.gpu, quality.torch_shadows);
-            self.frame_group = Self::frame_group(&self.gpu, &self.frame_buffer, &self.shadows, &self.memory, &self.noise, &self.torch_light);
-            self.undrawn = [true; TORCH_LIGHTS];
-        }
         self.post.set_ao_resolution(quality.ao_resolution);
         self.post.ao_samples = quality.ao_samples;
         self.resolution.reset();
@@ -735,7 +718,6 @@ impl IsoRenderer {
     }
 
     fn mark_shadows_stale(&mut self) {
-        self.stale = [true; TORCH_LIGHTS];
         self.sun_stale = true;
     }
 
@@ -744,12 +726,6 @@ impl IsoRenderer {
             return;
         }
         let near = |x: f32, z: f32, reach: f32| areas.iter().any(|a| x > a.x0 - reach && x < a.x1 + reach && z > a.y0 - reach && z < a.y1 + reach);
-        for i in 0..TORCH_LIGHTS {
-            let p = self.light_positions[i];
-            if near(p.x, p.z, self.lights.torch.distance) {
-                self.stale[i] = true;
-            }
-        }
         if near(self.sun_target.x, self.sun_target.z, SUN_REACH * std::f32::consts::SQRT_2) {
             self.sun_stale = true;
         }
@@ -966,5 +942,5 @@ pub fn seeded(seed: u32) -> impl FnMut() -> f32 {
 fn unused(_: Point3, _: &QuadBatch, _: f32, _: f32, _: &[Sprite], _: &[SpriteLayer], _: &[WallBlock], _: Side, _: Vec4, _: &[LightUniform; MAX_LIGHTS], _: [i32; 8], _: [i32; 8], _: ImpactKind) {
     let _ = (ATLAS_INSET, SPRITE_LEAN, ROUTE_STEPS, AIM_LIFT, DEPTH_FORMAT, DIR8_DX, DIR8_DY);
     let _ = (aim_colour, cut_away_cells, ground_basis, has_torch, plan_scene, side, tile_frame, wall_height_at, key_to_xy, is_tile_feature, linear, cube_face_view, smoothstep);
-    let _ = (SUN_DISTANCE, SUN_ELEVATION, SUN_FRONT, CAMERA_DISTANCE, PERSPECTIVE_DEPTH, CAP_SHADE, BEHIND_ACTORS, PILE_COPIES, PILE_SCALE, PILE_SHADE, DANGER_PULSE, DANGER_PULSE_SPEED, TORCH_FADE_START, TORCH_FADE_END, TORCH_HEIGHT, SUN_BIAS, TORCH_BIAS, NORMAL_BIAS, LIFT_STEP, EVERYWHERE);
+    let _ = (SUN_DISTANCE, SUN_ELEVATION, SUN_FRONT, CAMERA_DISTANCE, PERSPECTIVE_DEPTH, CAP_SHADE, BEHIND_ACTORS, PILE_COPIES, PILE_SCALE, PILE_SHADE, DANGER_PULSE, DANGER_PULSE_SPEED, TORCH_HEIGHT, SUN_BIAS, TORCH_BIAS, NORMAL_BIAS, LIFT_STEP, EVERYWHERE);
 }

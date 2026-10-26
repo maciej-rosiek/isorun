@@ -279,12 +279,12 @@ struct Surface {
 
 // ClayLightingModel.direct: wrapped, banded diffuse, a Blinn-Phong highlight, a rim light.
 fn clay_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: bool) -> vec3<f32> {
+    if (all_round) {
+        return colour * ALL_ROUND_SHADE * s.diffuse / PI;
+    }
     let wrap = frame.shading0.x;
     let bands = frame.shading0.y;
-    var facing = dot(s.normal, dir);
-    if (all_round) {
-        facing = mix(ALL_ROUND_LEAST, 1.0, abs(facing));
-    }
+    let facing = dot(s.normal, dir);
     let wrapped = saturate1((facing + wrap) / (wrap + 1.0));
     var shade = wrapped;
     if (bands > 0.5) {
@@ -319,7 +319,7 @@ const MODEL_CLAY: u32 = 0u;
 const MODEL_PHONG: u32 = 1u;
 const MODEL_LAMBERT: u32 = 2u;
 
-const ALL_ROUND_LEAST: f32 = 0.6;
+const ALL_ROUND_SHADE: f32 = 0.35;
 
 fn direct(model: u32, s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: bool) -> vec3<f32> {
     if (model == MODEL_PHONG) {

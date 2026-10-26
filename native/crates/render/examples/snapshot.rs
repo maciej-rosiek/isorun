@@ -95,10 +95,7 @@ fn main() {
     };
     r.set_surface_detail(detail);
     if let Ok(q) = std::env::var("QUALITY") {
-        let mut quality = isorun_render::quality(&q).unwrap_or(isorun_render::lights::QUALITY_MEDIUM);
-        if let Ok(t) = std::env::var("TORCH_SHADOWS") {
-            quality.torch_shadows = t.parse().unwrap();
-        }
+        let quality = isorun_render::quality(&q).unwrap_or(isorun_render::lights::QUALITY_MEDIUM);
         r.set_quality(quality);
     }
     if let Ok(name) = std::env::var("LIGHTS") {

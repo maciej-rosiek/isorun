@@ -191,11 +191,6 @@ pub fn resolutions() -> Vec<Value> {
     vec![json!("auto"), json!(100), json!(85), json!(75), json!(66), json!(50)]
 }
 
-/// The Torch shadows setting.
-pub fn torch_shadow_values() -> Vec<Value> {
-    vec![json!("auto"), json!(0), json!(2), json!(4), json!(8)]
-}
-
 /// The Ambient occlusion setting: off, or the soft shadows in corners at a size and a number of
 /// samples.
 fn ambient_occlusion(name: &str) -> Option<(f32, u32)> {
@@ -228,9 +223,6 @@ pub fn quality_for(s: &Settings, device_pixel_ratio: f32) -> IsoQuality {
         "on" => q.antialias = true,
         "off" => q.antialias = false,
         _ => {}
-    }
-    if let Some(n) = s.get("torchShadows").and_then(Value::as_f64) {
-        q.torch_shadows = n as u32;
     }
     q
 }
@@ -341,12 +333,11 @@ pub fn rows() -> Vec<SettingRow> {
     let mut looks: Vec<Value> = isorun_render::LIGHTS_NAMES.iter().filter(|n| isorun_render::lights(n).is_some()).map(|n| json!(n)).collect();
     looks.push(json!("custom"));
     vec![
-        row("Graphics", "Quality", "graphics", strs(&["low", "medium", "high"]), "How much work each frame does: the pixels drawn, the soft shadows in the corners, the edges and the torch shadows. Lower is faster on a weak GPU. The rows under it can change one of them.", |v| isorun_render::quality(v.as_str().unwrap_or("")).map(|q| q.label.to_string()).unwrap_or_else(|| plain(v))),
+        row("Graphics", "Quality", "graphics", strs(&["low", "medium", "high"]), "How much work each frame does: the pixels drawn, the soft shadows in the corners, and the edges. Lower is faster on a weak GPU. The rows under it can change one of them.", |v| isorun_render::quality(v.as_str().unwrap_or("")).map(|q| q.label.to_string()).unwrap_or_else(|| plain(v))),
         row("Graphics", "Surface detail", "surfaceDetail", surface_details(), "What the tiles show of their surface. Low: rim light, dirt and wear, and how each cell differs. Medium: the depth of the bricks and stones, gloss, wetness and glowing tiles too. High: sparkle, dust in the torch light and deep liquids too. A phone stops at Medium.", |v| cap(&plain(v))),
         row("Graphics", "Resolution", "resolution", resolutions(), "How many of the screen's pixels the dungeon is drawn with; the rest are filled in when the picture is scaled up. Fewer is much faster on a big screen. Auto takes the Quality's, and draws fewer for a while when the GPU cannot keep up with the screen.", |v| auto_or(v, percent)),
         row("Graphics", "Ambient occlusion", "ambientOcclusion", strs(&["auto", "off", "low", "medium", "high"]), "The soft shadows in the corners and at the foot of the walls. Low draws them with fewer samples, High at the full size of the screen. Auto takes the Quality's.", |v| auto_or(v, |v| cap(&plain(v)))),
         row("Graphics", "Antialiasing", "antialias", strs(&["auto", "off", "on"]), "Smooths the edges of the walls by drawing the scene four times over; it costs about as much as the rest of the scene. Auto takes the Quality's.", |v| auto_or(v, |v| if v.as_str() == Some("on") { "On".into() } else { "Off".into() })),
-        row("Graphics", "Torch shadows", "torchShadows", torch_shadow_values(), "How many of the wall torches nearest to the middle of the view cast shadows. Auto takes the Quality's.", |v| auto_or(v, plain)),
         row("Graphics", "Animation speed", "animationSpeed", nums(&[1.0, 1.25, 1.5, 2.0, 3.0]), "How fast the player and the monsters walk and fight on the screen. The game itself does not wait for them.", |v| format!("{}x", plain(v))),
         row("Graphics", "Travel", "travel", strs(&["paced", "fast"]), "Paced: travel and explore wait for every hop, so the walk shows cell by cell. Fast: they go as fast as the server does, and a long way is a jump.", |v| if v.as_str() == Some("paced") { "Paced".into() } else { "Fast".into() }),
         row("Graphics", "Look", "look", looks, "The lights, the colours and the screen effects of the dungeon. Custom is what Tune the look set last.", |v| match v.as_str() {
@@ -519,16 +510,13 @@ mod tests {
         let mut s = defaults();
         s.insert("resolution".into(), json!(50));
         s.insert("antialias".into(), json!("on"));
-        s.insert("torchShadows".into(), json!(2));
         s.insert("ambientOcclusion".into(), json!("off"));
         let q = quality_for(&s, 2.0);
         assert_eq!(q.pixel_ratio, 1.0);
         assert!(!q.adaptive && q.antialias);
-        assert_eq!(q.torch_shadows, 2);
         assert_eq!(q.ao_resolution, 0.0);
         let c = client_settings(&s);
         assert_eq!(c.resolution, "50");
-        assert_eq!(c.torch_shadows, "2");
     }
 
     #[test]

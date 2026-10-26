@@ -1,9 +1,7 @@
-//! The light of every wall torch on the level, baked into a map over the cells: the renderer has
-//! only `TORCH_LIGHTS` real point lights, at the torches nearest the middle of the view, so the
-//! torches further away light their part of the level from this map. A texel holds the torches'
+//! The light of every wall torch on the level, baked into a map over the cells, so every torch
+//! lights its part of the level the same, wherever the camera is. A texel holds the torches'
 //! attenuated light (alpha) and the way across to them, weighted by it (red and blue), where no
-//! wall stands between the torch and the texel's cell; the shaders take the height from the torch's. A torch with a real light takes its share of the map
-//! as its light fades in, so the two never add up.
+//! wall stands between the torch and the texel's cell; the shaders take the height from the torch's.
 
 use crate::gpu::Gpu;
 use crate::memory::MEMORY_CELLS;
@@ -19,7 +17,6 @@ pub const TEXELS_PER_CELL: usize = 4;
 const SIZE: usize = MEMORY_CELLS * TEXELS_PER_CELL;
 const LIT_HEIGHT: f32 = 0.35;
 const SIGHT_POINTS: [(f32, f32); 5] = [(0.0, 0.0), (-0.3, -0.3), (0.3, -0.3), (-0.3, 0.3), (0.3, 0.3)];
-const WEIGHT_STEPS: f32 = 32.0;
 
 type TorchKey = (i32, i32, u32, u32);
 
@@ -45,7 +42,6 @@ struct Baked {
     walls: u64,
     window: Window,
     texels: Vec<[f32; 4]>,
-    weight: f32,
 }
 
 pub struct TorchLightMap {
@@ -128,7 +124,7 @@ fn bake(scene: &Scene, torch: &Torch, reach: f32, decay: f32, walls: u64, window
             texels[(ty - window.y0) * width + tx - window.x0] = [to_torch.x * light, 0.0, to_torch.z * light, light];
         }
     }
-    Baked { walls, window, texels, weight: 0.0 }
+    Baked { walls, window, texels }
 }
 
 impl TorchLightMap {
@@ -138,9 +134,6 @@ impl TorchLightMap {
     }
 
     fn add(&mut self, baked: &Baked, amount: f32) {
-        if amount == 0.0 {
-            return;
-        }
         let w = baked.window;
         let width = w.x1 - w.x0;
         for ty in w.y0..w.y1 {
@@ -186,38 +179,18 @@ impl TorchLightMap {
                     kept.insert(key, old);
                     continue;
                 }
-                self.add(&old, -old.weight);
+                self.add(&old, -1.0);
             }
             let window = Window { x0: cx0 * TEXELS_PER_CELL, y0: cy0 * TEXELS_PER_CELL, x1: cx1 * TEXELS_PER_CELL, y1: cy1 * TEXELS_PER_CELL };
-            kept.insert(key, bake(scene, torch, reach, decay, walls, window));
+            let baked = bake(scene, torch, reach, decay, walls, window);
+            self.add(&baked, 1.0);
+            kept.insert(key, baked);
         }
         let gone: Vec<Baked> = std::mem::take(&mut self.torches).into_values().collect();
         for old in gone {
-            self.add(&old, -old.weight);
+            self.add(&old, -1.0);
         }
         self.torches = kept;
-        let fresh: Vec<TorchKey> = self.torches.iter().filter(|(_, b)| b.weight == 0.0).map(|(k, _)| *k).collect();
-        for key in fresh {
-            if let Some(mut baked) = self.torches.remove(&key) {
-                baked.weight = 1.0;
-                self.add(&baked, 1.0);
-                self.torches.insert(key, baked);
-            }
-        }
-    }
-
-    pub fn weigh(&mut self, lit: &[(Torch, f32)]) {
-        let shares: HashMap<TorchKey, f32> = lit.iter().map(|(t, fade)| (key_of(t), ((1.0 - fade) * WEIGHT_STEPS).round() / WEIGHT_STEPS)).collect();
-        let keys: Vec<TorchKey> = self.torches.keys().copied().collect();
-        for key in keys {
-            let share = shares.get(&key).copied().unwrap_or(1.0);
-            let Some(mut baked) = self.torches.remove(&key) else { continue };
-            if baked.weight != share {
-                self.add(&baked, share - baked.weight);
-                baked.weight = share;
-            }
-            self.torches.insert(key, baked);
-        }
     }
 
     fn clear(&mut self) {

@@ -202,14 +202,14 @@ pub struct IsoLights {
 pub fn diorama() -> IsoLights {
     IsoLights {
         label: "Diorama",
-        exposure: 2.1,
+        exposure: 1.0,
         background: 0x212121,
         ambient_sky: 0xe4ecff,
         ambient_ground: 0x8c7c6c,
-        ambient_intensity: 2.25,
+        ambient_intensity: 1.0,
         sun_colour: 0xfff1dc,
         sun_intensity: 4.85,
-        torch: PointLightSpec { colour: 0xffb26a, intensity: 6.0, distance: 9.5, decay: 1.0 },
+        torch: PointLightSpec { colour: 0xffb26a, intensity: 6.0, distance: 6.5, decay: 0.5 },
         shadow_softness: 2.5,
         shading: ShadingSettings { wrap: 0.25, bands: 5.0, relief: 0.3, depth: 0.06, sprites: 0.2, gloss: 0.25, rim: 0.4, cavity: 0.55, variation: 0.01, wetness: 0.25, glow: 0.9, sparkle: 0.65, dust: 0.5 },
         paint: PaintSettings { radius: 0.0, levels: 0.0, lift: 1.4, upscale: Upscale::Scale2x },
@@ -363,15 +363,11 @@ pub struct IsoQuality {
     /// 4x multisampling on the scene pass.
     pub antialias: bool,
     pub shadows: bool,
-    /// How many of the wall torches nearest the centre of the view cast shadows, 0 to 8.
-    pub torch_shadows: u32,
-    /// Whether the monsters cast torch shadows too.
-    pub actor_torch_shadows: bool,
 }
 
-pub const QUALITY_LOW: IsoQuality = IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false, shadows: true, torch_shadows: 0, actor_torch_shadows: false };
-pub const QUALITY_MEDIUM: IsoQuality = IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false, shadows: true, torch_shadows: 4, actor_torch_shadows: false };
-pub const QUALITY_HIGH: IsoQuality = IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true, shadows: true, torch_shadows: 8, actor_torch_shadows: true };
+pub const QUALITY_LOW: IsoQuality = IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false, shadows: true };
+pub const QUALITY_MEDIUM: IsoQuality = IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false, shadows: true };
+pub const QUALITY_HIGH: IsoQuality = IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true, shadows: true };
 
 pub fn quality(name: &str) -> Option<IsoQuality> {
     match name {

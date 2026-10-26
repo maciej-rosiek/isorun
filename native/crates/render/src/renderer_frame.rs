@@ -24,7 +24,7 @@ impl IsoRenderer {
         for m in [Material::Ground, Material::Sprite, Material::Actor, Material::Cap, Material::Clay] {
             world.insert(m, self.gpu.world_pipeline(m, samples));
         }
-        self.pipelines = Some(Pipelines { samples, world, shadow_sun: self.gpu.shadow_pipeline(false, false), shadow_point: self.gpu.shadow_pipeline(true, false) });
+        self.pipelines = Some(Pipelines { samples, world, shadow_sun: self.gpu.shadow_pipeline(false, false) });
         self.fog.prepare(&self.gpu, samples);
         self.liquids.prepare(&self.gpu, samples);
         self.combat.prepare(&self.gpu, samples);
@@ -94,9 +94,9 @@ impl IsoRenderer {
         self.perspective = perspective;
     }
 
-    /// The sun follows the camera a whole cell at a time; the torch lights hang at the torches
-    /// nearest the camera, the nearest with shadows; one torch shadow is drawn again a frame.
-    fn place_lights(&mut self, now: f64) -> Option<usize> {
+    /// The sun follows the camera a whole cell at a time; the torches nearest the camera hold the
+    /// dust, and every torch lights the level from the baked torch light map.
+    fn place_lights(&mut self) {
         let (right, forward) = ground_basis(self.cam.yaw as f32);
         let target = Vec3::new(self.cam.eye_x.round() as f32 + 0.5, 0.0, self.cam.eye_y.round() as f32 + 0.5);
         let across = Vec3::new(-right[0] - forward[0] * SUN_FRONT, 0.0, -right[1] - forward[1] * SUN_FRONT).normalize() * SUN_ELEVATION.cos();
@@ -106,49 +106,13 @@ impl IsoRenderer {
         }
         self.sun_at = sun_at;
         self.sun_target = target;
-        let from = (self.cam.eye_x as f32 + 0.5, self.cam.eye_y as f32 + 0.5);
-        let fade = |t: &Torch| 1.0 - smoothstep(TORCH_FADE_START, TORCH_FADE_END, ((t.position.x - from.0).powi(2) + (t.position.z - from.1).powi(2)).sqrt());
         let nearest = self.nearest_torches();
-        let shadows = if self.quality.shadows { (self.quality.torch_shadows as usize).min(TORCH_LIGHTS) } else { 0 };
-        let wanted = assign_torches(&self.lit[..shadows], &nearest[..nearest.len().min(shadows)]);
-        let mut due: Option<(usize, bool)> = None;
-        for (i, t) in wanted.iter().enumerate() {
-            let Some(t) = t else { continue };
-            let moves = !same_torch(&Some(*t), &self.lit[i]);
-            if fade(t) > 0.0 && (moves || self.stale[i]) {
-                let better = match due {
-                    None => true,
-                    Some((_, m)) => moves && !m,
-                };
-                if better {
-                    due = Some((i, moves));
-                }
-            }
-        }
-        let shadowed: Vec<Option<Torch>> = wanted.iter().enumerate().map(|(i, t)| if Some(i) == due.map(|d| d.0) || same_torch(t, &self.lit[i]) { *t } else { self.lit[i] }).collect();
-        let free: Vec<Torch> = nearest.iter().filter(|t| !shadowed.iter().any(|h| same_torch(h, &Some(**t)))).copied().collect();
-        let unshadowed = assign_torches(&self.lit[shadows..], &free);
-        let placed: Vec<Option<Torch>> = shadowed.into_iter().chain(unshadowed).collect();
+        let placed = assign_torches(&self.lit, &nearest);
         let mut moved = self.revision_counter != self.dust_revision;
-        let mut draw_now = None;
         for i in 0..TORCH_LIGHTS {
             let torch = placed.get(i).copied().flatten();
             moved |= !same_torch(&torch, &self.lit[i]) || torch.is_some() != self.lit[i].is_some();
             self.lit[i] = torch;
-            let Some(torch) = torch else {
-                self.light_intensity[i] = 0.0;
-                continue;
-            };
-            if self.light_positions[i] != torch.position {
-                self.stale[i] = true;
-            }
-            self.light_positions[i] = torch.position;
-            let t = now as f32;
-            self.light_intensity[i] = fade(&torch) * self.lights.torch.intensity * (0.85 + 0.1 * (t * 13.0 + torch.phase).sin() + 0.05 * (t * 29.0 + torch.phase * 2.0).sin());
-            if i < shadows && Some(i) == due.map(|d| d.0) && self.stale[i] {
-                self.stale[i] = false;
-                draw_now = Some(i);
-            }
         }
         if moved {
             self.dust_revision = self.revision_counter;
@@ -159,10 +123,7 @@ impl IsoRenderer {
         if let Some(scene) = self.scene.clone() {
             self.torch_light.bake(&scene, &self.tile_torches, self.tile_torches_version, self.lights.torch.distance, self.lights.torch.decay);
         }
-        let real: Vec<(Torch, f32)> = self.lit.iter().flatten().map(|t| (*t, fade(t))).collect();
-        self.torch_light.weigh(&real);
         self.torch_light.upload(&self.gpu);
-        draw_now
     }
 
     fn nearest_torches(&mut self) -> Vec<Torch> {
@@ -191,24 +152,9 @@ impl IsoRenderer {
         let detail = self.detail.detail();
         let s = &self.lights.shading;
         let gate = |on: bool, v: f32| if on { v } else { 0.0 };
-        let shadows = if self.quality.shadows { self.quality.torch_shadows as usize } else { 0 };
         let mut lights = [LightUniform::default(); MAX_LIGHTS];
         let spec = self.lights.torch;
         let colour = linear(spec.colour);
-        for i in 0..TORCH_LIGHTS {
-            if self.lit[i].is_none() || self.light_intensity[i] <= 0.0 {
-                continue;
-            }
-            let p = self.light_positions[i];
-            let vp = (view * p.extend(1.0)).truncate();
-            let k = self.light_intensity[i];
-            lights[i] = LightUniform {
-                position: [vp.x, vp.y, vp.z, spec.distance],
-                colour: [colour[0] * k, colour[1] * k, colour[2] * k, spec.decay],
-                shadow: [if i < shadows && !self.undrawn[i] { (i * 6) as f32 } else { -1.0 }, TORCH_BIAS, NORMAL_BIAS, spec.distance],
-                world: [p.x, p.y, p.z, 0.0],
-            };
-        }
         if let Some((p, intensity)) = self.combat.light() {
             let vp = (view * p.extend(1.0)).truncate();
             let c = linear(0xffd8a8);
@@ -276,13 +222,9 @@ impl IsoRenderer {
             self.events.hops.push(hop);
         }
         let actor_shadows_moved = self.actors.take_shadow_change();
-        if actor_shadows_moved && self.quality.actor_torch_shadows {
-            self.mark_shadows_stale();
-        } else {
-            self.mark_shadows_stale_around(&changed);
-            if actor_shadows_moved {
-                self.sun_stale = true;
-            }
+        self.mark_shadows_stale_around(&changed);
+        if actor_shadows_moved {
+            self.sun_stale = true;
         }
         self.fog.update(dt as f32);
         self.place_camera();
@@ -291,7 +233,7 @@ impl IsoRenderer {
         self.combat.update(&self.gpu, dt as f32, cam_right, cam_up, &|x, y| ground_floor(&scene, x, y));
         self.steps.update(&self.gpu, dt as f32, cam_right, cam_up);
         let danger = self.danger * (1.0 - DANGER_PULSE + DANGER_PULSE * (now as f32 * DANGER_PULSE_SPEED).sin());
-        let torch_due = self.place_lights(now);
+        self.place_lights();
         let aim_colour_of = |r: &IsoRenderer, intent| {
             let c = if intent == crate::plan::AimIntent::Move { r.lights.aim.colour } else { aim_colour(intent) };
             let l = linear(c);
@@ -366,21 +308,6 @@ impl IsoRenderer {
         } else {
             None
         };
-        let mut torch_views: Vec<(usize, Vec<u32>)> = Vec::new();
-        let shadow_count = if self.quality.shadows { (self.quality.torch_shadows as usize).min(TORCH_LIGHTS) } else { 0 };
-        let mut to_draw: Vec<usize> = (0..shadow_count).filter(|&i| self.undrawn[i]).collect();
-        if let Some(i) = torch_due {
-            if !to_draw.contains(&i) {
-                to_draw.push(i);
-            }
-        }
-        for i in to_draw {
-            self.undrawn[i] = false;
-            let p = self.light_positions[i];
-            let far = self.lights.torch.distance;
-            let views = (0..6).map(|f| self.shadows.view(cube_face_view(f, p, far), p.extend(far), true)).collect();
-            torch_views.push((i, views));
-        }
         self.shadows.upload(&self.gpu.queue);
         let pipelines = self.pipelines.as_ref().unwrap();
         if let Some(offset) = sun_view {
@@ -402,30 +329,6 @@ impl IsoRenderer {
                 pass.set_bind_group(1, group, &[]);
                 pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
                 item.mesh.draw(&mut pass);
-            }
-        }
-        for (light, views) in &torch_views {
-            for (face, offset) in views.iter().enumerate() {
-                let layer = self.shadows.layer_view((light * 6 + face) as u32);
-                let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                    label: Some("torch shadow"),
-                    color_attachments: &[],
-                    depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &layer, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
-                    timestamp_writes: None,
-                    occlusion_query_set: None,
-                    multiview_mask: None,
-                });
-                pass.set_pipeline(&pipelines.shadow_point);
-                pass.set_bind_group(0, &self.shadows.view_group, &[*offset]);
-                for (k, item) in items.iter().enumerate() {
-                    let Some(group) = &groups[k] else { continue };
-                    if item.cast == Cast::None || (item.cast == Cast::Actor && !self.quality.actor_torch_shadows) {
-                        continue;
-                    }
-                    pass.set_bind_group(1, group, &[]);
-                    pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
-                    item.mesh.draw(&mut pass);
-                }
             }
         }
 
