@@ -552,6 +552,15 @@ impl Screen {
         let _ = (cur.row, cur.col);
     }
 
+    fn focus_follows_pointer(&mut self, ctx: &egui::Context, pad: Option<PadKind>, pointed: Option<String>) {
+        let touch = isorun_ui::pointer::touch_mode(ctx) && pad.is_none();
+        if touch || self.menu.is_some() || ctx.input(|i| i.pointer.delta() == Vec2::ZERO) {
+            return;
+        }
+        self.focus = pointed;
+        self.scrolled_to = self.focus.clone();
+    }
+
     fn activate(&mut self, id: &str, data: &ScreenData) -> Option<ScreenEvent> {
         if let Some(rest) = id.strip_prefix("cmd:") {
             return commands().into_iter().find(|c| c.key == rest).map(|c| ScreenEvent::Command(c.action));
@@ -756,6 +765,7 @@ impl Screen {
         let touch_cards = isorun_ui::pointer::touch_mode(&ctx) && data.pad.is_none();
         let card = |hovered: bool, focused: bool, rect: Rect| if touch_cards { isorun_ui::pointer::card_shows(&ctx, hovered, rect) } else { hovered || focused };
         let pad = data.pad;
+        let mut pointed = None;
 
         // the doll: the figure in the middle, the places around it
         let dl = paper.min + egui::vec2(15.0 * u, 15.0 * u);
@@ -774,6 +784,9 @@ impl Screen {
             let resp = ui.interact(srect, ui.scope_id().with(("doll", p.id())), Sense::click());
             let focused = self.focus.as_deref() == Some(&format!("place:{}", p.id())) || doll.get(&p).is_some_and(|i| self.focus.as_deref() == Some(&format!("item:{}", i.letter)));
             let hot = resp.hovered() || focused;
+            if resp.hovered() {
+                pointed = Some(doll.get(&p).map_or_else(|| format!("place:{}", p.id()), |i| format!("item:{}", i.letter)));
+            }
             match doll.get(&p) {
                 Some(item) => {
                     self.item_socket(&painter, boxes, tiles, srect, item, true, hot, u);
@@ -827,6 +840,9 @@ impl Screen {
             let resp = ui.interact(srect, ui.scope_id().with(("bag", i)), Sense::click());
             let focused = self.focus.as_deref() == Some(&format!("item:{}", item.letter));
             let hot = resp.hovered() || focused;
+            if resp.hovered() {
+                pointed = Some(format!("item:{}", item.letter));
+            }
             self.item_socket(&painter, boxes, tiles, srect, item, false, hot, u);
             // stacked, the backpack's rows come after the doll's six
             let (row, col) = if stacked { (6 + r, c) } else { (r, 4 + c) };
@@ -903,9 +919,7 @@ impl Screen {
                 self.menu = None;
             }
         }
-        if self.focus.is_none() {
-            self.focus = stops.iter().find(|s| s.id.starts_with("item:")).or(stops.first()).map(|s| s.id.clone());
-        }
+        self.focus_follows_pointer(&ctx, pad, pointed);
         self.stops = stops;
         events
     }
@@ -1277,6 +1291,7 @@ impl Screen {
         y += mh + 14.0 * u;
         // the commands
         let mut stops = vec![];
+        let mut pointed = None;
         let mut ry = y;
         for (r, rh) in cmd_row_h.iter().enumerate() {
             for col in 0..cmd_cols {
@@ -1303,6 +1318,7 @@ impl Screen {
                     events.push(ScreenEvent::Command(c.action.clone()));
                 }
                 if resp.hovered() {
+                    pointed = Some(id.clone());
                     resp.on_hover_text(c.sub);
                 }
                 stops.push(Stop2 { id, rect: br, row: r, col });
@@ -1313,9 +1329,7 @@ impl Screen {
         if data.pad.is_none() {
             footer(ui.painter(), boxes, rect.center().x, rect.bottom() - 1.0 - 6.0 * u - footer_h, u);
         }
-        if self.focus.is_none() {
-            self.focus = stops.first().map(|s| s.id.clone());
-        }
+        self.focus_follows_pointer(&ctx, data.pad, pointed);
         // the cursor moved to a stop out of sight: scroll it in (scrollIntoView, nearest)
         if self.focus != self.scrolled_to {
             if let Some(st) = stops.iter().find(|s| Some(&s.id) == self.focus.as_ref()) {
@@ -1384,6 +1398,27 @@ mod tests {
         let host = Rect::from_min_size(Pos2::ZERO, egui::vec2(1000.0, 600.0));
         let a = Rect::from_min_size(egui::pos2(900.0, 550.0), egui::vec2(50.0, 50.0));
         assert_eq!(beside(host, a, egui::vec2(200.0, 100.0), 10.0), egui::pos2(690.0, 500.0));
+    }
+
+    #[test]
+    fn a_screen_opens_with_nothing_selected() {
+        // given
+        let items = pack(&[item(0, "a +0 ring mail", obj::ARMOUR, 7)]);
+        let player = PlayerState::default();
+        let worn = BTreeMap::new();
+        let data = ScreenData { player: &player, items: &items, worn: &worn, me: None, checking: false, pad: Some(PadKind::Xbox), weapon: String::new(), quiver: String::new() };
+        let mut s = Screen::new(ScreenId::Inventory);
+        let at = |x: f32| Rect::from_min_size(egui::pos2(x, 0.0), egui::vec2(50.0, 50.0));
+        s.stops = vec![Stop2 { id: "place:helmet".into(), rect: at(0.0), row: 0, col: 0 }, Stop2 { id: "item:a".into(), rect: at(100.0), row: 0, col: 1 }];
+
+        // when
+        let selected = s.op(ScreenOp::Select, &data);
+
+        // then
+        assert!(selected.is_empty());
+        assert_eq!(s.focused(), None);
+        s.op(ScreenOp::Right, &data);
+        assert_eq!(s.focused(), Some("place:helmet"));
     }
 
     #[test]
