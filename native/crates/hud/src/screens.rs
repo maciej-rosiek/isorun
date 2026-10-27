@@ -74,6 +74,11 @@ pub enum ScreenOp {
     Last,
 }
 
+fn item_of_stop<'a>(id: &str, data: &'a ScreenData) -> Option<&'a PackItem> {
+    let slot: i64 = id.strip_prefix("item:")?.parse().ok()?;
+    data.items.iter().find(|i| i.slot() == slot)
+}
+
 fn place_label(p: DollPlace) -> &'static str {
     match p {
         DollPlace::Helmet => "Head",
@@ -499,7 +504,7 @@ impl Screen {
                 }
             }
             ScreenOp::Quick | ScreenOp::Describe => {
-                let item = self.focus.as_deref().and_then(|f| f.strip_prefix("item:")).and_then(|l| data.items.iter().find(|i| i.letter == l));
+                let item = self.focus.as_deref().and_then(|f| item_of_stop(f, data));
                 if let Some(item) = item {
                     let id = if op == ScreenOp::Describe {
                         Some(ItemActionId::Describe)
@@ -520,7 +525,7 @@ impl Screen {
         self.menu.is_some()
     }
 
-    /// The stop the cursor is on (its id: `item:<letter>`, `place:<place>`, `cmd:<key>`).
+    /// The stop the cursor is on (its id: `item:<slot>`, `place:<place>`, `cmd:<key>`).
     pub fn focused(&self) -> Option<&str> {
         self.focus.as_deref()
     }
@@ -534,7 +539,7 @@ impl Screen {
             out.push((Glyph::B, "Back".to_string()));
             return out;
         }
-        let item = self.focus.as_deref().and_then(|f| f.strip_prefix("item:")).and_then(|l| data.items.iter().find(|i| i.letter == l));
+        let item = self.focus.as_deref().and_then(|f| item_of_stop(f, data));
         if self.focus.is_some() {
             out.push((Glyph::A, if item.is_some() { "Actions" } else { "Select" }.to_string()));
         }
@@ -596,8 +601,7 @@ impl Screen {
             let p = DOLL_PLACES.iter().find(|p| p.id() == place)?;
             return Some(ScreenEvent::Fill(*p, place_label(*p)));
         }
-        let letter = id.strip_prefix("item:")?;
-        let item = data.items.iter().find(|i| i.letter == letter)?;
+        let item = item_of_stop(id, data)?;
         let rect = self.stops.iter().find(|s| s.id == id)?.rect;
         self.open_menu(item, rect, data);
         None
@@ -856,20 +860,20 @@ impl Screen {
             let srect = Rect::from_min_size(egui::pos2(cell_x + (col_w - place) / 2.0, dl.y + r as f32 * (place + 8.0 * u)), Vec2::splat(place));
             let resp = ui.interact(srect, ui.scope_id().with(("doll", p.id())), Sense::click());
             let focused = self.focus.as_deref() == Some(&format!("place:{}", p.id()))
-                || doll.get(&p).is_some_and(|i| self.focus.as_deref() == Some(&format!("item:{}", i.letter)));
+                || doll.get(&p).is_some_and(|i| self.focus.as_deref() == Some(&format!("item:{}", i.slot())));
             let hot = resp.hovered() || focused;
             if resp.hovered() {
-                pointed = Some(doll.get(&p).map_or_else(|| format!("place:{}", p.id()), |i| format!("item:{}", i.letter)));
+                pointed = Some(doll.get(&p).map_or_else(|| format!("place:{}", p.id()), |i| format!("item:{}", i.slot())));
             }
             match doll.get(&p) {
                 Some(item) => {
                     self.item_socket(&painter, boxes, tiles, srect, item, true, hot, u);
-                    stops.push(Stop2 { id: format!("item:{}", item.letter), rect: srect, row: r, col: c });
+                    stops.push(Stop2 { id: format!("item:{}", item.slot()), rect: srect, row: r, col: c });
                     if card(resp.hovered(), focused, srect) && self.menu.is_none() {
                         hover_tip = Some((self.item_cards(item, data, &doll, &on_doll), srect));
                     }
                     if isorun_ui::pointer::tap(&ctx, resp.clicked()) || (resp.secondary_clicked() && !resp.long_touched()) {
-                        self.focus = Some(format!("item:{}", item.letter));
+                        self.focus = Some(format!("item:{}", item.slot()));
                         self.open_menu(item, srect, data);
                     }
                     if resp.double_clicked() {
@@ -917,20 +921,20 @@ impl Screen {
                 continue;
             };
             let resp = ui.interact(srect, ui.scope_id().with(("bag", i)), Sense::click());
-            let focused = self.focus.as_deref() == Some(&format!("item:{}", item.letter));
+            let focused = self.focus.as_deref() == Some(&format!("item:{}", item.slot()));
             let hot = resp.hovered() || focused;
             if resp.hovered() {
-                pointed = Some(format!("item:{}", item.letter));
+                pointed = Some(format!("item:{}", item.slot()));
             }
             self.item_socket(&painter, boxes, tiles, srect, item, false, hot, u);
             // stacked, the backpack's rows come after the doll's six
             let (row, col) = if stacked { (6 + r, c) } else { (r, 4 + c) };
-            stops.push(Stop2 { id: format!("item:{}", item.letter), rect: srect, row, col });
+            stops.push(Stop2 { id: format!("item:{}", item.slot()), rect: srect, row, col });
             if card(resp.hovered(), focused, srect) && self.menu.is_none() {
                 hover_tip = Some((self.item_cards(item, data, &doll, &on_doll), srect));
             }
             if isorun_ui::pointer::tap(&ctx, resp.clicked()) || (resp.secondary_clicked() && !resp.long_touched()) {
-                self.focus = Some(format!("item:{}", item.letter));
+                self.focus = Some(format!("item:{}", item.slot()));
                 self.open_menu(item, srect, data);
             }
             if resp.double_clicked() {
@@ -1026,7 +1030,7 @@ impl Screen {
 
     #[allow(clippy::too_many_arguments)]
     fn item_socket(&self, painter: &Painter, boxes: &mut BoxCache, tiles: &mut TileIcons, rect: Rect, item: &PackItem, doll: bool, hot: bool, u: f32) {
-        let picked = self.menu.as_ref().is_some_and(|m| m.item.letter == item.letter);
+        let picked = self.menu.as_ref().is_some_and(|m| m.item.slot() == item.slot());
         let c = colour(item.col());
         boxes.paint_box(painter, &format!("socket:{doll}:{}:{}", item.col(), hot || picked), rect, &socket_style(u, Some(c), doll, hot || picked));
         if picked {
@@ -1576,7 +1580,7 @@ mod tests {
         };
         let mut s = Screen::new(ScreenId::Inventory);
         let at = |x: f32| Rect::from_min_size(egui::pos2(x, 0.0), egui::vec2(50.0, 50.0));
-        s.stops = vec![Stop2 { id: "place:helmet".into(), rect: at(0.0), row: 0, col: 0 }, Stop2 { id: "item:a".into(), rect: at(100.0), row: 0, col: 1 }];
+        s.stops = vec![Stop2 { id: "place:helmet".into(), rect: at(0.0), row: 0, col: 0 }, Stop2 { id: "item:0".into(), rect: at(100.0), row: 0, col: 1 }];
 
         // when
         let selected = s.op(ScreenOp::Select, &data);
@@ -1607,16 +1611,16 @@ mod tests {
         let at = |x: f32, y: f32| Rect::from_min_size(egui::pos2(x, y), egui::vec2(50.0, 50.0));
         s.stops = vec![
             Stop2 { id: "place:helmet".into(), rect: at(0.0, 0.0), row: 0, col: 0 },
-            Stop2 { id: "item:a".into(), rect: at(100.0, 0.0), row: 0, col: 4 },
-            Stop2 { id: "item:b".into(), rect: at(160.0, 0.0), row: 0, col: 5 },
+            Stop2 { id: "item:0".into(), rect: at(100.0, 0.0), row: 0, col: 4 },
+            Stop2 { id: "item:1".into(), rect: at(160.0, 0.0), row: 0, col: 5 },
         ];
-        s.focus = Some("item:a".into());
+        s.focus = Some("item:0".into());
         s.op(ScreenOp::Right, &data);
-        assert_eq!(s.focused(), Some("item:b"));
+        assert_eq!(s.focused(), Some("item:1"));
         s.op(ScreenOp::First, &data);
         assert_eq!(s.focused(), Some("place:helmet"));
         s.op(ScreenOp::PageNext, &data);
-        assert_eq!(s.focused(), Some("item:b"));
+        assert_eq!(s.focused(), Some("item:1"));
         // X describes, Y takes the first action, both without a menu
         assert_eq!(s.op(ScreenOp::Describe, &data), vec![ScreenEvent::Act(items[1].clone(), ItemActionId::Describe)]);
         assert!(matches!(s.op(ScreenOp::Quick, &data).as_slice(), [ScreenEvent::Act(_, _)]));
