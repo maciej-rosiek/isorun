@@ -14,7 +14,7 @@ use std::collections::{HashMap, HashSet};
 /// The loot colours: WoW's and Diablo Immortal's epic purple, the legendary orange of Diablo III
 /// and IV, and Diablo IV's unique gold; each with how strong its light shines, the purple the
 /// most as the eye sees it the darkest.
-const RARITIES: [(ItemRarity, u32, f32); 3] = [(ItemRarity::Epic, 0xa335ee, 2.4), (ItemRarity::Legendary, 0xff8000, 1.4), (ItemRarity::Unique, 0xc7b377, 1.2)];
+const RARITIES: [(ItemRarity, u32, f32); 3] = [(ItemRarity::Epic, 0xa335ee, 1.6), (ItemRarity::Legendary, 0xff8000, 0.95), (ItemRarity::Unique, 0xc7b377, 0.8)];
 
 /// A death and the item that shows on its cell after it go together this long, on the actors' clock.
 const DEATH_REMEMBERED: f64 = 1.5;
@@ -31,13 +31,13 @@ const BOUNCE_HEIGHT: f32 = 0.08;
 const TURN_PIVOT: f32 = 0.5;
 
 const MARK_FADE_SECONDS: f64 = 0.4;
-const BEAM_WIDTH: f32 = 0.42;
-const BEAM_HEIGHT: f32 = 2.6;
-const HALO_SIZE: f32 = 1.1;
+const BEAM_WIDTH: f32 = 0.3;
+const BEAM_HEIGHT: f32 = 1.8;
+const HALO_SIZE: f32 = 0.85;
 const HALO_HEIGHT: f32 = 0.006;
 const LIGHT_HEIGHT: f32 = 0.35;
 pub const LIGHT_REACH: f32 = 2.2;
-const LIGHT_INTENSITY: f32 = 3.0;
+const LIGHT_INTENSITY: f32 = 1.5;
 
 fn rarity_index(rarity: ItemRarity) -> usize {
     RARITIES.iter().position(|r| r.0 == rarity).unwrap_or(0)

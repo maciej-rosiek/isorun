@@ -125,6 +125,6 @@ fn fs_beam(in: VertexOut) -> FragmentOut {
 fn fs_halo(in: VertexOut) -> FragmentOut {
     let r = length(in.uv - 0.5) * 2.0;
     let pulse = 0.85 + 0.15 * sin(time() * 2.2 + in.seed * 6.283);
-    let strength = pow(clamp(1.0 - r, 0.0, 1.0), 2.0) * 1.5 * pulse * in.fade;
+    let strength = pow(clamp(1.0 - r, 0.0, 1.0), 2.0) * 0.8 * pulse * in.fade;
     return glowing(particles.colour.rgb * strength);
 }
