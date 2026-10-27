@@ -151,16 +151,16 @@ upstream and a JSPI-only build.
   normalised in loudness, otherwise as published). Everything below is CC0 (public domain):
   - Kenney, [Impact Sounds](https://kenney.nl/assets/impact-sounds) (CC0): `sfx/step1-5`
     (footstep_concrete), `sfx/hit1-4`, `sfx/hit-heavy1-2`, `sfx/hurt1-2`, `sfx/death1-2`,
-    `sfx/cast-ice` (impactGlass_light), `sfx/gameover` (impactBell_heavy) and `sfx/stairs` (four
-    footstep_wood sounds mixed in a row).
+    `sfx/cast-ice` (impactGlass_light), `sfx/gameover` (impactBell_heavy), `sfx/drop1-2`
+    (impactMetal_light) and `sfx/stairs` (four footstep_wood sounds mixed in a row).
   - Kenney, [RPG Audio](https://kenney.nl/assets/rpg-audio) (CC0): `sfx/swing1-2` (knifeSlice),
     `sfx/door-open1-2`, `sfx/door-close1-2`, `sfx/pickup1-2` (cloth1, handleSmallLeather),
     `sfx/gold1-2` (handleCoins), `sfx/scroll1-2` (bookFlip).
   - Kenney, [Interface Sounds](https://kenney.nl/assets/interface-sounds) (CC0): `sfx/ui-click1-2`,
     `sfx/ui-open`, `sfx/ui-close`, `sfx/ui-back`, `sfx/more` (bong_001).
   - Made for Isorun with ffmpeg's signal generators (CC0): `sfx/miss1-3`, `sfx/heartbeat`,
-    `sfx/levelup`, `sfx/cast-generic`, `sfx/cast-fire`, `sfx/cast-dark`, `sfx/potion`, and the
-    loops `ambient/water` and `ambient/lava`.
+    `sfx/levelup`, `sfx/cast-generic`, `sfx/cast-fire`, `sfx/cast-dark`, `sfx/potion`,
+    `sfx/treasure`, and the loops `ambient/water` and `ambient/lava`.
   - [Dungeon Ambience](https://opengameart.org/content/dungeon-ambience) by yd (CC0):
     `ambient/dungeon` (the first two minutes).
   - [Dark Cavern Ambient](https://opengameart.org/content/dark-cavern-ambient) by Paul Wortmann

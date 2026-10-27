@@ -29,6 +29,7 @@ impl IsoRenderer {
         self.liquids.prepare(&self.gpu, samples);
         self.combat.prepare(&self.gpu, samples);
         self.steps.prepare(&self.gpu, samples);
+        self.loot.prepare(&self.gpu, samples);
         self.torches.prepare(&self.gpu, samples);
         self.overlay.prepare(&self.gpu, samples);
     }
@@ -160,6 +161,12 @@ impl IsoRenderer {
             let c = linear(0xffd8a8);
             lights[TORCH_LIGHTS] = LightUniform { position: [vp.x, vp.y, vp.z, 4.0], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], shadow: [-1.0, 0.0, 0.0, 1.0], world: [p.x, p.y, p.z, 0.0] };
         }
+        let features = &self.features;
+        let centre = (self.cam.eye_x as f32 + 0.5, self.cam.eye_y as f32 + 0.5);
+        for (slot, (p, c, intensity)) in self.loot.lights(centre, TORCH_LIGHTS, &|x, y| features.ground_at(x, y)).into_iter().enumerate() {
+            let vp = (view * p.extend(1.0)).truncate();
+            lights[slot] = LightUniform { position: [vp.x, vp.y, vp.z, LOOT_LIGHT_REACH], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], shadow: [-1.0, 0.0, 0.0, 1.0], world: [p.x, p.y, p.z, 0.0] };
+        }
         let sun_view = Mat4::look_at_rh(self.sun_at, self.sun_target, Vec3::Y);
         let sun_proj = Mat4::orthographic_rh(-SUN_REACH, SUN_REACH, -SUN_REACH, SUN_REACH, 1.0, SUN_DISTANCE * 2.0);
         let up = to_view(Vec3::Y);
@@ -200,6 +207,12 @@ impl IsoRenderer {
         }
         let dt = if self.last_frame > 0.0 { (now - self.last_frame).min(0.1) } else { 0.0 };
         self.last_frame = now;
+        {
+            let features = &self.features;
+            let pose = self.upright(self.cam.pitch as f32);
+            self.loot.advance(self.clock, self.cam.yaw as f32, pose, &|x, y| features.ground_at(x, y));
+            self.events.landings.extend(self.loot.take_landings());
+        }
         let static_key = self.statics_key(&scene);
         let mut changed: Vec<CellArea> = Vec::new();
         if static_key != self.static_key {
@@ -232,6 +245,10 @@ impl IsoRenderer {
         let (cam_right, cam_up) = (rotation.transform_vector3(Vec3::X), rotation.transform_vector3(Vec3::Y));
         self.combat.update(&self.gpu, dt as f32, cam_right, cam_up, &|x, y| ground_floor(&scene, x, y));
         self.steps.update(&self.gpu, dt as f32, cam_right, cam_up);
+        {
+            let features = &self.features;
+            self.loot.update(&self.gpu, cam_right, pose.stretch, &|x, y| features.ground_at(x, y));
+        }
         let danger = self.danger * (1.0 - DANGER_PULSE + DANGER_PULSE * (now as f32 * DANGER_PULSE_SPEED).sin());
         self.place_lights();
         let aim_colour_of = |r: &IsoRenderer, intent| {
@@ -282,6 +299,7 @@ impl IsoRenderer {
             self.torches.draws(&mut items, model);
         }
         self.actors.draws(&mut items);
+        self.loot.draws(&mut items);
         // the uniforms of every draw, in one buffer
         self.draws.clear();
         let offsets: Vec<u32> = items.iter().map(|i| self.draws.push(&i.uniform)).collect();
@@ -376,6 +394,8 @@ impl IsoRenderer {
             self.steps.draw_prints(&mut pass, &self.frame_group);
             self.combat.draw_splats(&mut pass, &self.frame_group);
             self.liquids.draw(&mut pass, &self.frame_group);
+            // over the liquids, which do not keep the depth of what they cover
+            self.loot.draw(&mut pass, &self.frame_group);
             self.fog.draw(&mut pass, &self.frame_group);
             self.steps.draw_puffs(&mut pass, &self.frame_group);
             self.torches.draw_dust(&mut pass, &self.frame_group);

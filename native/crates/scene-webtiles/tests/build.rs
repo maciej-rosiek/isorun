@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use common::{gd, messages, msg_type, replayed};
 use isorun_gamedata::Gamedata;
 use isorun_scene::{
-    cell_key, Attitude, Billboard, BillboardKind, CellKind, DoorState, FaceTiles, Feature, HandItem, HandLayer, Scene, SceneCell, Sky, Stance, UpDown,
+    cell_key, Attitude, Billboard, BillboardKind, CellKind, DoorState, FaceTiles, Feature, HandItem, HandLayer, ItemRarity, Scene, SceneCell, Sky, Stance, UpDown,
     Visibility,
 };
 use isorun_scene_webtiles::*;
@@ -810,6 +810,19 @@ fn names_every_item_tile_in_the_fixture_gamedata_from_its_base() {
         assert!(re.is_match(&w), "{n}: {w}");
     }
     assert_eq!(item_tile_name(gd.main.base_name(gd.main.id("WPN_DAGGER_MAGIC").unwrap())), "dagger");
+}
+
+#[test]
+fn tells_an_epic_a_legendary_and_a_unique_item_by_its_tile() {
+    // given
+    let gd = gd();
+    let rarity_of = |name: &str| item_rarity(gd.main.base_name(gd.main.id(name).unwrap()).unwrap());
+
+    // when
+    let found = ["WPN_LONG_SWORD", "MI_DART_MAGIC", "WPN_LONG_SWORD_MAGIC", "ARM_CLOAK_RANDART", "RING_RANDART_OFFSET", "UNRAND_SINGING_SWORD"].map(rarity_of);
+
+    // then
+    assert_eq!(found, [None, None, Some(ItemRarity::Epic), Some(ItemRarity::Legendary), Some(ItemRarity::Legendary), Some(ItemRarity::Unique)]);
 }
 
 // ---- gate faces

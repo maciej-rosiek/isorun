@@ -2,8 +2,8 @@
 //! the messages, the level and the player's health. It owns the timers of the heartbeat and of
 //! the music's pauses, and the engine is the one place that makes noise.
 
-use isorun_render::{ActorStep, IsoRenderer, PLAYER_ACTOR};
-use isorun_scene::{BillboardKind, Scene};
+use isorun_render::{ActorStep, IsoRenderer, Landing, PLAYER_ACTOR};
+use isorun_scene::{BillboardKind, ItemRarity, Scene};
 use isorun_webtiles::{formatted_string_to_text, GameMessage, GameState, Keys, Msgch};
 
 use crate::catalog::{Mood, SoundName};
@@ -11,12 +11,14 @@ use crate::cues::{ambient_levels, cues_for_combat, heartbeat_delay, hearing, moo
 use crate::engine::{AudioSettings, PlayOptions, SoundEngine};
 
 /// What a drawn frame showed (the fields of `IsoRenderer::take_events`' `FrameEvents`):
-/// the `act` tokens whose blows showed, the hops started, the doors that moved (x, y, open).
+/// the `act` tokens whose blows showed, the hops started, the doors that moved (x, y, open),
+/// the items a death dropped that touched the floor.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct AudioFrame<'a> {
     pub shown: &'a [u64],
     pub hops: &'a [ActorStep],
     pub doors: &'a [(i32, i32, bool)],
+    pub landings: &'a [Landing],
 }
 
 /// What the director needs of the dungeon view.
@@ -191,6 +193,9 @@ impl GameAudio {
         for &(x, y, open) in events.doors {
             self.door((x, y), open, scene, view);
         }
+        for landing in events.landings {
+            self.landing(landing, scene, view);
+        }
         if !events.shown.is_empty() {
             let mut shown = Vec::new();
             self.blows.retain(|(token, _, plays)| {
@@ -232,6 +237,19 @@ impl GameAudio {
             let sound = if open { SoundName::DoorOpen } else { SoundName::DoorClose };
             self.engine.play(sound, PlayOptions { pan: heard.pan, gain: heard.gain, ..Default::default() });
         }
+    }
+
+    /// An item a death dropped hit the floor: a clink, and a chime for a good one, lower the better it is.
+    pub fn landing(&self, landing: &Landing, scene: &Scene, view: &dyn AudioView) {
+        let Some(heard) = self.heard(Some(landing.cell), scene.player, view) else { return };
+        self.engine.play(SoundName::Drop, PlayOptions { pan: heard.pan, gain: heard.gain, ..Default::default() });
+        let Some(rarity) = landing.rarity else { return };
+        let (rate, gain) = match rarity {
+            ItemRarity::Epic => (1.2, 0.7),
+            ItemRarity::Legendary => (1.0, 0.85),
+            ItemRarity::Unique => (0.84, 1.0),
+        };
+        self.engine.play(SoundName::Treasure, PlayOptions { pan: heard.pan, gain: gain * heard.gain.max(0.6), delay: 0.04, rate });
     }
 
     /// The message lines that arrived since the last ones.

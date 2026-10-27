@@ -13,7 +13,7 @@ use regex::Regex;
 use serde_json::Value;
 
 use crate::classify::{
-    beacon_for, classify_feature_with, door_state_name, feature_label, gate_faces, is_rubble, is_scenery, is_vegetation, item_tile_name, level_presentation,
+    beacon_for, classify_feature_with, door_state_name, feature_label, gate_faces, is_rubble, is_scenery, is_vegetation, item_rarity, item_tile_name, level_presentation,
     liquid_label, liquid_of, stance_for, stands_free,
 };
 use crate::enums::{halo_table, HaloTable, MfTable};
@@ -1398,6 +1398,7 @@ fn add_billboards(out: &mut Vec<Billboard>, mc: &MapCell, cell: &mut SceneCell, 
         b.alpha = alpha;
         let words = item_tile_name(Some(name));
         b.name = (!words.is_empty()).then_some(words);
+        b.rarity = item_rarity(name);
         out.push(b);
     }
     new_feature_badge(cell, &bgw, ctx, row.shift);

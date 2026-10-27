@@ -3,7 +3,7 @@
 //! tile is called.
 
 use isorun_gamedata::Gamedata;
-use isorun_scene::{Beacon, DoorState, FaceTiles, Feature, Liquid, LiquidKind, Sky, Stance, UpDown};
+use isorun_scene::{Beacon, DoorState, FaceTiles, Feature, ItemRarity, Liquid, LiquidKind, Sky, Stance, UpDown};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -459,6 +459,23 @@ regex!(I_PLAIN = r"^(BOOK|GEM|TALISMAN)(_|$)");
 regex!(I_CORPSE = r"^CORPSE_(.+)$");
 regex!(I_TYPED = r"^(WAND|RING|AMU|AMULET|POT|POTION|SCR|SCROLL|STAFF)(?:_(.+))?$");
 regex!(I_ADJ = r"^(.+)_(STEEL|SILVER|POISONED|CURARE|BLINDING|FRENZY)$");
+// a branded missile is MI_*_MAGIC too, and too common to stand out
+regex!(I_EPIC = r"^(WPN|ARM|THELM)_.*_MAGIC(_?\d+)?$");
+
+/// How good an item looks by its tile (tilepick.cc `tileidx_enchant_equ`): an unrandart has
+/// its own UNRAND_ tile, a random artefact the _RANDART one, and a weapon or armour that is
+/// glowing, runed or shiny the _MAGIC one.
+pub fn item_rarity(tile: &str) -> Option<ItemRarity> {
+    if tile.starts_with("UNRAND_") {
+        Some(ItemRarity::Unique)
+    } else if tile.contains("_RANDART") {
+        Some(ItemRarity::Legendary)
+    } else if I_EPIC.is_match(tile) {
+        Some(ItemRarity::Epic)
+    } else {
+        None
+    }
+}
 
 /// What a map cell's item tile says the top item is, in words: the tile's base name with the
 /// sprite-set affixes dropped and the typed classes joined with "of" (WAND_FLAME "wand of

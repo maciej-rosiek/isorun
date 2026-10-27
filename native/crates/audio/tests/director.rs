@@ -5,8 +5,8 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use isorun_audio::{AmbientName, AudioFrame, AudioView, CombatEvent, Fighter, GameAudio, ManualClock, PlayOptions, SoundEngine, SoundName};
-use isorun_render::{ActorStep, PLAYER_ACTOR};
-use isorun_scene::{cell_key, Billboard, BillboardKind, CellKind, Scene, SceneCell};
+use isorun_render::{ActorStep, Landing, PLAYER_ACTOR};
+use isorun_scene::{cell_key, Billboard, BillboardKind, CellKind, ItemRarity, Scene, SceneCell};
 use isorun_webtiles::{GameMessage, GameState, Msgch};
 
 /// A view 800 pixels wide, a cell 40 pixels across from the left edge.
@@ -207,6 +207,21 @@ fn a_new_level_rings_the_stairs_and_settles_its_doors() {
 
     // then
     assert_eq!(engine.trace(), vec!["door-open", "stairs"]);
+}
+
+#[test]
+fn a_dropped_unique_item_clinks_and_chimes() {
+    // given
+    let (engine, _clock) = engine();
+    let mut audio = GameAudio::new(engine.clone());
+    let scene = scene();
+    let unique = Landing { cell: (11, 10), rarity: Some(ItemRarity::Unique) };
+
+    // when
+    audio.on_frame(AudioFrame { landings: &[unique], ..Default::default() }, &scene, &View);
+
+    // then
+    assert_eq!(engine.trace(), vec!["drop", "treasure"]);
 }
 
 #[test]

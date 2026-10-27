@@ -11,6 +11,7 @@ use crate::fog::FogLayer;
 use crate::gpu::{Gpu, Material, DEPTH_FORMAT};
 use crate::lights::{diorama, linear, IsoLights, IsoQuality, SurfaceDetail, QUALITY_MEDIUM};
 use crate::liquids::{Liquids, FILMS};
+use crate::loot::{Landing, LootLayer, LIGHT_REACH as LOOT_LIGHT_REACH};
 use crate::memory::MemoryMask;
 use crate::mesh::{GpuMesh, Point3, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::mipmap::Mipmapper;
@@ -138,6 +139,8 @@ pub struct FrameEvents {
     pub hops: Vec<ActorStep>,
     /// Doors that stand open or shut where they did not before: x, y, open.
     pub doors: Vec<(i32, i32, bool)>,
+    /// Items a death dropped that touched the floor.
+    pub landings: Vec<Landing>,
 }
 
 pub struct IsoRenderer {
@@ -189,6 +192,7 @@ pub struct IsoRenderer {
     liquids: Liquids,
     combat: CombatLayer,
     steps: StepLayer,
+    loot: LootLayer,
     overlay: crate::overlay::Overlay,
     tile_torches: Vec<Torch>,
     tile_torches_version: u64,
@@ -339,6 +343,7 @@ impl IsoRenderer {
         let liquids = Liquids::new(&gpu);
         let combat = CombatLayer::new(&gpu);
         let steps = StepLayer::new(&gpu);
+        let loot = LootLayer::new(&gpu);
         let torches = TorchLayer::new(&gpu);
         let overlay = crate::overlay::Overlay::new(&gpu);
         let features = TileFeatures::new();
@@ -392,6 +397,7 @@ impl IsoRenderer {
             liquids,
             combat,
             steps,
+            loot,
             overlay,
             tile_torches: Vec::new(),
             tile_torches_version: 0,
@@ -477,6 +483,7 @@ impl IsoRenderer {
     pub fn new_level(&mut self) {
         self.combat.clear();
         self.steps.clear();
+        self.loot.clear();
     }
 
     pub fn set_camera(&mut self, cam: Camera) {
@@ -562,6 +569,11 @@ impl IsoRenderer {
             return;
         }
         let time = self.actors.impact_from(target, self.clock);
+        if action == ActorAction::Death && id != PLAYER_ACTOR {
+            if let Some(cell) = self.actors.cell_of(id) {
+                self.loot.death(cell, time);
+            }
+        }
         self.actors.act(id, action, time, target);
         self.impacts.push(PendingImpact { time, id, action, from: target, token });
     }
@@ -651,7 +663,7 @@ impl IsoRenderer {
     /// What keeps `animating` true, for the perf log: the first reason found.
     pub fn animating_why(&self) -> Option<&'static str> {
         let now = now_seconds();
-        let reasons: [(&'static str, &dyn Fn() -> bool); 10] = [
+        let reasons: [(&'static str, &dyn Fn() -> bool); 11] = [
             ("impact", &|| !self.impacts.is_empty()),
             ("hit stop", &|| now < self.stop_until),
             // the low hit points' red edge pulses
@@ -659,6 +671,7 @@ impl IsoRenderer {
             ("actors", &|| self.actors.animating(self.clock)),
             ("combat", &|| self.combat.animating()),
             ("steps", &|| self.steps.animating()),
+            ("loot", &|| self.loot.animating()),
             ("doors", &|| self.features.animating()),
             ("fog fade", &|| self.fog.fading()),
             ("torch dust", &|| self.torches.dust_shown()),
@@ -704,6 +717,7 @@ impl IsoRenderer {
         let Some(pages) = self.pages.as_mut() else { return };
         let mut env = ActorEnv { gpu: &self.gpu, pages, tiles: tiles.as_ref() };
         self.actors.sync(&scene, self.clock, &mut env);
+        self.loot.sync(&scene, &mut env);
     }
 
     fn apply_lights(&mut self) {

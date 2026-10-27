@@ -74,6 +74,7 @@ impl IsoRenderer {
             self.lights.water.enabled,
             self.lights.lava.enabled,
             self.pages.as_ref().map(|p| p.pages.len()).unwrap_or(0) > 0,
+            self.loot.hidden(),
         ))
     }
 
@@ -105,7 +106,13 @@ impl IsoRenderer {
         self.sprites_view = sprites_view;
         let focus = self.focus(scene);
         let cut = cut_away_cells(scene, &focus, level_yaw, -level_pitch, &self.view);
-        let standing = standing_by_cell(scene);
+        let in_flight = self.loot.hidden();
+        let mut standing = standing_by_cell(scene);
+        for &(x, y) in &in_flight {
+            if let Some(sig) = standing.get_mut(&cell_key(x, y)) {
+                *sig = hash_of(&(*sig, "in flight"));
+            }
+        }
         let cells: HashMap<CellKey, u64> = scene.cells.iter().map(|(k, c)| (*k, drawn_hash(c))).collect();
         let dirty = self.built.as_ref().map(|b| Self::dirty_chunks(b, &cells, &cut, &standing));
         self.built = Some(Built { cells, cut, standing });
@@ -136,7 +143,7 @@ impl IsoRenderer {
         }
         for s in &sprite_plan.as_ref().unwrap_or(&plan).sprites {
             let b = s.billboard.map(|i| &scene.billboards[i]);
-            if b.is_some_and(|b| actor_id(b).is_some()) {
+            if b.is_some_and(|b| actor_id(b).is_some() || (b.kind == isorun_scene::BillboardKind::Item && in_flight.contains(&(b.x, b.y)))) {
                 continue;
             }
             if b.is_none() && is_tile_feature(scene.cell(s.x, s.y)) {

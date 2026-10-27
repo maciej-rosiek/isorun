@@ -89,6 +89,8 @@ sounds! {
     Stairs = "stairs" => cooldown(spec(&["stairs"], 0.7, 1), 0.5),
     Pickup = "pickup" => cooldown(spec(&["pickup1", "pickup2"], 0.9, 2), 0.1),
     Gold = "gold" => cooldown(spec(&["gold1", "gold2"], 1.0, 2), 0.1),
+    Drop = "drop" => cooldown(spec(&["drop1", "drop2"], 0.6, 3), 0.05),
+    Treasure = "treasure" => cooldown(pitch(spec(&["treasure"], 0.8, 2), 0.0), 0.2),
     Levelup = "levelup" => steady(spec(&["levelup"], 2.0, 1)),
     Cast = "cast" => spec(&["cast-generic"], 1.4, 2),
     CastFire = "cast-fire" => spec(&["cast-fire"], 0.7, 2),

@@ -31,7 +31,7 @@ fn main() -> eframe::Result {
             }
             let ev = game.view.renderer.take_events();
             let view = RendererView { renderer: &game.view.renderer, width, animation_speed: speed };
-            audio.on_frame(AudioFrame { shown: &ev.shown, hops: &ev.hops, doors: &ev.doors }, &scene, &view);
+            audio.on_frame(AudioFrame { shown: &ev.shown, hops: &ev.hops, doors: &ev.doors, landings: &ev.landings }, &scene, &view);
         }
         played.extend(engine.take_trace());
         let keep = played.len().saturating_sub(14);

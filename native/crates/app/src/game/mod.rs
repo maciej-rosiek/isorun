@@ -612,7 +612,7 @@ impl GameScreen {
         {
             let width = layout.view.width();
             let view = RendererView { renderer: &self.parts.view.renderer, width, animation_speed: self.client_settings.animation_speed };
-            self.audio.on_frame(AudioFrame { shown: &events.shown, hops: &events.hops, doors: &events.doors }, &scene, &view);
+            self.audio.on_frame(AudioFrame { shown: &events.shown, hops: &events.hops, doors: &events.doors, landings: &events.landings }, &scene, &view);
         }
         if self.trace {
             for name in self.engine.take_trace() {

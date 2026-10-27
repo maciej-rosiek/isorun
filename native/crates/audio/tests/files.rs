@@ -10,7 +10,7 @@ use kira::sound::static_sound::StaticSoundData;
 #[test]
 fn every_file_of_the_catalog_decodes() {
     let files = all_files();
-    assert_eq!(files.len(), 45 + 4 + 6);
+    assert_eq!(files.len(), 48 + 4 + 6);
     for path in files {
         let bytes = isorun_audio::embedded::bytes(&path).unwrap_or_else(|| panic!("{path} is embedded"));
         let data = StaticSoundData::from_cursor(std::io::Cursor::new(bytes)).unwrap_or_else(|e| panic!("{path} decodes: {e}"));

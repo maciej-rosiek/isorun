@@ -268,6 +268,16 @@ pub enum BillboardKind {
     Player,
 }
 
+/// How good an item on the floor looks, by its tile, in the loot colours of Diablo and the games
+/// after it: a glowing or runed weapon or armour (likely an ego) is epic, a random artefact is
+/// legendary, an artefact of crawl's own list (an unrandart) is unique.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum ItemRarity {
+    Epic,
+    Legendary,
+    Unique,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Attitude {
     Hostile,
@@ -330,6 +340,8 @@ pub struct Billboard {
     pub damage: Option<WoundLevel>,
     /// The monster's id (`mon.id`), which keeps an actor across scenes; the player is `PLAYER_REF`.
     pub ref_id: Option<i64>,
+    /// An item's look of worth, by its tile.
+    pub rarity: Option<ItemRarity>,
 }
 
 pub const PLAYER_REF: i64 = -1;
@@ -353,6 +365,7 @@ impl Billboard {
             scenery: false,
             damage: None,
             ref_id: None,
+            rarity: None,
         }
     }
 }

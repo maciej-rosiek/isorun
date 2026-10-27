@@ -92,7 +92,7 @@ pub struct ActorEnv<'a> {
     pub tiles: &'a dyn TileSource,
 }
 
-fn sprite_key(b: &Billboard) -> u64 {
+pub(crate) fn sprite_key(b: &Billboard) -> u64 {
     use std::hash::{Hash, Hasher};
     let mut h = std::collections::hash_map::DefaultHasher::new();
     b.tile.hash(&mut h);
@@ -105,7 +105,7 @@ fn sprite_key(b: &Billboard) -> u64 {
     h.finish()
 }
 
-struct SpriteVisual {
+pub(crate) struct SpriteVisual {
     key: u64,
     pages_id: usize,
     meshes: Vec<(u32, Arc<GpuMesh>)>,
@@ -119,7 +119,7 @@ struct SpriteVisual {
 }
 
 impl SpriteVisual {
-    fn new(b: &Billboard, env: &mut ActorEnv, key: u64, cast_shadow: bool, phase: f32) -> Self {
+    pub(crate) fn new(b: &Billboard, env: &mut ActorEnv, key: u64, cast_shadow: bool, phase: f32) -> Self {
         let mut effects = [0.0; 8];
         for e in &b.effects {
             let i = match e {
@@ -182,6 +182,20 @@ impl SpriteVisual {
 
     fn set_flash(&mut self, amount: f32, tint: [f32; 3]) {
         self.tint = [1.0 + amount * tint[0], 1.0 + amount * (tint[1] - 1.0), 1.0 + amount * (tint[2] - 1.0)];
+    }
+
+    /// The sprite's draws with `model`, cast no shadow.
+    pub(crate) fn draws(&self, model: Mat4, out: &mut Vec<DrawItem>) {
+        let uniform = DrawUniform {
+            model: model.to_cols_array_2d(),
+            tint: [self.tint[0], self.tint[1], self.tint[2], self.opacity],
+            look: [self.motion, self.phase, 0.0, 1.0],
+            harm: [self.effects[0], self.effects[1], self.effects[2], self.effects[3]],
+            aura: [self.effects[4], self.effects[5], self.effects[6], self.effects[7]],
+        };
+        for (page, mesh) in &self.meshes {
+            out.push(DrawItem { material: Material::Actor, page: PageRef::Page(*page), mesh: mesh.clone(), uniform, cast: Cast::None });
+        }
     }
 }
 
