@@ -271,7 +271,7 @@ fn fs_sprite(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     s.specular = gloss_specular(surface.r);
     s.shininess = gloss_shininess(surface.r);
     s.rim = 1.0;
-    s.all_round = true;
+    s.all_round = 1.0;
     let light = emission(colour.rgb, surface, in.uv, 0.0) * shade;
     return outputs(light_surface(MODEL_CLAY, s) + light, colour.a, in, face, light);
 }
@@ -328,7 +328,7 @@ fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     s.specular = gloss_specular(gloss);
     s.shininess = gloss_shininess(gloss);
     s.rim = 1.0;
-    s.all_round = true;
+    s.all_round = 1.0;
     var flames = 0.0;
     if (harm.y > 0.0) {
         let p = texel / 32.0 * vec2<f32>(7.0, 4.0) - vec2<f32>(0.0, time() * 1.6);

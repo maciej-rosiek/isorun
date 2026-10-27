@@ -272,7 +272,9 @@ struct Surface {
     shininess: f32,
     rim: f32,
     receive_shadow: bool,
-    all_round: bool,
+    // 1: lit evenly from any side (a sprite, an actor); a float, as a bool here crashed the shader
+    // compiler of Mali's Vulkan driver (a Pixel 8 Pro's Mali-G715) in vkCreateGraphicsPipelines
+    all_round: f32,
     // the fragment's pixel, which turns the shadows' sampling pattern
     screen: vec2<f32>,
 };
@@ -334,7 +336,7 @@ fn direct(model: u32, s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: 
 const TORCH_LIGHT_TEXELS: f32 = 4.0;
 
 fn on_lit_side(s: Surface, to_light_world: vec3<f32>) -> f32 {
-    if (s.all_round) {
+    if (s.all_round > 0.5) {
         return 1.0;
     }
     return smoothstep(-0.05, 0.1, dot(s.normal_world, normalize(to_light_world)));
@@ -349,7 +351,7 @@ fn baked_torch_light(model: u32, s: Surface) -> vec3<f32> {
     let across = baked.rb / baked.a;
     let to_torch = vec3<f32>(across.x, frame.torch_light.w - s.world.y, across.y);
     let towards = (frame.view * vec4<f32>(normalize(to_torch), 0.0)).xyz;
-    return direct(model, s, towards, frame.torch_light.rgb * baked.a * on_lit_side(s, to_torch), s.all_round);
+    return direct(model, s, towards, frame.torch_light.rgb * baked.a * on_lit_side(s, to_torch), s.all_round > 0.5);
 }
 
 // Every light on the surface: the hemisphere light, the sun and the point lights.
@@ -381,7 +383,7 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
         if (s.receive_shadow) {
             colour = colour * point_shadow(light, s.world, s.normal_world, s.screen);
         }
-        out = out + direct(model, s, to_light / d, colour, s.all_round);
+        out = out + direct(model, s, to_light / d, colour, s.all_round > 0.5);
     }
     return out;
 }

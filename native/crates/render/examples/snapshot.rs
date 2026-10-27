@@ -1,5 +1,8 @@
 //! Renders the test bed's level to a PNG with no window, for comparing the look with the web
 //! build's: `VK_ICD_FILENAMES=<swiftshader icd> cargo run -p isorun-render --example snapshot -- out.png`.
+//! `SNAPSHOT_ROOT` is another folder with the test bed's files (`crates/client/assets`), as on a
+//! phone: built for `aarch64-linux-android` and run from `adb shell`, it compiles the shaders
+//! with the phone's own GPU driver.
 
 use isorun_render::{AtlasImage, IsoCamera, IsoRenderer, TileSource};
 use isorun_scene::*;
@@ -74,7 +77,8 @@ fn main() {
     let out = args.get(1).cloned().unwrap_or_else(|| "snapshot.png".into());
     let (w, h) = (1280u32, 800u32);
     // the test bed's level and atlas, as the client crate embeds them
-    let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../client/assets");
+    let root = std::env::var("SNAPSHOT_ROOT").unwrap_or_else(|_| concat!(env!("CARGO_MANIFEST_DIR"), "/../client/assets").to_string());
+    let root = root.as_str();
     let packed = Arc::new(load(root));
     let des = std::fs::read_to_string(format!("{root}/iso.des")).unwrap();
     let scene = Arc::new(testbed(&packed, &des));
