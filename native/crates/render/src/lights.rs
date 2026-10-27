@@ -198,12 +198,12 @@ pub struct IsoLights {
 pub fn diorama() -> IsoLights {
     IsoLights {
         label: "Diorama",
-        exposure: 1.2,
+        exposure: 2.0,
         background: 0x212121,
         ambient_sky: 0xe4ecff,
         ambient_ground: 0x8c7c6c,
-        ambient_intensity: 3.4,
-        torch: PointLightSpec { colour: 0xffe0cc, intensity: 14.0, distance: 7.0, decay: 1.0 },
+        ambient_intensity: 3.3,
+        torch: PointLightSpec { colour: 0xffe0cc, intensity: 10.0, distance: 11.0, decay: 0.6 },
         shading: ShadingSettings {
             wrap: 0.25,
             bands: 5.0,
