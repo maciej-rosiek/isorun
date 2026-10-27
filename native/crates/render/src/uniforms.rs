@@ -10,7 +10,6 @@ pub const MAX_LIGHTS: usize = 9;
 pub struct LightUniform {
     pub position: [f32; 4],
     pub colour: [f32; 4],
-    pub shadow: [f32; 4],
     pub world: [f32; 4],
 }
 
@@ -21,13 +20,9 @@ pub struct FrameUniform {
     pub view: [[f32; 4]; 4],
     pub proj: [[f32; 4]; 4],
     pub inv_view: [[f32; 4]; 4],
-    pub sun_matrix: [[f32; 4]; 4],
     pub camera: [f32; 4],
     pub sky: [f32; 4],
     pub ground: [f32; 4],
-    pub sun_dir: [f32; 4],
-    pub sun_colour: [f32; 4],
-    pub sun_shadow: [f32; 4],
     pub shading0: [f32; 4],
     pub shading1: [f32; 4],
     pub shading2: [f32; 4],
@@ -51,7 +46,7 @@ pub struct DrawUniform {
     pub model: [[f32; 4]; 4],
     /// rgb tint, w opacity
     pub tint: [f32; 4],
-    /// motion, phase, receives shadows, takes the memory shade
+    /// motion, phase, unused, takes the memory shade
     pub look: [f32; 4],
     /// petrified, burning, poisoned, corroded
     pub harm: [f32; 4],
@@ -60,18 +55,12 @@ pub struct DrawUniform {
 }
 
 impl DrawUniform {
-    pub fn plain(receive_shadow: bool) -> Self {
-        DrawUniform {
-            model: Mat4::IDENTITY.to_cols_array_2d(),
-            tint: [1.0; 4],
-            look: [0.0, 0.0, receive_shadow as u8 as f32, 1.0],
-            harm: [0.0; 4],
-            aura: [0.0; 4],
-        }
+    pub fn plain() -> Self {
+        DrawUniform { model: Mat4::IDENTITY.to_cols_array_2d(), tint: [1.0; 4], look: [0.0, 0.0, 0.0, 1.0], harm: [0.0; 4], aura: [0.0; 4] }
     }
 
-    pub fn at(model: Mat4, receive_shadow: bool) -> Self {
-        DrawUniform { model: model.to_cols_array_2d(), ..Self::plain(receive_shadow) }
+    pub fn at(model: Mat4) -> Self {
+        DrawUniform { model: model.to_cols_array_2d(), ..Self::plain() }
     }
 }
 

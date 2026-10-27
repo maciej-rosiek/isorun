@@ -1,7 +1,7 @@
 //! `IsoRenderer` (the port of `render-iso-3d.ts`): the level's geometry in chunks of 8 by 8 cells,
 //! built again only where the cells, the cut-away walls or what stands on them changed; the actors,
-//! the doors and stairs, the torches and the layers over them; the sun and the torch lights with
-//! their shadow maps; and the screen effects.
+//! the doors and stairs, the torches and the layers over them; the torch lights; and the screen
+//! effects.
 
 use crate::actors::{actor_id, ActorEnv, ActorLayer, UprightPose, STRIKE_DELAY};
 use crate::camera::IsoCamera;
@@ -21,7 +21,6 @@ use crate::plan::{
     GroundLayer, IsoAim, IsoRoute, IsoView, Side, Sprite, SpriteLayer, WallBlock, DEFAULT_VIEW, TORCH_HEIGHT,
 };
 use crate::post::{Post, PostFrame};
-use crate::shadows::{cube_face_view, Shadows, SUN_DISTANCE, SUN_REACH};
 use crate::steps::StepLayer;
 use crate::torch_light::TorchLightMap;
 use crate::torches::{TorchLayer, TorchModel, TorchPlacement};
@@ -42,8 +41,6 @@ const HEAD_HEIGHT: f32 = 1.0;
 const SHORE_SEARCH: i32 = 4;
 const MAX_UPRIGHT_STRETCH: f32 = 2.5;
 pub const TORCH_LIGHTS: usize = 8;
-const SUN_ELEVATION: f32 = 55.0 * std::f32::consts::PI / 180.0;
-const SUN_FRONT: f32 = 0.35;
 const CAMERA_DISTANCE: f32 = 60.0;
 const PERSPECTIVE_DEPTH: f32 = 60.0;
 const CAP_SHADE: f32 = 0.6;
@@ -58,9 +55,6 @@ const SNAP_SCREEN_CELLS: f32 = 1.5;
 const LEVEL_ANGLE_STEP: f32 = 1.0 * std::f32::consts::PI / 180.0;
 const DANGER_PULSE: f32 = 0.3;
 const DANGER_PULSE_SPEED: f32 = 3.0;
-const SUN_BIAS: f32 = -0.0005;
-const TORCH_BIAS: f32 = -0.002;
-const NORMAL_BIAS: f32 = 0.02;
 
 /// Which textures a draw reads: a page of tiles, or one of the renderer's own.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -71,13 +65,6 @@ pub enum PageRef {
     Torch,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Cast {
-    None,
-    Static,
-    Actor,
-}
-
 /// One mesh drawn with one material this frame.
 #[derive(Clone)]
 pub struct DrawItem {
@@ -85,7 +72,6 @@ pub struct DrawItem {
     pub page: PageRef,
     pub mesh: Arc<GpuMesh>,
     pub uniform: DrawUniform,
-    pub cast: Cast,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -98,7 +84,7 @@ pub struct Torch {
 
 struct Chunk {
     key: u64,
-    meshes: Vec<(Material, PageRef, Arc<GpuMesh>, Cast, bool)>,
+    meshes: Vec<(Material, PageRef, Arc<GpuMesh>)>,
     torches: Vec<Torch>,
     placements: Vec<TorchPlacement>,
     glows: bool,
@@ -111,8 +97,6 @@ struct CellArea {
     x1: f32,
     y1: f32,
 }
-
-const EVERYWHERE: CellArea = CellArea { x0: f32::NEG_INFINITY, y0: f32::NEG_INFINITY, x1: f32::INFINITY, y1: f32::INFINITY };
 
 struct Built {
     cells: HashMap<CellKey, u64>,
@@ -131,7 +115,6 @@ struct PendingImpact {
 struct Pipelines {
     samples: u32,
     world: HashMap<Material, wgpu::RenderPipeline>,
-    shadow_sun: wgpu::RenderPipeline,
 }
 
 /// What happened in a frame that the client acts on: blows shown, hops started, doors moved.
@@ -153,7 +136,6 @@ pub struct IsoRenderer {
     post: Post,
     memory: MemoryMask,
     torch_light: TorchLightMap,
-    shadows: Shadows,
     pipelines: Option<Pipelines>,
     frame_buffer: wgpu::Buffer,
     frame_group: wgpu::BindGroup,
@@ -202,9 +184,6 @@ pub struct IsoRenderer {
     nearest: Vec<Torch>,
     nearest_from: (f32, f32, u64),
     lit: [Option<Torch>; TORCH_LIGHTS],
-    sun_stale: bool,
-    sun_at: Vec3,
-    sun_target: Vec3,
     impacts: Vec<PendingImpact>,
     clock: f64,
     stop_until: f64,
@@ -332,7 +311,6 @@ impl IsoRenderer {
         let mipmapper = Mipmapper::new(&gpu.device);
         let post = Post::new(&gpu);
         let memory = MemoryMask::new(&gpu);
-        let shadows = Shadows::new(&gpu, 0);
         let frame_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("frame"),
             size: std::mem::size_of::<FrameUniform>() as u64,
@@ -341,7 +319,7 @@ impl IsoRenderer {
         });
         let noise = crate::fog::noise_texture(&gpu);
         let torch_light = TorchLightMap::new(&gpu);
-        let frame_group = Self::frame_group(&gpu, &frame_buffer, &shadows, &memory, &noise, &torch_light);
+        let frame_group = Self::frame_group(&gpu, &frame_buffer, &memory, &noise, &torch_light);
         let draws = DrawBuffer::new(&gpu.device, &gpu.draw_layout, 256);
         let (cap, door) = (cap_texture(&gpu), door_texture(&gpu));
         let blank = gpu.texture_with("blank", 1, 1, wgpu::TextureFormat::Rgba8Unorm, &[128, 128, 255, 0]);
@@ -363,7 +341,6 @@ impl IsoRenderer {
             post,
             memory,
             torch_light,
-            shadows,
             pipelines: None,
             frame_buffer,
             frame_group,
@@ -412,9 +389,6 @@ impl IsoRenderer {
             nearest: Vec::new(),
             nearest_from: (f32::NAN, f32::NAN, u64::MAX),
             lit: [None; TORCH_LIGHTS],
-            sun_stale: true,
-            sun_at: Vec3::ZERO,
-            sun_target: Vec3::ZERO,
             impacts: Vec::new(),
             clock: 0.0,
             stop_until: 0.0,
@@ -438,23 +412,13 @@ impl IsoRenderer {
         r
     }
 
-    fn frame_group(
-        gpu: &Gpu,
-        buffer: &wgpu::Buffer,
-        shadows: &Shadows,
-        memory: &MemoryMask,
-        noise: &wgpu::Texture,
-        torch_light: &TorchLightMap,
-    ) -> wgpu::BindGroup {
+    fn frame_group(gpu: &Gpu, buffer: &wgpu::Buffer, memory: &MemoryMask, noise: &wgpu::Texture, torch_light: &TorchLightMap) -> wgpu::BindGroup {
         let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frame"),
             layout: &gpu.frame_layout,
             entries: &[
                 wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::TextureView(&shadows.sun_view) },
-                wgpu::BindGroupEntry { binding: 2, resource: wgpu::BindingResource::TextureView(&shadows.points_view) },
-                wgpu::BindGroupEntry { binding: 3, resource: wgpu::BindingResource::Sampler(&gpu.shadow_sampler) },
                 wgpu::BindGroupEntry { binding: 4, resource: wgpu::BindingResource::TextureView(&view(&memory.shade)) },
                 wgpu::BindGroupEntry { binding: 5, resource: wgpu::BindingResource::TextureView(&view(&memory.wetness)) },
                 wgpu::BindGroupEntry { binding: 6, resource: wgpu::BindingResource::Sampler(&gpu.nearest_sampler) },
@@ -534,7 +498,6 @@ impl IsoRenderer {
         self.post.set_ao_resolution(quality.ao_resolution);
         self.post.ao_samples = quality.ao_samples;
         self.resolution.reset();
-        self.mark_shadows_stale();
     }
 
     pub fn quality(&self) -> IsoQuality {
@@ -744,21 +707,6 @@ impl IsoRenderer {
         self.liquids.configure(&self.gpu, &self.lights);
         self.combat.configure(self.lights.combat);
         self.steps.configure(self.lights.steps);
-        self.mark_shadows_stale();
-    }
-
-    fn mark_shadows_stale(&mut self) {
-        self.sun_stale = true;
-    }
-
-    fn mark_shadows_stale_around(&mut self, areas: &[CellArea]) {
-        if areas.is_empty() {
-            return;
-        }
-        let near = |x: f32, z: f32, reach: f32| areas.iter().any(|a| x > a.x0 - reach && x < a.x1 + reach && z > a.y0 - reach && z < a.y1 + reach);
-        if near(self.sun_target.x, self.sun_target.z, SUN_REACH * std::f32::consts::SQRT_2) {
-            self.sun_stale = true;
-        }
     }
 
     fn level_yaw(&self) -> f32 {
@@ -987,25 +935,8 @@ fn unused(
     _: ImpactKind,
 ) {
     let _ = (ATLAS_INSET, SPRITE_LEAN, ROUTE_STEPS, AIM_LIFT, DEPTH_FORMAT, DIR8_DX, DIR8_DY);
+    let _ = (aim_colour, cut_away_cells, ground_basis, has_torch, plan_scene, side, tile_frame, wall_height_at, key_to_xy, is_tile_feature, linear, smoothstep);
     let _ = (
-        aim_colour,
-        cut_away_cells,
-        ground_basis,
-        has_torch,
-        plan_scene,
-        side,
-        tile_frame,
-        wall_height_at,
-        key_to_xy,
-        is_tile_feature,
-        linear,
-        cube_face_view,
-        smoothstep,
-    );
-    let _ = (
-        SUN_DISTANCE,
-        SUN_ELEVATION,
-        SUN_FRONT,
         CAMERA_DISTANCE,
         PERSPECTIVE_DEPTH,
         CAP_SHADE,
@@ -1016,10 +947,6 @@ fn unused(
         DANGER_PULSE,
         DANGER_PULSE_SPEED,
         TORCH_HEIGHT,
-        SUN_BIAS,
-        TORCH_BIAS,
-        NORMAL_BIAS,
         LIFT_STEP,
-        EVERYWHERE,
     );
 }

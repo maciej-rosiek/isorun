@@ -68,7 +68,6 @@ fn liquid_normal(here: f32, across: f32, down: f32, tilt: f32) -> vec3<f32> {
 fn surface(in: VertexOut, normal: vec3<f32>, diffuse: vec3<f32>) -> Surface {
     var s: Surface;
     s.position = in.view_pos;
-    s.screen = in.clip.xy;
     s.normal = normal;
     s.view_dir = normalize(-in.view_pos);
     s.world = in.world;
@@ -77,7 +76,6 @@ fn surface(in: VertexOut, normal: vec3<f32>, diffuse: vec3<f32>) -> Surface {
     s.specular = vec3<f32>(0.0);
     s.shininess = 40.0;
     s.rim = 0.0;
-    s.receive_shadow = false;
     return s;
 }
 

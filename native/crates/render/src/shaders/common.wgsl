@@ -3,7 +3,7 @@
 // purpose, where the neighbours' values are close enough.
 diagnostic(off, derivative_uniformity);
 
-// Shared by the world's shaders: the frame's uniforms, the lights and shadows, the memory mask,
+// Shared by the world's shaders: the frame's uniforms, the lights, the memory mask,
 // noise. Lighting is in view space with the formulas of three.js's nodes (Phong, Lambert, the
 // hemisphere light, distance attenuation), which the web build used, so the look carries over.
 
@@ -16,8 +16,6 @@ struct Light {
     position: vec4<f32>,
     // colour times intensity, w = decay
     colour: vec4<f32>,
-    // x = first shadow layer (-1 for none), y = bias, z = normal bias, w = far
-    shadow: vec4<f32>,
     // world-space position, w unused
     world: vec4<f32>,
 };
@@ -27,16 +25,10 @@ struct Frame {
     view: mat4x4<f32>,
     proj: mat4x4<f32>,
     inv_view: mat4x4<f32>,
-    sun_matrix: mat4x4<f32>,
     // world-space camera position, w = 1 for perspective
     camera: vec4<f32>,
     sky: vec4<f32>,
     ground: vec4<f32>,
-    // view-space direction to the sun, w = 1 when it casts a shadow
-    sun_dir: vec4<f32>,
-    sun_colour: vec4<f32>,
-    // bias, normal bias, texel size, radius
-    sun_shadow: vec4<f32>,
     // wrap, bands, relief, depth
     shading0: vec4<f32>,
     // sprites, gloss, rim, cavity
@@ -45,7 +37,7 @@ struct Frame {
     shading2: vec4<f32>,
     // depth steps, liquid depth, statuses shown, time
     shading3: vec4<f32>,
-    // width, height, light count, point shadow texel radius
+    // width, height, light count, unused
     viewport: vec4<f32>,
     // view-space up, w = dust strength
     up: vec4<f32>,
@@ -54,9 +46,6 @@ struct Frame {
 };
 
 @group(0) @binding(0) var<uniform> frame: Frame;
-@group(0) @binding(1) var sun_shadow_map: texture_depth_2d;
-@group(0) @binding(2) var point_shadow_map: texture_depth_2d_array;
-@group(0) @binding(3) var shadow_sampler: sampler_comparison;
 @group(0) @binding(4) var memory_map: texture_2d<f32>;
 @group(0) @binding(5) var wet_map: texture_2d<f32>;
 @group(0) @binding(6) var nearest_sampler: sampler;
@@ -184,99 +173,21 @@ fn distance_attenuation(d: f32, cutoff: f32, decay: f32) -> f32 {
     return falloff;
 }
 
-// three's vogelDiskSample: the i-th of n points spread evenly over the unit disc, turned by phi.
-fn vogel_disk(i: f32, n: f32, phi: f32) -> vec2<f32> {
-    let r = sqrt((i + 0.5) / n);
-    let theta = i * 2.399963229728653 + phi;
-    return vec2<f32>(cos(theta), sin(theta)) * r;
-}
-
-// The turn of the shadows' sampling pattern at a pixel (three's interleavedGradientNoise times 2 pi),
-// so the five samples band nowhere.
-fn shadow_turn(screen: vec2<f32>) -> f32 {
-    return interleaved_gradient_noise(screen) * 6.28318530718;
-}
-
-// three's PCFShadowFilter: five compared samples on a Vogel disc turned for each pixel, each
-// filtered by the comparison sampler (four texels), over the shadow's radius.
-fn sun_shadow(world: vec3<f32>, normal_world: vec3<f32>, screen: vec2<f32>) -> f32 {
-    if (frame.sun_dir.w < 0.5) {
-        return 1.0;
-    }
-    let p = frame.sun_matrix * vec4<f32>(world + normal_world * frame.sun_shadow.y, 1.0);
-    let ndc = p.xyz / p.w;
-    let uv = vec2<f32>(ndc.x * 0.5 + 0.5, 0.5 - ndc.y * 0.5);
-    if (any(uv < vec2<f32>(0.0)) || any(uv > vec2<f32>(1.0)) || ndc.z > 1.0) {
-        return 1.0;
-    }
-    let depth = ndc.z + frame.sun_shadow.x;
-    let r = frame.sun_shadow.z * frame.sun_shadow.w;
-    let phi = shadow_turn(screen);
-    var sum = 0.0;
-    for (var i = 0; i < 5; i = i + 1) {
-        sum = sum + textureSampleCompareLevel(sun_shadow_map, shadow_sampler, uv + vogel_disk(f32(i), 5.0, phi) * r, depth);
-    }
-    return sum / 5.0;
-}
-
-// The face of a cube a direction points through, and where on it: the same layout the shadow
-// pass renders its six views in (`cube_face_view` in shadows.rs).
-fn cube_face(d: vec3<f32>) -> vec3<f32> {
-    let a = abs(d);
-    if (a.x >= a.y && a.x >= a.z) {
-        if (d.x > 0.0) { return vec3<f32>(0.0, -d.z / a.x, -d.y / a.x); }
-        return vec3<f32>(1.0, d.z / a.x, -d.y / a.x);
-    }
-    if (a.y >= a.z) {
-        if (d.y > 0.0) { return vec3<f32>(2.0, d.x / a.y, d.z / a.y); }
-        return vec3<f32>(3.0, d.x / a.y, -d.z / a.y);
-    }
-    if (d.z > 0.0) { return vec3<f32>(4.0, d.x / a.z, -d.y / a.z); }
-    return vec3<f32>(5.0, -d.x / a.z, -d.y / a.z);
-}
-
-// three's PointShadowFilter: five compared samples around the direction to the fragment, on a
-// Vogel disc in the plane across it, turned for each pixel.
-fn point_shadow(light: Light, world: vec3<f32>, normal_world: vec3<f32>, screen: vec2<f32>) -> f32 {
-    if (light.shadow.x < 0.0) {
-        return 1.0;
-    }
-    let p = world + normal_world * light.shadow.z - light.world.xyz;
-    let depth = length(p) / light.shadow.w + light.shadow.y;
-    let dir = normalize(p);
-    let a = abs(dir);
-    let tangent = normalize(cross(dir, select(vec3<f32>(1.0, 0.0, 0.0), vec3<f32>(0.0, 1.0, 0.0), a.x > a.z)));
-    let bitangent = cross(dir, tangent);
-    let texel = frame.viewport.w;
-    let phi = shadow_turn(screen);
-    var sum = 0.0;
-    for (var i = 0; i < 5; i = i + 1) {
-        let o = vogel_disk(f32(i), 5.0, phi);
-        let face = cube_face(dir + (tangent * o.x + bitangent * o.y) * texel);
-        let uv = vec2<f32>(face.y * 0.5 + 0.5, face.z * 0.5 + 0.5);
-        sum = sum + textureSampleCompareLevel(point_shadow_map, shadow_sampler, uv, i32(light.shadow.x) + i32(face.x), depth);
-    }
-    return sum / 5.0;
-}
-
 struct Surface {
     // view space
     position: vec3<f32>,
     normal: vec3<f32>,
     view_dir: vec3<f32>,
-    // world space, for the shadows
+    // world space
     world: vec3<f32>,
     normal_world: vec3<f32>,
     diffuse: vec3<f32>,
     specular: vec3<f32>,
     shininess: f32,
     rim: f32,
-    receive_shadow: bool,
     // 1: lit evenly from any side (a sprite, an actor); a float, as a bool here crashed the shader
     // compiler of Mali's Vulkan driver (a Pixel 8 Pro's Mali-G715) in vkCreateGraphicsPipelines
     all_round: f32,
-    // the fragment's pixel, which turns the shadows' sampling pattern
-    screen: vec2<f32>,
 };
 
 // ClayLightingModel.direct: wrapped, banded diffuse, a Blinn-Phong highlight, a rim light.
@@ -354,16 +265,11 @@ fn baked_torch_light(model: u32, s: Surface) -> vec3<f32> {
     return direct(model, s, towards, frame.torch_light.rgb * baked.a * on_lit_side(s, to_torch), s.all_round > 0.5);
 }
 
-// Every light on the surface: the hemisphere light, the sun and the point lights.
+// Every light on the surface: the hemisphere light, the torches and the point lights.
 fn light_surface(model: u32, s: Surface) -> vec3<f32> {
     let weight = dot(s.normal, frame.up.xyz) * 0.5 + 0.5;
     let irradiance = mix(frame.ground.rgb, frame.sky.rgb, weight);
     var out = irradiance * s.diffuse / PI;
-    var sun = frame.sun_colour.rgb;
-    if (s.receive_shadow) {
-        sun = sun * sun_shadow(s.world, s.normal_world, s.screen);
-    }
-    out = out + direct(model, s, frame.sun_dir.xyz, sun, false);
     out = out + baked_torch_light(model, s);
     let count = u32(frame.viewport.z);
     for (var i = 0u; i < MAX_LIGHTS; i = i + 1u) {
@@ -379,10 +285,7 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
         if (light.position.w > 0.0 && d >= light.position.w) {
             continue;
         }
-        var colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w) * on_lit_side(s, light.world.xyz - s.world);
-        if (s.receive_shadow) {
-            colour = colour * point_shadow(light, s.world, s.normal_world, s.screen);
-        }
+        let colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w) * on_lit_side(s, light.world.xyz - s.world);
         out = out + direct(model, s, to_light / d, colour, s.all_round > 0.5);
     }
     return out;

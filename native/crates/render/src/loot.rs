@@ -181,7 +181,7 @@ impl LootLayer {
             self.flights.retain(|f| f.cell() != cell);
             let seed = cell_seed(cell);
             let angle = seed * std::f32::consts::TAU;
-            let visual = SpriteVisual::new(b, env, sprite_key(b), false, 0.0);
+            let visual = SpriteVisual::new(b, env, sprite_key(b), 0.0);
             self.flights.push(Flight {
                 billboard: (*b).clone(),
                 visual,

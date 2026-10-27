@@ -177,10 +177,7 @@ pub struct IsoLights {
     pub ambient_sky: Hex,
     pub ambient_ground: Hex,
     pub ambient_intensity: f32,
-    pub sun_colour: Hex,
-    pub sun_intensity: f32,
     pub torch: PointLightSpec,
-    pub shadow_softness: f32,
     pub shading: ShadingSettings,
     pub paint: PaintSettings,
     pub walls: Walls,
@@ -206,11 +203,8 @@ pub fn diorama() -> IsoLights {
         background: 0x212121,
         ambient_sky: 0xe4ecff,
         ambient_ground: 0x8c7c6c,
-        ambient_intensity: 1.0,
-        sun_colour: 0xfff1dc,
-        sun_intensity: 4.85,
-        torch: PointLightSpec { colour: 0xffe8d7, intensity: 10.0, distance: 6.5, decay: 0.5 },
-        shadow_softness: 2.5,
+        ambient_intensity: 3.4,
+        torch: PointLightSpec { colour: 0xffe8d7, intensity: 14.0, distance: 7.0, decay: 1.0 },
         shading: ShadingSettings {
             wrap: 0.25,
             bands: 5.0,
@@ -260,9 +254,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Sunny clay";
             l.exposure = 1.8;
             l.background = 0x3a3530;
-            l.ambient_intensity = 2.5;
-            l.sun_colour = 0xfff4e0;
-            l.sun_intensity = 5.5;
+            l.ambient_intensity = 5.25;
             l.shading = ShadingSettings { wrap: 0.5, bands: 3.0, relief: 0.4, sprites: 0.3, rim: 0.5, cavity: 0.45, ..l.shading };
             l.paint = PaintSettings { radius: 2.0, levels: 0.0, lift: 1.6, upscale: Upscale::Scale2x };
             l.walls = Walls { bevel: 0.1, moss: 0.25, moss_colour: 0x8a8a7a };
@@ -288,9 +280,8 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Dusk";
             l.exposure = 1.7;
             l.background = 0x1a1418;
-            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xa8b4e0, 0x7a6858, 1.9);
-            (l.sun_colour, l.sun_intensity) = (0xffb070, 4.0);
-            l.torch.intensity = 8.0;
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xa8b4e0, 0x7a6858, 3.9);
+            l.torch.intensity = 12.0;
             l.grade = Grade { saturation: 0.95, shadows: 0xe0dcff, highlights: 0xffe6c8, vignette: 0.3 };
         }),
         "moonlit" => variation(|l| {
@@ -298,8 +289,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.exposure = 2.0;
             l.background = 0x10141c;
             l.shading.sprites = 0.6;
-            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0x8090c0, 0x302838, 1.4);
-            (l.sun_colour, l.sun_intensity) = (0xa8c0ff, 2.5);
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0x8090c0, 0x302838, 2.65);
             l.torch = PointLightSpec { colour: 0xffa860, intensity: 9.0, distance: 8.0, decay: 1.0 };
             l.bloom = Bloom { enabled: true, strength: 0.4, radius: 0.4, threshold: 0.7 };
             l.grade = Grade { saturation: 0.85, shadows: 0xc8d4ff, highlights: 0xfff2e0, vignette: 0.35 };
@@ -308,8 +298,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Rain crypt";
             l.exposure = 1.9;
             l.background = 0x0e1216;
-            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0x9fb4cc, 0x3c4448, 1.7);
-            (l.sun_colour, l.sun_intensity) = (0xc8d8ec, 3.0);
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0x9fb4cc, 0x3c4448, 3.2);
             l.torch = PointLightSpec { colour: 0xffa858, intensity: 8.0, distance: 9.0, decay: 1.0 };
             l.shading = ShadingSettings { gloss: 0.7, rim: 0.5, cavity: 0.7, wetness: 0.9, dust: 0.2, ..l.shading };
             l.walls.moss_colour = 0x4e5a4a;
@@ -320,8 +309,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Ember forge";
             l.exposure = 1.6;
             l.background = 0x1c0e0a;
-            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xb4a098, 0x4a2a20, 1.3);
-            (l.sun_colour, l.sun_intensity) = (0xffa070, 2.4);
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xb4a098, 0x4a2a20, 2.5);
             l.torch = PointLightSpec { colour: 0xff9448, intensity: 7.0, distance: 9.0, decay: 1.0 };
             l.shading = ShadingSettings { gloss: 0.35, rim: 0.7, cavity: 0.7, glow: 1.6, dust: 1.4, ..l.shading };
             l.bloom = Bloom { enabled: true, strength: 0.3, radius: 0.5, threshold: 0.7 };
@@ -332,8 +320,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Frost";
             l.exposure = 2.1;
             l.background = 0x161c24;
-            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xd8ecff, 0x6c7888, 2.4);
-            (l.sun_colour, l.sun_intensity) = (0xe4f0ff, 4.2);
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xd8ecff, 0x6c7888, 4.5);
             l.torch = PointLightSpec { colour: 0xffc890, intensity: 5.0, distance: 9.0, decay: 1.0 };
             l.shading = ShadingSettings { wrap: 0.35, gloss: 0.6, rim: 0.9, sparkle: 1.6, wetness: 0.4, dust: 0.3, ..l.shading };
             l.walls = Walls { bevel: 0.05, moss: 0.35, moss_colour: 0xdce8f4 };
@@ -343,7 +330,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Miniature";
             l.exposure = 2.0;
             l.background = 0x2c2620;
-            l.ambient_intensity = 2.5;
+            l.ambient_intensity = 4.9;
             l.shading = ShadingSettings { wrap: 0.55, bands: 5.0, relief: 0.8, depth: 0.08, gloss: 0.15, rim: 0.3, cavity: 0.9, variation: 0.04, ..l.shading };
             l.tilt_shift = TiltShift { enabled: true, blur: 0.55, focus: 0.25, falloff: 0.35 };
             l.grade = Grade { saturation: 1.25, shadows: 0xece4ff, highlights: 0xfff0dc, vignette: 0.15 };
@@ -352,11 +339,9 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.label = "Noir";
             l.exposure = 1.6;
             l.background = 0x080808;
-            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xc0c0c0, 0x303030, 0.9);
-            (l.sun_colour, l.sun_intensity) = (0xffffff, 4.0);
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xc0c0c0, 0x303030, 3.4);
             l.torch = PointLightSpec { colour: 0xfff0e0, intensity: 7.0, distance: 7.0, decay: 1.4 };
             l.shading = ShadingSettings { bands: 3.0, gloss: 0.4, rim: 1.2, cavity: 0.8, glow: 0.6, dust: 0.7, ..l.shading };
-            l.shadow_softness = 1.0;
             l.grade = Grade { saturation: 0.12, shadows: 0xe8ecf4, highlights: 0xfff8ec, vignette: 0.6 };
         }),
         _ => return None,
@@ -376,15 +361,11 @@ pub struct IsoQuality {
     pub ao_samples: u32,
     /// 4x multisampling on the scene pass.
     pub antialias: bool,
-    pub shadows: bool,
 }
 
-pub const QUALITY_LOW: IsoQuality =
-    IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false, shadows: true };
-pub const QUALITY_MEDIUM: IsoQuality =
-    IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false, shadows: true };
-pub const QUALITY_HIGH: IsoQuality =
-    IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true, shadows: true };
+pub const QUALITY_LOW: IsoQuality = IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false };
+pub const QUALITY_MEDIUM: IsoQuality = IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false };
+pub const QUALITY_HIGH: IsoQuality = IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true };
 
 pub fn quality(name: &str) -> Option<IsoQuality> {
     match name {

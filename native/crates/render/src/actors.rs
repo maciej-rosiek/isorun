@@ -7,7 +7,7 @@ use crate::labels::Motion;
 use crate::mesh::{GpuMesh, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::pages::Pages;
 use crate::plan::{ground_basis, is_shown, tile_frame};
-use crate::renderer::{Cast, DrawItem, PageRef};
+use crate::renderer::{DrawItem, PageRef};
 use crate::uniforms::DrawUniform;
 use crate::TileSource;
 use glam::{EulerRot, Mat4, Quat, Vec3};
@@ -110,7 +110,6 @@ pub(crate) struct SpriteVisual {
     pages_id: usize,
     meshes: Vec<(u32, Arc<GpuMesh>)>,
     glows: bool,
-    cast_shadow: bool,
     motion: f32,
     phase: f32,
     effects: [f32; 8],
@@ -119,7 +118,7 @@ pub(crate) struct SpriteVisual {
 }
 
 impl SpriteVisual {
-    pub(crate) fn new(b: &Billboard, env: &mut ActorEnv, key: u64, cast_shadow: bool, phase: f32) -> Self {
+    pub(crate) fn new(b: &Billboard, env: &mut ActorEnv, key: u64, phase: f32) -> Self {
         let mut effects = [0.0; 8];
         for e in &b.effects {
             let i = match e {
@@ -178,14 +177,14 @@ impl SpriteVisual {
         }
         let mut meshes: Vec<(u32, Arc<GpuMesh>)> = batches.into_iter().map(|(p, b)| (p, Arc::new(GpuMesh::from_batch(&env.gpu.device, &b)))).collect();
         meshes.sort_by_key(|m| m.0);
-        SpriteVisual { key, pages_id: env.pages as *const Pages as usize, meshes, glows, cast_shadow, motion, phase, effects, tint: [1.0; 3], opacity: 1.0 }
+        SpriteVisual { key, pages_id: env.pages as *const Pages as usize, meshes, glows, motion, phase, effects, tint: [1.0; 3], opacity: 1.0 }
     }
 
     fn set_flash(&mut self, amount: f32, tint: [f32; 3]) {
         self.tint = [1.0 + amount * tint[0], 1.0 + amount * (tint[1] - 1.0), 1.0 + amount * (tint[2] - 1.0)];
     }
 
-    /// The sprite's draws with `model`, cast no shadow.
+    /// The sprite's draws with `model`.
     pub(crate) fn draws(&self, model: Mat4, out: &mut Vec<DrawItem>) {
         let uniform = DrawUniform {
             model: model.to_cols_array_2d(),
@@ -195,7 +194,7 @@ impl SpriteVisual {
             aura: [self.effects[4], self.effects[5], self.effects[6], self.effects[7]],
         };
         for (page, mesh) in &self.meshes {
-            out.push(DrawItem { material: Material::Actor, page: PageRef::Page(*page), mesh: mesh.clone(), uniform, cast: Cast::None });
+            out.push(DrawItem { material: Material::Actor, page: PageRef::Page(*page), mesh: mesh.clone(), uniform });
         }
     }
 }
@@ -427,7 +426,6 @@ fn lunge_reach(t: f64) -> f32 {
 #[derive(Default)]
 pub struct ActorLayer {
     actors: HashMap<i64, Actor>,
-    shadow_change: bool,
 }
 
 impl ActorLayer {
@@ -451,13 +449,11 @@ impl ActorLayer {
             let key = sprite_key(b);
             match self.actors.get_mut(&id) {
                 None => {
-                    let visual = SpriteVisual::new(b, env, key, id != PLAYER_ACTOR, random_phase(id));
+                    let visual = SpriteVisual::new(b, env, key, random_phase(id));
                     self.actors.insert(id, Actor::new(id, visual, b));
-                    self.shadow_change = true;
                 }
                 Some(actor) if actor.visual.key != key || actor.visual.pages_id != pages_id => {
-                    actor.visual = SpriteVisual::new(b, env, key, id != PLAYER_ACTOR, actor.visual.phase);
-                    self.shadow_change = true;
+                    actor.visual = SpriteVisual::new(b, env, key, actor.visual.phase);
                 }
                 _ => {}
             }
@@ -468,7 +464,6 @@ impl ActorLayer {
         let gone: Vec<i64> = self.actors.iter().filter(|(id, a)| !seen.contains(id) && a.death_start.is_none()).map(|(id, _)| *id).collect();
         for id in gone {
             self.actors.remove(&id);
-            self.shadow_change = true;
         }
     }
 
@@ -500,13 +495,9 @@ impl ActorLayer {
         let mut steps = Vec::new();
         let mut finished = Vec::new();
         for (id, actor) in self.actors.iter_mut() {
-            let was_moving = actor.moving;
             actor.update(now, yaw, pose, ground_at);
             for (from, to, seconds) in actor.started.drain(..) {
                 steps.push(ActorStep { id: *id, from, to, seconds });
-            }
-            if actor.visual.cast_shadow && (was_moving || actor.moving) {
-                self.shadow_change = true;
             }
             if actor.finished() {
                 finished.push(*id);
@@ -514,7 +505,6 @@ impl ActorLayer {
         }
         for id in finished {
             self.actors.remove(&id);
-            self.shadow_change = true;
         }
         steps.sort_by_key(|s| s.id);
         steps
@@ -524,13 +514,8 @@ impl ActorLayer {
         self.actors.values().any(|a| a.visual.glows)
     }
 
-    pub fn take_shadow_change(&mut self) -> bool {
-        std::mem::take(&mut self.shadow_change)
-    }
-
     pub fn clear(&mut self) {
         self.actors.clear();
-        self.shadow_change = true;
     }
 
     pub fn draws(&self, out: &mut Vec<DrawItem>) {
@@ -547,13 +532,7 @@ impl ActorLayer {
                 aura: [v.effects[4], v.effects[5], v.effects[6], v.effects[7]],
             };
             for (page, mesh) in &v.meshes {
-                out.push(DrawItem {
-                    material: Material::Actor,
-                    page: PageRef::Page(*page),
-                    mesh: mesh.clone(),
-                    uniform,
-                    cast: if v.cast_shadow { Cast::Actor } else { Cast::None },
-                });
+                out.push(DrawItem { material: Material::Actor, page: PageRef::Page(*page), mesh: mesh.clone(), uniform });
             }
         }
     }

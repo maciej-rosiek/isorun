@@ -83,7 +83,6 @@ pub fn sections() -> Vec<Section> {
                 colour!("From below", |l| l.ambient_ground),
             ],
         ),
-        s("Sun", vec![colour!("Colour", |l| l.sun_colour), num!("Strength", 0.0, 8.0, 0.05, |l| l.sun_intensity)]),
         s(
             "Wall torches",
             vec![
@@ -93,7 +92,6 @@ pub fn sections() -> Vec<Section> {
                 num!("Falloff", 0.0, 2.0, 0.1, |l| l.torch.decay),
             ],
         ),
-        s("Shadows", vec![num!("Softness", 0.0, 12.0, 0.5, |l| l.shadow_softness)]),
         s(
             "Shading",
             vec![
@@ -551,12 +549,12 @@ mod tests {
         let mut v = Values::new();
         v.insert("Overall/Exposure".into(), Value::Bool(true));
         v.insert("Bloom/On".into(), Value::from(3));
-        v.insert("Sun/Strength".into(), Value::from(1.5));
+        v.insert("Fill light/Strength".into(), Value::from(1.5));
         let l = with_values(&v);
         let base = isorun_render::lights(BASE).unwrap();
         assert_eq!(l.exposure, base.exposure);
         assert_eq!(l.bloom.enabled, base.bloom.enabled);
-        assert_eq!(l.sun_intensity, 1.5);
+        assert_eq!(l.ambient_intensity, 1.5);
     }
 
     #[test]

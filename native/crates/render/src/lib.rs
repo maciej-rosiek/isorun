@@ -1,5 +1,5 @@
 //! The isometric renderer (the port of `packages/render-iso`): the DCSS tiles upscaled four
-//! times with generated normal maps, under lights with shadows, drawn with wgpu. `IsoRenderer`
+//! times with generated normal maps, lit by a fill light and the wall torches, drawn with wgpu. `IsoRenderer`
 //! takes a `isorun_scene::Scene`, a camera and a look (`IsoLights`) and draws a frame into a
 //! texture view; `IsoCamera` follows the player, turns, tilts and zooms.
 
@@ -26,7 +26,6 @@ pub mod post;
 pub mod remote;
 mod renderer;
 pub mod scalefx;
-pub mod shadows;
 pub mod steps;
 pub mod torch_light;
 pub mod torches;

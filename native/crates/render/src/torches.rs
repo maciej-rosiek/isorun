@@ -5,7 +5,7 @@ use crate::gpu::{Blend, Gpu, Material};
 use crate::layers::{layer_pipeline, shader, uniform_group, uniform_layout, DynamicBuffer};
 use crate::lights::linear;
 use crate::mesh::{GpuMesh, Vertex};
-use crate::renderer::{seeded, Cast, DrawItem, PageRef, Torch};
+use crate::renderer::{seeded, DrawItem, PageRef, Torch};
 use crate::uniforms::DrawUniform;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Vec3};
@@ -194,9 +194,9 @@ impl TorchLayer {
 
     pub fn draws(&self, out: &mut Vec<DrawItem>, model: &TorchModel) {
         for p in &self.placements {
-            let mut uniform = DrawUniform::at(p.model, true);
+            let mut uniform = DrawUniform::at(p.model);
             uniform.look[3] = 0.0;
-            out.push(DrawItem { material: Material::Clay, page: PageRef::Torch, mesh: model.mesh.clone(), uniform, cast: Cast::None });
+            out.push(DrawItem { material: Material::Clay, page: PageRef::Torch, mesh: model.mesh.clone(), uniform });
         }
     }
 

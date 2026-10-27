@@ -5,7 +5,7 @@
 use crate::gpu::{Gpu, Material};
 use crate::mesh::{add_box, BoxSide, GpuMesh, Point3, QuadBatch, ALL_SIDES, ATLAS_INSET};
 use crate::pages::Pages;
-use crate::renderer::{Cast, DrawItem, PageRef};
+use crate::renderer::{DrawItem, PageRef};
 use crate::uniforms::DrawUniform;
 use crate::TileSource;
 use glam::{Mat4, Vec3};
@@ -163,17 +163,11 @@ impl TileFeatures {
         self.ground.get(&cell_key(x, y)).copied().unwrap_or(0.0)
     }
 
-    /// Swing the doors; returns the cells of the doors that moved.
-    pub fn update(&mut self, dt: f32) -> Vec<(i32, i32)> {
-        let mut moved = Vec::new();
+    /// Swing the doors.
+    pub fn update(&mut self, dt: f32) {
         for door in self.doors.values_mut() {
-            let turn = (door.target - door.angle) * (dt * DOOR_SWING_PER_SECOND).min(1.0);
-            door.angle += turn;
-            if turn.abs() > DOOR_STILL {
-                moved.push(door.cell);
-            }
+            door.angle += (door.target - door.angle) * (dt * DOOR_SWING_PER_SECOND).min(1.0);
         }
-        moved
     }
 
     pub fn take_doors(&mut self) -> Vec<(i32, i32, bool)> {
@@ -182,22 +176,16 @@ impl TileFeatures {
 
     pub fn draws(&self, out: &mut Vec<DrawItem>) {
         for (page, mesh) in &self.meshes {
-            out.push(DrawItem {
-                material: Material::Ground,
-                page: PageRef::Page(*page),
-                mesh: mesh.clone(),
-                uniform: DrawUniform::plain(true),
-                cast: Cast::Static,
-            });
+            out.push(DrawItem { material: Material::Ground, page: PageRef::Page(*page), mesh: mesh.clone(), uniform: DrawUniform::plain() });
         }
         let Some(leaf) = &self.leaf else { return };
         let mut doors: Vec<&Door> = self.doors.values().collect();
         doors.sort_by_key(|d| d.cell);
         for d in doors {
             let model = d.hinge * Mat4::from_rotation_y(d.angle);
-            let mut uniform = DrawUniform::at(model, false);
+            let mut uniform = DrawUniform::at(model);
             uniform.look[3] = 0.0;
-            out.push(DrawItem { material: Material::Clay, page: PageRef::Door, mesh: leaf.clone(), uniform, cast: Cast::Static });
+            out.push(DrawItem { material: Material::Clay, page: PageRef::Door, mesh: leaf.clone(), uniform });
         }
     }
 

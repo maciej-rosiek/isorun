@@ -88,9 +88,9 @@ impl IsoRenderer {
     }
 
     /// The level's geometry in chunks of `CHUNK_CELLS` square: only a chunk whose cells, cut-away
-    /// walls or items changed is built again. Returns where the geometry changed.
-    fn build_statics(&mut self, scene: &Arc<Scene>, tiles: &Arc<dyn TileSource>) -> Vec<CellArea> {
-        let mut changed = Vec::new();
+    /// walls or items changed is built again.
+    fn build_statics(&mut self, scene: &Arc<Scene>, tiles: &Arc<dyn TileSource>) {
+        let mut changed = false;
         let level_pitch = self.level_pitch();
         let level_yaw = self.level_yaw();
         let pose = self.upright(level_pitch);
@@ -99,7 +99,7 @@ impl IsoRenderer {
         if chunks_key != self.chunks_key {
             self.clear_statics();
             self.chunks_key = chunks_key;
-            changed.push(EVERYWHERE);
+            changed = true;
         }
         let sprites_view = hash_of(&(level_yaw.to_bits(), pose.stretch.to_bits(), pose.lean.to_bits()));
         let turned = sprites_view != self.sprites_view;
@@ -126,7 +126,7 @@ impl IsoRenderer {
         {
             let pages = self.pages.as_mut().unwrap();
             if self.features.build(&self.gpu, scene, tiles.as_ref(), pages, self.view.wall_height, forward) {
-                changed.push(EVERYWHERE);
+                changed = true;
             }
         }
         let mut grounds: HashMap<(i32, i32), ChunkPart> = HashMap::new();
@@ -177,24 +177,23 @@ impl IsoRenderer {
                 } else {
                     self.chunks.insert(*id, chunk);
                 }
-                changed.push(chunk_area(*id));
+                changed = true;
             }
             let drop_all = everywhere || (sprites_pass && turned);
             let map = if sprites_pass { &mut self.sprite_chunks } else { &mut self.chunks };
             let gone: Vec<(i32, i32)> = map.keys().filter(|id| !parts.contains_key(id) && (drop_all || dirty.as_ref().is_some_and(|d| d.contains(id)))).copied().collect();
             for id in gone {
                 map.remove(&id);
-                changed.push(chunk_area(id));
+                changed = true;
             }
         }
         self.tile_torches = self.chunks.values().flat_map(|c| c.torches.iter().copied()).collect();
         self.tile_torches.sort_by(|a, b| a.position.x.total_cmp(&b.position.x).then(a.position.z.total_cmp(&b.position.z)));
         self.tile_torches_version += 1;
-        if !changed.is_empty() {
+        if changed {
             let placements: Vec<TorchPlacement> = self.chunks.values().flat_map(|c| c.placements.iter().copied()).collect();
             self.torches.set(&self.gpu, &placements);
         }
-        changed
     }
 
     fn add_tile_torch(&self, chunk: &mut Chunk, x: i32, y: i32, normal: (i32, i32), standing: bool) {
@@ -315,17 +314,17 @@ impl IsoRenderer {
         chunk.glows = glows;
         let device = &self.gpu.device;
         if !caps.is_empty() {
-            chunk.meshes.push((Material::Cap, PageRef::Cap, Arc::new(GpuMesh::from_batch(device, &caps)), Cast::None, true));
+            chunk.meshes.push((Material::Cap, PageRef::Cap, Arc::new(GpuMesh::from_batch(device, &caps))));
         }
         let mut pages_sorted: Vec<(u32, QuadBatch)> = ground_batches.into_iter().collect();
         pages_sorted.sort_by_key(|p| p.0);
         for (page, batch) in pages_sorted {
-            chunk.meshes.push((Material::Ground, PageRef::Page(page), Arc::new(GpuMesh::from_batch(device, &batch)), Cast::None, true));
+            chunk.meshes.push((Material::Ground, PageRef::Page(page), Arc::new(GpuMesh::from_batch(device, &batch))));
         }
         let mut sprites_sorted: Vec<(u32, QuadBatch)> = sprite_batches.into_iter().collect();
         sprites_sorted.sort_by_key(|p| p.0);
         for (page, batch) in sprites_sorted {
-            chunk.meshes.push((Material::Sprite, PageRef::Page(page), Arc::new(GpuMesh::from_batch(device, &batch)), Cast::Static, false));
+            chunk.meshes.push((Material::Sprite, PageRef::Page(page), Arc::new(GpuMesh::from_batch(device, &batch))));
         }
         chunk
     }

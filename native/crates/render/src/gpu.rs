@@ -1,5 +1,5 @@
 //! The GPU objects every frame uses: the bind group layouts, the samplers, the shaders and the
-//! pipelines of the level's materials and their shadows.
+//! pipelines of the level's materials.
 
 use crate::mesh::Vertex;
 use crate::uniforms::{DrawUniform, FrameUniform};
@@ -67,21 +67,18 @@ pub struct Gpu {
     pub frame_layout: wgpu::BindGroupLayout,
     pub page_layout: wgpu::BindGroupLayout,
     pub draw_layout: wgpu::BindGroupLayout,
-    pub shadow_view_layout: wgpu::BindGroupLayout,
     pub page_sampler: wgpu::Sampler,
     pub nearest_page_sampler: wgpu::Sampler,
     pub linear_sampler: wgpu::Sampler,
     pub nearest_sampler: wgpu::Sampler,
     pub repeat_sampler: wgpu::Sampler,
-    pub shadow_sampler: wgpu::Sampler,
     pub world: wgpu::ShaderModule,
-    pub shadow: wgpu::ShaderModule,
     pub max_texture: u32,
     /// Whether each of a pass's targets can blend its own way. WebGL2 (and OpenGL ES) cannot:
     /// there the layers blend every target alike, premultiplied, and their shaders shape what
     /// they write to each target so it comes out as it would (layers.rs `premultiplied_source`).
     pub independent_blend: bool,
-    /// The OpenGL (WebGL2) backend, which takes a texture's kind from its shape (layers.rs, shadows.rs).
+    /// The OpenGL (WebGL2) backend, which takes a texture's kind from its shape (layers.rs).
     pub gl: bool,
 }
 
@@ -120,9 +117,6 @@ impl Gpu {
             label: Some("frame"),
             entries: &[
                 uniform_entry(0, std::mem::size_of::<FrameUniform>() as u64, false),
-                texture_entry(1, wgpu::TextureSampleType::Depth, d2),
-                texture_entry(2, wgpu::TextureSampleType::Depth, wgpu::TextureViewDimension::D2Array),
-                sampler_entry(3, wgpu::SamplerBindingType::Comparison),
                 texture_entry(4, float, d2),
                 texture_entry(5, float, d2),
                 sampler_entry(6, wgpu::SamplerBindingType::Filtering),
@@ -146,8 +140,6 @@ impl Gpu {
             label: Some("draw"),
             entries: &[uniform_entry(0, std::mem::size_of::<DrawUniform>() as u64, true)],
         });
-        let shadow_view_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("shadow view"), entries: &[uniform_entry(0, 96, true)] });
         let sampler = |label, filter: wgpu::FilterMode, mip: wgpu::MipmapFilterMode, address: wgpu::AddressMode, anisotropy: u16| {
             device.create_sampler(&wgpu::SamplerDescriptor {
                 label: Some(label),
@@ -172,20 +164,9 @@ impl Gpu {
         let linear_sampler = sampler("linear", wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Nearest, wgpu::AddressMode::ClampToEdge, 1);
         let nearest_sampler = sampler("nearest", wgpu::FilterMode::Nearest, wgpu::MipmapFilterMode::Nearest, wgpu::AddressMode::ClampToEdge, 1);
         let repeat_sampler = sampler("repeat", wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Nearest, wgpu::AddressMode::Repeat, 1);
-        let shadow_sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("shadow"),
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            compare: Some(wgpu::CompareFunction::LessEqual),
-            ..Default::default()
-        });
         let world = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world"),
             source: wgpu::ShaderSource::Wgsl(with_common(include_str!("shaders/world.wgsl")).into()),
-        });
-        let shadow = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("shadow"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/shadow.wgsl").into()),
         });
         let max_texture = device.limits().max_texture_dimension_2d;
         let gl = device.adapter_info().backend == wgpu::Backend::Gl;
@@ -196,15 +177,12 @@ impl Gpu {
             frame_layout,
             page_layout,
             draw_layout,
-            shadow_view_layout,
             page_sampler,
             nearest_page_sampler,
             linear_sampler,
             nearest_sampler,
             repeat_sampler,
-            shadow_sampler,
             world,
-            shadow,
             max_texture,
             independent_blend,
             gl,
@@ -245,40 +223,6 @@ impl Gpu {
                 bias: Default::default(),
             }),
             multisample: wgpu::MultisampleState { count: samples, ..Default::default() },
-            multiview_mask: None,
-            cache: None,
-        })
-    }
-
-    /// A pipeline that draws the level's casters into a shadow map: alpha tested, and for a torch
-    /// the distance to it as the depth.
-    pub fn shadow_pipeline(&self, point: bool, actor: bool) -> wgpu::RenderPipeline {
-        let layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-            label: Some("shadow"),
-            bind_group_layouts: &[Some(&self.shadow_view_layout), Some(&self.page_layout), Some(&self.draw_layout)],
-            immediate_size: 0,
-        });
-        let vs = if actor { "vs_actor" } else { "vs_main" };
-        let fs = if point { "fs_point" } else { "fs_sun" };
-        self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("shadow"),
-            layout: Some(&layout),
-            vertex: wgpu::VertexState {
-                module: &self.shadow,
-                entry_point: Some(vs),
-                buffers: &[Some(Vertex::layout())],
-                compilation_options: Default::default(),
-            },
-            fragment: Some(wgpu::FragmentState { module: &self.shadow, entry_point: Some(fs), targets: &[], compilation_options: Default::default() }),
-            primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: DEPTH_FORMAT,
-                depth_write_enabled: Some(true),
-                depth_compare: Some(wgpu::CompareFunction::LessEqual),
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: wgpu::MultisampleState::default(),
             multiview_mask: None,
             cache: None,
         })

@@ -21,8 +21,8 @@ pub fn install(ctx: &egui::Context) {
     theme::install(ctx);
 }
 
-/// The wgpu device Isorun asks for: the adapter's own limits, as the renderer's atlas pages and
-/// shadow maps want more than the defaults.
+/// The wgpu device Isorun asks for: the adapter's own limits, as the renderer's atlas pages want
+/// more than the defaults.
 pub fn wgpu_options() -> eframe::egui_wgpu::WgpuConfiguration {
     let mut setup = eframe::egui_wgpu::WgpuSetupCreateNew::without_display_handle();
     setup.device_descriptor = Arc::new(|adapter| wgpu::DeviceDescriptor { label: Some("isorun"), required_limits: adapter.limits(), ..Default::default() });

@@ -7,7 +7,7 @@ struct Draw {
     model: mat4x4<f32>,
     // rgb tint (the flash of a hit), w opacity (the fade of a death)
     tint: vec4<f32>,
-    // motion, phase, receives shadows, takes the memory shade
+    // motion, phase, unused, takes the memory shade
     look: vec4<f32>,
     // petrified, burning, poisoned, corroded
     harm: vec4<f32>,
@@ -184,7 +184,6 @@ fn gloss_shininess(gloss: f32) -> f32 {
 fn surface_of(in: VertexOut, normal: vec3<f32>, diffuse: vec3<f32>) -> Surface {
     var s: Surface;
     s.position = in.view_pos;
-    s.screen = in.clip.xy;
     s.normal = normal;
     s.view_dir = normalize(-in.view_pos);
     s.world = in.world;
@@ -193,7 +192,6 @@ fn surface_of(in: VertexOut, normal: vec3<f32>, diffuse: vec3<f32>) -> Surface {
     s.specular = vec3<f32>(0.0056);
     s.shininess = 30.0;
     s.rim = 0.0;
-    s.receive_shadow = draw.look.z > 0.5;
     return s;
 }
 

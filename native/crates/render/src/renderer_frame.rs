@@ -1,5 +1,5 @@
 // A frame (`render` in render-iso-3d.ts): the clock, the actors and the layers moved on, the
-// camera and the lights placed, then the shadow maps, the scene pass and the screen effects.
+// camera and the lights placed, then the scene pass and the screen effects.
 // Included into renderer.rs.
 
 /// The planes of a view-projection, for culling what is off the screen.
@@ -24,7 +24,7 @@ impl IsoRenderer {
         for m in [Material::Ground, Material::Sprite, Material::Actor, Material::Cap, Material::Clay] {
             world.insert(m, self.gpu.world_pipeline(m, samples));
         }
-        self.pipelines = Some(Pipelines { samples, world, shadow_sun: self.gpu.shadow_pipeline(false, false) });
+        self.pipelines = Some(Pipelines { samples, world });
         self.fog.prepare(&self.gpu, samples);
         self.liquids.prepare(&self.gpu, samples);
         self.combat.prepare(&self.gpu, samples);
@@ -95,18 +95,9 @@ impl IsoRenderer {
         self.perspective = perspective;
     }
 
-    /// The sun follows the camera a whole cell at a time; the torches nearest the camera hold the
-    /// dust, and every torch lights the level from the baked torch light map.
+    /// The torches nearest the camera hold the dust, and every torch lights the level from the
+    /// baked torch light map.
     fn place_lights(&mut self) {
-        let (right, forward) = ground_basis(self.cam.yaw as f32);
-        let target = Vec3::new(self.cam.eye_x.round() as f32 + 0.5, 0.0, self.cam.eye_y.round() as f32 + 0.5);
-        let across = Vec3::new(-right[0] - forward[0] * SUN_FRONT, 0.0, -right[1] - forward[1] * SUN_FRONT).normalize() * SUN_ELEVATION.cos();
-        let sun_at = target + Vec3::new(across.x, SUN_ELEVATION.sin(), across.z) * SUN_DISTANCE;
-        if self.sun_at != sun_at {
-            self.sun_stale = true;
-        }
-        self.sun_at = sun_at;
-        self.sun_target = target;
         let nearest = self.nearest_torches();
         let placed = assign_torches(&self.lit, &nearest);
         let mut moved = self.revision_counter != self.dust_revision;
@@ -148,8 +139,6 @@ impl IsoRenderer {
             [l[0] * k, l[1] * k, l[2] * k, 1.0]
         };
         let to_view = |v: Vec3| (view * v.extend(0.0)).truncate();
-        let sun_dir = to_view((self.sun_at - self.sun_target).normalize());
-        let sun_casts = self.quality.shadows && self.lights.sun_intensity > 0.0;
         let detail = self.detail.detail();
         let s = &self.lights.shading;
         let gate = |on: bool, v: f32| if on { v } else { 0.0 };
@@ -159,34 +148,28 @@ impl IsoRenderer {
         if let Some((p, intensity)) = self.combat.light() {
             let vp = (view * p.extend(1.0)).truncate();
             let c = linear(0xffd8a8);
-            lights[TORCH_LIGHTS] = LightUniform { position: [vp.x, vp.y, vp.z, 4.0], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], shadow: [-1.0, 0.0, 0.0, 1.0], world: [p.x, p.y, p.z, 0.0] };
+            lights[TORCH_LIGHTS] = LightUniform { position: [vp.x, vp.y, vp.z, 4.0], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], world: [p.x, p.y, p.z, 0.0] };
         }
         let features = &self.features;
         let centre = (self.cam.eye_x as f32 + 0.5, self.cam.eye_y as f32 + 0.5);
         for (slot, (p, c, intensity)) in self.loot.lights(centre, TORCH_LIGHTS, &|x, y| features.ground_at(x, y)).into_iter().enumerate() {
             let vp = (view * p.extend(1.0)).truncate();
-            lights[slot] = LightUniform { position: [vp.x, vp.y, vp.z, LOOT_LIGHT_REACH], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], shadow: [-1.0, 0.0, 0.0, 1.0], world: [p.x, p.y, p.z, 0.0] };
+            lights[slot] = LightUniform { position: [vp.x, vp.y, vp.z, LOOT_LIGHT_REACH], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], world: [p.x, p.y, p.z, 0.0] };
         }
-        let sun_view = Mat4::look_at_rh(self.sun_at, self.sun_target, Vec3::Y);
-        let sun_proj = Mat4::orthographic_rh(-SUN_REACH, SUN_REACH, -SUN_REACH, SUN_REACH, 1.0, SUN_DISTANCE * 2.0);
         let up = to_view(Vec3::Y);
         FrameUniform {
             view_proj: (self.camera_proj * view).to_cols_array_2d(),
             view: view.to_cols_array_2d(),
             proj: self.camera_proj.to_cols_array_2d(),
             inv_view: view.inverse().to_cols_array_2d(),
-            sun_matrix: (sun_proj * sun_view).to_cols_array_2d(),
             camera: [self.camera_pos.x, self.camera_pos.y, self.camera_pos.z, self.perspective as u8 as f32],
             sky: lin(self.lights.ambient_sky, self.lights.ambient_intensity),
             ground: lin(self.lights.ambient_ground, self.lights.ambient_intensity),
-            sun_dir: [sun_dir.x, sun_dir.y, sun_dir.z, sun_casts as u8 as f32],
-            sun_colour: lin(self.lights.sun_colour, self.lights.sun_intensity),
-            sun_shadow: [SUN_BIAS, NORMAL_BIAS, 1.0 / crate::shadows::SUN_SHADOW_MAP_SIZE as f32, self.lights.shadow_softness],
             shading0: [s.wrap, s.bands, s.relief, s.depth],
             shading1: [s.sprites, gate(detail.gloss, s.gloss), gate(detail.rim, s.rim), gate(detail.cavity, s.cavity)],
             shading2: [gate(detail.variation, s.variation), gate(detail.wetness, s.wetness), gate(detail.glow, s.glow), gate(detail.sparkle, s.sparkle)],
             shading3: [detail.depth_steps as f32, detail.liquids as u8 as f32, detail.statuses as u8 as f32, (now - self.start) as f32],
-            viewport: [self.width, self.height, MAX_LIGHTS as f32, self.lights.shadow_softness / crate::shadows::SHADOW_MAP_SIZE as f32],
+            viewport: [self.width, self.height, MAX_LIGHTS as f32, 0.0],
             up: [up.x, up.y, up.z, gate(detail.dust, s.dust)],
             torch_light: [colour[0] * spec.intensity, colour[1] * spec.intensity, colour[2] * spec.intensity, self.tile_torches.first().map_or(1.0, |t| t.position.y)],
             lights,
@@ -214,14 +197,11 @@ impl IsoRenderer {
             self.events.landings.extend(self.loot.take_landings());
         }
         let static_key = self.statics_key(&scene);
-        let mut changed: Vec<CellArea> = Vec::new();
         if static_key != self.static_key {
-            changed.extend(self.build_statics(&scene, &tiles));
+            self.build_statics(&scene, &tiles);
             self.static_key = static_key;
         }
-        for (x, y) in self.features.update(dt as f32) {
-            changed.push(CellArea { x0: x as f32, y0: y as f32, x1: x as f32 + 1.0, y1: y as f32 + 1.0 });
-        }
+        self.features.update(dt as f32);
         self.events.doors.extend(self.features.take_doors());
         if now >= self.stop_until {
             self.clock += dt * self.animation_speed;
@@ -233,11 +213,6 @@ impl IsoRenderer {
         for hop in hops {
             self.steps.step(hop.from, hop.to, hop.seconds / self.animation_speed, &|x, y| ground_floor(&scene, x, y));
             self.events.hops.push(hop);
-        }
-        let actor_shadows_moved = self.actors.take_shadow_change();
-        self.mark_shadows_stale_around(&changed);
-        if actor_shadows_moved {
-            self.sun_stale = true;
         }
         self.fog.update(dt as f32);
         self.place_camera();
@@ -284,12 +259,11 @@ impl IsoRenderer {
             let a = chunk_area(*id);
             let visible = box_visible(&planes, Vec3::new(a.x0 - 1.0, -1.5, a.y0 - 1.0), Vec3::new(a.x1 + 1.0, 3.0, a.y1 + 1.0));
             let centre = self.camera_view.transform_point3(Vec3::new((a.x0 + a.x1) * 0.5, 0.0, (a.y0 + a.y1) * 0.5));
-            for (material, page, mesh, cast, receive) in &chunk.meshes {
-                // a caster off the screen still shadows what is on it
-                if !visible && *cast == Cast::None {
-                    continue;
-                }
-                chunk_items.push((*material as u8, -centre.z, DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain(*receive), cast: *cast }));
+            if !visible {
+                continue;
+            }
+            for (material, page, mesh) in &chunk.meshes {
+                chunk_items.push((*material as u8, -centre.z, DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain() }));
             }
         }
         chunk_items.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
@@ -316,40 +290,7 @@ impl IsoRenderer {
         };
         let groups: Vec<Option<wgpu::BindGroup>> = items.iter().map(|i| page_group(self, i.page)).collect();
 
-        // shadow maps
-        self.shadows.begin();
-        let sun_casts = self.quality.shadows && self.lights.sun_intensity > 0.0;
-        let sun_view = if sun_casts && self.sun_stale {
-            self.sun_stale = false;
-            let m = Mat4::orthographic_rh(-SUN_REACH, SUN_REACH, -SUN_REACH, SUN_REACH, 1.0, SUN_DISTANCE * 2.0) * Mat4::look_at_rh(self.sun_at, self.sun_target, Vec3::Y);
-            Some(self.shadows.view(m, Vec4::ZERO, false))
-        } else {
-            None
-        };
-        self.shadows.upload(&self.gpu.queue);
         let pipelines = self.pipelines.as_ref().unwrap();
-        if let Some(offset) = sun_view {
-            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("sun shadow"),
-                color_attachments: &[],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment { view: &self.shadows.sun_view, depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Store }), stencil_ops: None }),
-                timestamp_writes: None,
-                occlusion_query_set: None,
-                multiview_mask: None,
-            });
-            pass.set_pipeline(&pipelines.shadow_sun);
-            pass.set_bind_group(0, &self.shadows.view_group, &[offset]);
-            for (k, item) in items.iter().enumerate() {
-                let Some(group) = &groups[k] else { continue };
-                if item.cast == Cast::None {
-                    continue;
-                }
-                pass.set_bind_group(1, group, &[]);
-                pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
-                item.mesh.draw(&mut pass);
-            }
-        }
-
         self.fog.upload(&self.gpu);
         self.torches.set_dust_strength(&self.gpu, frame.up[3]);
         // the scene pass
