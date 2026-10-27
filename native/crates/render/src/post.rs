@@ -34,6 +34,7 @@ struct PostUniform {
     flags0: [f32; 4],
     flags1: [f32; 4],
     size: [f32; 4],
+    background: [f32; 4],
     proj: [[f32; 4]; 4],
     inv_proj: [[f32; 4]; 4],
 }
@@ -539,6 +540,7 @@ impl Post {
             flags0: [flag(ao_on), flag(lights.outline.enabled), flag(lights.painted.enabled), flag(lights.pixelate.enabled)],
             flags1: [flag(lights.bloom.enabled), flag(lights.tilt_shift.enabled), flag(frame.emission), flag(frame.perspective)],
             size: [w, h, 1.0 / w, 1.0 / h],
+            background: [lights.background_grain, frame.pixel_scale, 0.0, 0.0],
             proj: frame.proj.to_cols_array_2d(),
             inv_proj: frame.proj.inverse().to_cols_array_2d(),
         };

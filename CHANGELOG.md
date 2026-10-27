@@ -4,6 +4,8 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- A new look, Two-tone: a warm light from the left and a cool one from the right of the screen, so every wall shows at a glance which way it faces, whichever way you turn the view.
+- A new look, Ink: the dungeon in grey ink on paper, and only what matters in colour: you, the monsters, the items, doors, stairs, altars and the like.
 - A travel-excluded area shows on the dungeon floor again: crawl's red cross on each excluded cell, as the minimap has it.
 - The inventory shows the right card when a weapon or armour and a scroll or potion share a letter (crawl now lets them); pointing at one no longer lights up both.
 - Loot as in Diablo: an item a monster drops as it dies flies up out of it, turns over and lands on the floor with a clink.

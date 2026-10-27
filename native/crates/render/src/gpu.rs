@@ -15,6 +15,7 @@ pub const SCENE_TARGETS: [wgpu::TextureFormat; 3] = [HDR_FORMAT, NORMAL_FORMAT, 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Material {
     Ground,
+    Feature,
     Sprite,
     Actor,
     Cap,
@@ -199,6 +200,7 @@ impl Gpu {
         });
         let (vs, fs) = match material {
             Material::Ground => ("vs_main", "fs_ground"),
+            Material::Feature => ("vs_main", "fs_feature"),
             Material::Sprite => ("vs_main", "fs_sprite"),
             Material::Actor => ("vs_actor", "fs_actor"),
             Material::Cap => ("vs_main", "fs_cap"),

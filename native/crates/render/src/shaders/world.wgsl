@@ -218,16 +218,23 @@ const GROUND_RIM: f32 = 0.15;
 // surface says; darker on a remembered cell.
 @fragment
 fn fs_ground(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
-    return ground(in, front, 0.5);
+    return ground(in, front, 0.5, true);
+}
+
+// What lies on the floor (crawl's features, the overlays) and the stairs and door frames: drawn as
+// the ground, but in their own colours where the look greys the terrain, as they matter.
+@fragment
+fn fs_feature(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
+    return ground(in, front, 0.5, false);
 }
 
 // crawl's see-through marks on the ground (the travel exclusion), blended over the floor under them.
 @fragment
 fn fs_mark(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
-    return ground(in, front, 0.01);
+    return ground(in, front, 0.01, false);
 }
 
-fn ground(in: VertexOut, front: bool, least_alpha: f32) -> FragmentOut {
+fn ground(in: VertexOut, front: bool, least_alpha: f32, terrain: bool) -> FragmentOut {
     let face = select(-1.0, 1.0, front);
     let across = dpdx(in.uv);
     let down = dfdy2(in.uv);
@@ -251,7 +258,10 @@ fn ground(in: VertexOut, front: bool, least_alpha: f32) -> FragmentOut {
     let upward = smoothstep(0.5, 0.9, normalize(in.normal_world).y);
     let puddle = smoothstep(0.0, PUDDLE_EDGE, wet * PUDDLE_LEVEL - height + 0.5 - PUDDLE_LEVEL / 2.0) * upward;
     let shaded = colour.rgb * (1.0 - hollow * CAVITY_DARK) * (1.0 + ridge * EDGE_LIGHT) * varied * mix(1.0, WET_DARK, max(wet * 0.6, puddle));
-    let diffuse = shaded * shade * in.colour;
+    var diffuse = shaded * shade * in.colour;
+    if (terrain) {
+        diffuse = terrain_colour(diffuse);
+    }
     let normal = relief_normal(in, sunk, puddle, face, across, down);
     var s = surface_of(in, normal, diffuse);
     let gloss = max(surface.r, max(wet * WET_GLOSS, puddle));
@@ -364,7 +374,7 @@ fn fs_cap(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     let grain = textureSample(colour_map, page_sampler, in.uv);
     let shade = memory_shade(memory_cell(in.world, normalize(in.normal_world)));
     let normal = normalize(in.normal_view) * face;
-    let s = surface_of(in, normal, grain.rgb * shade * in.colour);
+    let s = surface_of(in, normal, terrain_colour(grain.rgb * shade * in.colour));
     return outputs(light_surface(MODEL_CLAY, s), 1.0, in, face, vec3<f32>(0.0));
 }
 

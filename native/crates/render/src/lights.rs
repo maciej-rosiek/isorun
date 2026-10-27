@@ -111,9 +111,25 @@ pub struct TiltShift {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Grade {
     pub saturation: f32,
+    /// The saturation of the terrain's own colour alone (the floor, the walls, their tops), before
+    /// the lights: what lives and what matters (actors, items, crawl's features) keeps its colour.
+    pub terrain: f32,
     pub shadows: Hex,
     pub highlights: Hex,
     pub vignette: f32,
+}
+
+/// Two lights from far away that turn with the camera: the key from the screen's lower left, the
+/// fill from its lower right, so each side of a wall shows at a glance which way it faces, from
+/// any side the level is seen.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SideLights {
+    pub key: Hex,
+    pub key_strength: f32,
+    pub fill: Hex,
+    pub fill_strength: f32,
+    /// How high above the ground they stand, 0 level with it, 1 straight above.
+    pub height: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -173,10 +189,13 @@ pub struct IsoLights {
     pub label: &'static str,
     pub exposure: f32,
     pub background: Hex,
+    /// How much the background shows a paper's grain, 0 for none.
+    pub background_grain: f32,
     pub ambient_sky: Hex,
     pub ambient_ground: Hex,
     pub ambient_intensity: f32,
     pub torch: PointLightSpec,
+    pub side_lights: SideLights,
     pub shading: ShadingSettings,
     pub paint: PaintSettings,
     pub walls: Walls,
@@ -200,10 +219,12 @@ pub fn diorama() -> IsoLights {
         label: "Diorama",
         exposure: 2.0,
         background: 0x212121,
+        background_grain: 0.0,
         ambient_sky: 0xe4ecff,
         ambient_ground: 0x8c7c6c,
         ambient_intensity: 3.3,
         torch: PointLightSpec { colour: 0xffe0cc, intensity: 10.0, distance: 11.0, decay: 0.6 },
+        side_lights: SideLights { key: 0xff9e52, key_strength: 0.0, fill: 0x5a9aff, fill_strength: 0.0, height: 0.3 },
         shading: ShadingSettings {
             wrap: 0.25,
             bands: 5.0,
@@ -226,7 +247,7 @@ pub fn diorama() -> IsoLights {
         pixelate: Pixelate { enabled: false, size: 2.5 },
         bloom: Bloom { enabled: false, strength: 0.5, radius: 0.4, threshold: 0.6 },
         tilt_shift: TiltShift { enabled: true, blur: 0.2, focus: 0.45, falloff: 0.5 },
-        grade: Grade { saturation: 0.95, shadows: 0xf0f1ff, highlights: 0xfef2e1, vignette: 0.2 },
+        grade: Grade { saturation: 0.95, terrain: 1.0, shadows: 0xf0f1ff, highlights: 0xfef2e1, vignette: 0.2 },
         aim: Aim { colour: 0xffd75e, brightness: 1.0 },
         fog: FogSettings { enabled: true, colour: 0xa19b9b, density: 0.4, height: 1.0, reach: 2.0, softness: 0.05 },
         water: WaterSettings { enabled: true, deep: 0x0d1e26, shallow: 0x02061d, light: 0x54899c, strength: 0.15, speed: 0.7 },
@@ -243,7 +264,8 @@ fn variation(change: impl FnOnce(&mut IsoLights)) -> IsoLights {
 }
 
 /// The looks, by the name the settings keep (`LIGHTS` in lights.ts), in its order.
-pub const LIGHTS_NAMES: [&str; 11] = ["diorama", "sunny", "storybook", "pixel", "dusk", "moonlit", "rain", "ember", "frost", "miniature", "noir"];
+pub const LIGHTS_NAMES: [&str; 13] =
+    ["diorama", "sunny", "storybook", "pixel", "dusk", "moonlit", "rain", "ember", "frost", "miniature", "noir", "twotone", "ink"];
 
 pub fn lights(name: &str) -> Option<IsoLights> {
     Some(match name {
@@ -258,7 +280,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.walls = Walls { bevel: 0.1, moss: 0.25, moss_colour: 0x8a8a7a };
             l.outline = Outline { enabled: true, thickness: 1.0, strength: 0.5, colour: 0x2a1e16 };
             l.tilt_shift.enabled = false;
-            l.grade = Grade { saturation: 1.15, shadows: 0xf0f1ff, highlights: 0xfff4e4, vignette: 0.1 };
+            l.grade = Grade { saturation: 1.15, shadows: 0xf0f1ff, highlights: 0xfff4e4, vignette: 0.1, ..l.grade };
         }),
         "storybook" => variation(|l| {
             l.label = "Storybook";
@@ -267,7 +289,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.paint = PaintSettings { radius: 2.0, levels: 0.0, lift: 1.4, upscale: Upscale::Scale2x };
             l.outline = Outline { enabled: true, thickness: 1.0, strength: 0.7, colour: 0x2a1e16 };
             l.painted = Painted { enabled: true, radius: 0.75 };
-            l.grade = Grade { saturation: 1.1, shadows: 0xe6e0ff, highlights: 0xffecd0, vignette: 0.25 };
+            l.grade = Grade { saturation: 1.1, shadows: 0xe6e0ff, highlights: 0xffecd0, vignette: 0.25, ..l.grade };
         }),
         "pixel" => variation(|l| {
             l.label = "Pixel";
@@ -280,7 +302,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.background = 0x1a1418;
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xa8b4e0, 0x7a6858, 3.9);
             l.torch.intensity = 12.0;
-            l.grade = Grade { saturation: 0.95, shadows: 0xe0dcff, highlights: 0xffe6c8, vignette: 0.3 };
+            l.grade = Grade { saturation: 0.95, shadows: 0xe0dcff, highlights: 0xffe6c8, vignette: 0.3, ..l.grade };
         }),
         "moonlit" => variation(|l| {
             l.label = "Moonlit";
@@ -290,7 +312,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0x8090c0, 0x302838, 2.65);
             l.torch = PointLightSpec { colour: 0xffa860, intensity: 9.0, distance: 8.0, decay: 1.0 };
             l.bloom = Bloom { enabled: true, strength: 0.4, radius: 0.4, threshold: 0.7 };
-            l.grade = Grade { saturation: 0.85, shadows: 0xc8d4ff, highlights: 0xfff2e0, vignette: 0.35 };
+            l.grade = Grade { saturation: 0.85, shadows: 0xc8d4ff, highlights: 0xfff2e0, vignette: 0.35, ..l.grade };
         }),
         "rain" => variation(|l| {
             l.label = "Rain crypt";
@@ -301,7 +323,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.shading = ShadingSettings { gloss: 0.7, rim: 0.5, cavity: 0.7, wetness: 0.9, ..l.shading };
             l.walls.moss_colour = 0x4e5a4a;
             l.water = WaterSettings { strength: 0.25, speed: 0.9, ..l.water };
-            l.grade = Grade { saturation: 0.75, shadows: 0xd8e4ff, highlights: 0xfff0dc, vignette: 0.3 };
+            l.grade = Grade { saturation: 0.75, shadows: 0xd8e4ff, highlights: 0xfff0dc, vignette: 0.3, ..l.grade };
         }),
         "ember" => variation(|l| {
             l.label = "Ember forge";
@@ -312,7 +334,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.shading = ShadingSettings { gloss: 0.35, rim: 0.7, cavity: 0.7, glow: 1.6, ..l.shading };
             l.bloom = Bloom { enabled: true, strength: 0.3, radius: 0.5, threshold: 0.7 };
             l.lava.glow = 0.8;
-            l.grade = Grade { saturation: 0.9, shadows: 0xe8dcff, highlights: 0xffe8c8, vignette: 0.4 };
+            l.grade = Grade { saturation: 0.9, shadows: 0xe8dcff, highlights: 0xffe8c8, vignette: 0.4, ..l.grade };
         }),
         "frost" => variation(|l| {
             l.label = "Frost";
@@ -322,7 +344,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.torch = PointLightSpec { colour: 0xffc890, intensity: 5.0, distance: 9.0, decay: 1.0 };
             l.shading = ShadingSettings { wrap: 0.35, gloss: 0.6, rim: 0.9, sparkle: 1.6, wetness: 0.4, ..l.shading };
             l.walls = Walls { bevel: 0.05, moss: 0.35, moss_colour: 0xdce8f4 };
-            l.grade = Grade { saturation: 0.7, shadows: 0xd4e4ff, highlights: 0xf4f8ff, vignette: 0.2 };
+            l.grade = Grade { saturation: 0.7, shadows: 0xd4e4ff, highlights: 0xf4f8ff, vignette: 0.2, ..l.grade };
         }),
         "miniature" => variation(|l| {
             l.label = "Miniature";
@@ -331,7 +353,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.ambient_intensity = 4.9;
             l.shading = ShadingSettings { wrap: 0.55, bands: 5.0, relief: 0.8, depth: 0.08, gloss: 0.15, rim: 0.3, cavity: 0.9, variation: 0.04, ..l.shading };
             l.tilt_shift = TiltShift { enabled: true, blur: 0.55, focus: 0.25, falloff: 0.35 };
-            l.grade = Grade { saturation: 1.25, shadows: 0xece4ff, highlights: 0xfff0dc, vignette: 0.15 };
+            l.grade = Grade { saturation: 1.25, shadows: 0xece4ff, highlights: 0xfff0dc, vignette: 0.15, ..l.grade };
         }),
         "noir" => variation(|l| {
             l.label = "Noir";
@@ -340,7 +362,32 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xc0c0c0, 0x303030, 3.4);
             l.torch = PointLightSpec { colour: 0xfff0e0, intensity: 7.0, distance: 7.0, decay: 1.4 };
             l.shading = ShadingSettings { bands: 3.0, gloss: 0.4, rim: 1.2, cavity: 0.8, glow: 0.6, ..l.shading };
-            l.grade = Grade { saturation: 0.12, shadows: 0xe8ecf4, highlights: 0xfff8ec, vignette: 0.6 };
+            l.grade = Grade { saturation: 0.12, shadows: 0xe8ecf4, highlights: 0xfff8ec, vignette: 0.6, ..l.grade };
+        }),
+        "twotone" => variation(|l| {
+            l.label = "Two-tone";
+            l.exposure = 1.8;
+            l.background = 0x0a1c20;
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xf4ece4, 0x6a5e54, 3.2);
+            l.side_lights = SideLights { key: 0xff9e52, key_strength: 16.0, fill: 0x5a9aff, fill_strength: 12.0, height: 0.0 };
+            l.shading.wrap = 0.0;
+            l.walls = Walls { moss: 1.0, moss_colour: 0x7c7c7c, ..l.walls };
+            l.fog.colour = 0x0e3a40;
+            l.grade = Grade { saturation: 1.05, terrain: 0.5, shadows: 0xe8f0ff, highlights: 0xfffaf4, vignette: 0.3 };
+        }),
+        "ink" => variation(|l| {
+            l.label = "Ink";
+            l.exposure = 2.2;
+            l.background = 0xa19c90;
+            l.background_grain = 0.06;
+            (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xffffff, 0x8c8c8c, 4.4);
+            l.torch.colour = 0xffffff;
+            l.shading = ShadingSettings { bands: 3.0, cavity: 1.2, ..l.shading };
+            l.walls = Walls { moss: 1.0, moss_colour: 0x8c8c8c, ..l.walls };
+            l.outline = Outline { enabled: true, thickness: 2.0, strength: 0.9, colour: 0x1a1412 };
+            l.tilt_shift.enabled = false;
+            l.fog.colour = 0x9a9484;
+            l.grade = Grade { saturation: 1.15, terrain: 0.0, shadows: 0xf4f0ff, highlights: 0xfffcf6, vignette: 0.1 };
         }),
         _ => return None,
     })

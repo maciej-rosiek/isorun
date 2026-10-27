@@ -42,6 +42,13 @@ struct Frame {
     // view-space up, w unused
     up: vec4<f32>,
     torch_light: vec4<f32>,
+    // the side lights' view-space directions (to the light), w unused, and their colours
+    key_light: vec4<f32>,
+    key_colour: vec4<f32>,
+    fill_light: vec4<f32>,
+    fill_colour: vec4<f32>,
+    // the terrain's saturation, unused, unused, unused
+    terrain: vec4<f32>,
     lights: array<Light, MAX_LIGHTS>,
 };
 
@@ -275,12 +282,30 @@ fn baked_torch_light(model: u32, s: Surface) -> vec3<f32> {
     return direct(model, s, towards, frame.torch_light.rgb * limited_torch_light(baked.a) * on_lit_side(s, to_torch), s.all_round > 0.5);
 }
 
-// Every light on the surface: the hemisphere light, the torches and the point lights.
+// A side light, unbanded: clay's bands round a level light's grazing touch on a wall top (a
+// rounding error above zero) up to a whole band, which lit the tops in its colour.
+fn side_light(s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
+    if (colour.r + colour.g + colour.b <= 0.0) {
+        return vec3<f32>(0.0);
+    }
+    if (s.all_round > 0.5) {
+        return colour * ALL_ROUND_SHADE * s.diffuse / PI;
+    }
+    return lambert_direct(s, dir, colour);
+}
+
+// The terrain's own colour greyed by the look's terrain saturation; the lights still tint it.
+fn terrain_colour(c: vec3<f32>) -> vec3<f32> {
+    return mix(vec3<f32>(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722))), c, frame.terrain.x);
+}
+
+// Every light on the surface: the hemisphere light, the torches, the side lights and the point lights.
 fn light_surface(model: u32, s: Surface) -> vec3<f32> {
     let weight = dot(s.normal, frame.up.xyz) * 0.5 + 0.5;
     let irradiance = mix(frame.ground.rgb, frame.sky.rgb, weight);
     var out = irradiance * s.diffuse / PI;
     out = out + baked_torch_light(model, s);
+    out = out + side_light(s, frame.key_light.xyz, frame.key_colour.rgb) + side_light(s, frame.fill_light.xyz, frame.fill_colour.rgb);
     let count = u32(frame.viewport.z);
     for (var i = 0u; i < MAX_LIGHTS; i = i + 1u) {
         if (i >= count) {

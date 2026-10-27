@@ -74,7 +74,14 @@ macro_rules! toggle {
 pub fn sections() -> Vec<Section> {
     let s = |title, fields| Section { title, fields };
     vec![
-        s("Overall", vec![num!("Exposure", 0.5, 6.0, 0.1, |l| l.exposure), colour!("Background", |l| l.background)]),
+        s(
+            "Overall",
+            vec![
+                num!("Exposure", 0.5, 6.0, 0.1, |l| l.exposure),
+                colour!("Background", |l| l.background),
+                num!("Background grain", 0.0, 0.3, 0.01, |l| l.background_grain),
+            ],
+        ),
         s(
             "Fill light",
             vec![
@@ -90,6 +97,16 @@ pub fn sections() -> Vec<Section> {
                 num!("Strength", 0.0, 30.0, 0.25, |l| l.torch.intensity),
                 num!("Reach", 1.0, 16.0, 0.5, |l| l.torch.distance),
                 num!("Falloff", 0.0, 2.0, 0.1, |l| l.torch.decay),
+            ],
+        ),
+        s(
+            "Side lights",
+            vec![
+                colour!("Key colour", |l| l.side_lights.key),
+                num!("Key strength", 0.0, 30.0, 0.25, |l| l.side_lights.key_strength),
+                colour!("Fill colour", |l| l.side_lights.fill),
+                num!("Fill strength", 0.0, 30.0, 0.25, |l| l.side_lights.fill_strength),
+                num!("Height", 0.0, 1.0, 0.05, |l| l.side_lights.height),
             ],
         ),
         s(
@@ -173,6 +190,7 @@ pub fn sections() -> Vec<Section> {
             "Colour grade",
             vec![
                 num!("Saturation", 0.0, 2.0, 0.05, |l| l.grade.saturation),
+                num!("Terrain saturation", 0.0, 1.5, 0.05, |l| l.grade.terrain),
                 colour!("Dark tint", |l| l.grade.shadows),
                 colour!("Bright tint", |l| l.grade.highlights),
                 num!("Vignette", 0.0, 1.5, 0.05, |l| l.grade.vignette),

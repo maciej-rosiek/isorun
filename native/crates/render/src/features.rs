@@ -176,7 +176,7 @@ impl TileFeatures {
 
     pub fn draws(&self, out: &mut Vec<DrawItem>) {
         for (page, mesh) in &self.meshes {
-            out.push(DrawItem { material: Material::Ground, page: PageRef::Page(*page), mesh: mesh.clone(), uniform: DrawUniform::plain() });
+            out.push(DrawItem { material: Material::Feature, page: PageRef::Page(*page), mesh: mesh.clone(), uniform: DrawUniform::plain() });
         }
         let Some(leaf) = &self.leaf else { return };
         let mut doors: Vec<&Door> = self.doors.values().collect();

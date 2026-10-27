@@ -23,6 +23,8 @@ struct Post {
     flags1: vec4<f32>,
     // full size w, h, 1/w, 1/h
     size: vec4<f32>,
+    // the background's grain, pixel scale, unused, unused
+    background: vec4<f32>,
     proj: mat4x4<f32>,
     inv_proj: mat4x4<f32>,
 };
@@ -280,6 +282,27 @@ fn srgb_from_linear(c: vec3<f32>) -> vec3<f32> {
     return select(1.055 * pow(x, vec3<f32>(1.0 / 2.4)) - 0.055, x * 12.92, x <= vec3<f32>(0.0031308));
 }
 
+fn grain_hash(p: vec2<f32>) -> f32 {
+    return fract(sin(dot(p, vec2<f32>(127.1, 311.7))) * 43758.5453);
+}
+
+fn value_noise(p: vec2<f32>) -> f32 {
+    let i = floor(p);
+    let f = p - i;
+    let u = f * f * (3.0 - 2.0 * f);
+    let a = mix(grain_hash(i), grain_hash(i + vec2<f32>(1.0, 0.0)), u.x);
+    let b = mix(grain_hash(i + vec2<f32>(0.0, 1.0)), grain_hash(i + vec2<f32>(1.0, 1.0)), u.x);
+    return mix(a, b, u.y);
+}
+
+// The background seen as paper: soft blotches and a fine fibre, about -1..1.
+fn paper_grain(uv: vec2<f32>) -> f32 {
+    let p = uv * post.size.xy / max(post.background.y, 0.5);
+    let blotches = value_noise(p / 90.0) * 0.5 + value_noise(p / 37.0) * 0.3;
+    let fibre = value_noise(p / 3.0) * 0.2;
+    return (blotches + fibre) * 2.0 - 1.0;
+}
+
 @fragment
 fn fs_composite(in: VertexOut) -> @location(0) vec4<f32> {
     var uv = in.uv;
@@ -293,6 +316,9 @@ fn fs_composite(in: VertexOut) -> @location(0) vec4<f32> {
     var image = shaded(uv);
     if (post.flags0.z > 0.5) {
         image = painted(uv);
+    }
+    if (post.background.x > 0.0 && depth_load(uv) >= 1.0) {
+        image = image * (1.0 + paper_grain(uv) * post.background.x);
     }
     if (post.flags0.y > 0.5) {
         image = mix(image, post.outline_colour.rgb, edge_at(uv) * post.edges.y);

@@ -21,7 +21,7 @@ impl IsoRenderer {
             return;
         }
         let mut world = HashMap::new();
-        for m in [Material::Ground, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark] {
+        for m in [Material::Ground, Material::Feature, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark] {
             world.insert(m, self.gpu.world_pipeline(m, samples));
         }
         self.pipelines = Some(Pipelines { samples, world });
@@ -127,6 +127,12 @@ impl IsoRenderer {
             lights[slot] = LightUniform { position: [vp.x, vp.y, vp.z, LOOT_LIGHT_REACH], colour: [c[0] * intensity, c[1] * intensity, c[2] * intensity, 1.0], world: [p.x, p.y, p.z, 0.0] };
         }
         let up = to_view(Vec3::Y);
+        let side = self.lights.side_lights;
+        let (right, forward) = ground_basis(self.cam.yaw as f32);
+        let side_light = |across: f32| {
+            let d = to_view(Vec3::new(across * right[0] - forward[0], 0.0, across * right[1] - forward[1]).normalize() * (1.0 - side.height * side.height).sqrt() + Vec3::Y * side.height);
+            [d.x, d.y, d.z, 0.0]
+        };
         FrameUniform {
             view_proj: (self.camera_proj * view).to_cols_array_2d(),
             view: view.to_cols_array_2d(),
@@ -142,6 +148,11 @@ impl IsoRenderer {
             viewport: [self.width, self.height, MAX_LIGHTS as f32, 0.0],
             up: [up.x, up.y, up.z, 0.0],
             torch_light: [colour[0] * spec.intensity, colour[1] * spec.intensity, colour[2] * spec.intensity, self.tile_torches.first().map_or(1.0, |t| t.position.y)],
+            key_light: side_light(-1.0),
+            key_colour: lin(side.key, side.key_strength),
+            fill_light: side_light(1.0),
+            fill_colour: lin(side.fill, side.fill_strength),
+            terrain: [self.lights.grade.terrain, 0.0, 0.0, 0.0],
             lights,
         }
     }

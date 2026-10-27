@@ -195,6 +195,7 @@ impl IsoRenderer {
     fn build_chunk(&mut self, scene: &Scene, tiles: &dyn TileSource, part: &ChunkPart, key: u64) -> Chunk {
         let mut chunk = Chunk { key, meshes: Vec::new(), torches: Vec::new(), glows: false };
         let mut ground_batches: HashMap<u32, QuadBatch> = HashMap::new();
+        let mut feature_batches: HashMap<u32, QuadBatch> = HashMap::new();
         let mut sprite_batches: HashMap<u32, QuadBatch> = HashMap::new();
         let mut mark_batches: HashMap<u32, QuadBatch> = HashMap::new();
         let mut pages_owned = self.pages.take().unwrap();
@@ -221,7 +222,13 @@ impl IsoRenderer {
             let (x0, z0) = (g.x as f32, g.y as f32);
             let tile = self.ground_tile(scene, g);
             let see_through = scene.cell(g.x, g.y).is_some_and(|c| c.translucent.contains(&tile));
-            let batches = if see_through { &mut mark_batches } else { &mut ground_batches };
+            let batches = if see_through {
+                &mut mark_batches
+            } else if g.lift > 0 {
+                &mut feature_batches
+            } else {
+                &mut ground_batches
+            };
             quad(pages, batches, 0.0, tile, [[x0, y, z0], [x0 + 1.0, y, z0], [x0 + 1.0, y, z0 + 1.0], [x0, y, z0 + 1.0]], None, 1.0, &mut glows);
         }
         let mut torch_faces = Vec::new();
@@ -308,6 +315,11 @@ impl IsoRenderer {
         pages_sorted.sort_by_key(|p| p.0);
         for (page, batch) in pages_sorted {
             chunk.meshes.push((Material::Ground, PageRef::Page(page), Arc::new(GpuMesh::from_batch(device, &batch))));
+        }
+        let mut features_sorted: Vec<(u32, QuadBatch)> = feature_batches.into_iter().collect();
+        features_sorted.sort_by_key(|p| p.0);
+        for (page, batch) in features_sorted {
+            chunk.meshes.push((Material::Feature, PageRef::Page(page), Arc::new(GpuMesh::from_batch(device, &batch))));
         }
         let mut marks_sorted: Vec<(u32, QuadBatch)> = mark_batches.into_iter().collect();
         marks_sorted.sort_by_key(|p| p.0);

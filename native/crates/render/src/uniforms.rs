@@ -30,6 +30,11 @@ pub struct FrameUniform {
     pub viewport: [f32; 4],
     pub up: [f32; 4],
     pub torch_light: [f32; 4],
+    pub key_light: [f32; 4],
+    pub key_colour: [f32; 4],
+    pub fill_light: [f32; 4],
+    pub fill_colour: [f32; 4],
+    pub terrain: [f32; 4],
     pub lights: [LightUniform; MAX_LIGHTS],
 }
 
