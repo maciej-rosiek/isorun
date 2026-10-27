@@ -813,7 +813,7 @@ fn names_every_item_tile_in_the_fixture_gamedata_from_its_base() {
 }
 
 #[test]
-fn tells_an_epic_a_legendary_and_a_unique_item_by_its_tile() {
+fn tells_a_legendary_and_a_unique_item_by_its_tile() {
     // given
     let gd = gd();
     let rarity_of = |name: &str| item_rarity(gd.main.base_name(gd.main.id(name).unwrap()).unwrap());
@@ -822,7 +822,7 @@ fn tells_an_epic_a_legendary_and_a_unique_item_by_its_tile() {
     let found = ["WPN_LONG_SWORD", "MI_DART_MAGIC", "WPN_LONG_SWORD_MAGIC", "ARM_CLOAK_RANDART", "RING_RANDART_OFFSET", "UNRAND_SINGING_SWORD"].map(rarity_of);
 
     // then
-    assert_eq!(found, [None, None, Some(ItemRarity::Epic), Some(ItemRarity::Legendary), Some(ItemRarity::Legendary), Some(ItemRarity::Unique)]);
+    assert_eq!(found, [None, None, None, Some(ItemRarity::Legendary), Some(ItemRarity::Legendary), Some(ItemRarity::Unique)]);
 }
 
 // ---- gate faces

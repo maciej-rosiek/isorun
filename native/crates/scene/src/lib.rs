@@ -269,11 +269,10 @@ pub enum BillboardKind {
 }
 
 /// How good an item on the floor looks, by its tile, in the loot colours of Diablo and the games
-/// after it: a glowing or runed weapon or armour (likely an ego) is epic, a random artefact is
-/// legendary, an artefact of crawl's own list (an unrandart) is unique.
+/// after it: a random artefact is legendary, an artefact of crawl's own list (an unrandart) is
+/// unique.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum ItemRarity {
-    Epic,
     Legendary,
     Unique,
 }

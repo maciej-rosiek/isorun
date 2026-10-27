@@ -459,19 +459,14 @@ regex!(I_PLAIN = r"^(BOOK|GEM|TALISMAN)(_|$)");
 regex!(I_CORPSE = r"^CORPSE_(.+)$");
 regex!(I_TYPED = r"^(WAND|RING|AMU|AMULET|POT|POTION|SCR|SCROLL|STAFF)(?:_(.+))?$");
 regex!(I_ADJ = r"^(.+)_(STEEL|SILVER|POISONED|CURARE|BLINDING|FRENZY)$");
-// a branded missile is MI_*_MAGIC too, and too common to stand out
-regex!(I_EPIC = r"^(WPN|ARM|THELM)_.*_MAGIC(_?\d+)?$");
-
 /// How good an item looks by its tile (tilepick.cc `tileidx_enchant_equ`): an unrandart has
-/// its own UNRAND_ tile, a random artefact the _RANDART one, and a weapon or armour that is
-/// glowing, runed or shiny the _MAGIC one.
+/// its own UNRAND_ tile, a random artefact the _RANDART one. A glowing, runed or shiny weapon or
+/// armour (the _MAGIC tile, a brand or an enchantment) is too common to stand out.
 pub fn item_rarity(tile: &str) -> Option<ItemRarity> {
     if tile.starts_with("UNRAND_") {
         Some(ItemRarity::Unique)
     } else if tile.contains("_RANDART") {
         Some(ItemRarity::Legendary)
-    } else if I_EPIC.is_match(tile) {
-        Some(ItemRarity::Epic)
     } else {
         None
     }

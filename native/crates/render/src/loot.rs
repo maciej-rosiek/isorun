@@ -1,5 +1,5 @@
 //! What a kill leaves, as Diablo shows it: an item a monster drops as it dies flies up out of it,
-//! turns over and lands on its cell, and an epic, legendary or unique item on the floor in sight
+//! turns over and lands on its cell, and a legendary or unique item on the floor in sight
 //! stands in a column of light of its colour, with a glow on the floor and a light around it.
 
 use crate::actors::{sprite_key, ActorEnv, SpriteVisual, UprightPose};
@@ -11,10 +11,9 @@ use glam::{EulerRot, Mat4, Quat, Vec3, Vec4};
 use isorun_scene::{Billboard, BillboardKind, ItemRarity, Scene, TileId, Visibility};
 use std::collections::{HashMap, HashSet};
 
-/// The loot colours: WoW's and Diablo Immortal's epic purple, the legendary orange of Diablo III
-/// and IV, and Diablo IV's unique gold; each with how strong its light shines, the purple the
-/// most as the eye sees it the darkest.
-const RARITIES: [(ItemRarity, u32, f32); 3] = [(ItemRarity::Epic, 0xa335ee, 1.6), (ItemRarity::Legendary, 0xff8000, 0.95), (ItemRarity::Unique, 0xc7b377, 0.8)];
+/// The loot colours: the legendary orange of Diablo III and IV and Diablo IV's unique gold; each
+/// with how strong its light shines.
+const RARITIES: [(ItemRarity, u32, f32); 2] = [(ItemRarity::Legendary, 0xff8000, 0.95), (ItemRarity::Unique, 0xc7b377, 0.8)];
 
 /// A death and the item that shows on its cell after it go together this long, on the actors' clock.
 const DEATH_REMEMBERED: f64 = 1.5;

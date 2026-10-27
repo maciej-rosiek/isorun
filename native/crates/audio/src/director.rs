@@ -248,7 +248,6 @@ impl GameAudio {
         self.engine.play(SoundName::Drop, PlayOptions { pan: heard.pan, gain: heard.gain, ..Default::default() });
         let Some(rarity) = landing.rarity else { return };
         let (rate, gain) = match rarity {
-            ItemRarity::Epic => (1.2, 0.7),
             ItemRarity::Legendary => (1.0, 0.85),
             ItemRarity::Unique => (0.84, 1.0),
         };
