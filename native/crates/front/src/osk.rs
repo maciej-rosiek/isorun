@@ -42,7 +42,13 @@ impl FrontEnd {
         if self.cursor.as_deref() == Some("rc:text") {
             let Some(rc) = self.rc.as_ref().filter(|r| r.state == crate::words::RcState::Ready) else { return false };
             // at the caret egui's field has, else at the end
-            let caret = CTX.with(|c| c.borrow().as_ref().and_then(|ctx| egui::text_edit::TextEditState::load(ctx, egui::Id::NULL.with(RC_ID))).and_then(|s| s.cursor.char_range()).map(|r| r.primary.index));
+            let caret = CTX.with(|c| {
+                c.borrow()
+                    .as_ref()
+                    .and_then(|ctx| egui::text_edit::TextEditState::load(ctx, egui::Id::NULL.with(RC_ID)))
+                    .and_then(|s| s.cursor.char_range())
+                    .map(|r| r.primary.index)
+            });
             let mut t = OskText::new(&rc.text);
             if let Some(c) = caret {
                 t.caret = usize::from(c).min(t.text.chars().count());
@@ -73,12 +79,15 @@ impl FrontEnd {
         }
         let (op, dir) = match ev {
             PadEvent::Look { .. } => return false,
-            PadEvent::Dir(d) => (OskOp::Move, Some(match d {
-                NavDir::Up => 0,
-                NavDir::Right => 2,
-                NavDir::Down => 4,
-                NavDir::Left => 6,
-            })),
+            PadEvent::Dir(d) => (
+                OskOp::Move,
+                Some(match d {
+                    NavDir::Up => 0,
+                    NavDir::Right => 2,
+                    NavDir::Down => 4,
+                    NavDir::Left => 6,
+                }),
+            ),
             PadEvent::Press(b) => (
                 match b {
                     PadButton::A => OskOp::Type,

@@ -32,7 +32,13 @@ fn main() -> eframe::Result {
         let lay = hud.layout(ui.ctx(), ui.max_rect(), st, &settings, map_view);
         // crawl's cursor (game.ts `cursorFor`): the mouse or targeting one, then the map's, then the tutorial's
         let cursor = [0usize, 2, 1].iter().find_map(|&i| st.cursors.get(i).copied().flatten()).map(|c| {
-            let mode = if st.ui_state == UiState::VIEW_MAP { CursorMode::Map } else if st.input_mode == isorun_webtiles::MouseMode::COMMAND { CursorMode::Examine } else { CursorMode::Target };
+            let mode = if st.ui_state == UiState::VIEW_MAP {
+                CursorMode::Map
+            } else if st.input_mode == isorun_webtiles::MouseMode::COMMAND {
+                CursorMode::Examine
+            } else {
+                CursorMode::Target
+            };
             let tutorial = st.cursors.first().copied().flatten().is_none() && st.cursors.get(2).copied().flatten().is_none();
             let tile = game.session.gamedata.as_ref().and_then(|g| g.gd.icons.id(if tutorial { "TUTORIAL_CURSOR" } else { "CURSOR" }));
             SceneCursor { x: c.x, y: c.y, mode, tile, grid: false }

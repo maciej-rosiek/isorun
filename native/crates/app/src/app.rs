@@ -128,7 +128,19 @@ impl IsorunApp {
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
         let pads: Pads = ();
-        let mut app = IsorunApp { rs, front, screen: Screen::Front, engine, opts, pad: GamepadInput::default(), pads, touch_sim: TouchSim::default(), buttons: ButtonDedupe::default(), visits: Default::default(), watch: FrameWatch::default() };
+        let mut app = IsorunApp {
+            rs,
+            front,
+            screen: Screen::Front,
+            engine,
+            opts,
+            pad: GamepadInput::default(),
+            pads,
+            touch_sim: TouchSim::default(),
+            buttons: ButtonDedupe::default(),
+            visits: Default::default(),
+            watch: FrameWatch::default(),
+        };
         if let Some(path) = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned() {
             app.front.open(&path);
         }
@@ -186,7 +198,12 @@ impl IsorunApp {
             if i.modifiers.alt {
                 return;
             }
-            for (key, d) in [(egui::Key::ArrowUp, basic_keys::Dir::N), (egui::Key::ArrowDown, basic_keys::Dir::S), (egui::Key::ArrowLeft, basic_keys::Dir::W), (egui::Key::ArrowRight, basic_keys::Dir::E)] {
+            for (key, d) in [
+                (egui::Key::ArrowUp, basic_keys::Dir::N),
+                (egui::Key::ArrowDown, basic_keys::Dir::S),
+                (egui::Key::ArrowLeft, basic_keys::Dir::W),
+                (egui::Key::ArrowRight, basic_keys::Dir::E),
+            ] {
                 if i.key_pressed(key) {
                     let r = d.rotated(t.camera.facing()) as usize;
                     let (dx, dy) = (isorun_scene::DIR8_DX[r], isorun_scene::DIR8_DY[r]);
@@ -398,7 +415,11 @@ impl IsorunApp {
         // the web's sound starts with the player's first key, click or touch (the browsers let a
         // page make a sound only after a gesture); unlock does nothing the second time
         #[cfg(target_arch = "wasm32")]
-        if ui.input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::PointerButton { pressed: true, .. } | egui::Event::Touch { .. }))) {
+        if ui.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Key { pressed: true, .. } | egui::Event::PointerButton { pressed: true, .. } | egui::Event::Touch { .. }))
+        }) {
             self.engine.unlock();
         }
         let game_on_screen = match &self.screen {

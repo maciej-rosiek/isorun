@@ -39,7 +39,13 @@ struct LiquidGrid {
 
 impl LiquidGrid {
     fn new(gpu: &Gpu, kind: LiquidKind) -> Self {
-        LiquidGrid { kind, vertices: DynamicBuffer::new(gpu, "liquid", wgpu::BufferUsages::VERTEX, 1024), indices: DynamicBuffer::new(gpu, "liquid indices", wgpu::BufferUsages::INDEX, 1024), count: 0, built_key: 0 }
+        LiquidGrid {
+            kind,
+            vertices: DynamicBuffer::new(gpu, "liquid", wgpu::BufferUsages::VERTEX, 1024),
+            indices: DynamicBuffer::new(gpu, "liquid indices", wgpu::BufferUsages::INDEX, 1024),
+            count: 0,
+            built_key: 0,
+        }
     }
 
     fn build(&mut self, gpu: &Gpu, scene: &Scene) {
@@ -77,7 +83,9 @@ impl LiquidGrid {
         let none = vec![0u8; w * hh];
         crate::fog::chamfer(&mut distance, &none, w, hh);
         crate::fog::chamfer(&mut distance, &none, w, hh);
-        let deepest: Vec<f32> = (0..w * hh).map(|i| if scene.cell(x0 + (i % w) as i32, y0 + (i / w) as i32).and_then(|c| c.liquid).is_some_and(|l| !l.deep) { SHALLOW_DEPTH } else { 1.0 }).collect();
+        let deepest: Vec<f32> = (0..w * hh)
+            .map(|i| if scene.cell(x0 + (i % w) as i32, y0 + (i / w) as i32).and_then(|c| c.liquid).is_some_and(|l| !l.deep) { SHALLOW_DEPTH } else { 1.0 })
+            .collect();
         let depth_field: Vec<f32> = distance.iter().zip(&deepest).map(|(d, m)| m.min(((d - 0.5) / DEEP_DISTANCE).max(0.0))).collect();
         let sample = |grid: &[f32], px: f32, py: f32| {
             let fx = px - x0 as f32 - 0.5;
@@ -110,7 +118,12 @@ impl LiquidGrid {
                 for i in 0..=SUBDIVISIONS {
                     let px = x as f32 + i as f32 / SUBDIVISIONS as f32;
                     let py = y as f32 + j as f32 / SUBDIVISIONS as f32;
-                    vertices.push(GridVertex { position: [px, SURFACE_HEIGHT, py], liquid: sample(&field, px, py), near: sample(&near_field, px, py), depth: sample(&depth_field, px, py) });
+                    vertices.push(GridVertex {
+                        position: [px, SURFACE_HEIGHT, py],
+                        liquid: sample(&field, px, py),
+                        near: sample(&near_field, px, py),
+                        depth: sample(&depth_field, px, py),
+                    });
                 }
             }
             for j in 0..SUBDIVISIONS {
@@ -185,7 +198,12 @@ impl Liquids {
         let pools = kinds
             .iter()
             .map(|&(kind, shader)| {
-                let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("liquid"), size: 64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+                let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                    label: Some("liquid"),
+                    size: 64,
+                    usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+                    mapped_at_creation: false,
+                });
                 let group = uniform_group(gpu, &layout, &uniform);
                 Pool { grid: LiquidGrid::new(gpu, kind), uniform, group, shader, shown: true }
             })
@@ -194,8 +212,17 @@ impl Liquids {
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
-        let buffers = [wgpu::VertexBufferLayout { array_stride: 24, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Float32, 3 => Float32] }];
-        self.pipelines = ["fs_water", "fs_lava", "fs_starwater"].iter().map(|fs| (*fs, layer_pipeline(gpu, fs, &self.module, "vs_liquid", fs, &buffers, &[&self.layout], Blend::Alpha, false, samples, true, Default::default()))).collect();
+        let buffers = [wgpu::VertexBufferLayout {
+            array_stride: 24,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Float32, 3 => Float32],
+        }];
+        self.pipelines = ["fs_water", "fs_lava", "fs_starwater"]
+            .iter()
+            .map(|fs| {
+                (*fs, layer_pipeline(gpu, fs, &self.module, "vs_liquid", fs, &buffers, &[&self.layout], Blend::Alpha, false, samples, true, Default::default()))
+            })
+            .collect();
     }
 
     /// The colours and the speeds of the look; the water's own, the other waters' from their palettes.
@@ -209,7 +236,12 @@ impl Liquids {
             let u = match kind {
                 LiquidKind::Lava => {
                     pool.shown = lights.lava.enabled;
-                    LiquidUniform { a: lin(lights.lava.crust), b: lin(lights.lava.molten), c: lin(lights.lava.hot), params: [lights.lava.glow, lights.lava.speed, 0.0, 0.0] }
+                    LiquidUniform {
+                        a: lin(lights.lava.crust),
+                        b: lin(lights.lava.molten),
+                        c: lin(lights.lava.hot),
+                        params: [lights.lava.glow, lights.lava.speed, 0.0, 0.0],
+                    }
                 }
                 LiquidKind::Starwater => {
                     pool.shown = lights.water.enabled;
@@ -223,7 +255,12 @@ impl Liquids {
                 _ => {
                     pool.shown = lights.water.enabled;
                     let (deep, shallow, light, strength, speed, opacity, gloss) = palette(kind);
-                    LiquidUniform { a: lin(deep), b: lin(shallow), c: lin(light), params: [(lights.water.strength * strength).min(1.0), lights.water.speed * speed, opacity, gloss] }
+                    LiquidUniform {
+                        a: lin(deep),
+                        b: lin(shallow),
+                        c: lin(light),
+                        params: [(lights.water.strength * strength).min(1.0), lights.water.speed * speed, opacity, gloss],
+                    }
                 }
             };
             gpu.queue.write_buffer(&pool.uniform, 0, bytemuck::bytes_of(&u));

@@ -29,10 +29,8 @@ struct Token {
 }
 
 const PUNCTS: &[&str] = &[
-    ">>>=", "===", "!==", ">>>", "<<=", ">>=", "...", "==", "!=", "<=", ">=", "&&", "||", "??",
-    "++", "--", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "&=", "|=", "^=", "=>", "{", "}", "(",
-    ")", "[", "]", ";", ",", "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "!", "~", "?", ":",
-    "=", ".",
+    ">>>=", "===", "!==", ">>>", "<<=", ">>=", "...", "==", "!=", "<=", ">=", "&&", "||", "??", "++", "--", "<<", ">>", "+=", "-=", "*=", "/=", "%=", "&=",
+    "|=", "^=", "=>", "{", "}", "(", ")", "[", "]", ";", ",", "<", ">", "+", "-", "*", "/", "%", "&", "|", "^", "!", "~", "?", ":", "=", ".",
 ];
 
 fn is_ident_start(c: char) -> bool {
@@ -120,12 +118,8 @@ fn tokenize(src: &str) -> Result<Vec<Token>, String> {
                         '\n' => line += 1,
                         'x' | 'u' => {
                             let len = if e == 'x' { 2 } else { 4 };
-                            let hex: String = chars
-                                .get(i..i + len)
-                                .map(|h| h.iter().collect())
-                                .unwrap_or_default();
-                            let code = u32::from_str_radix(&hex, 16)
-                                .map_err(|_| format!("bad escape \\{e}{hex} on line {line}"))?;
+                            let hex: String = chars.get(i..i + len).map(|h| h.iter().collect()).unwrap_or_default();
+                            let code = u32::from_str_radix(&hex, 16).map_err(|_| format!("bad escape \\{e}{hex} on line {line}"))?;
                             s.push(char::from_u32(code).unwrap_or('\u{fffd}'));
                             i += len;
                         }
@@ -153,9 +147,7 @@ fn tokenize(src: &str) -> Result<Vec<Token>, String> {
                         i += 1;
                     }
                     let digits: String = chars[ds..i].iter().collect();
-                    u64::from_str_radix(&digits, radix)
-                        .map_err(|_| format!("bad number on line {line}"))?
-                        as f64
+                    u64::from_str_radix(&digits, radix).map_err(|_| format!("bad number on line {line}"))? as f64
                 } else {
                     while i < n && chars[i].is_ascii_digit() {
                         i += 1;
@@ -181,8 +173,7 @@ fn tokenize(src: &str) -> Result<Vec<Token>, String> {
                         }
                     }
                     let text: String = chars[start..i].iter().collect();
-                    text.parse::<f64>()
-                        .map_err(|_| format!("bad number {text} on line {line}"))?
+                    text.parse::<f64>().map_err(|_| format!("bad number {text} on line {line}"))?
                 };
                 if i < n && is_ident_start(chars[i]) {
                     return Err(format!("bad number on line {line}"));
@@ -200,22 +191,14 @@ fn tokenize(src: &str) -> Result<Vec<Token>, String> {
             _ => {
                 let p = PUNCTS
                     .iter()
-                    .find(|p| {
-                        p.chars()
-                            .enumerate()
-                            .all(|(k, pc)| chars.get(i + k) == Some(&pc))
-                    })
+                    .find(|p| p.chars().enumerate().all(|(k, pc)| chars.get(i + k) == Some(&pc)))
                     .ok_or_else(|| format!("unexpected character {c:?} on line {line}"))?;
                 i += p.len();
                 push(&mut out, Tok::Punct(p), line, &mut nl);
             }
         }
     }
-    out.push(Token {
-        tok: Tok::Eof,
-        line,
-        nl: true,
-    });
+    out.push(Token { tok: Tok::Eof, line, nl: true });
     Ok(out)
 }
 
@@ -244,11 +227,7 @@ enum Expr {
     Call(Box<Expr>, Vec<Expr>),
     New(Box<Expr>, Vec<Expr>),
     Unary(&'static str, Box<Expr>),
-    Update {
-        op: &'static str,
-        prefix: bool,
-        target: Box<Expr>,
-    },
+    Update { op: &'static str, prefix: bool, target: Box<Expr> },
     Binary(&'static str, Box<Expr>, Box<Expr>),
     Cond(Box<Expr>, Box<Expr>, Box<Expr>),
     Assign(&'static str, Box<Expr>, Box<Expr>),
@@ -270,28 +249,15 @@ enum StmtKind {
     Return(Option<Expr>),
     If(Expr, Box<Stmt>, Option<Box<Stmt>>),
     Block(Vec<Stmt>),
-    For {
-        init: Option<Box<Stmt>>,
-        test: Option<Expr>,
-        update: Option<Expr>,
-        body: Box<Stmt>,
-    },
-    ForIn {
-        name: Rc<str>,
-        obj: Expr,
-        body: Box<Stmt>,
-    },
+    For { init: Option<Box<Stmt>>, test: Option<Expr>, update: Option<Expr>, body: Box<Stmt> },
+    ForIn { name: Rc<str>, obj: Expr, body: Box<Stmt> },
     While(Expr, Box<Stmt>),
     DoWhile(Box<Stmt>, Expr),
     Switch(Expr, Vec<(Option<Expr>, Vec<Stmt>)>),
     Break,
     Continue,
     Throw(Expr),
-    Try {
-        block: Vec<Stmt>,
-        catch: Option<(Option<Rc<str>>, Vec<Stmt>)>,
-        finally: Option<Vec<Stmt>>,
-    },
+    Try { block: Vec<Stmt>, catch: Option<(Option<Rc<str>>, Vec<Stmt>)>, finally: Option<Vec<Stmt>> },
     Func(Rc<str>, Rc<FuncDef>),
     Empty,
 }
@@ -381,11 +347,7 @@ impl Parser {
 
     /// The end of a statement: a `;`, or one inserted before `}`, the end or a line break.
     fn semicolon(&mut self) -> Result<(), String> {
-        if self.eat_punct(";")
-            || self.is_punct("}")
-            || matches!(self.peek(), Tok::Eof)
-            || self.toks[self.pos].nl
-        {
+        if self.eat_punct(";") || self.is_punct("}") || matches!(self.peek(), Tok::Eof) || self.toks[self.pos].nl {
             Ok(())
         } else {
             Err(format!("{} (expected ;)", self.unexpected()))
@@ -414,10 +376,7 @@ impl Parser {
 
     fn statement(&mut self, depth: u32) -> Result<Stmt, String> {
         if depth > MAX_NESTING {
-            return Err(format!(
-                "statements nested too deep on line {}",
-                self.line()
-            ));
+            return Err(format!("statements nested too deep on line {}", self.line()));
         }
         let line = self.line();
         let kind = self.statement_kind(depth)?;
@@ -428,11 +387,7 @@ impl Parser {
         let mut decls = Vec::new();
         loop {
             let name = self.ident()?;
-            let init = if self.eat_punct("=") {
-                Some(self.assign(depth)?)
-            } else {
-                None
-            };
+            let init = if self.eat_punct("=") { Some(self.assign(depth)?) } else { None };
             decls.push((name, init));
             if !self.eat_punct(",") {
                 break;
@@ -467,11 +422,7 @@ impl Parser {
             }
             "return" => {
                 self.next();
-                let value = if self.is_punct(";")
-                    || self.is_punct("}")
-                    || matches!(self.peek(), Tok::Eof)
-                    || self.toks[self.pos].nl
-                {
+                let value = if self.is_punct(";") || self.is_punct("}") || matches!(self.peek(), Tok::Eof) || self.toks[self.pos].nl {
                     None
                 } else {
                     Some(self.expr(depth)?)
@@ -485,22 +436,15 @@ impl Parser {
                 let test = self.expr(depth)?;
                 self.expect_punct(")")?;
                 let then = Box::new(self.statement(depth + 1)?);
-                let otherwise = if self.eat_word("else") {
-                    Some(Box::new(self.statement(depth + 1)?))
-                } else {
-                    None
-                };
+                let otherwise = if self.eat_word("else") { Some(Box::new(self.statement(depth + 1)?)) } else { None };
                 Ok(StmtKind::If(test, then, otherwise))
             }
             "for" => {
                 self.next();
                 self.expect_punct("(")?;
-                let decl =
-                    matches!(self.peek(), Tok::Ident(w) if matches!(&**w, "var" | "let" | "const"));
+                let decl = matches!(self.peek(), Tok::Ident(w) if matches!(&**w, "var" | "let" | "const"));
                 let k = if decl { 1 } else { 0 };
-                if matches!(self.peek_at(k), Tok::Ident(_))
-                    && matches!(self.peek_at(k + 1), Tok::Ident(w) if &**w == "in")
-                {
+                if matches!(self.peek_at(k), Tok::Ident(_)) && matches!(self.peek_at(k + 1), Tok::Ident(w) if &**w == "in") {
                     if decl {
                         self.next();
                     }
@@ -516,36 +460,17 @@ impl Parser {
                     None
                 } else if decl {
                     self.next();
-                    Some(Box::new(Stmt {
-                        line,
-                        kind: StmtKind::Var(self.var_list(depth)?),
-                    }))
+                    Some(Box::new(Stmt { line, kind: StmtKind::Var(self.var_list(depth)?) }))
                 } else {
-                    Some(Box::new(Stmt {
-                        line,
-                        kind: StmtKind::Expr(self.expr(depth)?),
-                    }))
+                    Some(Box::new(Stmt { line, kind: StmtKind::Expr(self.expr(depth)?) }))
                 };
                 self.expect_punct(";")?;
-                let test = if self.is_punct(";") {
-                    None
-                } else {
-                    Some(self.expr(depth)?)
-                };
+                let test = if self.is_punct(";") { None } else { Some(self.expr(depth)?) };
                 self.expect_punct(";")?;
-                let update = if self.is_punct(")") {
-                    None
-                } else {
-                    Some(self.expr(depth)?)
-                };
+                let update = if self.is_punct(")") { None } else { Some(self.expr(depth)?) };
                 self.expect_punct(")")?;
                 let body = Box::new(self.statement(depth + 1)?);
-                Ok(StmtKind::For {
-                    init,
-                    test,
-                    update,
-                    body,
-                })
+                Ok(StmtKind::For { init, test, update, body })
             }
             "while" => {
                 self.next();
@@ -599,11 +524,7 @@ impl Parser {
                     return Err(format!("labels are not supported (line {})", self.line()));
                 }
                 self.semicolon()?;
-                Ok(if &*word == "break" {
-                    StmtKind::Break
-                } else {
-                    StmtKind::Continue
-                })
+                Ok(if &*word == "break" { StmtKind::Break } else { StmtKind::Continue })
             }
             "throw" => {
                 self.next();
@@ -626,16 +547,8 @@ impl Parser {
                 } else {
                     None
                 };
-                let finally = if self.eat_word("finally") {
-                    Some(self.block(depth)?)
-                } else {
-                    None
-                };
-                Ok(StmtKind::Try {
-                    block,
-                    catch,
-                    finally,
-                })
+                let finally = if self.eat_word("finally") { Some(self.block(depth)?) } else { None };
+                Ok(StmtKind::Try { block, catch, finally })
             }
             _ => {
                 let e = self.expr(depth)?;
@@ -673,31 +586,11 @@ impl Parser {
 
     fn assign(&mut self, depth: u32) -> Result<Expr, String> {
         if depth > MAX_NESTING {
-            return Err(format!(
-                "expression nested too deep on line {}",
-                self.line()
-            ));
+            return Err(format!("expression nested too deep on line {}", self.line()));
         }
         let lhs = self.cond(depth)?;
         let op = match self.peek() {
-            Tok::Punct(p)
-                if matches!(
-                    *p,
-                    "=" | "+="
-                        | "-="
-                        | "*="
-                        | "/="
-                        | "%="
-                        | "&="
-                        | "|="
-                        | "^="
-                        | "<<="
-                        | ">>="
-                        | ">>>="
-                ) =>
-            {
-                *p
-            }
+            Tok::Punct(p) if matches!(*p, "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^=" | "<<=" | ">>=" | ">>>=") => *p,
             _ => return Ok(lhs),
         };
         if !matches!(lhs, Expr::Ident(_) | Expr::Member(..) | Expr::Index(..)) {
@@ -759,10 +652,7 @@ impl Parser {
 
     fn unary(&mut self, depth: u32) -> Result<Expr, String> {
         if depth > MAX_NESTING {
-            return Err(format!(
-                "expression nested too deep on line {}",
-                self.line()
-            ));
+            return Err(format!("expression nested too deep on line {}", self.line()));
         }
         let op: Option<&'static str> = match self.peek() {
             Tok::Punct(p) if matches!(*p, "!" | "~" | "-" | "+") => Some(*p),
@@ -782,11 +672,7 @@ impl Parser {
                 "--"
             };
             let target = self.unary(depth + 1)?;
-            return Ok(Expr::Update {
-                op,
-                prefix: true,
-                target: Box::new(target),
-            });
+            return Ok(Expr::Update { op, prefix: true, target: Box::new(target) });
         }
         let e = self.call_member(depth)?;
         if (self.is_punct("++") || self.is_punct("--")) && !self.toks[self.pos].nl {
@@ -796,11 +682,7 @@ impl Parser {
                 self.next();
                 "--"
             };
-            return Ok(Expr::Update {
-                op,
-                prefix: false,
-                target: Box::new(e),
-            });
+            return Ok(Expr::Update { op, prefix: false, target: Box::new(e) });
         }
         Ok(e)
     }
@@ -843,11 +725,7 @@ impl Parser {
                     break;
                 }
             }
-            let args = if self.eat_punct("(") {
-                self.args(depth)?
-            } else {
-                Vec::new()
-            };
+            let args = if self.eat_punct("(") { self.args(depth)? } else { Vec::new() };
             Expr::New(Box::new(callee), args)
         } else {
             self.primary(depth)?
@@ -1100,28 +978,16 @@ fn str_to_number(s: &str) -> f64 {
         None => (false, t.strip_prefix('+').unwrap_or(t)),
     };
     let lower = body.to_ascii_lowercase();
-    let radix = |p: &str, r: u32| -> Option<f64> {
-        lower
-            .strip_prefix(p)
-            .and_then(|d| u64::from_str_radix(d, r).ok())
-            .map(|v| v as f64)
-    };
+    let radix = |p: &str, r: u32| -> Option<f64> { lower.strip_prefix(p).and_then(|d| u64::from_str_radix(d, r).ok()).map(|v| v as f64) };
     if lower.starts_with("0x") || lower.starts_with("0o") || lower.starts_with("0b") {
         if neg || t.starts_with('+') {
             return f64::NAN;
         }
-        return radix("0x", 16)
-            .or_else(|| radix("0o", 8))
-            .or_else(|| radix("0b", 2))
-            .unwrap_or(f64::NAN);
+        return radix("0x", 16).or_else(|| radix("0o", 8)).or_else(|| radix("0b", 2)).unwrap_or(f64::NAN);
     }
     let v = if body == "Infinity" {
         f64::INFINITY
-    } else if body
-        .chars()
-        .all(|c| c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '+' | '-'))
-        && body.chars().any(|c| c.is_ascii_digit())
-    {
+    } else if body.chars().all(|c| c.is_ascii_digit() || matches!(c, '.' | 'e' | 'E' | '+' | '-')) && body.chars().any(|c| c.is_ascii_digit()) {
         body.parse::<f64>().unwrap_or(f64::NAN)
     } else {
         f64::NAN
@@ -1183,10 +1049,7 @@ fn strict_eq(a: &Value, b: &Value) -> bool {
 }
 
 fn is_object(v: &Value) -> bool {
-    matches!(
-        v,
-        Value::Arr(_) | Value::Obj(_) | Value::Func(_) | Value::Native(_)
-    )
+    matches!(v, Value::Arr(_) | Value::Obj(_) | Value::Func(_) | Value::Native(_))
 }
 
 fn loose_eq(a: &Value, b: &Value) -> bool {
@@ -1233,10 +1096,7 @@ pub(crate) struct Scope {
 
 impl Scope {
     fn new(parent: Option<Rc<Scope>>) -> Rc<Scope> {
-        Rc::new(Scope {
-            vars: RefCell::new(HashMap::new()),
-            parent,
-        })
+        Rc::new(Scope { vars: RefCell::new(HashMap::new()), parent })
     }
 
     fn declare(&self, name: Rc<str>, value: Value) {
@@ -1292,14 +1152,7 @@ const MAX_CALL_DEPTH: u32 = 200;
 
 impl Interp {
     pub(crate) fn new() -> Self {
-        Interp {
-            steps: 0,
-            budget: 0,
-            depth: 0,
-            line: 0,
-            dep: Value::Undef,
-            defined: None,
-        }
+        Interp { steps: 0, budget: 0, depth: 0, line: 0, dep: Value::Undef, defined: None }
     }
 
     fn step(&mut self) -> Result<(), String> {
@@ -1313,12 +1166,7 @@ impl Interp {
 
     /// Run an AMD module script with `define`, `window` and `assert` in reach, every dependency
     /// resolving to `dep`, and answer what its factory returned.
-    pub(crate) fn run_module(
-        &mut self,
-        script: &Script,
-        dep: Value,
-        budget: u64,
-    ) -> Result<Value, String> {
+    pub(crate) fn run_module(&mut self, script: &Script, dep: Value, budget: u64) -> Result<Value, String> {
         self.steps = 0;
         self.budget = budget;
         let global = Scope::new(None);
@@ -1331,17 +1179,8 @@ impl Interp {
         global.declare("Infinity".into(), Value::Num(f64::INFINITY));
         global.declare("requirejs".into(), Value::Undef);
         global.declare("require".into(), Value::Undef);
-        for name in [
-            "Error",
-            "TypeError",
-            "RangeError",
-            "ReferenceError",
-            "SyntaxError",
-        ] {
-            global.declare(
-                name.into(),
-                Value::Native(Rc::new(Native::Error(name.into()))),
-            );
+        for name in ["Error", "TypeError", "RangeError", "ReferenceError", "SyntaxError"] {
+            global.declare(name.into(), Value::Native(Rc::new(Native::Error(name.into()))));
         }
         self.dep = dep;
         self.defined = None;
@@ -1353,9 +1192,7 @@ impl Interp {
                 _ => return Err("return, break or continue outside a function".into()),
             }
         }
-        self.defined
-            .take()
-            .ok_or_else(|| "the script defines no module".to_string())
+        self.defined.take().ok_or_else(|| "the script defines no module".to_string())
     }
 
     fn at_line(&self, e: String) -> String {
@@ -1367,12 +1204,7 @@ impl Interp {
     }
 
     /// Call a function the script made, with a fresh step budget of its own.
-    pub(crate) fn call_fn(
-        &mut self,
-        f: &Value,
-        args: Vec<Value>,
-        budget: u64,
-    ) -> Result<Value, String> {
+    pub(crate) fn call_fn(&mut self, f: &Value, args: Vec<Value>, budget: u64) -> Result<Value, String> {
         self.steps = 0;
         self.budget = budget;
         self.depth = 0;
@@ -1436,9 +1268,7 @@ impl Interp {
             }
             Value::Native(n) => match &**n {
                 Native::Noop => Ok(Value::Undef),
-                Native::IsNaN => Ok(Value::Bool(
-                    to_number(args.first().unwrap_or(&Value::Undef)).is_nan(),
-                )),
+                Native::IsNaN => Ok(Value::Bool(to_number(args.first().unwrap_or(&Value::Undef)).is_nan())),
                 Native::Push(arr) => {
                     let mut a = arr.borrow_mut();
                     a.extend(args);
@@ -1446,18 +1276,12 @@ impl Interp {
                 }
                 Native::Error(name) => {
                     let msg = args.first().map(to_string).unwrap_or_default();
-                    Ok(Value::Str(if msg.is_empty() {
-                        name.clone()
-                    } else {
-                        format!("{name}: {msg}").into()
-                    }))
+                    Ok(Value::Str(if msg.is_empty() { name.clone() } else { format!("{name}: {msg}").into() }))
                 }
                 Native::Define => {
                     let factory = args.iter().rev().find(|a| a.is_callable()).cloned();
                     let deps: Vec<Value> = match args.iter().find(|a| matches!(a, Value::Arr(_))) {
-                        Some(Value::Arr(a)) => {
-                            a.borrow().iter().map(|_| self.dep.clone()).collect()
-                        }
+                        Some(Value::Arr(a)) => a.borrow().iter().map(|_| self.dep.clone()).collect(),
                         _ => Vec::new(),
                     };
                     let result = match factory {
@@ -1519,12 +1343,7 @@ impl Interp {
                 }
             }
             StmtKind::Block(stmts) => self.exec_block(stmts, scope),
-            StmtKind::For {
-                init,
-                test,
-                update,
-                body,
-            } => {
+            StmtKind::For { init, test, update, body } => {
                 if let Some(i) = init {
                     self.exec(i, scope)?;
                 }
@@ -1548,18 +1367,9 @@ impl Interp {
             }
             StmtKind::ForIn { name, obj, body } => {
                 let keys: Vec<Value> = match self.eval(obj, scope)? {
-                    Value::Obj(o) => o
-                        .borrow()
-                        .entries
-                        .iter()
-                        .map(|(k, _)| Value::Str(k.clone()))
-                        .collect(),
-                    Value::Arr(a) => (0..a.borrow().len())
-                        .map(|i| Value::Str(i.to_string().into()))
-                        .collect(),
-                    Value::Str(s) => (0..s.chars().count())
-                        .map(|i| Value::Str(i.to_string().into()))
-                        .collect(),
+                    Value::Obj(o) => o.borrow().entries.iter().map(|(k, _)| Value::Str(k.clone())).collect(),
+                    Value::Arr(a) => (0..a.borrow().len()).map(|i| Value::Str(i.to_string().into())).collect(),
+                    Value::Str(s) => (0..s.chars().count()).map(|i| Value::Str(i.to_string().into())).collect(),
                     _ => Vec::new(),
                 };
                 for k in keys {
@@ -1632,11 +1442,7 @@ impl Interp {
                 let v = self.eval(e, scope)?;
                 Err(to_string(&v))
             }
-            StmtKind::Try {
-                block,
-                catch,
-                finally,
-            } => {
+            StmtKind::Try { block, catch, finally } => {
                 let mut out = self.exec_block(block, scope);
                 if let (Err(e), Some((param, body))) = (&out, catch) {
                     if e == "the script runs too long" {
@@ -1661,11 +1467,7 @@ impl Interp {
 
     fn get_prop(&mut self, obj: &Value, key: &Value) -> Result<Value, String> {
         match obj {
-            Value::Undef | Value::Null => Err(format!(
-                "Cannot read properties of {} (reading '{}')",
-                to_string(obj),
-                to_string(key)
-            )),
+            Value::Undef | Value::Null => Err(format!("Cannot read properties of {} (reading '{}')", to_string(obj), to_string(key))),
             Value::Obj(o) => {
                 let k = to_string(key);
                 Ok(o.borrow().get(&k).cloned().unwrap_or(Value::Undef))
@@ -1682,11 +1484,7 @@ impl Interp {
             }
             Value::Str(s) => {
                 if let Some(i) = array_index(key) {
-                    return Ok(s
-                        .chars()
-                        .nth(i)
-                        .map(|c| Value::Str(c.to_string().into()))
-                        .unwrap_or(Value::Undef));
+                    return Ok(s.chars().nth(i).map(|c| Value::Str(c.to_string().into())).unwrap_or(Value::Undef));
                 }
                 Ok(match to_string(key).as_str() {
                     "length" => Value::Num(s.encode_utf16().count() as f64),
@@ -1704,12 +1502,7 @@ impl Interp {
                 Ok(())
             }
             Value::Arr(a) => {
-                let i = array_index(key).ok_or_else(|| {
-                    format!(
-                        "setting property '{}' of an array is not supported",
-                        to_string(key)
-                    )
-                })?;
+                let i = array_index(key).ok_or_else(|| format!("setting property '{}' of an array is not supported", to_string(key)))?;
                 if i > 10_000_000 {
                     return Err("array too large".into());
                 }
@@ -1720,27 +1513,17 @@ impl Interp {
                 a[i] = value;
                 Ok(())
             }
-            Value::Undef | Value::Null => Err(format!(
-                "Cannot set properties of {} (setting '{}')",
-                to_string(obj),
-                to_string(key)
-            )),
+            Value::Undef | Value::Null => Err(format!("Cannot set properties of {} (setting '{}')", to_string(obj), to_string(key))),
             // a property on a primitive or a function is silently dropped
             _ => Ok(()),
         }
     }
 
     /// Read a reference (name, member or index) for an update or a compound assignment.
-    fn read_target(
-        &mut self,
-        target: &Expr,
-        scope: &Rc<Scope>,
-    ) -> Result<(Value, Option<(Value, Value)>), String> {
+    fn read_target(&mut self, target: &Expr, scope: &Rc<Scope>) -> Result<(Value, Option<(Value, Value)>), String> {
         match target {
             Expr::Ident(name) => {
-                let v = scope
-                    .lookup(name)
-                    .ok_or_else(|| format!("{name} is not defined"))?;
+                let v = scope.lookup(name).ok_or_else(|| format!("{name} is not defined"))?;
                 Ok((v, None))
             }
             Expr::Member(o, name) => {
@@ -1759,13 +1542,7 @@ impl Interp {
         }
     }
 
-    fn write_target(
-        &mut self,
-        target: &Expr,
-        place: Option<(Value, Value)>,
-        value: Value,
-        scope: &Rc<Scope>,
-    ) -> Result<(), String> {
+    fn write_target(&mut self, target: &Expr, place: Option<(Value, Value)>, value: Value, scope: &Rc<Scope>) -> Result<(), String> {
         match (target, place) {
             (Expr::Ident(name), _) => {
                 if !scope.assign(name, value.clone()) {
@@ -1790,9 +1567,7 @@ impl Interp {
             Expr::Bool(b) => Ok(Value::Bool(*b)),
             Expr::Null => Ok(Value::Null),
             Expr::This => Ok(Value::Undef),
-            Expr::Ident(name) => scope
-                .lookup(name)
-                .ok_or_else(|| format!("{name} is not defined")),
+            Expr::Ident(name) => scope.lookup(name).ok_or_else(|| format!("{name} is not defined")),
             Expr::Array(items) => {
                 let mut out = Vec::with_capacity(items.len());
                 for i in items {
@@ -1808,10 +1583,7 @@ impl Interp {
                 }
                 Ok(Value::Obj(Rc::new(RefCell::new(o))))
             }
-            Expr::Func(def) => Ok(Value::Func(Rc::new(Closure {
-                def: def.clone(),
-                env: scope.clone(),
-            }))),
+            Expr::Func(def) => Ok(Value::Func(Rc::new(Closure { def: def.clone(), env: scope.clone() }))),
             Expr::Member(o, name) => {
                 let obj = self.eval(o, scope)?;
                 self.get_prop(&obj, &Value::Str(name.clone()))
@@ -1846,9 +1618,7 @@ impl Interp {
             Expr::Unary(op, x) => {
                 if *op == "typeof" {
                     if let Expr::Ident(name) = &**x {
-                        return Ok(Value::Str(
-                            type_of(&scope.lookup(name).unwrap_or(Value::Undef)).into(),
-                        ));
+                        return Ok(Value::Str(type_of(&scope.lookup(name).unwrap_or(Value::Undef)).into()));
                     }
                 }
                 let v = self.eval(x, scope)?;
@@ -1872,27 +1642,15 @@ impl Interp {
                 match *op {
                     "&&" => {
                         let x = self.eval(a, scope)?;
-                        return if truthy(&x) {
-                            self.eval(b, scope)
-                        } else {
-                            Ok(x)
-                        };
+                        return if truthy(&x) { self.eval(b, scope) } else { Ok(x) };
                     }
                     "||" => {
                         let x = self.eval(a, scope)?;
-                        return if truthy(&x) {
-                            Ok(x)
-                        } else {
-                            self.eval(b, scope)
-                        };
+                        return if truthy(&x) { Ok(x) } else { self.eval(b, scope) };
                     }
                     "??" => {
                         let x = self.eval(a, scope)?;
-                        return if matches!(x, Value::Undef | Value::Null) {
-                            self.eval(b, scope)
-                        } else {
-                            Ok(x)
-                        };
+                        return if matches!(x, Value::Undef | Value::Null) { self.eval(b, scope) } else { Ok(x) };
                     }
                     _ => {}
                 }
@@ -1912,9 +1670,7 @@ impl Interp {
                     // the reference is taken before the value, as in JavaScript
                     let place = match &**target {
                         Expr::Ident(_) => None,
-                        Expr::Member(o, name) => {
-                            Some((self.eval(o, scope)?, Value::Str(name.clone())))
-                        }
+                        Expr::Member(o, name) => Some((self.eval(o, scope)?, Value::Str(name.clone()))),
                         Expr::Index(o, k) => {
                             let obj = self.eval(o, scope)?;
                             let key = self.eval(k, scope)?;
@@ -1954,9 +1710,7 @@ fn describe(e: &Expr) -> String {
 
 fn binary(op: &str, x: &Value, y: &Value) -> Result<Value, String> {
     let num = |f: fn(f64, f64) -> f64| Value::Num(f(to_number(x), to_number(y)));
-    let int = |f: fn(i32, i32) -> i32| {
-        Value::Num(f(to_int32(to_number(x)), to_int32(to_number(y))) as f64)
-    };
+    let int = |f: fn(i32, i32) -> i32| Value::Num(f(to_int32(to_number(x)), to_int32(to_number(y))) as f64);
     Ok(match op {
         "+" => {
             let prim = |v: &Value| {
@@ -2004,9 +1758,7 @@ fn binary(op: &str, x: &Value, y: &Value) -> Result<Value, String> {
         }
         "in" => Value::Bool(match y {
             Value::Obj(o) => o.borrow().get(&to_string(x)).is_some(),
-            Value::Arr(a) => {
-                array_index(x).is_some_and(|i| i < a.borrow().len()) || to_string(x) == "length"
-            }
+            Value::Arr(a) => array_index(x).is_some_and(|i| i < a.borrow().len()) || to_string(x) == "length",
             _ => return Err("'in' needs an object".into()),
         }),
         "instanceof" => Value::Bool(false),
@@ -2029,13 +1781,7 @@ fn hoist_one(s: &Stmt, scope: &Rc<Scope>) {
     };
     match &s.kind {
         StmtKind::Var(decls) => decls.iter().for_each(|(n, _)| declare_var(n)),
-        StmtKind::Func(name, def) => scope.declare(
-            name.clone(),
-            Value::Func(Rc::new(Closure {
-                def: def.clone(),
-                env: scope.clone(),
-            })),
-        ),
+        StmtKind::Func(name, def) => scope.declare(name.clone(), Value::Func(Rc::new(Closure { def: def.clone(), env: scope.clone() }))),
         StmtKind::If(_, a, b) => {
             hoist_one(a, scope);
             if let Some(b) = b {
@@ -2055,11 +1801,7 @@ fn hoist_one(s: &Stmt, scope: &Rc<Scope>) {
         }
         StmtKind::While(_, b) | StmtKind::DoWhile(b, _) => hoist_one(b, scope),
         StmtKind::Switch(_, cases) => cases.iter().for_each(|(_, b)| hoist(b, scope)),
-        StmtKind::Try {
-            block,
-            catch,
-            finally,
-        } => {
+        StmtKind::Try { block, catch, finally } => {
             hoist(block, scope);
             if let Some((_, c)) = catch {
                 hoist(c, scope);
@@ -2099,10 +1841,7 @@ fn visit_calls<'a>(stmts: &'a [Stmt], f: &mut dyn FnMut(&'a [Expr])) {
     }
     fn stmt<'a>(s: &'a Stmt, f: &mut dyn FnMut(&'a [Expr])) {
         match &s.kind {
-            StmtKind::Var(decls) => decls
-                .iter()
-                .filter_map(|(_, e)| e.as_ref())
-                .for_each(|e| expr(e, f)),
+            StmtKind::Var(decls) => decls.iter().filter_map(|(_, e)| e.as_ref()).for_each(|e| expr(e, f)),
             StmtKind::Expr(e) | StmtKind::Throw(e) | StmtKind::Return(Some(e)) => expr(e, f),
             StmtKind::If(t, a, b) => {
                 expr(t, f);
@@ -2112,12 +1851,7 @@ fn visit_calls<'a>(stmts: &'a [Stmt], f: &mut dyn FnMut(&'a [Expr])) {
                 }
             }
             StmtKind::Block(b) => b.iter().for_each(|s| stmt(s, f)),
-            StmtKind::For {
-                init,
-                test,
-                update,
-                body,
-            } => {
+            StmtKind::For { init, test, update, body } => {
                 if let Some(i) = init {
                     stmt(i, f);
                 }
@@ -2146,11 +1880,7 @@ fn visit_calls<'a>(stmts: &'a [Stmt], f: &mut dyn FnMut(&'a [Expr])) {
                     b.iter().for_each(|s| stmt(s, f));
                 }
             }
-            StmtKind::Try {
-                block,
-                catch,
-                finally,
-            } => {
+            StmtKind::Try { block, catch, finally } => {
                 block.iter().for_each(|s| stmt(s, f));
                 if let Some((_, c)) = catch {
                     c.iter().for_each(|s| stmt(s, f));
@@ -2183,22 +1913,12 @@ mod tests {
         let m = run("define([], function(m) {\nvar exports = {};\nvar val = 0;\nexports.A = val++;\nexports.B = val++;\n\
              val = exports.C = exports.A; val++;\nexports.D = val++;\nexports.MAX = exports.T_MAX = val++;\nreturn exports;\n});")
         .unwrap();
-        assert_eq!(
-            [
-                num(&m, "A"),
-                num(&m, "B"),
-                num(&m, "C"),
-                num(&m, "D"),
-                num(&m, "MAX")
-            ],
-            [0.0, 1.0, 0.0, 1.0, 2.0]
-        );
+        assert_eq!([num(&m, "A"), num(&m, "B"), num(&m, "C"), num(&m, "D"), num(&m, "MAX")], [0.0, 1.0, 0.0, 1.0, 2.0]);
     }
 
     #[test]
     fn bit_operators_follow_int32() {
-        let m = run("define(function(){ var e = {}; e.h = 1 << 31; e.m = 0x60000000 | e.h; e.u = e.m >>> 0; e.n = ~0; return e; })")
-            .unwrap();
+        let m = run("define(function(){ var e = {}; e.h = 1 << 31; e.m = 0x60000000 | e.h; e.u = e.m >>> 0; e.n = ~0; return e; })").unwrap();
         assert_eq!(num(&m, "h"), -2147483648.0);
         assert_eq!(num(&m, "m"), -536870912.0);
         assert_eq!(num(&m, "u"), 3758096384.0);
@@ -2217,37 +1937,16 @@ mod tests {
         let m = it.run_module(&script, Value::Undef, 1_000_000).unwrap();
         let f = m.prop("f").unwrap();
         let g = m.prop("g").unwrap();
-        assert_eq!(
-            it.call_fn(&f, vec![Value::Num(2.0)], 1000)
-                .unwrap()
-                .as_num(),
-            Some(10.0)
-        );
-        assert_eq!(
-            it.call_fn(&f, vec![Value::Num(9.0)], 1000)
-                .unwrap()
-                .as_num(),
-            Some(-1.0)
-        );
-        assert_eq!(
-            it.call_fn(&g, vec![Value::Num(5.0)], 1000)
-                .unwrap()
-                .as_num(),
-            Some(8.0)
-        );
+        assert_eq!(it.call_fn(&f, vec![Value::Num(2.0)], 1000).unwrap().as_num(), Some(10.0));
+        assert_eq!(it.call_fn(&f, vec![Value::Num(9.0)], 1000).unwrap().as_num(), Some(-1.0));
+        assert_eq!(it.call_fn(&g, vec![Value::Num(5.0)], 1000).unwrap().as_num(), Some(8.0));
     }
 
     #[test]
     fn reports_runaway_and_broken_scripts() {
-        assert!(run("define(function(){ while (true) {} })")
-            .unwrap_err()
-            .contains("too long"));
-        assert!(run("define(function(){ throw new Error(\"boom\") })")
-            .unwrap_err()
-            .contains("boom"));
-        assert!(run("define([], function(m) { return m.X; })")
-            .unwrap_err()
-            .contains("Cannot read"));
+        assert!(run("define(function(){ while (true) {} })").unwrap_err().contains("too long"));
+        assert!(run("define(function(){ throw new Error(\"boom\") })").unwrap_err().contains("boom"));
+        assert!(run("define([], function(m) { return m.X; })").unwrap_err().contains("Cannot read"));
         assert!(run("define(function(){ var x = ; })").is_err());
         assert!(run("var x = 1;").unwrap_err().contains("defines no module"));
     }

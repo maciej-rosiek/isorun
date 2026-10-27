@@ -62,7 +62,9 @@ fn says_when_more_items_lie_under_the_top_item_of_a_pile() {
 #[test]
 fn says_nothing_about_a_wall() {
     let mut scene = Scene::default();
-    scene.cells.insert(cell_key(3, 4), SceneCell { kind: CellKind::Wall, occluder: true, wall_tile: Some(2), label: Some("brick dark 1".into()), ..floor(3, 4) });
+    scene
+        .cells
+        .insert(cell_key(3, 4), SceneCell { kind: CellKind::Wall, occluder: true, wall_tile: Some(2), label: Some("brick dark 1".into()), ..floor(3, 4) });
     assert_eq!(cell_details(&scene, 3, 4), vec![]);
 }
 
@@ -116,7 +118,16 @@ fn goes_to_a_cell_with_items_and_describes_them() {
 #[test]
 fn offers_what_the_players_own_square_offers() {
     let mut scene = level();
-    scene.cells.insert(cell_key(4, 4), SceneCell { kind: CellKind::Feature, feature: Some(Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }), feature_tile: Some(7), label: Some("stone staircase leading down".into()), ..floor(4, 4) });
+    scene.cells.insert(
+        cell_key(4, 4),
+        SceneCell {
+            kind: CellKind::Feature,
+            feature: Some(Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }),
+            feature_tile: Some(7),
+            label: Some("stone staircase leading down".into()),
+            ..floor(4, 4)
+        },
+    );
     assert_eq!(rows_at(&scene, 4, 4).into_iter().map(|r| r.0).collect::<Vec<_>>(), vec!["Go down", "Describe"]);
 }
 
@@ -175,7 +186,12 @@ fn plays_a_miss_as_a_swing_and_a_dodge() {
     let lines = [line("You barely miss the goblin."), line("The goblin closely misses you.")];
     assert_eq!(
         combat_events(&lines, &scene, &monsters),
-        vec![CombatEvent::Attack { by: P, at: (6, 5) }, CombatEvent::Miss { on: G, from: Some((5, 5)) }, CombatEvent::Attack { by: G, at: (5, 5) }, CombatEvent::Miss { on: P, from: Some((6, 5)) }]
+        vec![
+            CombatEvent::Attack { by: P, at: (6, 5) },
+            CombatEvent::Miss { on: G, from: Some((5, 5)) },
+            CombatEvent::Attack { by: G, at: (5, 5) },
+            CombatEvent::Miss { on: P, from: Some((6, 5)) }
+        ]
     );
 }
 
@@ -192,7 +208,12 @@ fn reads_how_hard_a_blow_struck_and_the_damage_it_did() {
     let lines = [line("You slash the goblin for 12!!"), line("The goblin hits you for 3 with a club.")];
     assert_eq!(
         combat_events(&lines, &scene, &monsters),
-        vec![CombatEvent::Attack { by: P, at: (6, 5) }, hit(G, Some((5, 5)), 2, Some(12)), CombatEvent::Attack { by: G, at: (5, 5) }, hit(P, Some((6, 5)), 0, Some(3))]
+        vec![
+            CombatEvent::Attack { by: P, at: (6, 5) },
+            hit(G, Some((5, 5)), 2, Some(12)),
+            CombatEvent::Attack { by: G, at: (5, 5) },
+            hit(P, Some((6, 5)), 0, Some(3))
+        ]
     );
 }
 

@@ -30,7 +30,15 @@ fn a_browsers_tap_on_the_view_is_one_click() {
 fn a_browsers_tap_whose_finger_drifts_a_little_is_still_a_click() {
     let mut g = Gestures::default();
     let mut out = g.feed(&[press(120.0, 450.0, true)], 0.0);
-    out.extend(g.feed(&[press(120.0, 450.0, true), touch(egui::TouchPhase::Start, 120.0, 450.0), egui::Event::PointerMoved(egui::pos2(122.0, 452.0)), touch(egui::TouchPhase::Move, 122.0, 452.0)], 16.0));
+    out.extend(g.feed(
+        &[
+            press(120.0, 450.0, true),
+            touch(egui::TouchPhase::Start, 120.0, 450.0),
+            egui::Event::PointerMoved(egui::pos2(122.0, 452.0)),
+            touch(egui::TouchPhase::Move, 122.0, 452.0),
+        ],
+        16.0,
+    ));
     out.extend(g.feed(&[press(122.0, 452.0, false)], 60.0));
     out.extend(g.feed(&[press(122.0, 452.0, false), egui::Event::PointerGone, touch(egui::TouchPhase::End, 122.0, 452.0)], 80.0));
     assert_eq!(clicks(&out), 1, "{out:?}");

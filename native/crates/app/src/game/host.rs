@@ -295,10 +295,12 @@ impl GameHost for Host<'_> {
             // put the screen away whole
             use isorun_hud::screens::ScreenOp as S;
             let s = match op {
-                OverlayOp::Close => return {
-                    self.p.hud.close_screen();
-                    true
-                },
+                OverlayOp::Close => {
+                    return {
+                        self.p.hud.close_screen();
+                        true
+                    }
+                }
                 OverlayOp::Select | OverlayOp::Submit => S::Select,
                 OverlayOp::Cancel => S::Cancel,
                 OverlayOp::Alt => S::Quick,

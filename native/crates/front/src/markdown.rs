@@ -26,7 +26,10 @@ pub enum Block {
     Para(Vec<Inline>),
     List(Vec<Vec<Inline>>),
     Code(String),
-    Table { head: Vec<Vec<Inline>>, rows: Vec<Vec<Vec<Inline>>> },
+    Table {
+        head: Vec<Vec<Inline>>,
+        rows: Vec<Vec<Vec<Inline>>>,
+    },
 }
 
 fn is_autolink_line(line: &str) -> bool {
@@ -318,7 +321,15 @@ pub fn job(spans: &[Inline], size: f32, colour: egui::Color32, style: &DocStyle,
     job.wrap.max_width = wrap;
     let mut links = Vec::new();
     let mut chars = 0;
-    fn walk(spans: &[Inline], fmt: egui::TextFormat, style: &DocStyle, job: &mut egui::text::LayoutJob, links: &mut Vec<(std::ops::Range<usize>, String)>, chars: &mut usize, link: Option<&str>) {
+    fn walk(
+        spans: &[Inline],
+        fmt: egui::TextFormat,
+        style: &DocStyle,
+        job: &mut egui::text::LayoutJob,
+        links: &mut Vec<(std::ops::Range<usize>, String)>,
+        chars: &mut usize,
+        link: Option<&str>,
+    ) {
         for s in spans {
             match s {
                 Inline::Text(t) => {
@@ -431,12 +442,18 @@ pub fn doc_ui(ui: &mut egui::Ui, blocks: &[Block], style: &DocStyle) {
             }
             Block::Code(text) => {
                 let size = 0.92 * rem;
-                egui::Frame::NONE.fill(egui::Color32::from_white_alpha(13)).inner_margin(egui::Margin::symmetric((0.8 * rem) as i8, (0.6 * rem) as i8)).show(ui, |ui| {
-                    ui.set_width(ui.available_width());
-                    let mut job = egui::text::LayoutJob::single_section(text.clone(), egui::TextFormat { font_id: egui::FontId::monospace(size), color: style.code, ..Default::default() });
-                    job.wrap.max_width = ui.available_width();
-                    ui.label(job);
-                });
+                egui::Frame::NONE.fill(egui::Color32::from_white_alpha(13)).inner_margin(egui::Margin::symmetric((0.8 * rem) as i8, (0.6 * rem) as i8)).show(
+                    ui,
+                    |ui| {
+                        ui.set_width(ui.available_width());
+                        let mut job = egui::text::LayoutJob::single_section(
+                            text.clone(),
+                            egui::TextFormat { font_id: egui::FontId::monospace(size), color: style.code, ..Default::default() },
+                        );
+                        job.wrap.max_width = ui.available_width();
+                        ui.label(job);
+                    },
+                );
                 ui.add_space(0.9 * rem);
             }
             Block::Table { head, rows } => {

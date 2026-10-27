@@ -166,7 +166,16 @@ mod tests {
     use super::*;
 
     fn server() -> ServerInfo {
-        ServerInfo { id: "cdi".into(), name: "CDI".into(), region: None, ws: "wss://crawl.dcss.io/socket".into(), http: "https://crawl.dcss.io".into(), host: "crawl.dcss.io".into(), custom: false, offline: false }
+        ServerInfo {
+            id: "cdi".into(),
+            name: "CDI".into(),
+            region: None,
+            ws: "wss://crawl.dcss.io/socket".into(),
+            http: "https://crawl.dcss.io".into(),
+            host: "crawl.dcss.io".into(),
+            custom: false,
+            offline: false,
+        }
     }
 
     #[test]

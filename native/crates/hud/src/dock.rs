@@ -44,8 +44,22 @@ struct ButtonDef {
 }
 
 const BUTTONS: [ButtonDef; 7] = [
-    ButtonDef { id: DockButtonId::Inventory, label: "Inventory", about: "What you wear and carry", icon: "CMD_DISPLAY_INVENTORY", keys: &["i"], pad: Some(Glyph::Y) },
-    ButtonDef { id: DockButtonId::Character, label: "Character", about: "Your defences, attributes and status", icon: "CMD_DISPLAY_CHARACTER_STATUS", keys: &["@"], pad: None },
+    ButtonDef {
+        id: DockButtonId::Inventory,
+        label: "Inventory",
+        about: "What you wear and carry",
+        icon: "CMD_DISPLAY_INVENTORY",
+        keys: &["i"],
+        pad: Some(Glyph::Y),
+    },
+    ButtonDef {
+        id: DockButtonId::Character,
+        label: "Character",
+        about: "Your defences, attributes and status",
+        icon: "CMD_DISPLAY_CHARACTER_STATUS",
+        keys: &["@"],
+        pad: None,
+    },
     ButtonDef { id: DockButtonId::Spells, label: "Spells", about: "Cast a spell you know", icon: "CMD_CAST_SPELL", keys: &["z"], pad: Some(Glyph::X) },
     ButtonDef { id: DockButtonId::Abilities, label: "Abilities", about: "Use an ability", icon: "CMD_USE_ABILITY", keys: &["a"], pad: None },
     ButtonDef { id: DockButtonId::Skills, label: "Skills", about: "What you train, and how fast", icon: "CMD_DISPLAY_SKILLS", keys: &["m"], pad: None },
@@ -120,7 +134,20 @@ impl DockView {
             progress: p.progress,
             gold: p.gold,
             place: if p.depth != 0 { format!("{}:{}", p.place, p.depth) } else { p.place.clone() },
-            stats: DockStats { ac: p.ac, ev: p.ev, sh: p.sh, ac_mod: p.ac_mod, ev_mod: p.ev_mod, sh_mod: p.sh_mod, str: p.str, int: p.int, dex: p.dex, str_max: p.str_max, int_max: p.int_max, dex_max: p.dex_max },
+            stats: DockStats {
+                ac: p.ac,
+                ev: p.ev,
+                sh: p.sh,
+                ac_mod: p.ac_mod,
+                ev_mod: p.ev_mod,
+                sh_mod: p.sh_mod,
+                str: p.str,
+                int: p.int,
+                dex: p.dex,
+                str_max: p.str_max,
+                int_max: p.int_max,
+                dex_max: p.dex_max,
+            },
             statuses: p.status.clone(),
             ..Default::default()
         }
@@ -244,7 +271,13 @@ pub struct DockFrame {
 impl DockFrame {
     pub fn new(screen: Rect, ui_scale: f32, touch: bool) -> DockFrame {
         let compact = style::compact_window(screen.size());
-        DockFrame { screen, u: if compact { ui_scale } else { style::hud_unit(screen.size(), ui_scale) }, compact, landscape: compact && style::landscape_window(screen.size()), touch }
+        DockFrame {
+            screen,
+            u: if compact { ui_scale } else { style::hud_unit(screen.size(), ui_scale) },
+            compact,
+            landscape: compact && style::landscape_window(screen.size()),
+            touch,
+        }
     }
 }
 
@@ -263,7 +296,16 @@ pub struct DockTip {
 impl Dock {
     pub fn new() -> Dock {
         let fill = (0.2, 0.8, 0.3, 1.0);
-        Dock { hp: Ease::new(1.0, 0.45, fill), mp: Ease::new(1.0, 0.45, fill), poison: Ease::new(1.0, 0.45, fill), xp: Ease::new(0.0, 0.6, (0.0, 0.0, 0.58, 1.0)), focus: None, stops: vec![], frame: Rect::NOTHING, above_h: 0.0 }
+        Dock {
+            hp: Ease::new(1.0, 0.45, fill),
+            mp: Ease::new(1.0, 0.45, fill),
+            poison: Ease::new(1.0, 0.45, fill),
+            xp: Ease::new(0.0, 0.6, (0.0, 0.0, 0.58, 1.0)),
+            focus: None,
+            stops: vec![],
+            frame: Rect::NOTHING,
+            above_h: 0.0,
+        }
     }
 
     /// Whether the pad's cursor is on the dock.
@@ -331,7 +373,13 @@ impl Dock {
                     return None;
                 }
                 let x = cur.rect.center().x;
-                let best = self.stops.iter().enumerate().filter(|(_, s)| s.row == rows[ri as usize]).min_by(|a, b| (a.1.rect.center().x - x).abs().total_cmp(&(b.1.rect.center().x - x).abs())).map(|(i, _)| i);
+                let best = self
+                    .stops
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, s)| s.row == rows[ri as usize])
+                    .min_by(|a, b| (a.1.rect.center().x - x).abs().total_cmp(&(b.1.rect.center().x - x).abs()))
+                    .map(|(i, _)| i);
                 if best.is_some() {
                     self.focus = best;
                 }
@@ -357,7 +405,15 @@ impl Dock {
     }
 
     /// Draw the dock and take its clicks. Returns what was asked, and the tooltip to show.
-    pub fn ui(&mut self, ui: &mut egui::Ui, f: &DockFrame, view: &DockView, tiles: &mut TileIcons, boxes: &mut BoxCache, now: f64) -> (Vec<DockEvent>, Option<DockTip>) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        f: &DockFrame,
+        view: &DockView,
+        tiles: &mut TileIcons,
+        boxes: &mut BoxCache,
+        now: f64,
+    ) -> (Vec<DockEvent>, Option<DockTip>) {
         let share = |n: i64, max: i64| if max > 0 { (n as f32 / max as f32).clamp(0.0, 1.0) } else { 0.0 };
         self.hp.set(share(view.hp, view.hp_max), now);
         self.mp.set(share(view.mp, view.mp_max), now);
@@ -391,7 +447,17 @@ impl Dock {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn full_ui(&mut self, ui: &mut egui::Ui, f: &DockFrame, view: &DockView, p: &mut Painted, now: f64, events: &mut Vec<DockEvent>, tip: &mut Option<DockTip>, low: bool) {
+    fn full_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        f: &DockFrame,
+        view: &DockView,
+        p: &mut Painted,
+        now: f64,
+        events: &mut Vec<DockEvent>,
+        tip: &mut Option<DockTip>,
+        low: bool,
+    ) {
         let ctx = ui.ctx().clone();
         let g = Geom::new(&ctx, f, view);
         let u = f.u;
@@ -435,7 +501,10 @@ impl Dock {
                 paint_glyph(&p.painter, Glyph::L3, view.pad, at, 22.0 * u, Color32::WHITE);
                 let r = Rect::from_min_size(at, gs);
                 if ui.interact(r, ui.scope_id().with("slots-pad"), Sense::hover()).hovered() {
-                    *tip = Some(DockTip { tip: Tip::titled("The dock on the pad").body("The hotbar, the actions and the screens").hint(KeyHint::default().pad(Glyph::L3)), over: r });
+                    *tip = Some(DockTip {
+                        tip: Tip::titled("The dock on the pad").body("The hotbar, the actions and the screens").hint(KeyHint::default().pad(Glyph::L3)),
+                        over: r,
+                    });
                 }
             }
         }
@@ -444,14 +513,26 @@ impl Dock {
         let xp_resp = ui.interact(g.xp, ui.scope_id().with("dock-xp"), Sense::hover());
         paint_xp(p, &g, view, self.xp.at(now), u);
         if xp_resp.hovered() {
-            *tip = Some(DockTip { tip: Tip::titled(format!("Level {}", view.xl)).kicker("Experience").body(format!("{}% of the way to level {}", view.progress, view.xl + 1)), over: g.xp });
+            *tip = Some(DockTip {
+                tip: Tip::titled(format!("Level {}", view.xl)).kicker("Experience").body(format!("{}% of the way to level {}", view.progress, view.xl + 1)),
+                over: g.xp,
+            });
         }
 
         // the screen buttons
         if !view.spectating {
             for (i, (b, rect)) in BUTTONS.iter().zip(&g.buttons).enumerate() {
                 let resp = ui.interact(*rect, ui.scope_id().with(("dock-button", i)), Sense::click());
-                paint_button(p, *rect, b, resp.hovered() || self.focus.and_then(|f| self.stops.get(f)).is_some_and(|s| s.kind == StopKind::Button(i)), u, ICON.button * u, view, 52.0 * u);
+                paint_button(
+                    p,
+                    *rect,
+                    b,
+                    resp.hovered() || self.focus.and_then(|f| self.stops.get(f)).is_some_and(|s| s.kind == StopKind::Button(i)),
+                    u,
+                    ICON.button * u,
+                    view,
+                    52.0 * u,
+                );
                 if resp.clicked() {
                     events.push(DockEvent::Button(b.id));
                 }
@@ -464,7 +545,11 @@ impl Dock {
 
         // the defences and attributes, the place and the gold
         p.painter.rect_filled(Rect::from_min_size(g.stats.left_top(), egui::vec2(1.0, g.stats.height())), 0.0, hex(0x2c2620).to_color32());
-        p.painter.rect_filled(Rect::from_min_size(g.stats.right_top() - egui::vec2(1.0, 0.0), egui::vec2(1.0, g.stats.height())), 0.0, hex(0x2c2620).to_color32());
+        p.painter.rect_filled(
+            Rect::from_min_size(g.stats.right_top() - egui::vec2(1.0, 0.0), egui::vec2(1.0, g.stats.height())),
+            0.0,
+            hex(0x2c2620).to_color32(),
+        );
         for (i, st) in g.stat_cells.iter().enumerate() {
             let resp = ui.interact(st.rect, ui.scope_id().with(("dock-stat", i)), Sense::hover());
             p.painter.galley(st.value_at, st.value.clone(), Color32::WHITE);
@@ -539,7 +624,16 @@ impl Dock {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn compact_ui(&mut self, ui: &mut egui::Ui, f: &DockFrame, view: &DockView, p: &mut Painted, now: f64, events: &mut Vec<DockEvent>, tip: &mut Option<DockTip>) {
+    fn compact_ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        f: &DockFrame,
+        view: &DockView,
+        p: &mut Painted,
+        now: f64,
+        events: &mut Vec<DockEvent>,
+        tip: &mut Option<DockTip>,
+    ) {
         let ctx = ui.ctx().clone();
         let g = CompactGeom::new(&ctx, f, view);
         let u = f.u;
@@ -548,12 +642,17 @@ impl Dock {
         let mut stops = Vec::new();
         ui.interact(g.frame, ui.scope_id().with("dock-frame"), Sense::click());
         // the frame: the stone along the foot with its bronze edge
-        p.boxes.paint_box(&p.painter, "dock-compact-frame", g.frame, &BoxStyle {
-            layers: vec![Layer::Linear(180.0, vec![sa(hex(0x1d1a17)), s(IRON, 0.4), sa(IRON_DEEP)])],
-            border: Border { w: [1.0, 0.0, 0.0, 0.0], c: [BRONZE_DIM; 4] },
-            outers: vec![outer(0.0, -8.0, 24.0, 0.0, rgba(0, 0, 0, 0.55))],
-            ..Default::default()
-        });
+        p.boxes.paint_box(
+            &p.painter,
+            "dock-compact-frame",
+            g.frame,
+            &BoxStyle {
+                layers: vec![Layer::Linear(180.0, vec![sa(hex(0x1d1a17)), s(IRON, 0.4), sa(IRON_DEEP)])],
+                border: Border { w: [1.0, 0.0, 0.0, 0.0], c: [BRONZE_DIM; 4] },
+                outers: vec![outer(0.0, -8.0, 24.0, 0.0, rgba(0, 0, 0, 0.55))],
+                ..Default::default()
+            },
+        );
         for (i, rect) in [g.hp, g.mp].into_iter().enumerate() {
             let hp = i == 0;
             let fill = if hp { self.hp.at(now) } else { self.mp.at(now) };
@@ -576,7 +675,16 @@ impl Dock {
             }
             for (i, (b, rect)) in BUTTONS.iter().zip(&g.buttons).enumerate() {
                 let resp = ui.interact(*rect, ui.scope_id().with(("dock-button", i)), Sense::click());
-                paint_button(p, *rect, b, resp.hovered(), u, COMPACT_ICON.button * u, &DockView { device: Device::Pointer, ..Default::default() }, rect.width());
+                paint_button(
+                    p,
+                    *rect,
+                    b,
+                    resp.hovered(),
+                    u,
+                    COMPACT_ICON.button * u,
+                    &DockView { device: Device::Pointer, ..Default::default() },
+                    rect.width(),
+                );
                 if resp.clicked() {
                     events.push(DockEvent::Button(b.id));
                 }
@@ -828,7 +936,14 @@ impl Geom {
             let key_top = stats.bottom() - 9.5 * u;
             let val_top = key_top - 2.0 * u - v.size().y;
             let rect = Rect::from_min_max(egui::pos2(col_left, val_top), egui::pos2(col_left + w, stats.bottom()));
-            stat_rects.push(StatCell { rect, value_at: egui::pos2(col_left + (w - v.size().x) / 2.0, val_top), key_at: egui::pos2(col_left + (w - k.size().x) / 2.0, key_top), value: v, key: k, tip: t });
+            stat_rects.push(StatCell {
+                rect,
+                value_at: egui::pos2(col_left + (w - v.size().x) / 2.0, val_top),
+                key_at: egui::pos2(col_left + (w - k.size().x) / 2.0, key_top),
+                value: v,
+                key: k,
+                tip: t,
+            });
         }
         let info_top = row.center().y - info_h / 2.0;
         let place = Rect::from_min_size(egui::pos2(cr - place_galley.size().x, info_top), egui::vec2(place_galley.size().x, 17.0 * u));
@@ -901,7 +1016,8 @@ fn chip_galley(ctx: &egui::Context, s: &StatusEntry, u: f32, compact: bool) -> s
 /// upward past `max_w` (`flex-wrap: wrap-reverse`); compact, a column down from the top left.
 fn chip_rects(ctx: &egui::Context, statuses: &[StatusEntry], u: f32, foot_left: Pos2, max_w: f32, compact: bool) -> Vec<(StatusEntry, Rect)> {
     let lights: Vec<&StatusEntry> = statuses.iter().filter(|s| s.light.as_ref().is_some_and(|l| !l.is_empty())).collect();
-    let (h, pad_l, pad_r, gem, gap_in, gap) = if compact { (22.0, 7.0, 7.0, 8.0 * u, 5.0, 4.0) } else { (28.0 * u, 9.0 * u, 11.0 * u, 8.0 * u, 7.0 * u, 5.0 * u) };
+    let (h, pad_l, pad_r, gem, gap_in, gap) =
+        if compact { (22.0, 7.0, 7.0, 8.0 * u, 5.0, 4.0) } else { (28.0 * u, 9.0 * u, 11.0 * u, 8.0 * u, 7.0 * u, 5.0 * u) };
     let widths: Vec<f32> = lights.iter().map(|s| pad_l + gem + gap_in + chip_galley(ctx, s, u, compact).size().x + pad_r + 2.0).collect();
     let mut out = vec![];
     if compact {
@@ -938,7 +1054,15 @@ fn chip_rects(ctx: &egui::Context, statuses: &[StatusEntry], u: f32, foot_left: 
 fn mid_style(u: f32) -> BoxStyle {
     BoxStyle {
         layers: vec![
-            Layer::RepeatingLinear(90.0, vec![Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)), Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0 * u)), Stop(TRANSPARENT, At::Pt(2.0 * u)), Stop(TRANSPARENT, At::Pt(7.0 * u))]),
+            Layer::RepeatingLinear(
+                90.0,
+                vec![
+                    Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)),
+                    Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0 * u)),
+                    Stop(TRANSPARENT, At::Pt(2.0 * u)),
+                    Stop(TRANSPARENT, At::Pt(7.0 * u)),
+                ],
+            ),
             Layer::Linear(180.0, vec![sa(hex(0x1d1a17)), s(IRON, 0.4), sa(IRON_DEEP)]),
         ],
         radius: [8.0 * u, 8.0 * u, 0.0, 0.0],
@@ -954,7 +1078,11 @@ fn mid_style(u: f32) -> BoxStyle {
 fn diamond(painter: &Painter, centre: Pos2, half: f32, top: C, bottom: C, border: C, ring: Option<C>) {
     if let Some(r) = ring {
         let h = half + 1.4;
-        painter.add(egui::Shape::convex_polygon(vec![centre + egui::vec2(0.0, -h), centre + egui::vec2(h, 0.0), centre + egui::vec2(0.0, h), centre + egui::vec2(-h, 0.0)], r.to_color32(), egui::Stroke::NONE));
+        painter.add(egui::Shape::convex_polygon(
+            vec![centre + egui::vec2(0.0, -h), centre + egui::vec2(h, 0.0), centre + egui::vec2(0.0, h), centre + egui::vec2(-h, 0.0)],
+            r.to_color32(),
+            egui::Stroke::NONE,
+        ));
     }
     let mut mesh = egui::Mesh::default();
     let mid = top.mix(bottom, 0.5).to_color32();
@@ -973,7 +1101,16 @@ fn diamond(painter: &Painter, centre: Pos2, half: f32, top: C, bottom: C, border
 fn coin_at(p: &mut Painted, at: Pos2, size: f32) {
     let r = Rect::from_min_size(at, Vec2::splat(size));
     p.painter.circle_filled(r.center(), size / 2.0 + 1.0, hex(0x3b2804).to_color32());
-    p.boxes.paint_box(&p.painter, "coin", r, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.35, 0.35), vec![sa(hex(0xfff2b0)), s(hex(0xe0aa2c), 0.55), sa(hex(0x7b5208))])], ..Default::default() }.round(size / 2.0));
+    p.boxes.paint_box(
+        &p.painter,
+        "coin",
+        r,
+        &BoxStyle {
+            layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.35, 0.35), vec![sa(hex(0xfff2b0)), s(hex(0xe0aa2c), 0.55), sa(hex(0x7b5208))])],
+            ..Default::default()
+        }
+        .round(size / 2.0),
+    );
 }
 
 /// A quick slot (`.slot`).
@@ -1011,12 +1148,22 @@ fn paint_slot(p: &mut Painted, rect: Rect, slot: Option<&QuickSlot>, hover: bool
     p.boxes.paint_box(&p.painter, &key, rect, &st);
     let Some(slot) = slot else {
         if hover {
-            p.painter.text(rect.center(), egui::Align2::CENTER_CENTER, "+", style::font(Face::Mono, if compact { 24.0 } else { 24.0 * u }), BRONZE.to_color32());
+            p.painter.text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "+",
+                style::font(Face::Mono, if compact { 24.0 } else { 24.0 * u }),
+                BRONZE.to_color32(),
+            );
         }
         return;
     };
     let cell = Rect::from_center_size(rect.center(), Vec2::splat(icon.min(rect.width())));
-    let placed: Vec<Placed> = if slot.r == SlotRef::Fire && slot.tiles.is_empty() { icons::icon_tiles(p.tiles, &DockIcon::Gui("CMD_AUTOFIGHT")) } else { icons::layer_tiles(p.tiles, &slot.tiles) };
+    let placed: Vec<Placed> = if slot.r == SlotRef::Fire && slot.tiles.is_empty() {
+        icons::icon_tiles(p.tiles, &DockIcon::Gui("CMD_AUTOFIGHT"))
+    } else {
+        icons::layer_tiles(p.tiles, &slot.tiles)
+    };
     // `.slot.useless canvas`: grey and darker
     let tint = if slot.useless { Color32::from_gray(140) } else { Color32::WHITE };
     icons::paint_with_shadow(p.tiles, &p.painter, &placed, cell, tint, 2.0 * u, 2.0 * u, Color32::BLACK);
@@ -1085,7 +1232,14 @@ fn paint_action(p: &mut Painted, rect: Rect, a: &DockAction, hover: bool, u: f32
     } else {
         vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.3), vec![sa(rgba(40, 36, 31, 0.95)), s(rgba(10, 9, 8, 0.95), 0.8)])]
     };
-    let st = BoxStyle { layers, radius: [5.0 * u; 4], border: Border::all(1.0, border), insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000)), inset(0.0, 1.0, 0.0, 0.0, rgba(255, 236, 200, 0.07))], outers, ..Default::default() };
+    let st = BoxStyle {
+        layers,
+        radius: [5.0 * u; 4],
+        border: Border::all(1.0, border),
+        insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000)), inset(0.0, 1.0, 0.0, 0.0, rgba(255, 236, 200, 0.07))],
+        outers,
+        ..Default::default()
+    };
     p.boxes.paint_box(&p.painter, &format!("dock-action:{lit}:{:?}:{main}:{compact}", border), rect, &st);
     let label = (lit && !(compact && portrait)).then(|| action_label(p.painter.ctx(), &a.label, u, compact));
     let content_w = icon + label.as_ref().map_or(0.0, |l| (if compact { 4.0 } else { 8.0 * u }) + l.size().x);
@@ -1141,13 +1295,18 @@ fn paint_xp(p: &mut Painted, g: &Geom, view: &DockView, fill: f32, u: f32) {
 
 fn paint_track(p: &mut Painted, track: Rect, fill: f32, u: f32, compact: bool) {
     let r = if compact { 4.0 } else { 4.0 * u };
-    p.boxes.paint_box(&p.painter, "xp-track", track, &BoxStyle {
-        layers: vec![Layer::Solid(IRON_DEEP)],
-        radius: [r; 4],
-        border: Border::all(1.0, hex(0x3a3128)),
-        insets: vec![inset(0.0, 1.0, 2.0, 0.0, hex(0x000000))],
-        ..Default::default()
-    });
+    p.boxes.paint_box(
+        &p.painter,
+        "xp-track",
+        track,
+        &BoxStyle {
+            layers: vec![Layer::Solid(IRON_DEEP)],
+            radius: [r; 4],
+            border: Border::all(1.0, hex(0x3a3128)),
+            insets: vec![inset(0.0, 1.0, 2.0, 0.0, hex(0x000000))],
+            ..Default::default()
+        },
+    );
     let inner = track.shrink(1.0);
     let w = inner.width() * fill.clamp(0.0, 1.0);
     if w > 0.0 {
@@ -1168,23 +1327,41 @@ fn paint_orb(p: &mut Painted, rect: Rect, hp: bool, fill: f32, poison: Option<f3
     // `.orb::before`: the stone
     crate::paint::outer_shadow(&p.painter, rect, [size / 2.0; 4], outer(0.0, 6.0 * u, 18.0 * u, 0.0, rgba(0, 0, 0, 0.75)));
     p.painter.circle_filled(rect.center(), size / 2.0 + 1.0, Color32::BLACK);
-    p.boxes.paint_box(&p.painter, "orb-stone", rect, &BoxStyle {
-        layers: vec![
-            Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.5), vec![s(TRANSPARENT, 0.6), s(rgba(0, 0, 0, 0.5), 0.61), s(TRANSPARENT, 0.66)]),
-            Layer::Conic(200.0, (0.5, 0.5), vec![sa(hex(0x3a3329)), s(hex(0x121110), 0.25), s(hex(0x2c2620), 0.5), s(hex(0x0f0e0d), 0.75), sa(hex(0x3a3329))]),
-        ],
-        radius: [size / 2.0; 4],
-        border: Border::all(1.0, BRONZE_DIM),
-        insets: vec![inset(0.0, 0.0, 0.0, 3.0 * u, rgba(0, 0, 0, 0.35))],
-        ..Default::default()
-    });
+    p.boxes.paint_box(
+        &p.painter,
+        "orb-stone",
+        rect,
+        &BoxStyle {
+            layers: vec![
+                Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.5), vec![s(TRANSPARENT, 0.6), s(rgba(0, 0, 0, 0.5), 0.61), s(TRANSPARENT, 0.66)]),
+                Layer::Conic(
+                    200.0,
+                    (0.5, 0.5),
+                    vec![sa(hex(0x3a3329)), s(hex(0x121110), 0.25), s(hex(0x2c2620), 0.5), s(hex(0x0f0e0d), 0.75), sa(hex(0x3a3329))],
+                ),
+            ],
+            radius: [size / 2.0; 4],
+            border: Border::all(1.0, BRONZE_DIM),
+            insets: vec![inset(0.0, 0.0, 0.0, 3.0 * u, rgba(0, 0, 0, 0.35))],
+            ..Default::default()
+        },
+    );
     // `.orb-well`: inset 10%, its rings outside it
     let well = rect.shrink(size * 0.1);
     let wr = well.width() / 2.0;
     p.painter.circle_filled(well.center(), wr + 4.0 * u, Color32::BLACK);
     p.painter.circle_filled(well.center(), wr + 3.0 * u, BRONZE.to_color32());
     p.painter.circle_filled(well.center(), wr + 1.0, Color32::BLACK);
-    p.boxes.paint_box(&p.painter, "orb-well", well, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.4), vec![sa(hex(0x151313)), s(hex(0x050404), 0.75)])], ..Default::default() }.round(wr));
+    p.boxes.paint_box(
+        &p.painter,
+        "orb-well",
+        well,
+        &BoxStyle {
+            layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.4), vec![sa(hex(0x151313)), s(hex(0x050404), 0.75)])],
+            ..Default::default()
+        }
+        .round(wr),
+    );
     // the liquid: a well-sized box moved down by what is missing, seen through the well
     let liquid = liquid_texture(p, well.size(), hp, u);
     let level = well.top() + well.height() * (1.0 - fill);
@@ -1193,8 +1370,17 @@ fn paint_orb(p: &mut Painted, rect: Rect, hp: bool, fill: f32, poison: Option<f3
     if let Some(pf) = poison {
         // `.orb-poison`: a green wash from the level poison will leave, under a dashed line
         let py = well.top() + well.height() * (1.0 - pf);
-        let band = p.boxes.texture(p.painter.ctx(), "orb-poison", well.size(), || BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(rgba(110, 200, 40, 0.18)), s(TRANSPARENT, 0.3)])], ..Default::default() });
-        crate::paint::textured_polygon(&p.painter, &circle_below(well.center(), wr, py), band.id(), well.translate(egui::vec2(0.0, py - well.top())), Color32::WHITE);
+        let band = p.boxes.texture(p.painter.ctx(), "orb-poison", well.size(), || BoxStyle {
+            layers: vec![Layer::Linear(180.0, vec![sa(rgba(110, 200, 40, 0.18)), s(TRANSPARENT, 0.3)])],
+            ..Default::default()
+        });
+        crate::paint::textured_polygon(
+            &p.painter,
+            &circle_below(well.center(), wr, py),
+            band.id(),
+            well.translate(egui::vec2(0.0, py - well.top())),
+            Color32::WHITE,
+        );
         let dy = py - well.center().y;
         if dy.abs() < wr {
             let half = (wr * wr - dy * dy).sqrt();
@@ -1207,20 +1393,31 @@ fn paint_orb(p: &mut Painted, rect: Rect, hp: bool, fill: f32, poison: Option<f3
         }
     }
     // `.orb-glass`
-    p.boxes.paint_box(&p.painter, "orb-glass", well, &BoxStyle {
-        layers: vec![
-            Layer::Radial(RadialSize::Ellipse(0.3, 0.13), (0.4, 0.15), vec![sa(rgba(255, 255, 255, 0.26)), s(TRANSPARENT, 0.75)]),
-            Layer::Radial(RadialSize::Ellipse(0.5, 0.14), (0.5, 0.92), vec![sa(rgba(255, 255, 255, 0.1)), s(TRANSPARENT, 0.7)]),
-            Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.45), vec![s(TRANSPARENT, 0.55), s(rgba(0, 0, 0, 0.6), 1.0)]),
-        ],
-        ..Default::default()
-    }.round(wr));
+    p.boxes.paint_box(
+        &p.painter,
+        "orb-glass",
+        well,
+        &BoxStyle {
+            layers: vec![
+                Layer::Radial(RadialSize::Ellipse(0.3, 0.13), (0.4, 0.15), vec![sa(rgba(255, 255, 255, 0.26)), s(TRANSPARENT, 0.75)]),
+                Layer::Radial(RadialSize::Ellipse(0.5, 0.14), (0.5, 0.92), vec![sa(rgba(255, 255, 255, 0.1)), s(TRANSPARENT, 0.7)]),
+                Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.45), vec![s(TRANSPARENT, 0.55), s(rgba(0, 0, 0, 0.6), 1.0)]),
+            ],
+            ..Default::default()
+        }
+        .round(wr),
+    );
     // `.orb-rim`: the low health pulse, a red glow round the well
     if low {
         let t = (now % 1.8) as f32 / 0.9;
         let k = if t <= 1.0 { t } else { 2.0 - t };
         let o = cubic_bezier((0.42, 0.0, 0.58, 1.0), k);
-        let glow = egui::epaint::RectShape::filled(well.expand(3.0 * u), egui::CornerRadius::same((wr + 3.0 * u).min(255.0) as u8), rgba(255, 50, 30, 0.85 * o).to_color32()).with_blur_width(16.0 * u);
+        let glow = egui::epaint::RectShape::filled(
+            well.expand(3.0 * u),
+            egui::CornerRadius::same((wr + 3.0 * u).min(255.0) as u8),
+            rgba(255, 50, 30, 0.85 * o).to_color32(),
+        )
+        .with_blur_width(16.0 * u);
         p.painter.add(glow);
         p.painter.circle_filled(well.center(), wr - 1.0, Color32::TRANSPARENT);
     }
@@ -1229,7 +1426,13 @@ fn paint_orb(p: &mut Painted, rect: Rect, hp: bool, fill: f32, poison: Option<f3
     let alpha = if none { 0.35 } else { 1.0 };
     let ink = hex(0xfbf4e6);
     let mut job = egui::text::LayoutJob::default();
-    let fmt = |size: f32, a: f32| egui::TextFormat { font_id: style::font(Face::Caps700, size), color: ink.alpha(a * alpha).to_color32(), extra_letter_spacing: 0.02 * size, valign: egui::Align::BOTTOM, ..Default::default() };
+    let fmt = |size: f32, a: f32| egui::TextFormat {
+        font_id: style::font(Face::Caps700, size),
+        color: ink.alpha(a * alpha).to_color32(),
+        extra_letter_spacing: 0.02 * size,
+        valign: egui::Align::BOTTOM,
+        ..Default::default()
+    };
     job.append(&now_v.to_string(), 0.0, fmt(20.0 * u, 1.0));
     job.append("/", 0.12 * 20.0 * u, fmt(20.0 * u, 0.55));
     job.append(&of.to_string(), 0.12 * 20.0 * u, fmt(16.0 * u, 0.75));
@@ -1255,7 +1458,15 @@ fn liquid_texture(p: &mut Painted, size: Vec2, hp: bool, u: f32) -> egui::Textur
         BoxStyle {
             layers: vec![
                 // the shine: a band 10 units deep at the top, bright for two points then fading
-                Layer::Linear(180.0, vec![sp(rgba(shine.0, shine.1, shine.2, shine.3), 0.0), sp(rgba(shine.0, shine.1, shine.2, 0.12), 2.0), sp(rgba(shine.0, shine.1, shine.2, 0.0), band), sp(TRANSPARENT, band)]),
+                Layer::Linear(
+                    180.0,
+                    vec![
+                        sp(rgba(shine.0, shine.1, shine.2, shine.3), 0.0),
+                        sp(rgba(shine.0, shine.1, shine.2, 0.12), 2.0),
+                        sp(rgba(shine.0, shine.1, shine.2, 0.0), band),
+                        sp(TRANSPARENT, band),
+                    ],
+                ),
                 Layer::Radial(RadialSize::CircleFarthest, (0.5, 1.2), vec![sa(glow), s(TRANSPARENT, 0.55)]),
                 Layer::Linear(180.0, vec![sa(top), s(mid, 0.55), sa(bottom)]),
             ],
@@ -1300,7 +1511,18 @@ fn compact_heights(f: &DockFrame, view: &DockView) -> (f32, f32) {
     let tallest: f32 = if view.spectating || view.actions.is_empty() {
         0.0
     } else {
-        view.actions.iter().map(|a| if is_main(a.id) { 58.0 } else if f.landscape { 44.0 } else { 42.0 }).fold(0.0, f32::max)
+        view.actions
+            .iter()
+            .map(|a| {
+                if is_main(a.id) {
+                    58.0
+                } else if f.landscape {
+                    44.0
+                } else {
+                    42.0
+                }
+            })
+            .fold(0.0, f32::max)
     };
     let _ = u;
     (frame_h, 50.0f32.max(tallest + 6.0))
@@ -1326,7 +1548,10 @@ impl CompactGeom {
         let frame = Rect::from_min_max(egui::pos2(sc.left(), sc.bottom() - frame_h), sc.max);
         let above = Rect::from_min_max(egui::pos2(sc.left(), frame.top() - above_h), egui::pos2(sc.right(), frame.top()));
         let (pl, pr) = (8.0, 8.0);
-        let inner = Rect::from_min_max(egui::pos2(frame.left() + pl, frame.top() + 1.0 + if f.landscape { 5.0 } else { 7.0 }), egui::pos2(frame.right() - pr, frame.bottom() - if f.landscape { 4.0 } else { 6.0 }));
+        let inner = Rect::from_min_max(
+            egui::pos2(frame.left() + pl, frame.top() + 1.0 + if f.landscape { 5.0 } else { 7.0 }),
+            egui::pos2(frame.right() - pr, frame.bottom() - if f.landscape { 4.0 } else { 6.0 }),
+        );
         let (hp, mp, xp, slots, buttons);
         if f.landscape {
             // three columns: the bars, the slots, the buttons
@@ -1424,14 +1649,25 @@ fn paint_bar_orb(p: &mut Painted, rect: Rect, hp: bool, fill: f32, poison: Optio
     // `.orb-well`: rounded 3, a black and a bronze ring outside
     p.painter.rect_filled(rect.expand(2.0), 4.0, BRONZE_DIM.to_color32());
     p.painter.rect_filled(rect.expand(1.0), 3.5, Color32::BLACK);
-    p.boxes.paint_box(&p.painter, "bar-well", rect, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.4), vec![sa(hex(0x151313)), s(hex(0x050404), 0.75)])], ..Default::default() }.round(3.0));
+    p.boxes.paint_box(
+        &p.painter,
+        "bar-well",
+        rect,
+        &BoxStyle {
+            layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.4), vec![sa(hex(0x151313)), s(hex(0x050404), 0.75)])],
+            ..Default::default()
+        }
+        .round(3.0),
+    );
     let w = rect.width() * fill.clamp(0.0, 1.0);
     if w > 0.0 {
         let (top, mid, bottom) = if hp { (hex(0xe0404a), hex(0xa3151e), hex(0x5e0a10)) } else { (hex(0x4a7ff0), hex(0x1d48b5), hex(0x0e2466)) };
         let fr = Rect::from_min_size(rect.min, egui::vec2(w, rect.height()));
         let key = if hp { "bar-hp" } else { "bar-mp" };
         // the liquid's texture is the whole bar moved left by what is missing, rounded at its ends
-        let t = p.boxes.texture(p.painter.ctx(), key, rect.size(), || BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(top), s(mid, 0.55), sa(bottom)])], ..Default::default() }.round(3.0));
+        let t = p.boxes.texture(p.painter.ctx(), key, rect.size(), || {
+            BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(top), s(mid, 0.55), sa(bottom)])], ..Default::default() }.round(3.0)
+        });
         let uv = Rect::from_min_max(egui::pos2(1.0 - fill, 0.0), egui::pos2(1.0, 1.0));
         p.painter.image(t.id(), fr, uv, Color32::WHITE);
     }
@@ -1444,12 +1680,27 @@ fn paint_bar_orb(p: &mut Painted, rect: Rect, hp: bool, fill: f32, poison: Optio
         }
     }
     // `.orb-glass`, flat: light at the top, dark at the foot
-    p.boxes.paint_box(&p.painter, "bar-glass", rect, &BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(rgba(255, 255, 255, 0.2)), s(TRANSPARENT, 0.45), sa(rgba(0, 0, 0, 0.3))])], ..Default::default() }.round(3.0));
+    p.boxes.paint_box(
+        &p.painter,
+        "bar-glass",
+        rect,
+        &BoxStyle {
+            layers: vec![Layer::Linear(180.0, vec![sa(rgba(255, 255, 255, 0.2)), s(TRANSPARENT, 0.45), sa(rgba(0, 0, 0, 0.3))])],
+            ..Default::default()
+        }
+        .round(3.0),
+    );
     let size = if landscape { 11.0 } else { 12.0 };
     let alpha = if none { 0.35 } else { 1.0 };
     let ink = hex(0xfbf4e6);
     let mut job = egui::text::LayoutJob::default();
-    let fmt = |sz: f32, a: f32| egui::TextFormat { font_id: style::font(Face::Caps700, sz), color: ink.alpha(a * alpha).to_color32(), extra_letter_spacing: 0.02 * sz, valign: egui::Align::BOTTOM, ..Default::default() };
+    let fmt = |sz: f32, a: f32| egui::TextFormat {
+        font_id: style::font(Face::Caps700, sz),
+        color: ink.alpha(a * alpha).to_color32(),
+        extra_letter_spacing: 0.02 * sz,
+        valign: egui::Align::BOTTOM,
+        ..Default::default()
+    };
     job.append(&now_v.to_string(), 0.0, fmt(size, 1.0));
     job.append("/", 0.12 * size, fmt(size, 0.55));
     job.append(&of.to_string(), 0.12 * size, fmt(size * 0.8, 0.75));
@@ -1508,7 +1759,16 @@ mod tests {
     fn slot_tips() {
         let t = slot_tip(None, false);
         assert_eq!(t.title, "Empty slot");
-        let s = QuickSlot { r: SlotRef::Spell("a".into()), label: "Magic Dart".into(), tiles: vec![], count: None, useless: false, pinned: true, verb: None, letter: None };
+        let s = QuickSlot {
+            r: SlotRef::Spell("a".into()),
+            label: "Magic Dart".into(),
+            tiles: vec![],
+            count: None,
+            useless: false,
+            pinned: true,
+            verb: None,
+            letter: None,
+        };
         let t = slot_tip(Some(&s), false);
         assert_eq!(t.kicker.as_deref(), Some("Spell · pinned"));
         assert_eq!(t.hints[0].keys, ["z", "a"]);

@@ -171,7 +171,12 @@ pub fn where_words(r: &Ranked, here: &str) -> String {
 
 /// The first tile of a category's results (the chip's icon).
 fn first_tile(view: &View, c: Option<Category>) -> Option<isorun_webtiles::TileRef> {
-    view.driver.entries.iter().filter(|e| !matches!(e.place, Where::Carried(_))).find(|e| c.is_none_or(|c| e.category == c)).and_then(|e| e.tiles.first().cloned())
+    view.driver
+        .entries
+        .iter()
+        .filter(|e| !matches!(e.place, Where::Carried(_)))
+        .find(|e| c.is_none_or(|c| e.category == c))
+        .and_then(|e| e.tiles.first().cloned())
 }
 
 impl FindScreen {
@@ -208,8 +213,17 @@ impl FindScreen {
     /// The results as the screen lists them now.
     fn list(&self, view: &View) -> (Vec<Ranked>, Vec<(Option<Category>, usize)>) {
         let all = rank(&view.driver.entries, view.here, self.sort);
-        let words: Vec<String> = if self.query.trim() != self.searched.trim() { self.query.to_lowercase().split_whitespace().map(str::to_string).collect() } else { Vec::new() };
-        let found: Vec<Ranked> = all.into_iter().filter(|r| words.is_empty() || { let h = r.entry.haystack(); words.iter().all(|w| h.contains(w.as_str())) }).collect();
+        let words: Vec<String> =
+            if self.query.trim() != self.searched.trim() { self.query.to_lowercase().split_whitespace().map(str::to_string).collect() } else { Vec::new() };
+        let found: Vec<Ranked> = all
+            .into_iter()
+            .filter(|r| {
+                words.is_empty() || {
+                    let h = r.entry.haystack();
+                    words.iter().all(|w| h.contains(w.as_str()))
+                }
+            })
+            .collect();
         let n = counts(&found);
         let mut cats: Vec<(Option<Category>, usize)> = vec![(None, found.len())];
         cats.extend(Category::ALL.iter().filter_map(|c| n.get(c).map(|k| (Some(*c), *k))));
@@ -435,7 +449,8 @@ impl FindScreen {
             self.cat_scroll = isorun_ui::scroll::scroll(ui, col, content, self.cat_scroll);
             let cp = p.with_clip_rect(col);
             for (i, (c, n)) in cats.iter().enumerate() {
-                let r = Rect::from_min_size(Pos2::new(col.left(), col.top() + i as f32 * item_h - self.cat_scroll), Vec2::new(col_w - 8.0 * s, item_h - 4.0 * s));
+                let r =
+                    Rect::from_min_size(Pos2::new(col.left(), col.top() + i as f32 * item_h - self.cat_scroll), Vec2::new(col_w - 8.0 * s, item_h - 4.0 * s));
                 if !r.intersects(col) {
                     continue;
                 }
@@ -502,8 +517,26 @@ impl FindScreen {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn paint_category(&self, p: &egui::Painter, tiles: &mut TileIcons, r: Rect, c: Option<Category>, n: usize, on: bool, hot: bool, tile: Option<isorun_webtiles::TileRef>, s: f32, long: bool) {
-        let fill = if on { rgba(74, 58, 30, 0.95) } else if hot { rgba(42, 36, 29, 0.95) } else { rgba(20, 17, 13, 0.9) };
+    fn paint_category(
+        &self,
+        p: &egui::Painter,
+        tiles: &mut TileIcons,
+        r: Rect,
+        c: Option<Category>,
+        n: usize,
+        on: bool,
+        hot: bool,
+        tile: Option<isorun_webtiles::TileRef>,
+        s: f32,
+        long: bool,
+    ) {
+        let fill = if on {
+            rgba(74, 58, 30, 0.95)
+        } else if hot {
+            rgba(42, 36, 29, 0.95)
+        } else {
+            rgba(20, 17, 13, 0.9)
+        };
         p.rect_filled(r, 6.0, fill);
         p.rect_stroke(r, 6.0, egui::Stroke::new(1.0, if on { palette::BRONZE } else { palette::BRONZE_DIM }), egui::StrokeKind::Inside);
         let icon = Rect::from_min_size(Pos2::new(r.left() + 4.0 * s, r.center().y - 13.0 * s), Vec2::splat(26.0 * s));
@@ -566,7 +599,11 @@ impl FindScreen {
             self.reveal = false;
             if let Some((top, _)) = lay.iter().find(|(_, i)| *i == Some(self.cursor)) {
                 // its level's heading too, where it is the first of its level
-                let head = if self.cursor == 0 || self.rows.get(self.cursor - 1).map(|r| &r.level) != self.rows.get(self.cursor).map(|r| &r.level) { head_h } else { 0.0 };
+                let head = if self.cursor == 0 || self.rows.get(self.cursor - 1).map(|r| &r.level) != self.rows.get(self.cursor).map(|r| &r.level) {
+                    head_h
+                } else {
+                    0.0
+                };
                 if top - head < self.scroll {
                     self.scroll = top - head;
                 } else if top + row_h > self.scroll + view_rect.height() {
@@ -589,10 +626,17 @@ impl FindScreen {
                 // the level's heading
                 let next = lay.iter().find(|(t, r)| *t > *top && r.is_some()).and_then(|(_, r)| *r).unwrap_or(0);
                 let r = &self.rows[next];
-                let text = if r.entry.place == Where::Here || r.level == view.here { format!("{} — this level", r.level) } else { where_words(r, view.here).replace(" · ", " — ") };
+                let text = if r.entry.place == Where::Here || r.level == view.here {
+                    format!("{} — this level", r.level)
+                } else {
+                    where_words(r, view.here).replace(" · ", " — ")
+                };
                 let g = lp.layout_no_wrap(text.to_uppercase(), FontId::new(12.0 * s, isorun_ui::fonts::caps()), GOLD);
                 lp.galley(Pos2::new(view_rect.left() + 4.0 * s, y + head_h - g.size().y - 5.0 * s), g, GOLD);
-                lp.line_segment([Pos2::new(view_rect.left(), y + head_h - 2.0), Pos2::new(view_rect.right(), y + head_h - 2.0)], egui::Stroke::new(1.0, palette::RULE));
+                lp.line_segment(
+                    [Pos2::new(view_rect.left(), y + head_h - 2.0), Pos2::new(view_rect.right(), y + head_h - 2.0)],
+                    egui::Stroke::new(1.0, palette::RULE),
+                );
                 continue;
             };
             let r = &self.rows[i];
@@ -627,9 +671,17 @@ impl FindScreen {
             let sub_g = lp.layout_no_wrap(sub.join(" · "), mono(11.5), if r.tier == Tier::New { GOLD } else { INK_DIM });
             let block = name.size().y.min(row_h * 0.62) + if sub_g.size().x > 0.0 { sub_g.size().y + 1.0 } else { 0.0 };
             let ty = rect.center().y - block / 2.0;
-            lp.with_clip_rect(Rect::from_min_max(Pos2::new(tx, rect.top()), Pos2::new(right, rect.bottom())).intersect(view_rect)).galley(Pos2::new(tx, ty), name.clone(), colour_of(r.entry.colour));
+            lp.with_clip_rect(Rect::from_min_max(Pos2::new(tx, rect.top()), Pos2::new(right, rect.bottom())).intersect(view_rect)).galley(
+                Pos2::new(tx, ty),
+                name.clone(),
+                colour_of(r.entry.colour),
+            );
             if sub_g.size().x > 0.0 {
-                lp.with_clip_rect(Rect::from_min_max(Pos2::new(tx, rect.top()), Pos2::new(right, rect.bottom())).intersect(view_rect)).galley(Pos2::new(tx, ty + name.size().y.min(row_h * 0.62) + 1.0), sub_g, INK_DIM);
+                lp.with_clip_rect(Rect::from_min_max(Pos2::new(tx, rect.top()), Pos2::new(right, rect.bottom())).intersect(view_rect)).galley(
+                    Pos2::new(tx, ty + name.size().y.min(row_h * 0.62) + 1.0),
+                    sub_g,
+                    INK_DIM,
+                );
             }
             // the way there
             let arrow = if r.entry.place == Where::Here { "•" } else { "›" };
@@ -654,7 +706,13 @@ impl FindScreen {
         }
         // the details card: the long press's or the hover's, else the lit row's (X)
         let shown = card.or_else(|| {
-            self.details.then(|| lay.iter().find(|(_, r)| *r == Some(self.cursor)).map(|(t, _)| (self.cursor, Rect::from_min_size(Pos2::new(view_rect.left(), view_rect.top() + t - self.scroll), Vec2::new(view_rect.width(), row_h))))).flatten()
+            self.details
+                .then(|| {
+                    lay.iter().find(|(_, r)| *r == Some(self.cursor)).map(|(t, _)| {
+                        (self.cursor, Rect::from_min_size(Pos2::new(view_rect.left(), view_rect.top() + t - self.scroll), Vec2::new(view_rect.width(), row_h)))
+                    })
+                })
+                .flatten()
         });
         self.carded = shown.map(|(i, _)| i);
         if let Some((i, at)) = shown {
@@ -732,7 +790,8 @@ mod tests {
     fn frame_at(ctx: &egui::Context, screen: &mut FindScreen, d: &Driver, events: Vec<egui::Event>, time: f64) -> Vec<FindEvent> {
         let mut tiles = TileIcons::default();
         let mut out = Vec::new();
-        let raw = egui::RawInput { time: Some(time), events, screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(412.0, 915.0))), ..Default::default() };
+        let raw =
+            egui::RawInput { time: Some(time), events, screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(412.0, 915.0))), ..Default::default() };
         let mut o = ctx.run_pass(raw, |ctx| {
             let view = View { driver: d, here: "D:2", scale: 1.0, pad: false, touch: true };
             isorun_ui::pointer::note_frame(ctx, true);

@@ -75,11 +75,35 @@ pub fn sections() -> Vec<Section> {
     let s = |title, fields| Section { title, fields };
     vec![
         s("Overall", vec![num!("Exposure", 0.5, 6.0, 0.1, |l| l.exposure), colour!("Background", |l| l.background)]),
-        s("Fill light", vec![num!("Strength", 0.0, 6.0, 0.05, |l| l.ambient_intensity), colour!("From above", |l| l.ambient_sky), colour!("From below", |l| l.ambient_ground)]),
+        s(
+            "Fill light",
+            vec![
+                num!("Strength", 0.0, 6.0, 0.05, |l| l.ambient_intensity),
+                colour!("From above", |l| l.ambient_sky),
+                colour!("From below", |l| l.ambient_ground),
+            ],
+        ),
         s("Sun", vec![colour!("Colour", |l| l.sun_colour), num!("Strength", 0.0, 8.0, 0.05, |l| l.sun_intensity)]),
-        s("Wall torches", vec![colour!("Colour", |l| l.torch.colour), num!("Strength", 0.0, 30.0, 0.25, |l| l.torch.intensity), num!("Reach", 1.0, 16.0, 0.5, |l| l.torch.distance), num!("Falloff", 0.0, 2.0, 0.1, |l| l.torch.decay)]),
+        s(
+            "Wall torches",
+            vec![
+                colour!("Colour", |l| l.torch.colour),
+                num!("Strength", 0.0, 30.0, 0.25, |l| l.torch.intensity),
+                num!("Reach", 1.0, 16.0, 0.5, |l| l.torch.distance),
+                num!("Falloff", 0.0, 2.0, 0.1, |l| l.torch.decay),
+            ],
+        ),
         s("Shadows", vec![num!("Softness", 0.0, 12.0, 0.5, |l| l.shadow_softness)]),
-        s("Shading", vec![num!("Wrap (clay)", 0.0, 1.0, 0.05, |l| l.shading.wrap), num!("Flat tones", 0.0, 8.0, 1.0, |l| l.shading.bands), num!("Relief", 0.0, 2.0, 0.05, |l| l.shading.relief), num!("Depth", 0.0, 0.15, 0.005, |l| l.shading.depth), num!("Sprites", 0.2, 1.5, 0.05, |l| l.shading.sprites)]),
+        s(
+            "Shading",
+            vec![
+                num!("Wrap (clay)", 0.0, 1.0, 0.05, |l| l.shading.wrap),
+                num!("Flat tones", 0.0, 8.0, 1.0, |l| l.shading.bands),
+                num!("Relief", 0.0, 2.0, 0.05, |l| l.shading.relief),
+                num!("Depth", 0.0, 0.15, 0.005, |l| l.shading.depth),
+                num!("Sprites", 0.2, 1.5, 0.05, |l| l.shading.sprites),
+            ],
+        ),
         s(
             "Surfaces",
             vec![
@@ -96,20 +120,67 @@ pub fn sections() -> Vec<Section> {
         s(
             "Painted tiles",
             vec![
-                Field { label: "Upscale", kind: Kind::Number { min: 0.0, max: 3.0, step: 1.0, names: Some(&UPSCALES) }, get: |l| upscale_index(l.paint.upscale), set: |l, v| l.paint.upscale = upscale_of(v) },
+                Field {
+                    label: "Upscale",
+                    kind: Kind::Number { min: 0.0, max: 3.0, step: 1.0, names: Some(&UPSCALES) },
+                    get: |l| upscale_index(l.paint.upscale),
+                    set: |l, v| l.paint.upscale = upscale_of(v),
+                },
                 num!("Brush", 0.0, 8.0, 1.0, |l| l.paint.radius),
                 num!("Lift", 0.5, 3.0, 0.1, |l| l.paint.lift),
                 num!("Tones", 0.0, 16.0, 1.0, |l| l.paint.levels),
             ],
         ),
-        s("Walls", vec![num!("Bevel", 0.0, 0.3, 0.01, |l| l.walls.bevel), num!("Moss", 0.0, 1.0, 0.05, |l| l.walls.moss), colour!("Moss colour", |l| l.walls.moss_colour)]),
-        s("Ambient occlusion (GTAO)", vec![toggle!(|l| l.ao.enabled), num!("Strength", 0.0, 1.0, 0.05, |l| l.ao.intensity), num!("Radius", 0.1, 4.0, 0.05, |l| l.ao.radius)]),
-        s("Outlines", vec![toggle!(|l| l.outline.enabled), num!("Thickness", 0.5, 4.0, 0.25, |l| l.outline.thickness), num!("Strength", 0.0, 1.0, 0.05, |l| l.outline.strength), colour!("Colour", |l| l.outline.colour)]),
+        s(
+            "Walls",
+            vec![
+                num!("Bevel", 0.0, 0.3, 0.01, |l| l.walls.bevel),
+                num!("Moss", 0.0, 1.0, 0.05, |l| l.walls.moss),
+                colour!("Moss colour", |l| l.walls.moss_colour),
+            ],
+        ),
+        s(
+            "Ambient occlusion (GTAO)",
+            vec![toggle!(|l| l.ao.enabled), num!("Strength", 0.0, 1.0, 0.05, |l| l.ao.intensity), num!("Radius", 0.1, 4.0, 0.05, |l| l.ao.radius)],
+        ),
+        s(
+            "Outlines",
+            vec![
+                toggle!(|l| l.outline.enabled),
+                num!("Thickness", 0.5, 4.0, 0.25, |l| l.outline.thickness),
+                num!("Strength", 0.0, 1.0, 0.05, |l| l.outline.strength),
+                colour!("Colour", |l| l.outline.colour),
+            ],
+        ),
         s("Painted screen", vec![toggle!(|l| l.painted.enabled), num!("Brush", 0.5, 4.0, 0.25, |l| l.painted.radius)]),
         s("Pixel look", vec![toggle!(|l| l.pixelate.enabled), num!("Size", 2.0, 8.0, 0.5, |l| l.pixelate.size)]),
-        s("Bloom", vec![toggle!(|l| l.bloom.enabled), num!("Strength", 0.0, 3.0, 0.05, |l| l.bloom.strength), num!("Radius", 0.0, 1.0, 0.05, |l| l.bloom.radius), num!("Threshold", 0.0, 2.0, 0.05, |l| l.bloom.threshold)]),
-        s("Tilt-shift blur", vec![toggle!(|l| l.tilt_shift.enabled), num!("Blur", 0.0, 6.0, 0.1, |l| l.tilt_shift.blur), num!("Sharp band", 0.0, 1.0, 0.05, |l| l.tilt_shift.focus), num!("Falloff", 0.05, 1.0, 0.05, |l| l.tilt_shift.falloff)]),
-        s("Colour grade", vec![num!("Saturation", 0.0, 2.0, 0.05, |l| l.grade.saturation), colour!("Dark tint", |l| l.grade.shadows), colour!("Bright tint", |l| l.grade.highlights), num!("Vignette", 0.0, 1.5, 0.05, |l| l.grade.vignette)]),
+        s(
+            "Bloom",
+            vec![
+                toggle!(|l| l.bloom.enabled),
+                num!("Strength", 0.0, 3.0, 0.05, |l| l.bloom.strength),
+                num!("Radius", 0.0, 1.0, 0.05, |l| l.bloom.radius),
+                num!("Threshold", 0.0, 2.0, 0.05, |l| l.bloom.threshold),
+            ],
+        ),
+        s(
+            "Tilt-shift blur",
+            vec![
+                toggle!(|l| l.tilt_shift.enabled),
+                num!("Blur", 0.0, 6.0, 0.1, |l| l.tilt_shift.blur),
+                num!("Sharp band", 0.0, 1.0, 0.05, |l| l.tilt_shift.focus),
+                num!("Falloff", 0.05, 1.0, 0.05, |l| l.tilt_shift.falloff),
+            ],
+        ),
+        s(
+            "Colour grade",
+            vec![
+                num!("Saturation", 0.0, 2.0, 0.05, |l| l.grade.saturation),
+                colour!("Dark tint", |l| l.grade.shadows),
+                colour!("Bright tint", |l| l.grade.highlights),
+                num!("Vignette", 0.0, 1.5, 0.05, |l| l.grade.vignette),
+            ],
+        ),
         s(
             "Fog",
             vec![
@@ -121,10 +192,42 @@ pub fn sections() -> Vec<Section> {
                 num!("Softness", 0.0, 1.0, 0.05, |l| l.fog.softness),
             ],
         ),
-        s("Water", vec![toggle!(|l| l.water.enabled), colour!("Deep", |l| l.water.deep), colour!("Shallow", |l| l.water.shallow), colour!("Light", |l| l.water.light), num!("Strength", 0.0, 1.0, 0.05, |l| l.water.strength), num!("Speed", 0.0, 3.0, 0.1, |l| l.water.speed)]),
-        s("Lava", vec![toggle!(|l| l.lava.enabled), colour!("Crust", |l| l.lava.crust), colour!("Molten", |l| l.lava.molten), colour!("Hot", |l| l.lava.hot), num!("Glow", 0.0, 3.0, 0.1, |l| l.lava.glow), num!("Speed", 0.0, 3.0, 0.1, |l| l.lava.speed)]),
-        s("Combat", vec![colour!("Blood", |l| l.combat.blood), num!("Gore", 0.0, 3.0, 0.1, |l| l.combat.gore), num!("Shake", 0.0, 3.0, 0.1, |l| l.combat.shake), num!("Hit stop", 0.0, 0.3, 0.01, |l| l.combat.hit_stop), num!("Flash", 0.0, 3.0, 0.1, |l| l.combat.flash)]),
-        s("Steps", vec![colour!("Colour", |l| l.steps.colour), num!("Dust", 0.0, 3.0, 0.1, |l| l.steps.dust), num!("Footprints", 0.0, 30.0, 1.0, |l| l.steps.prints)]),
+        s(
+            "Water",
+            vec![
+                toggle!(|l| l.water.enabled),
+                colour!("Deep", |l| l.water.deep),
+                colour!("Shallow", |l| l.water.shallow),
+                colour!("Light", |l| l.water.light),
+                num!("Strength", 0.0, 1.0, 0.05, |l| l.water.strength),
+                num!("Speed", 0.0, 3.0, 0.1, |l| l.water.speed),
+            ],
+        ),
+        s(
+            "Lava",
+            vec![
+                toggle!(|l| l.lava.enabled),
+                colour!("Crust", |l| l.lava.crust),
+                colour!("Molten", |l| l.lava.molten),
+                colour!("Hot", |l| l.lava.hot),
+                num!("Glow", 0.0, 3.0, 0.1, |l| l.lava.glow),
+                num!("Speed", 0.0, 3.0, 0.1, |l| l.lava.speed),
+            ],
+        ),
+        s(
+            "Combat",
+            vec![
+                colour!("Blood", |l| l.combat.blood),
+                num!("Gore", 0.0, 3.0, 0.1, |l| l.combat.gore),
+                num!("Shake", 0.0, 3.0, 0.1, |l| l.combat.shake),
+                num!("Hit stop", 0.0, 0.3, 0.01, |l| l.combat.hit_stop),
+                num!("Flash", 0.0, 3.0, 0.1, |l| l.combat.flash),
+            ],
+        ),
+        s(
+            "Steps",
+            vec![colour!("Colour", |l| l.steps.colour), num!("Dust", 0.0, 3.0, 0.1, |l| l.steps.dust), num!("Footprints", 0.0, 30.0, 1.0, |l| l.steps.prints)],
+        ),
         s("Pointer", vec![colour!("Colour", |l| l.aim.colour), num!("Brightness", 0.2, 4.0, 0.1, |l| l.aim.brightness)]),
     ]
 }
@@ -279,91 +382,97 @@ impl LightsPanel {
         let mut out = None;
         let screen = ctx.content_rect();
         let width = 22.0 * 15.0;
-        let frame = egui::Frame::NONE.fill(egui::Color32::from_rgba_unmultiplied(17, 17, 17, 235)).stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(0x33))).inner_margin(10.0);
-        egui::Area::new(egui::Id::NULL.with("look-panel")).order(egui::Order::Foreground).fixed_pos(egui::pos2(screen.right() - width, screen.top())).show(ctx, |ui| {
-            frame.show(ui, |ui| {
-                ui.set_width(width - 20.0);
-                ui.set_height(screen.height() - 20.0);
-                let accent = egui::Color32::from_rgb(0x99, 0xcc, 0xff);
-                ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
-                ui.style_mut().visuals.override_text_color = Some(egui::Color32::from_gray(0xdd));
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
-                    if ui.button("Close").clicked() {
-                        out = Some(LightsEvent::Close);
-                    }
-                });
-                isorun_ui::scroll::area(ui, egui::Id::unique("lights-panel-scroll"), egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
-                    ui.label(egui::RichText::new("Lights").color(accent));
-                    ui.horizontal_wrapped(|ui| {
-                        for name in LIGHTS_NAMES {
-                            let Some(l) = isorun_render::lights(name) else { continue };
-                            let id = format!("built-in/{name}");
-                            if preset_button(ui, l.label, self.active.as_deref() == Some(id.as_str()), accent) {
+        let frame = egui::Frame::NONE
+            .fill(egui::Color32::from_rgba_unmultiplied(17, 17, 17, 235))
+            .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(0x33)))
+            .inner_margin(10.0);
+        egui::Area::new(egui::Id::NULL.with("look-panel")).order(egui::Order::Foreground).fixed_pos(egui::pos2(screen.right() - width, screen.top())).show(
+            ctx,
+            |ui| {
+                frame.show(ui, |ui| {
+                    ui.set_width(width - 20.0);
+                    ui.set_height(screen.height() - 20.0);
+                    let accent = egui::Color32::from_rgb(0x99, 0xcc, 0xff);
+                    ui.style_mut().override_font_id = Some(egui::FontId::monospace(13.0));
+                    ui.style_mut().visuals.override_text_color = Some(egui::Color32::from_gray(0xdd));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        if ui.button("Close").clicked() {
+                            out = Some(LightsEvent::Close);
+                        }
+                    });
+                    isorun_ui::scroll::area(ui, egui::Id::unique("lights-panel-scroll"), egui::ScrollArea::vertical().auto_shrink([false, false]), |ui| {
+                        ui.label(egui::RichText::new("Lights").color(accent));
+                        ui.horizontal_wrapped(|ui| {
+                            for name in LIGHTS_NAMES {
+                                let Some(l) = isorun_render::lights(name) else { continue };
+                                let id = format!("built-in/{name}");
+                                if preset_button(ui, l.label, self.active.as_deref() == Some(id.as_str()), accent) {
+                                    self.lights = l;
+                                    self.active = Some(id);
+                                    out = Some(self.sync());
+                                }
+                            }
+                            let mut remove = None;
+                            let mut pick = None;
+                            for (i, entry) in self.saved.iter().enumerate() {
+                                let id = format!("saved/{}", entry.name);
+                                if preset_button(ui, &entry.name, self.active.as_deref() == Some(id.as_str()), accent) {
+                                    pick = Some((with_values(&entry.values), id));
+                                }
+                                if ui.small_button("x").on_hover_text(format!("Delete {}", entry.name)).clicked() {
+                                    remove = Some(i);
+                                }
+                            }
+                            if let Some((l, id)) = pick {
                                 self.lights = l;
                                 self.active = Some(id);
                                 out = Some(self.sync());
                             }
-                        }
-                        let mut remove = None;
-                        let mut pick = None;
-                        for (i, entry) in self.saved.iter().enumerate() {
-                            let id = format!("saved/{}", entry.name);
-                            if preset_button(ui, &entry.name, self.active.as_deref() == Some(id.as_str()), accent) {
-                                pick = Some((with_values(&entry.values), id));
-                            }
-                            if ui.small_button("x").on_hover_text(format!("Delete {}", entry.name)).clicked() {
-                                remove = Some(i);
-                            }
-                        }
-                        if let Some((l, id)) = pick {
-                            self.lights = l;
-                            self.active = Some(id);
-                            out = Some(self.sync());
-                        }
-                        if let Some(i) = remove {
-                            self.saved.remove(i);
-                            write_saved(&self.saved);
-                        }
-                        if ui.button("Save as...").clicked() {
-                            self.naming = Some(self.active.as_deref().and_then(|a| a.strip_prefix("saved/")).unwrap_or("").to_string());
-                        }
-                    });
-                    if let Some(name) = &mut self.naming {
-                        let mut done = false;
-                        ui.horizontal(|ui| {
-                            ui.label("Name for these lights");
-                            let r = ui.text_edit_singleline(name);
-                            r.request_focus();
-                            done = r.lost_focus();
-                        });
-                        if done {
-                            let name = name.trim().to_string();
-                            self.naming = None;
-                            if !name.is_empty() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
-                                self.saved.retain(|s| s.name != name);
-                                self.saved.push(Saved { name: name.clone(), values: values_of(&self.lights) });
+                            if let Some(i) = remove {
+                                self.saved.remove(i);
                                 write_saved(&self.saved);
-                                self.active = Some(format!("saved/{name}"));
-                                out = Some(self.sync());
+                            }
+                            if ui.button("Save as...").clicked() {
+                                self.naming = Some(self.active.as_deref().and_then(|a| a.strip_prefix("saved/")).unwrap_or("").to_string());
+                            }
+                        });
+                        if let Some(name) = &mut self.naming {
+                            let mut done = false;
+                            ui.horizontal(|ui| {
+                                ui.label("Name for these lights");
+                                let r = ui.text_edit_singleline(name);
+                                r.request_focus();
+                                done = r.lost_focus();
+                            });
+                            if done {
+                                let name = name.trim().to_string();
+                                self.naming = None;
+                                if !name.is_empty() && ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+                                    self.saved.retain(|s| s.name != name);
+                                    self.saved.push(Saved { name: name.clone(), values: values_of(&self.lights) });
+                                    write_saved(&self.saved);
+                                    self.active = Some(format!("saved/{name}"));
+                                    out = Some(self.sync());
+                                }
                             }
                         }
-                    }
-                    for section in &self.sections {
+                        for section in &self.sections {
+                            ui.add_space(6.0);
+                            ui.label(egui::RichText::new(section.title).color(accent));
+                            for f in &section.fields {
+                                if field_ui(ui, f, &mut self.lights, accent) {
+                                    self.active = None;
+                                    out = Some(LightsEvent::Changed(self.lights.clone()));
+                                }
+                            }
+                        }
                         ui.add_space(6.0);
-                        ui.label(egui::RichText::new(section.title).color(accent));
-                        for f in &section.fields {
-                            if field_ui(ui, f, &mut self.lights, accent) {
-                                self.active = None;
-                                out = Some(LightsEvent::Changed(self.lights.clone()));
-                            }
-                        }
-                    }
-                    ui.add_space(6.0);
-                    ui.label(egui::RichText::new("Values").color(accent));
-                    ui.label(egui::RichText::new(values_text(&self.lights)).size(11.0).color(egui::Color32::from_gray(0xaa)));
+                        ui.label(egui::RichText::new("Values").color(accent));
+                        ui.label(egui::RichText::new(values_text(&self.lights)).size(11.0).color(egui::Color32::from_gray(0xaa)));
+                    });
                 });
-            });
-        });
+            },
+        );
         if matches!(out, Some(LightsEvent::Changed(_))) {
             set_raw(CURRENT_KEY, Some(&Value::Object(values_of(&self.lights)).to_string()));
         }
@@ -373,7 +482,10 @@ impl LightsPanel {
 
 fn preset_button(ui: &mut egui::Ui, label: &str, on: bool, accent: egui::Color32) -> bool {
     let text = egui::RichText::new(label).color(if on { accent } else { egui::Color32::from_gray(0xdd) });
-    let b = egui::Button::new(text).fill(egui::Color32::from_gray(0x22)).stroke(egui::Stroke::new(1.0, if on { accent } else { egui::Color32::from_gray(0x44) })).corner_radius(0.0);
+    let b = egui::Button::new(text)
+        .fill(egui::Color32::from_gray(0x22))
+        .stroke(egui::Stroke::new(1.0, if on { accent } else { egui::Color32::from_gray(0x44) }))
+        .corner_radius(0.0);
     ui.add(b).clicked()
 }
 

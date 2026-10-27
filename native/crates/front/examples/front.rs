@@ -39,7 +39,15 @@ impl Game {
         let mut view = View3d::new(rs);
         let s = isorun_front::settings::get();
         isorun_front::settings::apply_graphics(&mut view.renderer, &s, 1.0);
-        Game { session, view, camera: IsoCamera::default(), tiles_set: false, started: false, last: isorun_client::platform::seconds(), menus: GameMenus::default() }
+        Game {
+            session,
+            view,
+            camera: IsoCamera::default(),
+            tiles_set: false,
+            started: false,
+            last: isorun_client::platform::seconds(),
+            menus: GameMenus::default(),
+        }
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, rs: &RenderState) -> Over {
@@ -76,7 +84,13 @@ impl Game {
             self.view.renderer.follow(&self.camera);
             self.view.paint(ui, rs, rect);
         } else {
-            ui.painter().text(rect.center(), egui::Align2::CENTER_CENTER, "Entering the dungeon…", egui::FontId::monospace(16.0), egui::Color32::from_gray(150));
+            ui.painter().text(
+                rect.center(),
+                egui::Align2::CENTER_CENTER,
+                "Entering the dungeon…",
+                egui::FontId::monospace(16.0),
+                egui::Color32::from_gray(150),
+            );
         }
         let lines: Vec<String> = self.session.state.messages.lines.iter().rev().take(6).rev().map(|m| m.text.clone()).collect();
         let mut y = rect.bottom() - 8.0 - lines.len() as f32 * 18.0;
@@ -88,23 +102,38 @@ impl Game {
         // crawl's own menus and popups, plainly: the stand-in only needs them readable
         let menu = self.session.state.menus.iter().filter(|m| !m.hidden).last().cloned();
         if let Some(m) = menu {
-            egui::Window::new(isorun_webtiles::formatted_string_to_text(&m.title.text)).id(egui::Id::NULL.with("crawl-menu")).collapsible(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).default_size([620.0, 520.0]).show(ui.ctx(), |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    for item in m.items.iter().flatten() {
-                        ui.label(isorun_ui::text::formatted(&item.text, 14.0));
-                    }
+            egui::Window::new(isorun_webtiles::formatted_string_to_text(&m.title.text))
+                .id(egui::Id::NULL.with("crawl-menu"))
+                .collapsible(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .default_size([620.0, 520.0])
+                .show(ui.ctx(), |ui| {
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        for item in m.items.iter().flatten() {
+                            ui.label(isorun_ui::text::formatted(&item.text, 14.0));
+                        }
+                    });
                 });
-            });
         }
         if let Some(p) = self.session.state.ui.iter().filter(|p| !p.hidden).last() {
-            let text: Vec<String> = ["title", "prompt", "body", "text", "footer"].iter().filter_map(|k| p.data.get(*k).and_then(|v| v.as_str())).filter(|t| !t.is_empty()).map(str::to_string).collect();
-            egui::Window::new("").id(egui::Id::NULL.with("crawl-popup")).title_bar(false).anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0]).max_width(700.0).show(ui.ctx(), |ui| {
-                for t in &text {
-                    for l in t.lines() {
-                        ui.label(isorun_ui::text::formatted(l, 14.0));
+            let text: Vec<String> = ["title", "prompt", "body", "text", "footer"]
+                .iter()
+                .filter_map(|k| p.data.get(*k).and_then(|v| v.as_str()))
+                .filter(|t| !t.is_empty())
+                .map(str::to_string)
+                .collect();
+            egui::Window::new("")
+                .id(egui::Id::NULL.with("crawl-popup"))
+                .title_bar(false)
+                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+                .max_width(700.0)
+                .show(ui.ctx(), |ui| {
+                    for t in &text {
+                        for l in t.lines() {
+                            ui.label(isorun_ui::text::formatted(l, 14.0));
+                        }
                     }
-                }
-            });
+                });
         }
         // the settings over the game: Escape opens them while crawl has nothing of its own up; F10 leaves
         // (the Isorun menu itself is the game screen's)
@@ -182,10 +211,21 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     let _ = env_logger::try_init();
     let args: Vec<String> = std::env::args().collect();
-    let size = args.iter().position(|a| a == "--size").and_then(|i| args.get(i + 1)).and_then(|s| s.split_once('x')).and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?))).unwrap_or((1600.0, 1000.0));
+    let size = args
+        .iter()
+        .position(|a| a == "--size")
+        .and_then(|i| args.get(i + 1))
+        .and_then(|s| s.split_once('x'))
+        .and_then(|(w, h)| Some((w.parse::<f32>().ok()?, h.parse::<f32>().ok()?)))
+        .unwrap_or((1600.0, 1000.0));
     let touch = args.iter().any(|a| a == "--touch");
     let open = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned();
-    let options = eframe::NativeOptions { viewport: egui::ViewportBuilder::default().with_title("Isorun front end").with_inner_size([size.0, size.1]), wgpu_options: isorun_ui::wgpu_options(), persist_window: false, ..Default::default() };
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_title("Isorun front end").with_inner_size([size.0, size.1]),
+        wgpu_options: isorun_ui::wgpu_options(),
+        persist_window: false,
+        ..Default::default()
+    };
     eframe::run_native(
         "Isorun front end",
         options,

@@ -70,7 +70,20 @@ pub struct OverlayCx<'a> {
 
 impl<'a> OverlayCx<'a> {
     pub fn new(state: &'a GameState, tiles: &'a mut TileIcons, out: &'a mut Vec<Value>) -> Self {
-        OverlayCx { state, tiles, out, watching: false, device: Device::Keyboard, touch: false, dock: true, ui_scale: 1.0, hide_menu: None, back: None, bottom: 0.0, hide_text: false }
+        OverlayCx {
+            state,
+            tiles,
+            out,
+            watching: false,
+            device: Device::Keyboard,
+            touch: false,
+            dock: true,
+            ui_scale: 1.0,
+            hide_menu: None,
+            back: None,
+            bottom: 0.0,
+            hide_text: false,
+        }
     }
     fn send(&mut self, m: Value) {
         if !self.watching {

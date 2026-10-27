@@ -42,10 +42,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-unknown
+          components: rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: native
           key: test
+      # the code as rustfmt.toml lays it out
+      - run: cargo fmt --all --check
+        working-directory: native
       # the sound (ALSA) and the gamepads (libudev)
       - run: sudo apt-get update -q && sudo apt-get install -yq libasound2-dev libudev-dev pkg-config
       - run: cargo test --workspace --no-fail-fast

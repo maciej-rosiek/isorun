@@ -349,7 +349,10 @@ impl Overlays {
             return self.menu_op(m, cx);
         }
         // text to read with nothing lit: up, down and the bumpers read it
-        let reading = mode == Mode::Popup && self.popup_scrolls(cx) && self.nav.current().is_none() && matches!(op, FocusOp::Next | FocusOp::Prev | FocusOp::PageNext | FocusOp::PagePrev);
+        let reading = mode == Mode::Popup
+            && self.popup_scrolls(cx)
+            && self.nav.current().is_none()
+            && matches!(op, FocusOp::Next | FocusOp::Prev | FocusOp::PageNext | FocusOp::PagePrev);
         let moved = !reading && self.nav.op(op);
         self.run_fired(cx);
         if !moved {

@@ -140,7 +140,16 @@ pub struct PaneLayout {
 
 impl Default for PaneLayout {
     fn default() -> Self {
-        PaneLayout { stats: None, sidebar: None, messages: None, free: Rect::NOTHING, widened: Rect::NOTHING, minimap: Rect::NOTHING, panel: Rect::NOTHING, prompts: Rect::NOTHING }
+        PaneLayout {
+            stats: None,
+            sidebar: None,
+            messages: None,
+            free: Rect::NOTHING,
+            widened: Rect::NOTHING,
+            minimap: Rect::NOTHING,
+            panel: Rect::NOTHING,
+            prompts: Rect::NOTHING,
+        }
     }
 }
 
@@ -177,7 +186,20 @@ fn attitude_colour(a: Option<Attitude>) -> C {
 
 impl Classic {
     pub fn new() -> Classic {
-        Classic { layout: PaneLayout::default(), grid: None, cells: GameLayout::default(), bars: BarMemory::default(), last_player_rev: u64::MAX, stats: vec![], portrait_cols: 0, log_offset: 0, status: None, scrim: 0.0, panel_hover: None, minimap_hidden: false }
+        Classic {
+            layout: PaneLayout::default(),
+            grid: None,
+            cells: GameLayout::default(),
+            bars: BarMemory::default(),
+            last_player_rev: u64::MAX,
+            stats: vec![],
+            portrait_cols: 0,
+            log_offset: 0,
+            status: None,
+            scrim: 0.0,
+            panel_hover: None,
+            minimap_hidden: false,
+        }
     }
 
     /// Set the panes on the grid over the view (hud.ts `layout`): the stats pane on its cells at
@@ -187,7 +209,17 @@ impl Classic {
     #[allow(clippy::too_many_arguments)]
     /// `minimap` is the minimap's tiles and cell, None when it is hidden (the monster list and the
     /// action panel then take its room).
-    pub fn layout(&mut self, grid: Grid, cells: GameLayout, free: CellRect, hide_stats: bool, hide_sidebar: bool, hide_messages: bool, prompts: CellRect, minimap: Option<(u32, u32)>) -> PaneLayout {
+    pub fn layout(
+        &mut self,
+        grid: Grid,
+        cells: GameLayout,
+        free: CellRect,
+        hide_stats: bool,
+        hide_sidebar: bool,
+        hide_messages: bool,
+        prompts: CellRect,
+        minimap: Option<(u32, u32)>,
+    ) -> PaneLayout {
         let free_px = grid.rect(free);
         let view_px = grid.rect(cells.view);
         let side_px = grid.rect(cells.sidebar);
@@ -195,9 +227,13 @@ impl Classic {
         let w = minimap.map_or(0.0, |(tiles, cell)| minimap_box(side_px.width(), side_px.height(), grid.cols as f32 * grid.cw, tiles, cell));
         let sidebar = (!hide_sidebar && cells.sidebar.w > 0).then_some(side_px);
         let stats = (!hide_stats && cells.stats.w > 0).then_some(stats_px);
-        let minimap = if sidebar.is_some() && w > 0.0 { Rect::from_min_size(egui::pos2(side_px.right() - w, side_px.top()), Vec2::splat(w)) } else { Rect::NOTHING };
+        let minimap =
+            if sidebar.is_some() && w > 0.0 { Rect::from_min_size(egui::pos2(side_px.right() - w, side_px.top()), Vec2::splat(w)) } else { Rect::NOTHING };
         let panel = panel_span(free_px, stats.map(|r| r.right()), (minimap != Rect::NOTHING).then(|| minimap.left()), grid.cw, PANEL_CELL);
-        let widened = Rect::from_min_size(free_px.min, egui::vec2(free_px.width().max(view_px.right() - free_px.left()), free_px.height().max(view_px.bottom() - free_px.top())));
+        let widened = Rect::from_min_size(
+            free_px.min,
+            egui::vec2(free_px.width().max(view_px.right() - free_px.left()), free_px.height().max(view_px.bottom() - free_px.top())),
+        );
         let portrait = if cells.stats.w > 0 { grid.ch * portrait_rows(cells.stats.w as usize) as f32 } else { 0.0 };
         let cols = if portrait > 0.0 { (cells.stats.w as usize).min((portrait / grid.cw).ceil() as usize + 1) } else { 0 };
         if self.grid != Some(grid) || self.cells != cells || cols != self.portrait_cols {
@@ -206,7 +242,16 @@ impl Classic {
         self.portrait_cols = cols;
         self.grid = Some(grid);
         self.cells = cells;
-        self.layout = PaneLayout { stats, sidebar, messages: (!hide_messages).then(|| grid.rect(cells.messages)), free: free_px, widened, minimap, panel, prompts: grid.rect(prompts) };
+        self.layout = PaneLayout {
+            stats,
+            sidebar,
+            messages: (!hide_messages).then(|| grid.rect(cells.messages)),
+            free: free_px,
+            widened,
+            minimap,
+            panel,
+            prompts: grid.rect(prompts),
+        };
         self.layout
     }
 
@@ -225,7 +270,15 @@ impl Classic {
     }
 
     /// Draw the panes and take their clicks.
-    pub fn ui(&mut self, ui: &mut egui::Ui, inp: &PaneInput, tiles: &mut TileIcons, boxes: &mut BoxCache, out: &mut Vec<serde_json::Value>, commands: &mut Vec<HudCommand>) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        inp: &PaneInput,
+        tiles: &mut TileIcons,
+        boxes: &mut BoxCache,
+        out: &mut Vec<serde_json::Value>,
+        commands: &mut Vec<HudCommand>,
+    ) {
         let Some(grid) = self.grid else { return };
         let painter = ui.painter().clone();
         let st = inp.state;
@@ -241,7 +294,16 @@ impl Classic {
             self.paint_portrait(&painter, inp, tiles, rect, grid);
             let mut titled = vec![];
             for (i, row) in self.stats.iter().enumerate() {
-                titled.extend(paint_row(&painter, row, egui::pos2(rect.left(), rect.top() + i as f32 * grid.ch), grid.cw, grid.ch, grid.font, style::term(7), true));
+                titled.extend(paint_row(
+                    &painter,
+                    row,
+                    egui::pos2(rect.left(), rect.top() + i as f32 * grid.ch),
+                    grid.cw,
+                    grid.ch,
+                    grid.font,
+                    style::term(7),
+                    true,
+                ));
             }
             for (r, t) in titled {
                 ui.interact(r, ui.scope_id().with(("stat-title", r.min.x as i32, r.min.y as i32)), Sense::hover()).on_hover_text(t);
@@ -264,7 +326,10 @@ impl Classic {
             ui.ctx().request_repaint();
         }
         if self.scrim > 0.0 && self.layout.messages.is_some() {
-            let t = boxes.texture(ui.ctx(), "more-scrim", egui::vec2(160.0, 100.0), || BoxStyle { layers: vec![Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.5), vec![sa(rgba(3, 2, 6, 0.25)), sa(rgba(3, 2, 6, 0.55))])], ..Default::default() });
+            let t = boxes.texture(ui.ctx(), "more-scrim", egui::vec2(160.0, 100.0), || BoxStyle {
+                layers: vec![Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.5), vec![sa(rgba(3, 2, 6, 0.25)), sa(rgba(3, 2, 6, 0.55))])],
+                ..Default::default()
+            });
             painter.image(t.id(), ui.ctx().content_rect(), Rect::from_min_max(Pos2::ZERO, egui::pos2(1.0, 1.0)), Color32::WHITE.gamma_multiply(self.scrim));
         }
         if let Some(rect) = self.layout.messages {
@@ -336,7 +401,15 @@ impl Classic {
 
     /// The consumables action panel (action_panel.js) in the strip between the stats pane and the
     /// minimap: the X and the game menu, then every item with an `action_panel_order`.
-    fn action_panel(&mut self, ui: &mut egui::Ui, painter: &Painter, inp: &PaneInput, tiles: &mut TileIcons, out: &mut Vec<serde_json::Value>, commands: &mut Vec<HudCommand>) {
+    fn action_panel(
+        &mut self,
+        ui: &mut egui::Ui,
+        painter: &Painter,
+        inp: &PaneInput,
+        tiles: &mut TileIcons,
+        out: &mut Vec<serde_json::Value>,
+        commands: &mut Vec<HudCommand>,
+    ) {
         let st = inp.state;
         let o = &st.options;
         let opt_bool = |k: &str| o.get(k).and_then(|v| v.as_bool());
@@ -407,8 +480,15 @@ impl Classic {
                 named(tiles, "OOR_MESH", i);
             }
             // Isorun: the inventory letter, bottom-right, so the palette and the panel name the same slot
-            let lg = painter.ctx().fonts_mut(|f| f.layout_no_wrap(item.letter.clone(), egui::FontId::monospace((9.0 * scale).round().max(8.0)), Color32::WHITE));
-            crate::paint::shadowed_galley(painter, p + egui::vec2(cell - 2.0 - lg.size().x, cell - 1.0 - lg.size().y), lg, Color32::from_white_alpha(217), &[(0.0, 0.0, 2.0, Color32::BLACK)]);
+            let lg =
+                painter.ctx().fonts_mut(|f| f.layout_no_wrap(item.letter.clone(), egui::FontId::monospace((9.0 * scale).round().max(8.0)), Color32::WHITE));
+            crate::paint::shadowed_galley(
+                painter,
+                p + egui::vec2(cell - 2.0 - lg.size().x, cell - 1.0 - lg.size().y),
+                lg,
+                Color32::from_white_alpha(217),
+                &[(0.0, 0.0, 2.0, Color32::BLACK)],
+            );
         }
         if grid.overflow {
             if let Some(id) = icons::named(tiles, "ELLIPSIS") {
@@ -461,7 +541,16 @@ impl Classic {
     /// sorted and grouped, at most five rows, each a strip of up to six sprites and the name in
     /// its attitude's colour; Isorun's bearing arrow in front, and a tap faces the monster.
     #[allow(clippy::too_many_arguments)]
-    fn monster_list(&self, ui: &mut egui::Ui, painter: &Painter, inp: &PaneInput, tiles: &mut TileIcons, side: Rect, grid: Grid, commands: &mut Vec<HudCommand>) {
+    fn monster_list(
+        &self,
+        ui: &mut egui::Ui,
+        painter: &Painter,
+        inp: &PaneInput,
+        tiles: &mut TileIcons,
+        side: Rect,
+        grid: Grid,
+        commands: &mut Vec<HudCommand>,
+    ) {
         let st = inp.state;
         let o = &st.options;
         let groups = isorun_scene_webtiles::monster_groups(inp.scene, st);
@@ -508,7 +597,17 @@ impl Classic {
             }
             let bold = matches!(threat, Threat::Tough | Threat::Nasty);
             let mut job = egui::text::LayoutJob::default();
-            job.append(&name, 0.0, egui::TextFormat { font_id: if bold { egui::FontId::new(grid.font, isorun_ui::fonts::bold()) } else { font.clone() }, color: colour, underline: if threat == Threat::Nasty { egui::Stroke::new(1.0, colour) } else { egui::Stroke::NONE }, italics: threat == Threat::Invisible, ..Default::default() });
+            job.append(
+                &name,
+                0.0,
+                egui::TextFormat {
+                    font_id: if bold { egui::FontId::new(grid.font, isorun_ui::fonts::bold()) } else { font.clone() },
+                    color: colour,
+                    underline: if threat == Threat::Nasty { egui::Stroke::new(1.0, colour) } else { egui::Stroke::NONE },
+                    italics: threat == Threat::Invisible,
+                    ..Default::default()
+                },
+            );
             let b = inp.scene.bearing_to(first.x, first.y);
             let rel = b.map_or(0, |b| rotate_dir(b, -(inp.facing as i32)) as usize);
             let arrow = if rel == 0 { "▲".to_string() } else { ARROWS[rel].to_string() };
@@ -535,13 +634,23 @@ impl Classic {
         // with the dock the list is as wide as its widest row, at the column's right edge
         let widest = laid.iter().map(|l| l.0).fold(0.0, f32::max);
         for (d, (wdt, g)) in draws.iter().zip(laid) {
-            let row = if inp.dock { Rect::from_min_size(egui::pos2(side.right() - widest, y), egui::vec2(widest, row_h)) } else { Rect::from_min_size(egui::pos2(side.left(), y), egui::vec2(wdt, row_h)) };
+            let row = if inp.dock {
+                Rect::from_min_size(egui::pos2(side.right() - widest, y), egui::vec2(widest, row_h))
+            } else {
+                Rect::from_min_size(egui::pos2(side.left(), y), egui::vec2(wdt, row_h))
+            };
             if row.bottom() > side.bottom() {
                 break;
             }
             painter.rect_filled(row, 0.0, rgba(0, 0, 0, 0.55).to_color32());
             let mut x = row.left();
-            painter.text(egui::pos2(x + 0.6 * em, row.center().y), egui::Align2::CENTER_CENTER, &d.arrow, font.clone(), crate::style::GOLD_BRIGHT.to_color32().lerp_to_gamma(hex(0xffd45c).to_color32(), 1.0));
+            painter.text(
+                egui::pos2(x + 0.6 * em, row.center().y),
+                egui::Align2::CENTER_CENTER,
+                &d.arrow,
+                font.clone(),
+                crate::style::GOLD_BRIGHT.to_color32().lerp_to_gamma(hex(0xffd45c).to_color32(), 1.0),
+            );
             x += 1.2 * em + 0.4 * em;
             if d.invis {
                 if let Some(id) = icons::named(tiles, "UNSEEN_INVISIBLE") {
@@ -623,12 +732,24 @@ impl Classic {
                 if side == 0 {
                     let x = w.left() + 0.3 * em;
                     paint_glyph(painter, p.button, inp.pad, egui::pos2(x, y), gem, style::term(7).to_color32());
-                    crate::paint::shadowed_galley(painter, egui::pos2(x + glyph_size(p.button, gem).x + 0.55 * em, y + (gem - g.size().y) / 2.0), g, style::term(7).to_color32(), &PANE_SHADOW);
+                    crate::paint::shadowed_galley(
+                        painter,
+                        egui::pos2(x + glyph_size(p.button, gem).x + 0.55 * em, y + (gem - g.size().y) / 2.0),
+                        g,
+                        style::term(7).to_color32(),
+                        &PANE_SHADOW,
+                    );
                 } else {
                     let gs = glyph_size(p.button, gem);
                     let x = w.right() - 0.3 * em - gs.x;
                     paint_glyph(painter, p.button, inp.pad, egui::pos2(x, y), gem, style::term(7).to_color32());
-                    crate::paint::shadowed_galley(painter, egui::pos2(x - 0.55 * em - g.size().x, y + (gem - g.size().y) / 2.0), g, style::term(7).to_color32(), &PANE_SHADOW);
+                    crate::paint::shadowed_galley(
+                        painter,
+                        egui::pos2(x - 0.55 * em - g.size().x, y + (gem - g.size().y) / 2.0),
+                        g,
+                        style::term(7).to_color32(),
+                        &PANE_SHADOW,
+                    );
                 }
             }
         }
@@ -680,7 +801,21 @@ impl Classic {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn chip(&self, ui: &mut egui::Ui, painter: &Painter, p: &PadPrompt, i: usize, r: Rect, g: std::sync::Arc<egui::Galley>, gem: f32, em: f32, glyph_left: bool, inp: &PaneInput, commands: &mut Vec<HudCommand>, quiet: f32) {
+    fn chip(
+        &self,
+        ui: &mut egui::Ui,
+        painter: &Painter,
+        p: &PadPrompt,
+        i: usize,
+        r: Rect,
+        g: std::sync::Arc<egui::Galley>,
+        gem: f32,
+        em: f32,
+        glyph_left: bool,
+        inp: &PaneInput,
+        commands: &mut Vec<HudCommand>,
+        quiet: f32,
+    ) {
         let holding = inp.holding.filter(|h| h.button == p.button);
         let alpha = if holding.is_some() { 1.0 } else { quiet };
         let colour = style::term(7).to_color32().gamma_multiply(alpha);
@@ -691,7 +826,9 @@ impl Classic {
             paint_hold_progress(painter, egui::pos2(gx, r.center().y - gs.y / 2.0), gem, BRONZE_BRIGHT.to_color32(), h.fraction);
         }
         crate::paint::shadowed_galley(painter, egui::pos2(tx, r.center().y - g.size().y / 2.0), g, colour, &PANE_SHADOW);
-        if !p.teaching && ui.interact(r, ui.scope_id().with(("prompt", i)), Sense::click()).on_hover_text(crate::glyphs::glyph_name(p.button, inp.pad)).clicked() {
+        if !p.teaching
+            && ui.interact(r, ui.scope_id().with(("prompt", i)), Sense::click()).on_hover_text(crate::glyphs::glyph_name(p.button, inp.pad)).clicked()
+        {
             commands.push(HudCommand::Prompt(i));
         }
     }
@@ -706,7 +843,10 @@ impl Classic {
         let screen = isorun_ui::safe::rect(ctx);
         let size = 15.0;
         let g = ctx.fonts_mut(|f| f.layout_no_wrap(text.clone(), egui::FontId::monospace(size), Color32::WHITE));
-        let r = Rect::from_center_size(egui::pos2(screen.center().x, screen.top() + screen.height() * 0.12 + (g.size().y + 0.6 * size) / 2.0), g.size() + egui::vec2(1.6 * size, 0.6 * size));
+        let r = Rect::from_center_size(
+            egui::pos2(screen.center().x, screen.top() + screen.height() * 0.12 + (g.size().y + 0.6 * size) / 2.0),
+            g.size() + egui::vec2(1.6 * size, 0.6 * size),
+        );
         painter.rect_filled(r, 4.0, rgba(80, 20, 20, 0.85).to_color32());
         painter.galley(r.center() - g.size() / 2.0, g, Color32::WHITE);
     }
@@ -848,14 +988,19 @@ pub fn paint_inspect(ctx: &egui::Context, boxes: &mut BoxCache, lines: &[Inspect
     h += 8.0 * u + 2.0;
     let w = inner_w + 36.0 * u + 2.0;
     let rect = Rect::from_min_size(egui::pos2(screen.center().x - w / 2.0, screen.top() + 28.0 * u), egui::vec2(w, h));
-    boxes.paint_box(&painter, "inspect", rect, &BoxStyle {
-        layers: vec![Layer::Linear(180.0, vec![sa(rgba(27, 22, 18, 0.94)), sa(rgba(12, 10, 8, 0.94))])],
-        radius: [4.0 * u; 4],
-        border: Border::all(1.0, TRIM),
-        insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000))],
-        outers: vec![outer(0.0, 6.0, 24.0, 0.0, rgba(0, 0, 0, 0.7))],
-        ..Default::default()
-    });
+    boxes.paint_box(
+        &painter,
+        "inspect",
+        rect,
+        &BoxStyle {
+            layers: vec![Layer::Linear(180.0, vec![sa(rgba(27, 22, 18, 0.94)), sa(rgba(12, 10, 8, 0.94))])],
+            radius: [4.0 * u; 4],
+            border: Border::all(1.0, TRIM),
+            insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000))],
+            outers: vec![outer(0.0, 6.0, 24.0, 0.0, rgba(0, 0, 0, 0.7))],
+            ..Default::default()
+        },
+    );
     let mut y = rect.top() + 1.0 + 6.0 * u;
     for (g, wound, first) in parts {
         let gh = g.size().y;

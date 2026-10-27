@@ -30,7 +30,8 @@ pub fn lines(state: &GameState) -> Vec<String> {
 /// skill's letter then asks for its target, so a row's second action (Y) sends both.
 pub fn focus(state: &GameState, tag: &str) -> (String, Vec<Focusable>, FocusOptions) {
     let hot = scrape_crt(tag, &lines(state));
-    let targets = tag == "skills" && hot.iter().any(|h| h.kind == CrtKind::Footer && (h.key == "=" || h.label.contains("skill target") || h.label.contains("selected target")));
+    let targets = tag == "skills"
+        && hot.iter().any(|h| h.kind == CrtKind::Footer && (h.key == "=" || h.label.contains("skill target") || h.label.contains("selected target")));
     let items = hot
         .iter()
         .map(|h| {
@@ -38,7 +39,15 @@ pub fn focus(state: &GameState, tag: &str) -> (String, Vec<Focusable>, FocusOpti
             let n: i32 = h.group.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse().unwrap_or(0);
             let col = if h.kind == CrtKind::Row { n } else { 10 + n };
             let kind = if h.kind == CrtKind::Row { "row" } else { "footer" };
-            let mut f = Focusable { label: h.label.clone(), act: Act::send([cm::input(&h.key)]), row: Some(h.line as i32), col: Some(col), group: h.group.clone(), id: Some(format!("{kind}:{}", h.key)), ..Default::default() };
+            let mut f = Focusable {
+                label: h.label.clone(),
+                act: Act::send([cm::input(&h.key)]),
+                row: Some(h.line as i32),
+                col: Some(col),
+                group: h.group.clone(),
+                id: Some(format!("{kind}:{}", h.key)),
+                ..Default::default()
+            };
             if targets && h.kind == CrtKind::Row {
                 f.alt = Some(("Set target".into(), Act::send([cm::input(&format!("={}", h.key))])));
             }
@@ -65,7 +74,8 @@ impl Overlays {
         let galleys: Vec<_> = ls.iter().map(|l| rich::galley(ctx, rich::html(if l.is_empty() { " " } else { l }, &st, 0.0))).collect();
         let natural = galleys.iter().map(|g| g.size().x).fold(0.0, f32::max);
         // a phone's screen is full width (touch.css), whatever the text's own width
-        let width = if screen.compact() { screen.popup_max_w() } else { (natural + 2.0 * pad_x + 2.0).ceil().clamp(screen.popup_min_w(), screen.popup_max_w()) };
+        let width =
+            if screen.compact() { screen.popup_max_w() } else { (natural + 2.0 * pad_x + 2.0).ceil().clamp(screen.popup_min_w(), screen.popup_max_w()) };
         let line_h = 1.2 * font;
         let content_h = ls.len() as f32 * line_h + 2.0 * pad_y;
         let height = content_h.min(screen.popup_max_h()) + 2.0;

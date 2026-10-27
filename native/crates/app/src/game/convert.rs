@@ -68,7 +68,10 @@ pub fn device(d: isorun_input::router::InputDevice) -> (isorun_hud::Device, isor
 
 /// The pad's prompts as the HUD's corner draws them.
 pub fn prompts(labels: &[BindingLabel]) -> Vec<isorun_hud::classic::PadPrompt> {
-    labels.iter().map(|l| isorun_hud::classic::PadPrompt { button: glyph(l.button), label: l.label.clone(), hold: l.hold.clone(), teaching: l.teaching }).collect()
+    labels
+        .iter()
+        .map(|l| isorun_hud::classic::PadPrompt { button: glyph(l.button), label: l.label.clone(), hold: l.hold.clone(), teaching: l.teaching })
+        .collect()
 }
 
 /// A HUD action as the runner takes it.
@@ -139,5 +142,12 @@ pub fn menu_op(op: isorun_input::bindings::MenuOp) -> isorun_overlays::MenuOp {
 }
 
 pub fn focus_info(f: isorun_overlays::FocusInfo) -> isorun_input::focus::FocusInfo {
-    isorun_input::focus::FocusInfo { label: f.label, colour: f.colour.map(|c| c as i64), cancel_label: f.cancel_label, alt_label: f.alt_label, index: f.index as i64, count: f.count as i64 }
+    isorun_input::focus::FocusInfo {
+        label: f.label,
+        colour: f.colour.map(|c| c as i64),
+        cancel_label: f.cancel_label,
+        alt_label: f.alt_label,
+        index: f.index as i64,
+        count: f.count as i64,
+    }
 }

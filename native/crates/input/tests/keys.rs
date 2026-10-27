@@ -6,7 +6,22 @@ use isorun_webtiles::{cm, Keys as K};
 
 type Table = &'static [(u32, i32)];
 
-const SIMPLE: Table = &[(27, 27), (8, 8), (9, 9), (46, K::CK_DELETE), (45, K::CK_INSERT), (35, K::CK_END), (40, K::CK_DOWN), (34, K::CK_PGDN), (37, K::CK_LEFT), (12, K::CK_CLEAR), (39, K::CK_RIGHT), (36, K::CK_HOME), (38, K::CK_UP), (33, K::CK_PGUP)];
+const SIMPLE: Table = &[
+    (27, 27),
+    (8, 8),
+    (9, 9),
+    (46, K::CK_DELETE),
+    (45, K::CK_INSERT),
+    (35, K::CK_END),
+    (40, K::CK_DOWN),
+    (34, K::CK_PGDN),
+    (37, K::CK_LEFT),
+    (12, K::CK_CLEAR),
+    (39, K::CK_RIGHT),
+    (36, K::CK_HOME),
+    (38, K::CK_UP),
+    (33, K::CK_PGUP),
+];
 const SHIFT: Table = &[
     (9, K::CK_SHIFT_TAB),
     (45, K::CK_SHIFT_INSERT),
@@ -172,7 +187,9 @@ fn which_key(which: u32) -> Option<(&'static str, &'static str)> {
 
 /// An event as the browser would deliver it for keyCode `which`, with and without keyCode.
 fn ev_for(which: u32, m: Mods, with_key_code: bool) -> KeyLike {
-    let (key, code) = which_key(which).map(|(k, c)| (k.to_string(), c.to_string())).unwrap_or_else(|| (char::from_u32(which).unwrap().to_lowercase().to_string(), String::new()));
+    let (key, code) = which_key(which)
+        .map(|(k, c)| (k.to_string(), c.to_string()))
+        .unwrap_or_else(|| (char::from_u32(which).unwrap().to_lowercase().to_string(), String::new()));
     // a browser reports the digit keyCode for numpad digits; the official client rewrites it to 96..105 from `code`
     let reported = if (97..=105).contains(&which) { which - 48 } else { which };
     ev(&key, &code, m, with_key_code.then_some(reported))
@@ -425,7 +442,13 @@ fn egui_a_key_and_its_text_are_one_key_typing_the_layouts_character() {
 fn egui_named_keys_and_ctrl_letters_come_out_as_the_official_client_sends_them() {
     let none = egui::Modifiers::default();
     let ctrl = egui::Modifiers { ctrl: true, command: true, ..Default::default() };
-    let events = vec![key_event(egui::Key::Escape, none), key_event(egui::Key::Tab, none), key_event(egui::Key::F, ctrl), key_event(egui::Key::Enter, none), key_event(egui::Key::F1, none)];
+    let events = vec![
+        key_event(egui::Key::Escape, none),
+        key_event(egui::Key::Tab, none),
+        key_event(egui::Key::F, ctrl),
+        key_event(egui::Key::Enter, none),
+        key_event(egui::Key::F1, none),
+    ];
     let msgs: Vec<_> = down(&key_inputs(&events, none)).iter().map(keydown_message).collect();
     assert_eq!(msgs, vec![Some(cm::key(27)), Some(cm::key(9)), Some(cm::key(6)), Some(cm::input("\r")), Some(cm::key(-265))]);
 }
@@ -467,7 +490,13 @@ fn egui_on_the_web_a_character_before_its_key_is_one_key() {
     isorun_input::keys::WEB_ORDER.with(|w| w.set(true));
     let shift = egui::Modifiers { shift: true, ..Default::default() };
     let none = egui::Modifiers::default();
-    let events = vec![egui::Event::Text("2".into()), key_event(egui::Key::Num2, none), egui::Event::Text(">".into()), key_event(egui::Key::Period, shift), key_event(egui::Key::Escape, none)];
+    let events = vec![
+        egui::Event::Text("2".into()),
+        key_event(egui::Key::Num2, none),
+        egui::Event::Text(">".into()),
+        key_event(egui::Key::Period, shift),
+        key_event(egui::Key::Escape, none),
+    ];
     let msgs: Vec<_> = down(&key_inputs(&events, none)).iter().map(keydown_message).collect();
     isorun_input::keys::WEB_ORDER.with(|w| w.set(false));
     assert_eq!(msgs, vec![Some(cm::input("2")), Some(cm::input(">")), Some(cm::key(27))]);

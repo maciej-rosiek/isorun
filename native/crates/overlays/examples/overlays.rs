@@ -43,7 +43,11 @@ fn main() -> eframe::Result {
             "statgain" if since > 3.0 => {
                 state.input_mode = MouseMode::PROMPT;
                 state.messages.lines.push(GameMessage { text: "You have reached level 3!".into(), channel: Some(0), ..Default::default() });
-                state.messages.lines.push(GameMessage { text: "<cyan>Increase (S)trength, (I)ntelligence, or (D)exterity? </cyan>".into(), channel: Some(2), ..Default::default() });
+                state.messages.lines.push(GameMessage {
+                    text: "<cyan>Increase (S)trength, (I)ntelligence, or (D)exterity? </cyan>".into(),
+                    channel: Some(2),
+                    ..Default::default()
+                });
             }
             "yesno" if since > 3.0 => {
                 state.input_mode = MouseMode::YESNO;
@@ -52,7 +56,11 @@ fn main() -> eframe::Result {
             "letters" if since > 3.0 => {
                 state.input_mode = MouseMode::PROMPT;
                 state.messages.lines.push(GameMessage { text: "a - a +0 war axe (weapon)".into(), channel: Some(0), ..Default::default() });
-                state.messages.lines.push(GameMessage { text: "Adjust to which letter? (? for menu, Esc to quit)".into(), channel: Some(2), ..Default::default() });
+                state.messages.lines.push(GameMessage {
+                    text: "Adjust to which letter? (? for menu, Esc to quit)".into(),
+                    channel: Some(2),
+                    ..Default::default()
+                });
             }
             "skills" if since > 3.0 => {
                 // the skills screen as a server sent it (the native engine paints no CRT popup while headless)
@@ -73,7 +81,13 @@ fn main() -> eframe::Result {
             seen = lines.len();
         }
         if std::env::var("OVERLAYS_DEBUG").is_ok() && state.menus.last().is_some_and(|m| m.kind.as_deref() == Some("crt")) {
-            log::info!("crt lines {} areas {:?} ui_state {} diags {:?}", state.crt.lines.len(), state.crt.areas.iter().map(|(k, v)| (k.clone(), v.len())).collect::<Vec<_>>(), state.ui_state, state.diagnostics.iter().rev().take(3).map(|d| d.text.clone()).collect::<Vec<_>>());
+            log::info!(
+                "crt lines {} areas {:?} ui_state {} diags {:?}",
+                state.crt.lines.len(),
+                state.crt.areas.iter().map(|(k, v)| (k.clone(), v.len())).collect::<Vec<_>>(),
+                state.ui_state,
+                state.diagnostics.iter().rev().take(3).map(|d| d.text.clone()).collect::<Vec<_>>()
+            );
         }
         let mut out = Vec::new();
         let took = {
@@ -92,4 +106,3 @@ fn main() -> eframe::Result {
         took
     })
 }
-

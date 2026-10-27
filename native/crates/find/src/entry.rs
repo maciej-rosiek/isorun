@@ -257,7 +257,10 @@ pub fn category_of_text(name: &str) -> Category {
         Category::Misc
     } else if word("gold") || word("rune") || word("gem") || has("orb of zot") {
         Category::Treasure
-    } else if ["darts", "dart", "stones", "stone", "arrows", "arrow", "bolts", "bolt", "javelins", "javelin", "boomerangs", "boomerang", "bullets", "nets"].iter().any(|w| word(w)) {
+    } else if ["darts", "dart", "stones", "stone", "arrows", "arrow", "bolts", "bolt", "javelins", "javelin", "boomerangs", "boomerang", "bullets", "nets"]
+        .iter()
+        .any(|w| word(w))
+    {
         Category::Ammo
     } else if word("corpse") || word("skeleton") || word("ration") || word("rations") {
         Category::OtherItems

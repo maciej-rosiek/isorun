@@ -28,7 +28,8 @@ fn touched(l: &BindingLabel, ctx: &Context) -> bool {
 /// once, A last (at the right, under the thumb) but for a menu's accept after it, B first.
 pub fn touch_labels(ctx: &Context) -> Vec<BindingLabel> {
     let order = |b: Button| TOUCHED_BUTTONS.iter().position(|x| *x == b).unwrap_or(usize::MAX);
-    let mut labels: Vec<BindingLabel> = bar_labels(ctx).into_iter().filter(|l| touched(l, ctx) && !l.teaching && !l.label.is_empty() && l.label != NO_ACTION).collect();
+    let mut labels: Vec<BindingLabel> =
+        bar_labels(ctx).into_iter().filter(|l| touched(l, ctx) && !l.teaching && !l.label.is_empty() && l.label != NO_ACTION).collect();
     // sorted from A back to B, so the first of a label kept is the one nearest A
     labels.sort_by(|a, b| order(b.button).cmp(&order(a.button)));
     let mut seen: Vec<String> = Vec::new();
@@ -108,7 +109,12 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
     let painter = ui.painter().clone().with_layer_id(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("isorun-touch-bar")));
     // linear-gradient(180deg, rgba(10,9,8,0.75), rgba(10,9,8,0.97) 30%), border-top bronze-dim
     let split = egui::Rect::from_min_max(bar.min, egui::pos2(bar.right(), bar.top() + bar.height() * 0.3));
-    crate::cell_menu::vertical_gradient(&painter, split, egui::Color32::from_rgba_unmultiplied(10, 9, 8, 191), egui::Color32::from_rgba_unmultiplied(10, 9, 8, 247));
+    crate::cell_menu::vertical_gradient(
+        &painter,
+        split,
+        egui::Color32::from_rgba_unmultiplied(10, 9, 8, 191),
+        egui::Color32::from_rgba_unmultiplied(10, 9, 8, 247),
+    );
     painter.rect_filled(egui::Rect::from_min_max(split.left_bottom(), bar.max), 0.0, egui::Color32::from_rgba_unmultiplied(10, 9, 8, 247));
     painter.hline(bar.x_range(), bar.top(), egui::Stroke::new(1.0, BRONZE_DIM));
     let mut tapped = None;
@@ -117,36 +123,40 @@ pub fn touch_bar(ui: &mut egui::Ui, ctx: &Context, shown: bool, screen: egui::Re
     // quick slot under it)
     let ectx = ui.ctx().clone();
     egui::Area::new(egui::Id::unique("isorun-touch-bar-area")).order(egui::Order::Foreground).fixed_pos(bar.min).show(&ectx, |ui| {
-    // allocated, not only interacted: the area is as large as the bar, so the layer under a
-    // finger on the bar is the bar's (`layer_id_at`), and the game does not take the tap for one
-    // outside crawl's menu (Back: Escape, the menu gone before the button's Enter came)
-    ui.allocate_rect(bar, egui::Sense::click());
-    for (r, row) in rows.iter().enumerate() {
-        // wrap-reverse: the first row is the bottom one
-        let y = bar.bottom() - pad - h - r as f32 * (h + gap);
-        let total: f32 = row.iter().map(|&i| widths[i]).sum::<f32>() + gap * (row.len() as f32 - 1.0);
-        let mut x = bar.center().x - total / 2.0;
-        for &i in row {
-            let l = &labels[i];
-            let rect = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(widths[i], h));
-            x += widths[i] + gap;
-            let resp = ui.interact(rect, egui::Id::unique(("isorun-touch-button", l.button)), egui::Sense::click());
-            let (top, bottom, border, ink) = match l.button {
-                b if Some(b) == gold => (egui::Color32::from_rgba_unmultiplied(74, 58, 30, 245), egui::Color32::from_rgba_unmultiplied(24, 18, 10, 245), BRONZE, BRONZE_BRIGHT),
-                Button::B => (egui::Color32::from_rgba_unmultiplied(42, 36, 29, 242), egui::Color32::from_rgba_unmultiplied(14, 12, 9, 242), BRONZE_DIM, INK_DIM),
-                _ => (egui::Color32::from_rgba_unmultiplied(42, 36, 29, 242), egui::Color32::from_rgba_unmultiplied(14, 12, 9, 242), BRONZE_DIM, INK),
-            };
-            painter.add(egui::epaint::Shadow { offset: [0, 3], blur: 10, spread: 0, color: egui::Color32::from_black_alpha(153) }.as_shape(rect, 6.0));
-            crate::cell_menu::vertical_gradient(&painter, rect.shrink(1.0), top, bottom);
-            painter.rect_stroke(rect, 6.0, egui::Stroke::new(1.0, border), egui::StrokeKind::Inside);
-            let text = formatted_string_to_text(&l.label);
-            let galley = painter.layout(text, font.clone(), ink, (widths[i] - 28.0).max(1.0));
-            painter.galley(rect.center() - galley.size() / 2.0, galley, ink);
-            if resp.clicked() {
-                tapped = Some(l.action.clone());
+        // allocated, not only interacted: the area is as large as the bar, so the layer under a
+        // finger on the bar is the bar's (`layer_id_at`), and the game does not take the tap for one
+        // outside crawl's menu (Back: Escape, the menu gone before the button's Enter came)
+        ui.allocate_rect(bar, egui::Sense::click());
+        for (r, row) in rows.iter().enumerate() {
+            // wrap-reverse: the first row is the bottom one
+            let y = bar.bottom() - pad - h - r as f32 * (h + gap);
+            let total: f32 = row.iter().map(|&i| widths[i]).sum::<f32>() + gap * (row.len() as f32 - 1.0);
+            let mut x = bar.center().x - total / 2.0;
+            for &i in row {
+                let l = &labels[i];
+                let rect = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(widths[i], h));
+                x += widths[i] + gap;
+                let resp = ui.interact(rect, egui::Id::unique(("isorun-touch-button", l.button)), egui::Sense::click());
+                let (top, bottom, border, ink) = match l.button {
+                    b if Some(b) == gold => {
+                        (egui::Color32::from_rgba_unmultiplied(74, 58, 30, 245), egui::Color32::from_rgba_unmultiplied(24, 18, 10, 245), BRONZE, BRONZE_BRIGHT)
+                    }
+                    Button::B => {
+                        (egui::Color32::from_rgba_unmultiplied(42, 36, 29, 242), egui::Color32::from_rgba_unmultiplied(14, 12, 9, 242), BRONZE_DIM, INK_DIM)
+                    }
+                    _ => (egui::Color32::from_rgba_unmultiplied(42, 36, 29, 242), egui::Color32::from_rgba_unmultiplied(14, 12, 9, 242), BRONZE_DIM, INK),
+                };
+                painter.add(egui::epaint::Shadow { offset: [0, 3], blur: 10, spread: 0, color: egui::Color32::from_black_alpha(153) }.as_shape(rect, 6.0));
+                crate::cell_menu::vertical_gradient(&painter, rect.shrink(1.0), top, bottom);
+                painter.rect_stroke(rect, 6.0, egui::Stroke::new(1.0, border), egui::StrokeKind::Inside);
+                let text = formatted_string_to_text(&l.label);
+                let galley = painter.layout(text, font.clone(), ink, (widths[i] - 28.0).max(1.0));
+                painter.galley(rect.center() - galley.size() / 2.0, galley, ink);
+                if resp.clicked() {
+                    tapped = Some(l.action.clone());
+                }
             }
         }
-    }
     });
     (tapped, Some(bar))
 }

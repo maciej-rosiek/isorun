@@ -36,10 +36,62 @@ pub enum CombatEvent {
 
 /// "You see the goblin" and the like: verbs before a monster's name that are not blows.
 const NOT_BLOWS: &[&str] = &[
-    "see", "feel", "sense", "hear", "notice", "encounter", "smell", "open", "close", "are", "have", "can", "cannot", "swap", "displace", "stop", "start", "begin", "finish", "pick", "drop", "enter", "leave", "reach", "reaches", "cast", "zap", "throw", "fire", "shoot", "evoke", "pray", "pacify", "tame", "charm",
+    "see",
+    "feel",
+    "sense",
+    "hear",
+    "notice",
+    "encounter",
+    "smell",
+    "open",
+    "close",
+    "are",
+    "have",
+    "can",
+    "cannot",
+    "swap",
+    "displace",
+    "stop",
+    "start",
+    "begin",
+    "finish",
+    "pick",
+    "drop",
+    "enter",
+    "leave",
+    "reach",
+    "reaches",
+    "cast",
+    "zap",
+    "throw",
+    "fire",
+    "shoot",
+    "evoke",
+    "pray",
+    "pacify",
+    "tame",
+    "charm",
 ];
 const KILL_VERBS: [&str; 7] = ["kill", "destroy", "slay", "annihilate", "obliterate", "dismember", "demolish"];
-const DEATH_ENDINGS: [&str; 17] = ["is killed", "dies", "is destroyed", "is blown up", "is incinerated", "is annihilated", "is obliterated", "is dismembered", "is slain", "is consumed", "is crushed", "is turned to ash", "disintegrates", "falls apart", "collapses", "is drowned", "is frozen solid"];
+const DEATH_ENDINGS: [&str; 17] = [
+    "is killed",
+    "dies",
+    "is destroyed",
+    "is blown up",
+    "is incinerated",
+    "is annihilated",
+    "is obliterated",
+    "is dismembered",
+    "is slain",
+    "is consumed",
+    "is crushed",
+    "is turned to ash",
+    "disintegrates",
+    "falls apart",
+    "collapses",
+    "is drowned",
+    "is frozen solid",
+];
 /// How far a melee blow reaches, in king moves: two for a polearm.
 const REACH: i32 = 2;
 
@@ -132,7 +184,9 @@ pub fn combat_events(lines: &[GameMessage], scene: &Scene, monsters: &HashMap<i6
                     events.push(CombatEvent::Death { on: Fighter::Monster(id), from: None });
                     break;
                 }
-                if !s.starts_with("you ") && Regex::new(&format!(r"\b(?:hits|strikes|burns|freezes|shocks|pierces|bites|stings) {named}\b")).is_ok_and(|r| r.is_match(&s)) {
+                if !s.starts_with("you ")
+                    && Regex::new(&format!(r"\b(?:hits|strikes|burns|freezes|shocks|pierces|bites|stings) {named}\b")).is_ok_and(|r| r.is_match(&s))
+                {
                     events.push(CombatEvent::Hit { on: Fighter::Monster(id), from: None, strength: blow_strength(&s) });
                     break;
                 }

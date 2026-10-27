@@ -13,8 +13,8 @@ use crate::bindings::{autofight, has_interaction_choice, Action, CommandCategory
 use crate::context::{Context, Mode, Target};
 use crate::focus::FocusOp;
 use isorun_render::camera::{IsoCamera, TURN_DEGREES};
-use isorun_scene::{dir_from_delta, rotate_dir, BillboardKind, Attitude, Dir8, DoorState, Feature, Scene, UpDown, DIR8_DX, DIR8_DY};
-use isorun_webtiles::{cm, GameState, Msgch, MouseMode};
+use isorun_scene::{dir_from_delta, rotate_dir, Attitude, BillboardKind, Dir8, DoorState, Feature, Scene, UpDown, DIR8_DX, DIR8_DY};
+use isorun_webtiles::{cm, GameState, MouseMode, Msgch};
 use serde_json::Value;
 
 /// DCSS movement keys by absolute compass direction.

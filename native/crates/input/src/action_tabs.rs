@@ -87,7 +87,13 @@ pub const SHOUT_KEY: &str = "t";
 
 // contextual: they stand under every tab, as the empty frame's do (Overlays.padPrompts)
 pub fn swap_weapons() -> Action {
-    Action::Keys { seq: vec![SeqItem::key(27), SeqItem::text(SWAP_WEAPONS_KEY)], label: "Swap weapons".into(), contextual: true, keeps_map: false, repeats: false }
+    Action::Keys {
+        seq: vec![SeqItem::key(27), SeqItem::text(SWAP_WEAPONS_KEY)],
+        label: "Swap weapons".into(),
+        contextual: true,
+        keeps_map: false,
+        repeats: false,
+    }
 }
 
 pub fn shout() -> Action {

@@ -79,8 +79,20 @@ pub fn monster_tiles(icons: &TileIcons, d: &Map<String, Value>) -> Vec<Tile> {
     let gd = &gd.gd;
     let fg = d.get("fg_idx").and_then(|v| v.as_i64()).map(|id| gd.server_tile(id as u32, "main") as i64).unwrap_or(0);
     let player = |id: i64| gd.server_tile(id as u32, "player") as i64;
-    let doll: Vec<(i64, i64)> = d.get("doll").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|x| Some((player(x.get(0)?.as_i64()?), x.get(1).and_then(|y| y.as_i64()).unwrap_or(32)))).collect();
-    let mcache: Vec<(i64, i64, i64)> = d.get("mcache").and_then(|v| v.as_array()).into_iter().flatten().filter_map(|x| Some((player(x.get(0)?.as_i64()?), x.get(1)?.as_i64().unwrap_or(0), x.get(2)?.as_i64().unwrap_or(0)))).collect();
+    let doll: Vec<(i64, i64)> = d
+        .get("doll")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|x| Some((player(x.get(0)?.as_i64()?), x.get(1).and_then(|y| y.as_i64()).unwrap_or(32))))
+        .collect();
+    let mcache: Vec<(i64, i64, i64)> = d
+        .get("mcache")
+        .and_then(|v| v.as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|x| Some((player(x.get(0)?.as_i64()?), x.get(1)?.as_i64().unwrap_or(0), x.get(2)?.as_i64().unwrap_or(0))))
+        .collect();
     let r = &gd.ranges;
     let drop = |id: i64| (gd.tile(id as u32, None).map_or(32, |t| t.h as i64) - 32).max(0) as i32;
     if fg >= r.main_max && !doll.is_empty() {

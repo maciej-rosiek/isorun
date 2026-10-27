@@ -257,7 +257,8 @@ pub fn paint_hand(p: &egui::Painter, rect: Rect, colour: Color32) {
     pts.push(gp(rect, 11.2, 20.5));
     for i in 1..=6 {
         let t = i as f32 / 6.0;
-        let (x, y) = ((1.0 - t) * (1.0 - t) * 11.2 + 2.0 * (1.0 - t) * t * 8.8 + t * t * 7.4, (1.0 - t) * (1.0 - t) * 20.5 + 2.0 * (1.0 - t) * t * 20.5 + t * t * 19.0);
+        let (x, y) =
+            ((1.0 - t) * (1.0 - t) * 11.2 + 2.0 * (1.0 - t) * t * 8.8 + t * t * 7.4, (1.0 - t) * (1.0 - t) * 20.5 + 2.0 * (1.0 - t) * t * 20.5 + t * t * 19.0);
         pts.push(gp(rect, x, y));
     }
     pts.push(gp(rect, 4.4, 15.5));
@@ -273,7 +274,12 @@ pub fn paint_stick(p: &egui::Painter, rect: Rect, colour: Color32, label: &str) 
     p.circle_filled(c, 11.0 * s, Color32::from_rgb(0x15, 0x17, 0x1c));
     p.circle_stroke(c, 6.5 * s, egui::Stroke::new(1.5 * s, fade(colour, 0.8)));
     let st = egui::Stroke::new(1.3 * s, fade(colour, 0.55));
-    for (a, b, d) in [((12.0, 1.5), (10.0, 3.5), (14.0, 3.5)), ((12.0, 22.5), (10.0, 20.5), (14.0, 20.5)), ((1.5, 12.0), (3.5, 10.0), (3.5, 14.0)), ((22.5, 12.0), (20.5, 10.0), (20.5, 14.0))] {
+    for (a, b, d) in [
+        ((12.0, 1.5), (10.0, 3.5), (14.0, 3.5)),
+        ((12.0, 22.5), (10.0, 20.5), (14.0, 20.5)),
+        ((1.5, 12.0), (3.5, 10.0), (3.5, 14.0)),
+        ((22.5, 12.0), (20.5, 10.0), (20.5, 14.0)),
+    ] {
         p.line_segment([gp(rect, a.0, a.1), gp(rect, b.0, b.1)], st);
         p.line_segment([gp(rect, a.0, a.1), gp(rect, d.0, d.1)], st);
     }

@@ -271,7 +271,10 @@ pub(crate) fn char_at(s: &str, byte: usize) -> usize {
 /// `pad_more_with`) or the end of the line; a switch with no label of its own keeps its key as one.
 pub fn parse_more_switches(text: &str) -> Vec<MoreSwitch> {
     let chars: Vec<char> = text.chars().collect();
-    let hits: Vec<(String, usize, usize)> = MORE_SWITCH_RE.captures_iter(text).map(|c| (c[1].to_string(), char_at(text, c.get(0).unwrap().start()), char_at(text, c.get(0).unwrap().end()))).collect();
+    let hits: Vec<(String, usize, usize)> = MORE_SWITCH_RE
+        .captures_iter(text)
+        .map(|c| (c[1].to_string(), char_at(text, c.get(0).unwrap().start()), char_at(text, c.get(0).unwrap().end())))
+        .collect();
     let mut out = Vec::new();
     for (i, (key, start, end)) in hits.iter().enumerate() {
         if more_switch_keycode(key) == 0 && key.chars().count() != 1 {
@@ -375,7 +378,18 @@ pub enum ScrollKey {
 /// Popup types whose text the official client scrolls itself (ui-layouts.js: every layout that
 /// calls `scroller_handle_key`). The rest (progress bar, seed selection, new game, message line)
 /// leave every key to the server.
-pub const SCROLLER_POPUPS: [&str; 10] = ["describe-generic", "describe-feature-wide", "describe-item", "describe-spell", "describe-cards", "describe-god", "describe-monster", "version", "game-over", "formatted-scroller"];
+pub const SCROLLER_POPUPS: [&str; 10] = [
+    "describe-generic",
+    "describe-feature-wide",
+    "describe-item",
+    "describe-spell",
+    "describe-cards",
+    "describe-god",
+    "describe-monster",
+    "version",
+    "game-over",
+    "formatted-scroller",
+];
 
 pub fn is_scroller(kind: &str) -> bool {
     SCROLLER_POPUPS.contains(&kind)
@@ -540,7 +554,14 @@ pub(crate) mod tests {
         assert_eq!(menu_key_intent(&plain, key(KeyName::NumpadSubtract)), Some(MenuNavKey::PageUp));
         assert_eq!(menu_key_intent(&arrows, NavKey { ctrl: true, ..key(KeyName::Down) }), None);
         assert_eq!(menu_key_intent(&arrows, NavKey { alt: true, ..key(KeyName::Down) }), None);
-        for (c, k) in [(' ', MenuNavKey::PageDown), ('+', MenuNavKey::PageDown), ('>', MenuNavKey::PageDown), ('-', MenuNavKey::PageUp), ('<', MenuNavKey::PageUp), (';', MenuNavKey::PageUp)] {
+        for (c, k) in [
+            (' ', MenuNavKey::PageDown),
+            ('+', MenuNavKey::PageDown),
+            ('>', MenuNavKey::PageDown),
+            ('-', MenuNavKey::PageUp),
+            ('<', MenuNavKey::PageUp),
+            (';', MenuNavKey::PageUp),
+        ] {
             assert_eq!(menu_key_intent(&plain, ch(c)), Some(k));
         }
         assert_eq!(menu_key_intent(&multi, ch(' ')), None);
@@ -558,7 +579,11 @@ pub(crate) mod tests {
         assert_eq!(menu_key_intent(&arrows, ch('a')), None);
         assert_eq!(menu_key_intent(&arrows, key(KeyName::Enter)), None);
         assert_eq!(menu_key_intent(&arrows, key(KeyName::Escape)), None);
-        let macro_ = MenuState { tag: "macro_mapping".into(), title_prompt: Some(isorun_webtiles::TitlePrompt { prompt: "Input trigger key:".into(), raw: true }), ..arrows.clone() };
+        let macro_ = MenuState {
+            tag: "macro_mapping".into(),
+            title_prompt: Some(isorun_webtiles::TitlePrompt { prompt: "Input trigger key:".into(), raw: true }),
+            ..arrows.clone()
+        };
         assert!(raw_arrow_keys(&macro_));
         assert_eq!(menu_key_intent(&macro_, key(KeyName::Down)), None);
         assert_eq!(menu_key_intent(&macro_, key(KeyName::PageDown)), None);
@@ -602,7 +627,10 @@ pub(crate) mod tests {
     fn more_switches() {
         let shop = "You have 100 gold pieces.\n[Esc] exit          [!] buy|examine items    a-c mark item for purchase   \n[/] sort (default)         [Enter] buy marked items   A-C put item on shopping list";
         let sw = parse_more_switches(shop);
-        assert_eq!(sw.iter().map(|s| format!("{}={}", s.key, s.label)).collect::<Vec<_>>(), ["Esc=exit", "!=buy|examine items", "/=sort (default)", "Enter=buy marked items"]);
+        assert_eq!(
+            sw.iter().map(|s| format!("{}={}", s.key, s.label)).collect::<Vec<_>>(),
+            ["Esc=exit", "!=buy|examine items", "/=sort (default)", "Enter=buy marked items"]
+        );
         let chars: Vec<char> = shop.chars().collect();
         assert_eq!(chars[sw[1].start..sw[1].end].iter().collect::<String>(), "[!] buy|examine items");
         assert!(parse_more_switches("[Up|Down] select  [ 42%]").is_empty());

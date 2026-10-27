@@ -7,7 +7,10 @@ use isorun_scene::{BillboardKind, ItemRarity, Scene};
 use isorun_webtiles::{formatted_string_to_text, GameMessage, GameState, Keys, Msgch};
 
 use crate::catalog::{Mood, SoundName};
-use crate::cues::{ambient_levels, cues_for_combat, heartbeat_delay, hearing, mood_for, sound_for_line, sound_for_use, use_kind_of_key, Cell, CombatEvent, Fighter, Heard, UseKind};
+use crate::cues::{
+    ambient_levels, cues_for_combat, hearing, heartbeat_delay, mood_for, sound_for_line, sound_for_use, use_kind_of_key, Cell, CombatEvent, Fighter, Heard,
+    UseKind,
+};
 use crate::engine::{AudioSettings, PlayOptions, SoundEngine};
 
 /// What a drawn frame showed (the fields of `IsoRenderer::take_events`' `FrameEvents`):
@@ -254,7 +257,8 @@ impl GameAudio {
 
     /// The message lines that arrived since the last ones.
     pub fn messages(&mut self, lines: &[GameMessage]) {
-        let texts: Vec<String> = lines.iter().filter(|l| l.channel != Some(Msgch::PROMPT)).map(|l| formatted_string_to_text(&l.text).trim().to_string()).collect();
+        let texts: Vec<String> =
+            lines.iter().filter(|l| l.channel != Some(Msgch::PROMPT)).map(|l| formatted_string_to_text(&l.text).trim().to_string()).collect();
         if texts.is_empty() {
             return;
         }

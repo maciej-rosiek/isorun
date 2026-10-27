@@ -208,7 +208,11 @@ impl Overlays {
         // a finger's field: taller, to hit
         let field_h = widgets::normal_line_height(font) + if touch { 17.0 } else { 7.0 };
         let button_h = if touch { (2.6 * screen.rem()).round() } else { 0.0 };
-        let width = if screen.compact() { screen.popup_max_w() } else { (head.size().x.max(field_w) + 2.0 * pad_x + 2.0).max(20.0 * screen.rem()).min(screen.popup_max_w()).ceil() };
+        let width = if screen.compact() {
+            screen.popup_max_w()
+        } else {
+            (head.size().x.max(field_w) + 2.0 * pad_x + 2.0).max(20.0 * screen.rem()).min(screen.popup_max_w()).ceil()
+        };
         if touch {
             field_w = width - 2.0 - 2.0 * pad_x;
         }
@@ -253,7 +257,10 @@ impl Overlays {
                 let pg = rich::galley(ui.ctx(), rich::plain(&preedit, &st.clone().colour(Color32::WHITE), 0.0));
                 let pp = Pos2::new(end, tp.y);
                 clip.galley(pp, pg.clone(), Color32::WHITE);
-                clip.line_segment([Pos2::new(pp.x, pp.y + pg.size().y), Pos2::new(pp.x + pg.size().x, pp.y + pg.size().y)], egui::Stroke::new(1.0, Color32::WHITE));
+                clip.line_segment(
+                    [Pos2::new(pp.x, pp.y + pg.size().y), Pos2::new(pp.x + pg.size().x, pp.y + pg.size().y)],
+                    egui::Stroke::new(1.0, Color32::WHITE),
+                );
                 end += pg.size().x;
             }
             caret = Rect::from_min_size(Pos2::new(end, tp.y + 1.0), Vec2::new(1.0, g.size().y - 2.0));
@@ -292,7 +299,8 @@ impl Overlays {
     /// agent's composing words) or a desktop IME. Plain typed characters come as keys, through the
     /// router, as before.
     fn ime_events(&mut self, ctx: &egui::Context, cx: &mut OverlayCx) {
-        let events: Vec<egui::ImeEvent> = ctx.input(|i| i.events.iter().filter_map(|e| if let egui::Event::Ime(ime) = e { Some(ime.clone()) } else { None }).collect());
+        let events: Vec<egui::ImeEvent> =
+            ctx.input(|i| i.events.iter().filter_map(|e| if let egui::Event::Ime(ime) = e { Some(ime.clone()) } else { None }).collect());
         if events.is_empty() {
             return;
         }

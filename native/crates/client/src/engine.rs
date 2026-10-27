@@ -104,7 +104,11 @@ impl Build {
     }
     pub fn label(&self) -> String {
         let s = self.slot();
-        if s == "trunk" { "DCSS trunk".into() } else { format!("DCSS {s}") }
+        if s == "trunk" {
+            "DCSS trunk".into()
+        } else {
+            format!("DCSS {s}")
+        }
     }
 }
 
@@ -305,7 +309,8 @@ impl OfflineServer {
         // process_handler.py handle_input: `input` goes to the terminal, which here is the
         // socket's text_input; every other message goes down the socket as it is
         if kind == "input" {
-            let mut text: String = msg.get("data").and_then(Value::as_array).map(|a| a.iter().filter_map(|b| b.as_u64()).map(|b| b as u8 as char).collect()).unwrap_or_default();
+            let mut text: String =
+                msg.get("data").and_then(Value::as_array).map(|a| a.iter().filter_map(|b| b.as_u64()).map(|b| b as u8 as char).collect()).unwrap_or_default();
             text.push_str(msg.get("text").and_then(Value::as_str).unwrap_or(""));
             if !text.is_empty() {
                 g.process.keys(&text);
@@ -341,7 +346,17 @@ impl OfflineServer {
                 // it goes out now (natively) or once it is fetched (the web), and the client loads
                 // it while the engine boots.
                 let ready = host::gamedata_ready(&b.version, self.wake.clone());
-                self.game = Some(Game { process, save_dir, partial: Vec::new(), queueing: false, pending: Vec::new(), exit_reason: None, stopping: None, held: None, mapped: false });
+                self.game = Some(Game {
+                    process,
+                    save_dir,
+                    partial: Vec::new(),
+                    queueing: false,
+                    pending: Vec::new(),
+                    exit_reason: None,
+                    stopping: None,
+                    held: None,
+                    mapped: false,
+                });
                 self.emit(json!({ "msg": "game_started" }));
                 if ready {
                     self.emit(json!({ "msg": "game_client", "version": b.version, "content": "" }));
@@ -425,7 +440,14 @@ impl OfflineServer {
         // the next report's clue: what of crawl's output held the frame
         let total = crate::platform::seconds() - started;
         if total >= 0.25 {
-            log::warn!("slow frame: crawl's output took {:.0} ms ({bytes} bytes in {:.0} ms, {count} lines, the slowest {} bytes in {:.0} ms: {})", total * 1000.0, (split - started) * 1000.0, slowest.1, slowest.0 * 1000.0, slowest.2);
+            log::warn!(
+                "slow frame: crawl's output took {:.0} ms ({bytes} bytes in {:.0} ms, {count} lines, the slowest {} bytes in {:.0} ms: {})",
+                total * 1000.0,
+                (split - started) * 1000.0,
+                slowest.1,
+                slowest.0 * 1000.0,
+                slowest.2
+            );
         }
         let Some(g) = &mut self.game else { return };
         let exited = g.process.exited();
@@ -463,7 +485,10 @@ impl OfflineServer {
                     }
                 }
                 "exit_reason" => {
-                    g.exit_reason = Some((m.get("type").and_then(Value::as_str).unwrap_or("unknown").to_string(), m.get("message").and_then(Value::as_str).map(str::to_string)));
+                    g.exit_reason = Some((
+                        m.get("type").and_then(Value::as_str).unwrap_or("unknown").to_string(),
+                        m.get("message").and_then(Value::as_str).map(str::to_string),
+                    ));
                 }
                 "milestone" => host::note_save(&g.save_dir, &m),
                 // a stop's save is done: the web's engine is terminated with its game saved
@@ -550,7 +575,20 @@ fn split_lines(partial: &mut Vec<u8>, chunk: &[u8], lines: &mut Vec<String>) {
 /// What crawl itself says, held back until the client has its gamedata; the lobby's own
 /// messages are not.
 fn is_game_output(m: &Value) -> bool {
-    !matches!(m.get("msg").and_then(Value::as_str), Some("game_started" | "game_client" | "game_ended" | "go_lobby" | "set_game_links" | "login_success" | "login_cookie" | "rcfile_contents" | "register_fail"))
+    !matches!(
+        m.get("msg").and_then(Value::as_str),
+        Some(
+            "game_started"
+                | "game_client"
+                | "game_ended"
+                | "go_lobby"
+                | "set_game_links"
+                | "login_success"
+                | "login_cookie"
+                | "rcfile_contents"
+                | "register_fail"
+        )
+    )
 }
 
 impl Transport for OfflineServer {
@@ -696,7 +734,12 @@ mod native {
         let version = info.get("gamedata").or(info.get("commit"))?.as_str()?.to_string();
         let crawl = crawl_binary(dir);
         let gamedata = dir.join("gamedata").join(&version);
-        (crawl.exists() && gamedata.exists()).then(|| Install { dir: dir.to_path_buf(), crawl, gamedata, build: Build { crawl_version: info.get("version").and_then(Value::as_str).unwrap_or(&version).to_string(), version } })
+        (crawl.exists() && gamedata.exists()).then(|| Install {
+            dir: dir.to_path_buf(),
+            crawl,
+            gamedata,
+            build: Build { crawl_version: info.get("version").and_then(Value::as_str).unwrap_or(&version).to_string(), version },
+        })
     }
 
     /// Where an install's binary is. Android runs no file from the app's data (its folder is
@@ -736,7 +779,8 @@ mod native {
             return None;
         }
         let commit = std::fs::read_to_string(engine.join(".work/stable.commit")).ok()?.trim().to_string();
-        let info: Value = std::fs::read_to_string(engine.join("dist/stable/engine.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
+        let info: Value =
+            std::fs::read_to_string(engine.join("dist/stable/engine.json")).ok().and_then(|t| serde_json::from_str(&t).ok()).unwrap_or(Value::Null);
         let crawl_version = info.get("version").and_then(Value::as_str).unwrap_or("0.34").to_string();
         Some(Install { dir: source.clone(), crawl, gamedata: source.join("webserver/game_data/static"), build: Build { version: commit, crawl_version } })
     }
@@ -1128,7 +1172,8 @@ mod native {
                 #[cfg(not(any(target_os = "linux", target_os = "android")))]
                 unreachable!()
             } else {
-                let socket = std::os::unix::net::UnixDatagram::bind(run_dir.join("srv.sock")).map_err(|e| format!("socket {}: {e}", run_dir.join("srv.sock").display()))?;
+                let socket = std::os::unix::net::UnixDatagram::bind(run_dir.join("srv.sock"))
+                    .map_err(|e| format!("socket {}: {e}", run_dir.join("srv.sock").display()))?;
                 (socket, Peer::Path(crawl_sock.clone()), crawl_sock.display().to_string())
             };
             let _ = socket.set_write_timeout(Some(Duration::from_secs(2)));
@@ -1261,7 +1306,14 @@ mod web {
         fn js_note_save(dir: &str, fields: &str) -> Result<(), JsValue>;
         /// Start crawl in a worker: `{control(json), keys(text), terminate(), retire()}`.
         #[wasm_bindgen(catch, js_namespace = isorunEngine, js_name = launch)]
-        fn js_launch(save_dir: &str, args: &str, rc: &str, on_output: &js_sys::Function, on_exit: &js_sys::Function, on_error: &js_sys::Function) -> Result<JsValue, JsValue>;
+        fn js_launch(
+            save_dir: &str,
+            args: &str,
+            rc: &str,
+            on_output: &js_sys::Function,
+            on_exit: &js_sys::Function,
+            on_error: &js_sys::Function,
+        ) -> Result<JsValue, JsValue>;
     }
 
     struct Channel {
@@ -1322,7 +1374,11 @@ mod web {
     /// The profile's save folder (channels.ts `profileSaveDir`).
     fn profile_save_dir(c: &Channel, user: &str) -> String {
         let p = user.to_lowercase();
-        if p == crate::servers::DEFAULT_PROFILE.to_lowercase() { c.save_dir.clone() } else { format!("{}~{p}", c.save_dir) }
+        if p == crate::servers::DEFAULT_PROFILE.to_lowercase() {
+            c.save_dir.clone()
+        } else {
+            format!("{}~{p}", c.save_dir)
+        }
     }
 
     pub(super) fn save_info(_b: &Build, user: &str, reply: SaveReply) {
@@ -1467,12 +1523,15 @@ mod web {
         let on_error = Closure::<dyn FnMut(JsValue)>::new(move |message: JsValue| {
             let mut i = i.borrow_mut();
             i.output.push_back(Output::Error(format!("offline engine: {}", message.as_string().unwrap_or_default())));
-            i.output.push_back(Output::Bytes(format!("*{}\n", json!({ "msg": "exit_reason", "type": "error", "message": message.as_string().unwrap_or_default() })).into_bytes()));
+            i.output.push_back(Output::Bytes(
+                format!("*{}\n", json!({ "msg": "exit_reason", "type": "error", "message": message.as_string().unwrap_or_default() })).into_bytes(),
+            ));
             i.exit = Some(-1);
             w();
         });
         let args = serde_json::to_string(&args).unwrap_or_default();
-        let handle = js_launch(&save_dir, &args, rc, on_output.as_ref().unchecked_ref(), on_exit.as_ref().unchecked_ref(), on_error.as_ref().unchecked_ref()).map_err(|e| format!("{e:?}"))?;
+        let handle = js_launch(&save_dir, &args, rc, on_output.as_ref().unchecked_ref(), on_exit.as_ref().unchecked_ref(), on_error.as_ref().unchecked_ref())
+            .map_err(|e| format!("{e:?}"))?;
         Ok((Box::new(Worker { handle, inbox, _callbacks: [on_output, on_exit, on_error] }), save_dir))
     }
 }

@@ -1670,12 +1670,7 @@ fn reduce_message(state: &mut GameState, m: &Obj) {
             state.rev.chat += 1;
         }
         "chat" => {
-            let line = ChatLine {
-                sender: str_or(m.get("sender"), ""),
-                html: str_or(m.get("content"), ""),
-                meta: truthy_opt(m.get("meta")),
-                automated: false,
-            };
+            let line = ChatLine { sender: str_or(m.get("sender"), ""), html: str_or(m.get("content"), ""), meta: truthy_opt(m.get("meta")), automated: false };
             push_chat(state, line);
         }
         "server_announcement" => {
@@ -2077,12 +2072,7 @@ fn reduce_msgs(state: &mut GameState, m: &Obj) {
                     None | Some(Value::Null) => String::new(),
                     Some(v) => js_string(v),
                 };
-                state.messages.lines.push(GameMessage {
-                    text: text.clone(),
-                    turn: int(lo.get("turn")),
-                    channel: int(lo.get("channel")),
-                    marker: None,
-                });
+                state.messages.lines.push(GameMessage { text: text.clone(), turn: int(lo.get("turn")), channel: int(lo.get("channel")), marker: None });
                 note_floor_items(state, &text, num(lo.get("turn")), lo.get("channel").and_then(Value::as_f64));
             }
         }

@@ -46,7 +46,8 @@ pub fn paint_row(painter: &Painter, row: &Row, at: Pos2, cw: f32, ch: f32, font:
                         BarPaint::Term(i) => term(*i as i64),
                         BarPaint::Track => bar_track(),
                     };
-                    let r = Rect::from_min_max(egui::pos2(rect.left() + rect.width() * a, rect.top()), egui::pos2(rect.left() + rect.width() * b, rect.bottom()));
+                    let r =
+                        Rect::from_min_max(egui::pos2(rect.left() + rect.width() * a, rect.top()), egui::pos2(rect.left() + rect.width() * b, rect.bottom()));
                     painter.rect_filled(r, 0.0, c.to_color32());
                 }
             }

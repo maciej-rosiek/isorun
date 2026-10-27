@@ -139,67 +139,82 @@ fn main() -> eframe::Result {
         d.gestures.view = game.view.rect;
         let mut host = Host { view: &mut game.view, scene: scene.clone(), raw: Vec::new(), status: None };
         {
-        let env = Env { state: st, scene: &scene, ctx: &ctx, camera: &mut game.camera, now, watching: game.session.watching(), confirm_dangerous: settings.confirm_stairs };
-        let mut io = Io { runner: &mut d.runner, env, host: &mut host };
+            let env = Env {
+                state: st,
+                scene: &scene,
+                ctx: &ctx,
+                camera: &mut game.camera,
+                now,
+                watching: game.session.watching(),
+                confirm_dangerous: settings.confirm_stairs,
+            };
+            let mut io = Io { runner: &mut d.runner, env, host: &mut host };
 
-        // the server moved on: a sequence waiting on it may go on; the map moved: a door closed
-        if st.rev.any != d.state_rev {
-            d.state_rev = st.rev.any;
-            d.router.server_state(&mut io);
-        }
-        if scene.revision != d.scene_rev {
-            d.scene_rev = scene.revision;
-            io.runner.on_scene();
-            d.router.refresh_aim(&mut io);
-        }
-        d.router.tick(&mut io);
-
-        // the keys
-        for k in key_inputs(&events, modifiers) {
-            if pad_key_input(&mut d.pad, &k, now) {
-                continue;
+            // the server moved on: a sequence waiting on it may go on; the map moved: a door closed
+            if st.rev.any != d.state_rev {
+                d.state_rev = st.rev.any;
+                d.router.server_state(&mut io);
             }
-            match k {
-                KeyInput::Down { key, repeat } => {
-                    d.router.key_down(&key, repeat, &mut io);
+            if scene.revision != d.scene_rev {
+                d.scene_rev = scene.revision;
+                io.runner.on_scene();
+                d.router.refresh_aim(&mut io);
+            }
+            d.router.tick(&mut io);
+
+            // the keys
+            for k in key_inputs(&events, modifiers) {
+                if pad_key_input(&mut d.pad, &k, now) {
+                    continue;
                 }
-                KeyInput::Up { key } => d.router.key_up(&key, &mut io),
+                match k {
+                    KeyInput::Down { key, repeat } => {
+                        d.router.key_down(&key, repeat, &mut io);
+                    }
+                    KeyInput::Up { key } => d.router.key_up(&key, &mut io),
+                }
             }
-        }
-        if isorun_input::back_button::back_pressed(&events) {
-            d.router.back(&mut io);
-        }
-
-        // the pad: a script, gilrs, and the keyboard's stand-ins
-        if let Some(script) = d.script.as_mut() {
-            script.now = now;
-            let pads = script.pads();
-            d.pad.poll(script.clock().unwrap_or(now).min(now), &pads);
-        }
-        #[cfg(feature = "gilrs")]
-        if d.script.is_none() {
-            if let Some(g) = d.gilrs.as_mut() {
-                d.pad.poll_source(now, g);
+            if isorun_input::back_button::back_pressed(&events) {
+                d.router.back(&mut io);
             }
-        }
-        for ev in d.pad.take_events() {
-            log::info!("pad {ev:?}");
-            d.router.pad(&ev, &mut io);
-        }
 
-        // the pointer and the fingers
-        for g in d.gestures.feed(&events, now) {
-            d.router.gesture(&g, &mut io);
-        }
+            // the pad: a script, gilrs, and the keyboard's stand-ins
+            if let Some(script) = d.script.as_mut() {
+                script.now = now;
+                let pads = script.pads();
+                d.pad.poll(script.clock().unwrap_or(now).min(now), &pads);
+            }
+            #[cfg(feature = "gilrs")]
+            if d.script.is_none() {
+                if let Some(g) = d.gilrs.as_mut() {
+                    d.pad.poll_source(now, g);
+                }
+            }
+            for ev in d.pad.take_events() {
+                log::info!("pad {ev:?}");
+                d.router.pad(&ev, &mut io);
+            }
 
-        let pad = &d.pad;
-        d.pad.right_stick_turns = d.router.frame(&mut io, &|b| pad.is_held(b), dt);
+            // the pointer and the fingers
+            for g in d.gestures.feed(&events, now) {
+                d.router.gesture(&g, &mut io);
+            }
 
+            let pad = &d.pad;
+            d.pad.right_stick_turns = d.router.frame(&mut io, &|b| pad.is_held(b), dt);
         }
         // what the screen asked for in crawl's raw keys
         let raw = std::mem::take(&mut host.raw);
         let status = host.status.take();
-        let mut env = Env { state: st, scene: &scene, ctx: &ctx, camera: &mut game.camera, now, watching: game.session.watching(), confirm_dangerous: settings.confirm_stairs };
+        let mut env = Env {
+            state: st,
+            scene: &scene,
+            ctx: &ctx,
+            camera: &mut game.camera,
+            now,
+            watching: game.session.watching(),
+            confirm_dangerous: settings.confirm_stairs,
+        };
         for m in raw {
             d.runner.send(m, &mut env);
         }
@@ -220,7 +235,14 @@ fn main() -> eframe::Result {
         let painter = ui.painter();
         let font = egui::FontId::monospace(12.0);
         let mut y = 24.0;
-        let mode = format!("mode {:?} · facing {} · heading {} · aim {:?}{}", ctx.mode, game.camera.facing(), d.runner.heading, d.router.aim_dir, status.map(|s| format!(" · {s}")).unwrap_or_default());
+        let mode = format!(
+            "mode {:?} · facing {} · heading {} · aim {:?}{}",
+            ctx.mode,
+            game.camera.facing(),
+            d.runner.heading,
+            d.router.aim_dir,
+            status.map(|s| format!(" · {s}")).unwrap_or_default()
+        );
         painter.text(egui::pos2(8.0, y), egui::Align2::LEFT_TOP, mode, font.clone(), egui::Color32::from_rgb(0xff, 0xd4, 0x5c));
         y += 16.0;
         for l in &d.log {
@@ -228,8 +250,15 @@ fn main() -> eframe::Result {
             y += 14.0;
         }
         if ctx.mode != Mode::Lobby {
-            let prompts: Vec<String> = prompt_labels(&ctx).iter().map(|l| format!("{} {}", l.button.name(), isorun_webtiles::formatted_string_to_text(&l.label))).collect();
-            painter.text(egui::pos2(8.0, ui.max_rect().bottom() - 20.0), egui::Align2::LEFT_TOP, prompts.join("   "), font, egui::Color32::from_rgb(0xe8, 0xc9, 0x8a));
+            let prompts: Vec<String> =
+                prompt_labels(&ctx).iter().map(|l| format!("{} {}", l.button.name(), isorun_webtiles::formatted_string_to_text(&l.label))).collect();
+            painter.text(
+                egui::pos2(8.0, ui.max_rect().bottom() - 20.0),
+                egui::Align2::LEFT_TOP,
+                prompts.join("   "),
+                font,
+                egui::Color32::from_rgb(0xe8, 0xc9, 0x8a),
+            );
         }
         true
     })

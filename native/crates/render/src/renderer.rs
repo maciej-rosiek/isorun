@@ -16,7 +16,10 @@ use crate::memory::MemoryMask;
 use crate::mesh::{GpuMesh, Point3, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::mipmap::Mipmapper;
 use crate::pages::{page_bind_group, Pages};
-use crate::plan::{aim_colour, cut_away_cells, cut_away_focus, ground_basis, ground_point, has_torch, is_pointable, is_shown, plan_scene, side, tile_frame, wall_height_at, GroundLayer, IsoAim, IsoRoute, IsoView, Side, Sprite, SpriteLayer, WallBlock, DEFAULT_VIEW, TORCH_HEIGHT};
+use crate::plan::{
+    aim_colour, cut_away_cells, cut_away_focus, ground_basis, ground_point, has_torch, is_pointable, is_shown, plan_scene, side, tile_frame, wall_height_at,
+    GroundLayer, IsoAim, IsoRoute, IsoView, Side, Sprite, SpriteLayer, WallBlock, DEFAULT_VIEW, TORCH_HEIGHT,
+};
 use crate::post::{Post, PostFrame};
 use crate::shadows::{cube_face_view, Shadows, SUN_DISTANCE, SUN_REACH};
 use crate::steps::StepLayer;
@@ -330,7 +333,12 @@ impl IsoRenderer {
         let post = Post::new(&gpu);
         let memory = MemoryMask::new(&gpu);
         let shadows = Shadows::new(&gpu, 0);
-        let frame_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("frame"), size: std::mem::size_of::<FrameUniform>() as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let frame_buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("frame"),
+            size: std::mem::size_of::<FrameUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let noise = crate::fog::noise_texture(&gpu);
         let torch_light = TorchLightMap::new(&gpu);
         let frame_group = Self::frame_group(&gpu, &frame_buffer, &shadows, &memory, &noise, &torch_light);
@@ -430,7 +438,14 @@ impl IsoRenderer {
         r
     }
 
-    fn frame_group(gpu: &Gpu, buffer: &wgpu::Buffer, shadows: &Shadows, memory: &MemoryMask, noise: &wgpu::Texture, torch_light: &TorchLightMap) -> wgpu::BindGroup {
+    fn frame_group(
+        gpu: &Gpu,
+        buffer: &wgpu::Buffer,
+        shadows: &Shadows,
+        memory: &MemoryMask,
+        noise: &wgpu::Texture,
+        torch_light: &TorchLightMap,
+    ) -> wgpu::BindGroup {
         let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frame"),
@@ -461,7 +476,8 @@ impl IsoRenderer {
     /// The wall torch model (a glTF binary); until it is set, the walls carry no torches.
     pub fn set_torch_model(&mut self, glb: &[u8]) -> Result<(), String> {
         let model = TorchModel::load(&self.gpu, glb)?;
-        self.torch_group = Some(page_bind_group(&self.gpu.device, &self.gpu.page_layout, &self.gpu.page_sampler, &model.texture, &model.texture, &model.texture));
+        self.torch_group =
+            Some(page_bind_group(&self.gpu.device, &self.gpu.page_layout, &self.gpu.page_sampler, &model.texture, &model.texture, &model.texture));
         self.torch_model = Some(Arc::new(model));
         self.invalidate();
         Ok(())
@@ -789,7 +805,9 @@ impl IsoRenderer {
     }
 
     fn ground_tile(&self, scene: &Scene, g: &GroundLayer) -> TileId {
-        let drawn = scene.cell(g.x, g.y).and_then(|c| c.liquid).is_some_and(|l| !FILMS.contains(&l.kind) && if l.kind == isorun_scene::LiquidKind::Lava { self.lights.lava.enabled } else { self.lights.water.enabled });
+        let drawn = scene.cell(g.x, g.y).and_then(|c| c.liquid).is_some_and(|l| {
+            !FILMS.contains(&l.kind) && if l.kind == isorun_scene::LiquidKind::Lava { self.lights.lava.enabled } else { self.lights.water.enabled }
+        });
         if g.lift == 0 && drawn {
             shore_floor(scene, g.x, g.y).unwrap_or(g.tile)
         } else {
@@ -953,8 +971,55 @@ pub fn seeded(seed: u32) -> impl FnMut() -> f32 {
 }
 
 #[allow(dead_code)]
-fn unused(_: Point3, _: &QuadBatch, _: f32, _: f32, _: &[Sprite], _: &[SpriteLayer], _: &[WallBlock], _: Side, _: Vec4, _: &[LightUniform; MAX_LIGHTS], _: [i32; 8], _: [i32; 8], _: ImpactKind) {
+fn unused(
+    _: Point3,
+    _: &QuadBatch,
+    _: f32,
+    _: f32,
+    _: &[Sprite],
+    _: &[SpriteLayer],
+    _: &[WallBlock],
+    _: Side,
+    _: Vec4,
+    _: &[LightUniform; MAX_LIGHTS],
+    _: [i32; 8],
+    _: [i32; 8],
+    _: ImpactKind,
+) {
     let _ = (ATLAS_INSET, SPRITE_LEAN, ROUTE_STEPS, AIM_LIFT, DEPTH_FORMAT, DIR8_DX, DIR8_DY);
-    let _ = (aim_colour, cut_away_cells, ground_basis, has_torch, plan_scene, side, tile_frame, wall_height_at, key_to_xy, is_tile_feature, linear, cube_face_view, smoothstep);
-    let _ = (SUN_DISTANCE, SUN_ELEVATION, SUN_FRONT, CAMERA_DISTANCE, PERSPECTIVE_DEPTH, CAP_SHADE, BEHIND_ACTORS, PILE_COPIES, PILE_SCALE, PILE_SHADE, DANGER_PULSE, DANGER_PULSE_SPEED, TORCH_HEIGHT, SUN_BIAS, TORCH_BIAS, NORMAL_BIAS, LIFT_STEP, EVERYWHERE);
+    let _ = (
+        aim_colour,
+        cut_away_cells,
+        ground_basis,
+        has_torch,
+        plan_scene,
+        side,
+        tile_frame,
+        wall_height_at,
+        key_to_xy,
+        is_tile_feature,
+        linear,
+        cube_face_view,
+        smoothstep,
+    );
+    let _ = (
+        SUN_DISTANCE,
+        SUN_ELEVATION,
+        SUN_FRONT,
+        CAMERA_DISTANCE,
+        PERSPECTIVE_DEPTH,
+        CAP_SHADE,
+        BEHIND_ACTORS,
+        PILE_COPIES,
+        PILE_SCALE,
+        PILE_SHADE,
+        DANGER_PULSE,
+        DANGER_PULSE_SPEED,
+        TORCH_HEIGHT,
+        SUN_BIAS,
+        TORCH_BIAS,
+        NORMAL_BIAS,
+        LIFT_STEP,
+        EVERYWHERE,
+    );
 }

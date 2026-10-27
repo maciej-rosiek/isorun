@@ -70,7 +70,16 @@ impl TileFeatures {
     }
 
     pub fn new() -> Self {
-        TileFeatures { doors: HashMap::new(), ground: HashMap::new(), meshes: Vec::new(), leaf: None, built_key: 0, built_pages: 0, glowing: false, doors_changed: Vec::new() }
+        TileFeatures {
+            doors: HashMap::new(),
+            ground: HashMap::new(),
+            meshes: Vec::new(),
+            leaf: None,
+            built_key: 0,
+            built_pages: 0,
+            glowing: false,
+            doors_changed: Vec::new(),
+        }
     }
 
     pub fn invalidate(&mut self) {
@@ -127,7 +136,8 @@ impl TileFeatures {
             }
         }
         self.glowing = glowing;
-        let mut meshes: Vec<(u32, Arc<GpuMesh>)> = batches.into_iter().filter(|(_, b)| !b.is_empty()).map(|(p, b)| (p, Arc::new(GpuMesh::from_batch(&gpu.device, &b)))).collect();
+        let mut meshes: Vec<(u32, Arc<GpuMesh>)> =
+            batches.into_iter().filter(|(_, b)| !b.is_empty()).map(|(p, b)| (p, Arc::new(GpuMesh::from_batch(&gpu.device, &b)))).collect();
         meshes.sort_by_key(|m| m.0);
         self.meshes = meshes;
         // the leaf: a box from the hinge across the doorway, a little shorter than the wall
@@ -172,7 +182,13 @@ impl TileFeatures {
 
     pub fn draws(&self, out: &mut Vec<DrawItem>) {
         for (page, mesh) in &self.meshes {
-            out.push(DrawItem { material: Material::Ground, page: PageRef::Page(*page), mesh: mesh.clone(), uniform: DrawUniform::plain(true), cast: Cast::Static });
+            out.push(DrawItem {
+                material: Material::Ground,
+                page: PageRef::Page(*page),
+                mesh: mesh.clone(),
+                uniform: DrawUniform::plain(true),
+                cast: Cast::Static,
+            });
         }
         let Some(leaf) = &self.leaf else { return };
         let mut doors: Vec<&Door> = self.doors.values().collect();
@@ -186,7 +202,16 @@ impl TileFeatures {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn add_door(&mut self, scene: &Scene, cell: &SceneCell, pages: &mut Pages, boxer: &mut dyn FnMut(&mut Pages, TileId, Point3, Point3, f32, &[BoxSide]), wall_height: f32, state: DoorState, previous: Option<(f32, f32)>) {
+    fn add_door(
+        &mut self,
+        scene: &Scene,
+        cell: &SceneCell,
+        pages: &mut Pages,
+        boxer: &mut dyn FnMut(&mut Pages, TileId, Point3, Point3, f32, &[BoxSide]),
+        wall_height: f32,
+        state: DoorState,
+        previous: Option<(f32, f32)>,
+    ) {
         let (x, y) = (cell.x, cell.y);
         let (xf, yf) = (x as f32, y as f32);
         let west = scene.cell(x - 1, y);
@@ -238,11 +263,23 @@ impl TileFeatures {
     }
 
     /// Stairs run away from the camera: down into the screen, or up into it.
-    fn add_stairs(&mut self, scene: &Scene, cell: &SceneCell, pages: &mut Pages, boxer: &mut dyn FnMut(&mut Pages, TileId, Point3, Point3, f32, &[BoxSide]), dir: UpDown, forward: [f32; 2]) {
+    fn add_stairs(
+        &mut self,
+        scene: &Scene,
+        cell: &SceneCell,
+        pages: &mut Pages,
+        boxer: &mut dyn FnMut(&mut Pages, TileId, Point3, Point3, f32, &[BoxSide]),
+        dir: UpDown,
+        forward: [f32; 2],
+    ) {
         let (x, y) = (cell.x, cell.y);
         let away = away_from(forward);
         let (fx, fy) = (DIR8_DX[away] as f32, DIR8_DY[away] as f32);
-        let stone = [0usize, 2, 4, 6].iter().find_map(|&d| scene.cell(x + DIR8_DX[d], y + DIR8_DY[d]).and_then(|c| c.wall_tile)).or(scene.level.ceiling_tile).unwrap_or(cell.floor_tile);
+        let stone = [0usize, 2, 4, 6]
+            .iter()
+            .find_map(|&d| scene.cell(x + DIR8_DX[d], y + DIR8_DY[d]).and_then(|c| c.wall_tile))
+            .or(scene.level.ceiling_tile)
+            .unwrap_or(cell.floor_tile);
         // a box in the stairs' own frame: u runs toward the wall the stairs face, v across, both 0..1
         let local = |u0: f32, u1: f32, v0: f32, v1: f32, y0: f32, y1: f32| -> (Point3, Point3) {
             let at = |u: f32, v: f32| (x as f32 + 0.5 + fx * (u - 0.5) - fy * (v - 0.5), y as f32 + 0.5 + fy * (u - 0.5) + fx * (v - 0.5));

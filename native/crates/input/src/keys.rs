@@ -531,12 +531,26 @@ pub fn key_inputs(events: &[egui::Event], modifiers: egui::Modifiers) -> Vec<Key
                     }
                 }
                 for c in t.chars() {
-                    let like = KeyLike { key: c.to_string(), code: String::new(), ctrl: false, shift: modifiers.shift, alt: modifiers.alt, meta: false, key_code: Some(PROCESS_KEY_CODE) };
+                    let like = KeyLike {
+                        key: c.to_string(),
+                        code: String::new(),
+                        ctrl: false,
+                        shift: modifiers.shift,
+                        alt: modifiers.alt,
+                        meta: false,
+                        key_code: Some(PROCESS_KEY_CODE),
+                    };
                     out.push(KeyInput::Down { key: like, repeat: false });
                 }
             }
-            egui::Event::Copy => out.push(KeyInput::Down { key: KeyLike { key: "c".into(), code: "KeyC".into(), ctrl: true, key_code: Some(67), ..Default::default() }, repeat: false }),
-            egui::Event::Cut => out.push(KeyInput::Down { key: KeyLike { key: "x".into(), code: "KeyX".into(), ctrl: true, key_code: Some(88), ..Default::default() }, repeat: false }),
+            egui::Event::Copy => out.push(KeyInput::Down {
+                key: KeyLike { key: "c".into(), code: "KeyC".into(), ctrl: true, key_code: Some(67), ..Default::default() },
+                repeat: false,
+            }),
+            egui::Event::Cut => out.push(KeyInput::Down {
+                key: KeyLike { key: "x".into(), code: "KeyX".into(), ctrl: true, key_code: Some(88), ..Default::default() },
+                repeat: false,
+            }),
             _ => {}
         }
         i += 1;

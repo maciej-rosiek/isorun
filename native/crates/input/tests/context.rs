@@ -170,7 +170,10 @@ fn on_stairs_a_offers_a_chooser() {
 fn names_a_listed_pile_as_the_server_did_and_takes_items_ahead_without_a_name() {
     let mut st = playing();
     let mut scene = scene_with(None);
-    msgs(&mut st, &[("<lightgrey>Things that are here:", 100, Msgch::FLOOR_ITEMS), ("<lightgrey>a +0 mace; <green>a +2 robe of positive energy<lightgrey>", 100, 0)]);
+    msgs(
+        &mut st,
+        &[("<lightgrey>Things that are here:", 100, Msgch::FLOOR_ITEMS), ("<lightgrey>a +0 mace; <green>a +2 robe of positive energy<lightgrey>", 100, 0)],
+    );
     assert_eq!(under(&st, &scene), "<lightgrey>a +0 mace; <green>a +2 robe of positive energy<lightgrey>");
     msgs(&mut st, &[("There are many items here.", 100, Msgch::FLOOR_ITEMS)]);
     assert_eq!(under(&st, &scene), "many items");
@@ -229,7 +232,12 @@ fn up(m: MenuState) -> Context {
 
 #[test]
 fn xs_actions_are_crawls_cast_list_abilities_evoke_and_quiver_menus() {
-    let menus = [cast(), menu("ability", "  Ability - do what?                  Cost                            Failure"), menu("use_item", "Evoke which item?"), menu("actions", "Quiver which action? ([-] to clear)")];
+    let menus = [
+        cast(),
+        menu("ability", "  Ability - do what?                  Cost                            Failure"),
+        menu("use_item", "Evoke which item?"),
+        menu("actions", "Quiver which action? ([-] to clear)"),
+    ];
     let tabs: Vec<_> = menus.iter().map(action_tab_of).collect();
     assert_eq!(tabs, vec![Some(ActionTabId::Spells), Some(ActionTabId::Abilities), Some(ActionTabId::Evocables), Some(ActionTabId::Quiver)]);
     assert_eq!(action_tab_of(&menu("spell", "Your spells (describe)")), None);

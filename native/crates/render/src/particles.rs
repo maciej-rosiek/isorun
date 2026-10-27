@@ -33,7 +33,11 @@ impl ParticleShared {
         ParticleShared {
             module: shader(gpu, "particles", include_str!("shaders/particles.wgsl")),
             layout: uniform_layout(gpu, 16),
-            corners: gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("corners"), contents: bytemuck::cast_slice(&CORNERS), usage: wgpu::BufferUsages::VERTEX }),
+            corners: gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("corners"),
+                contents: bytemuck::cast_slice(&CORNERS),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
         }
     }
 }
@@ -52,17 +56,48 @@ pub struct ParticleBatch {
 
 impl ParticleBatch {
     pub fn new(gpu: &Gpu, shared: &ParticleShared, fs: &'static str, blend: Blend, depth_write: bool) -> Self {
-        let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("particles"), size: 16, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("particles"),
+            size: 16,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let group = uniform_group(gpu, &shared.layout, &uniform);
-        ParticleBatch { fs, blend, depth_write, uniform, group, instances: DynamicBuffer::new(gpu, "particle instances", wgpu::BufferUsages::VERTEX, 4096), count: 0, pipeline: None }
+        ParticleBatch {
+            fs,
+            blend,
+            depth_write,
+            uniform,
+            group,
+            instances: DynamicBuffer::new(gpu, "particle instances", wgpu::BufferUsages::VERTEX, 4096),
+            count: 0,
+            pipeline: None,
+        }
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, shared: &ParticleShared, samples: u32) {
         let buffers = [
             wgpu::VertexBufferLayout { array_stride: 8, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x2] },
-            wgpu::VertexBufferLayout { array_stride: 80, step_mode: wgpu::VertexStepMode::Instance, attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4] },
+            wgpu::VertexBufferLayout {
+                array_stride: 80,
+                step_mode: wgpu::VertexStepMode::Instance,
+                attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4],
+            },
         ];
-        self.pipeline = Some(layer_pipeline(gpu, self.fs, &shared.module, "vs_particle", self.fs, &buffers, &[&shared.layout], self.blend, self.depth_write, samples, self.blend != Blend::Opaque, Default::default()));
+        self.pipeline = Some(layer_pipeline(
+            gpu,
+            self.fs,
+            &shared.module,
+            "vs_particle",
+            self.fs,
+            &buffers,
+            &[&shared.layout],
+            self.blend,
+            self.depth_write,
+            samples,
+            self.blend != Blend::Opaque,
+            Default::default(),
+        ));
     }
 
     /// The colour, `0xrrggbb` in sRGB, times `k`.

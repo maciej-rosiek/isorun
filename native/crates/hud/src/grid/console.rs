@@ -70,7 +70,10 @@ pub fn fit(width: f32, height: f32, font_px: f32, advance: f32) -> Grid {
 impl Grid {
     /// a rectangle of cells in points, relative to the grid's host
     pub fn rect(&self, r: CellRect) -> egui::Rect {
-        egui::Rect::from_min_size(egui::pos2(self.ox + r.x as f32 * self.cw, self.oy + r.y as f32 * self.ch), egui::vec2(r.w as f32 * self.cw, r.h as f32 * self.ch))
+        egui::Rect::from_min_size(
+            egui::pos2(self.ox + r.x as f32 * self.cw, self.oy + r.y as f32 * self.ch),
+            egui::vec2(r.w as f32 * self.cw, r.h as f32 * self.ch),
+        )
     }
 }
 

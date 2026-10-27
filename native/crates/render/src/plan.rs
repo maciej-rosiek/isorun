@@ -226,7 +226,15 @@ pub fn is_shown(b: &Billboard, scene: &Scene) -> bool {
 
 /// Everything drawn, in world space; with `within`, only on the cells it takes, and with
 /// `sprites_only`, only what stands.
-pub fn plan_scene(scene: &Scene, yaw: f32, elevation: f32, view: &IsoView, focus: &[(i32, i32)], within: &dyn Fn(i32, i32) -> bool, sprites_only: bool) -> IsoPlan {
+pub fn plan_scene(
+    scene: &Scene,
+    yaw: f32,
+    elevation: f32,
+    view: &IsoView,
+    focus: &[(i32, i32)],
+    within: &dyn Fn(i32, i32) -> bool,
+    sprites_only: bool,
+) -> IsoPlan {
     let mut plan = IsoPlan::default();
     for cell in scene.cells.values() {
         if cell.visibility == Visibility::Unseen || !within(cell.x, cell.y) {
@@ -235,7 +243,14 @@ pub fn plan_scene(scene: &Scene, yaw: f32, elevation: f32, view: &IsoView, focus
         let upright = cell.feature_tile.filter(|_| cell.stance == Some(isorun_scene::Stance::Upright));
         if sprites_only {
             if let (false, Some(t)) = (cell.occluder, upright) {
-                plan.sprites.push(Sprite { billboard: None, x: cell.x, y: cell.y, layers: vec![SpriteLayer { tile: t, ox: 0.0, oy: 0.0, ymax: None }], lying: false, pile: false });
+                plan.sprites.push(Sprite {
+                    billboard: None,
+                    x: cell.x,
+                    y: cell.y,
+                    layers: vec![SpriteLayer { tile: t, ox: 0.0, oy: 0.0, ymax: None }],
+                    lying: false,
+                    pile: false,
+                });
             }
             continue;
         }
@@ -275,7 +290,14 @@ pub fn plan_scene(scene: &Scene, yaw: f32, elevation: f32, view: &IsoView, focus
             plan.ground.push(GroundLayer { x: cell.x, y: cell.y, tile, lift: lift as u32 });
         }
         if let Some(t) = upright {
-            plan.sprites.push(Sprite { billboard: None, x: cell.x, y: cell.y, layers: vec![SpriteLayer { tile: t, ox: 0.0, oy: 0.0, ymax: None }], lying: false, pile: false });
+            plan.sprites.push(Sprite {
+                billboard: None,
+                x: cell.x,
+                y: cell.y,
+                layers: vec![SpriteLayer { tile: t, ox: 0.0, oy: 0.0, ymax: None }],
+                lying: false,
+                pile: false,
+            });
         }
     }
     for (i, b) in scene.billboards.iter().enumerate() {

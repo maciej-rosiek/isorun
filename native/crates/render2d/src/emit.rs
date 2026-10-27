@@ -402,7 +402,13 @@ mod tests {
 
     #[test]
     fn places_turn_the_ground_and_keep_the_upright_square() {
-        let place = Place { rot: std::f32::consts::FRAC_PI_2, pivot: Pos2::new(5.0, 5.0), at: Pos2::new(100.0, 100.0), lean_back: -std::f32::consts::FRAC_PI_2, seam: 0.0 };
+        let place = Place {
+            rot: std::f32::consts::FRAC_PI_2,
+            pivot: Pos2::new(5.0, 5.0),
+            at: Pos2::new(100.0, 100.0),
+            lean_back: -std::f32::consts::FRAC_PI_2,
+            seam: 0.0,
+        };
         let item = Item {
             tex: Tex::White,
             min: [10.0, 0.0],

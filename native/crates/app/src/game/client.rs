@@ -62,9 +62,16 @@ pub enum Kind {
     Choices,
     /// X's actions: the tab up, and crawl's line (None while a turn is under way)
     Actions(ActionTabId, Option<String>),
-    Palette { mode: CommandCategory, category: usize, filter: String },
+    Palette {
+        mode: CommandCategory,
+        category: usize,
+        filter: String,
+    },
     /// the Isorun menu (Start): the Character tab (0) and the System tab (1); a spectator has System alone
-    System { tab: usize, opts: SystemOpts },
+    System {
+        tab: usize,
+        opts: SystemOpts,
+    },
 }
 
 pub struct ClientMenu {
@@ -85,7 +92,9 @@ pub struct ClientMenu {
 pub enum ClientEvent {
     Fire(Run),
     /// put away without a pick
-    Closed { from_hud: bool },
+    Closed {
+        from_hud: bool,
+    },
     /// a tab of X's actions, turned to
     Tab(ActionTabId),
 }
@@ -178,11 +187,27 @@ impl ClientMenu {
     }
 
     pub fn actions(current: ActionTabId, text: Option<String>) -> Self {
-        ClientMenu { kind: Kind::Actions(current, text), title: String::new(), rows: vec![], focus: 0, remember: String::new(), from_hud: false, tab_focus: [0; 2] }
+        ClientMenu {
+            kind: Kind::Actions(current, text),
+            title: String::new(),
+            rows: vec![],
+            focus: 0,
+            remember: String::new(),
+            from_hud: false,
+            tab_focus: [0; 2],
+        }
     }
 
     pub fn palette(mode: CommandCategory) -> Self {
-        let mut m = ClientMenu { kind: Kind::Palette { mode, category: 0, filter: String::new() }, title: String::new(), rows: vec![], focus: 0, remember: String::new(), from_hud: false, tab_focus: [0; 2] };
+        let mut m = ClientMenu {
+            kind: Kind::Palette { mode, category: 0, filter: String::new() },
+            title: String::new(),
+            rows: vec![],
+            focus: 0,
+            remember: String::new(),
+            from_hud: false,
+            tab_focus: [0; 2],
+        };
         m.title = match mode {
             CommandCategory::Command => "Commands",
             CommandCategory::Levelmap => "Level map commands",
@@ -200,7 +225,15 @@ impl ClientMenu {
     /// way out. A spectator has no character to read, so the System rows stand alone.
     pub fn system(opts: SystemOpts, tab: usize, tab_focus: [usize; 2]) -> Self {
         let tab = if opts.spectating { 1 } else { tab.min(1) };
-        let mut m = ClientMenu { kind: Kind::System { tab, opts }, title: "Isorun".into(), rows: vec![], focus: 0, remember: "system".into(), from_hud: false, tab_focus };
+        let mut m = ClientMenu {
+            kind: Kind::System { tab, opts },
+            title: "Isorun".into(),
+            rows: vec![],
+            focus: 0,
+            remember: "system".into(),
+            from_hud: false,
+            tab_focus,
+        };
         m.build_system();
         m
     }
@@ -210,33 +243,78 @@ impl ClientMenu {
         self.rows = if tab == 0 {
             isorun_input::command_menu::CHARACTER_COMMANDS
                 .iter()
-                .map(|c| Row { label: c.label.into(), sub: c.sub.map(Into::into), key: Some(c.key.into()), tile: c.tile, run: Some(Run::Execute(c.action())), ..Default::default() })
+                .map(|c| Row {
+                    label: c.label.into(),
+                    sub: c.sub.map(Into::into),
+                    key: Some(c.key.into()),
+                    tile: c.tile,
+                    run: Some(Run::Execute(c.action())),
+                    ..Default::default()
+                })
                 .collect()
         } else {
             // three runs under rules: the game (back to it, its own commands), Isorun (the settings), and last the way out
-            let mut rows = vec![Row { label: "Resume".into(), sub: Some("back to the dungeon, where you left it".into()), run: Some(Run::Resume), ..Default::default() }];
+            let mut rows =
+                vec![Row { label: "Resume".into(), sub: Some("back to the dungeon, where you left it".into()), run: Some(Run::Resume), ..Default::default() }];
             let playing = !opts.spectating;
             if playing {
                 let r = isorun_input::command_menu::REPEAT_COMMAND;
                 let h = isorun_input::command_menu::HELP_COMMAND;
-                rows.push(Row { label: format!("{} ({})", r.label, r.key), sub: Some("do the last thing again".into()), run: Some(Run::Send(cm::input(r.key))), ..Default::default() });
-                rows.push(Row { label: format!("{} ({})", h.label, h.key), sub: Some("the manual, and what every key does".into()), run: Some(Run::Send(cm::input(h.key))), ..Default::default() });
+                rows.push(Row {
+                    label: format!("{} ({})", r.label, r.key),
+                    sub: Some("do the last thing again".into()),
+                    run: Some(Run::Send(cm::input(r.key))),
+                    ..Default::default()
+                });
+                rows.push(Row {
+                    label: format!("{} ({})", h.label, h.key),
+                    sub: Some("the manual, and what every key does".into()),
+                    run: Some(Run::Send(cm::input(h.key))),
+                    ..Default::default()
+                });
                 // crawl binds CMD_GAME_MENU to `~` and F1; Escape does nothing in the main view
-                rows.push(Row { label: "Crawl menu (F1)".into(), sub: Some("crawl's own menu: character dump, macros, lookup, quit".into()), run: Some(Run::Send(cm::input("~"))), ..Default::default() });
+                rows.push(Row {
+                    label: "Crawl menu (F1)".into(),
+                    sub: Some("crawl's own menu: character dump, macros, lookup, quit".into()),
+                    run: Some(Run::Send(cm::input("~"))),
+                    ..Default::default()
+                });
             }
             if opts.chat {
                 rows.push(Row { label: "Chat (F12)".into(), sub: Some("talk to whoever is watching".into()), run: Some(Run::Chat), ..Default::default() });
             }
-            rows.push(Row { label: "Settings".into(), sub: Some("graphics, controls and the gamepad buttons, the HUD, sound".into()), sep: true, run: Some(Run::Settings), ..Default::default() });
+            rows.push(Row {
+                label: "Settings".into(),
+                sub: Some("graphics, controls and the gamepad buttons, the HUD, sound".into()),
+                sep: true,
+                run: Some(Run::Settings),
+                ..Default::default()
+            });
             if opts.can_fullscreen {
-                let (label, sub) = if opts.fullscreen { ("Leave full screen", "back to a window; F11 or Escape does the same") } else { ("Full screen", "fill the screen; F11 or Escape is the way back") };
+                let (label, sub) = if opts.fullscreen {
+                    ("Leave full screen", "back to a window; F11 or Escape does the same")
+                } else {
+                    ("Full screen", "fill the screen; F11 or Escape is the way back")
+                };
                 rows.push(Row { label: label.into(), sub: Some(sub.into()), run: Some(Run::Fullscreen(!opts.fullscreen)), ..Default::default() });
             }
             // a player saves (crawl's S, which asks first); a spectator goes back to the roster
             rows.push(if playing {
-                Row { label: "Save and exit (S)".into(), sub: Some("the game keeps; come back to it whenever".into()), sep: true, run: Some(Run::Send(cm::input("S"))), ..Default::default() }
+                Row {
+                    label: "Save and exit (S)".into(),
+                    sub: Some("the game keeps; come back to it whenever".into()),
+                    sep: true,
+                    run: Some(Run::Send(cm::input("S"))),
+                    ..Default::default()
+                }
             } else {
-                Row { label: "Stop watching".into(), sub: Some("back to the list of games being played".into()), sep: true, run: Some(Run::Leave), ..Default::default() }
+                Row {
+                    label: "Stop watching".into(),
+                    sub: Some("back to the list of games being played".into()),
+                    sep: true,
+                    run: Some(Run::Leave),
+                    ..Default::default()
+                }
             });
             for (i, r) in rows.iter_mut().enumerate() {
                 r.key = Some(((b'a' + i as u8) as char).to_string());
@@ -258,7 +336,12 @@ impl ClientMenu {
             .filter(|c| c.mode == mode && (mode != "command" || c.key.as_deref().is_none_or(|k| !isorun_input::command_menu::is_gamepad_command_key(k))))
             .filter(|c| cat == "all" || c.category == cat)
             .filter(|c| filter.is_empty() || format!("{} {} {}", c.label, c.category, c.id).to_lowercase().contains(&filter))
-            .map(|c| Row { label: c.label.clone(), sub: Some(format!("{} · {}", c.category, key_name(c))), run: command_message(c).map(Run::Send), ..Default::default() })
+            .map(|c| Row {
+                label: c.label.clone(),
+                sub: Some(format!("{} · {}", c.category, key_name(c))),
+                run: command_message(c).map(Run::Send),
+                ..Default::default()
+            })
             .collect();
         self.focus = 0;
     }
@@ -269,11 +352,32 @@ impl ClientMenu {
         use isorun_input::{Action, Button};
         match &self.kind {
             Kind::Actions(..) => vec![
-                BindingLabel { button: Button::Y, teaching: false, label: "Swap weapons".into(), action: isorun_input::action_tabs::swap_weapons(), hold: None, contextual: true },
-                BindingLabel { button: Button::LT, teaching: false, label: "Shout".into(), action: isorun_input::action_tabs::shout(), hold: None, contextual: true },
+                BindingLabel {
+                    button: Button::Y,
+                    teaching: false,
+                    label: "Swap weapons".into(),
+                    action: isorun_input::action_tabs::swap_weapons(),
+                    hold: None,
+                    contextual: true,
+                },
+                BindingLabel {
+                    button: Button::LT,
+                    teaching: false,
+                    label: "Shout".into(),
+                    action: isorun_input::action_tabs::shout(),
+                    hold: None,
+                    contextual: true,
+                },
             ],
             _ if self.rows.is_empty() => vec![],
-            _ => vec![BindingLabel { button: Button::A, teaching: false, label: "select".into(), action: Action::focus(isorun_input::focus::FocusOp::Select), hold: None, contextual: true }],
+            _ => vec![BindingLabel {
+                button: Button::A,
+                teaching: false,
+                label: "select".into(),
+                action: Action::focus(isorun_input::focus::FocusOp::Select),
+                hold: None,
+                contextual: true,
+            }],
         }
     }
 
@@ -359,7 +463,13 @@ impl ClientMenu {
         let wide = matches!(self.kind, Kind::Actions(..) | Kind::Palette { .. } | Kind::System { .. });
         // a compact screen (a phone, touch.css) gives every list its whole width less the margins
         let compact = screen.width() < 900.0 || screen.height() < 560.0;
-        let width = if compact { screen.width() - 16.0 } else if wide { (48.0 * rem).min(screen.width() * 0.94) } else { (34.0 * rem).min(screen.width() * 0.92) };
+        let width = if compact {
+            screen.width() - 16.0
+        } else if wide {
+            (48.0 * rem).min(screen.width() * 0.94)
+        } else {
+            (34.0 * rem).min(screen.width() * 0.92)
+        };
         let row_h = (size * 1.6).max(32.0 * scale + 4.0);
         let has_icons = self.rows.iter().any(|r| r.tile.is_some() || !r.tiles.is_empty());
         let any_hint = self.rows.iter().any(|r| r.sub.is_some());
@@ -447,7 +557,11 @@ impl ClientMenu {
                 }
             }
             Kind::System { tab, opts } => {
-                let all: &[(&str, &str)] = if opts.spectating { &[("System", "CMD_GAME_MENU")] } else { &[("Character", "CMD_DISPLAY_CHARACTER_STATUS"), ("System", "CMD_GAME_MENU")] };
+                let all: &[(&str, &str)] = if opts.spectating {
+                    &[("System", "CMD_GAME_MENU")]
+                } else {
+                    &[("Character", "CMD_DISPLAY_CHARACTER_STATUS"), ("System", "CMD_GAME_MENU")]
+                };
                 let index = |i: usize| if opts.spectating { 1 } else { i };
                 let tabs: Vec<(&str, &str, bool)> = all.iter().enumerate().map(|(i, (l, t))| (*l, *t, index(i) == *tab)).collect();
                 let strip = egui::Rect::from_min_max(egui::pos2(rect.left() + pad, y), egui::pos2(rect.right() - pad, y + title_h - 0.6 * rem));
@@ -499,7 +613,10 @@ impl ClientMenu {
                         painter.rect_filled(r, 0.0, rgba(255, 255, 255, 0.06));
                     }
                     if row.sep && i > first {
-                        painter.line_segment([egui::pos2(r.left(), r.top()), egui::pos2(r.right(), r.top())], egui::Stroke::new(1.0, egui::Color32::from_gray(0x33)));
+                        painter.line_segment(
+                            [egui::pos2(r.left(), r.top()), egui::pos2(r.right(), r.top())],
+                            egui::Stroke::new(1.0, egui::Color32::from_gray(0x33)),
+                        );
                     }
                     let mut x = r.left() + 0.6 * size;
                     if has_icons {
@@ -592,12 +709,22 @@ impl ClientMenu {
 /// the width (a phone), the gaps close up, then only the current tab keeps its label, then none
 /// does. Returns the tab clicked that is not the current one.
 #[allow(clippy::too_many_arguments)]
-fn tab_strip(painter: &egui::Painter, tiles: &mut TileIcons, tabs: &[(&str, &str, bool)], strip: egui::Rect, mono: &egui::FontId, scale: f32, lit: egui::Color32, clicked_at: &dyn Fn(egui::Rect) -> bool) -> Option<usize> {
+fn tab_strip(
+    painter: &egui::Painter,
+    tiles: &mut TileIcons,
+    tabs: &[(&str, &str, bool)],
+    strip: egui::Rect,
+    mono: &egui::FontId,
+    scale: f32,
+    lit: egui::Color32,
+    clicked_at: &dyn Fn(egui::Rect) -> bool,
+) -> Option<usize> {
     let size = mono.size;
     let icon = 32.0 * scale;
     let galleys: Vec<_> = tabs.iter().map(|(l, _, on)| painter.layout_no_wrap(l.to_string(), mono.clone(), if *on { lit } else { INK_DIM })).collect();
     let width_of = |labels: &dyn Fn(usize) -> bool, gap: f32| -> f32 {
-        galleys.iter().enumerate().map(|(i, g)| icon + if labels(i) { 0.35 * size + g.size().x } else { 0.0 }).sum::<f32>() + gap * (tabs.len().saturating_sub(1)) as f32
+        galleys.iter().enumerate().map(|(i, g)| icon + if labels(i) { 0.35 * size + g.size().x } else { 0.0 }).sum::<f32>()
+            + gap * (tabs.len().saturating_sub(1)) as f32
     };
     let all = |_: usize| true;
     let current = |i: usize| tabs[i].2;
@@ -651,7 +778,14 @@ mod tests {
 
     #[test]
     fn keys_as_the_official_client_sends_them() {
-        let c = |key: &str| CatalogueCommand { id: String::new(), label: String::new(), category: String::new(), mode: String::new(), key: Some(key.into()), ck: None };
+        let c = |key: &str| CatalogueCommand {
+            id: String::new(),
+            label: String::new(),
+            category: String::new(),
+            mode: String::new(),
+            key: Some(key.into()),
+            ck: None,
+        };
         assert_eq!(command_message(&c("o")), Some(cm::input("o")));
         assert_eq!(command_message(&c("\u{10}")), Some(cm::key(16)));
         assert_eq!(key_name(&c("\u{10}")), "Ctrl-P");

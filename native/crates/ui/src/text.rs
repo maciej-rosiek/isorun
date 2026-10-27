@@ -35,4 +35,3 @@ pub fn formatted(text: &str, size: f32) -> egui::text::LayoutJob {
     }
     job
 }
-

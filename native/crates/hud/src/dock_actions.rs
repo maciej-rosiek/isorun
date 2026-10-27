@@ -89,7 +89,13 @@ pub fn dock_actions(ctx: &DockContext, scene: &Scene) -> Vec<DockAction> {
         match feature {
             Feature::Stairs { dir, exit, .. } => {
                 let down = *dir == UpDown::Down;
-                let l = if *exit { "Leave the dungeon" } else if down { "Go down" } else { "Go up" };
+                let l = if *exit {
+                    "Leave the dungeon"
+                } else if down {
+                    "Go down"
+                } else {
+                    "Go up"
+                };
                 out.push(here("stairs", l.into(), icon, keys(l, if down { ">" } else { "<" }), KeyHint::keys(&[if down { ">" } else { "<" }]).pad(Glyph::A)));
             }
             Feature::Hatch { dir } => {
@@ -129,10 +135,22 @@ pub fn dock_actions(ctx: &DockContext, scene: &Scene) -> Vec<DockAction> {
     let on_stairs = out.iter().any(|a| a.id == "stairs");
     let (up, down) = if on_stairs { (false, false) } else { known_stairs(scene) };
     if up {
-        out.push(standing("travel-up", "Travel up the stairs", DockIcon::Dngn("DNGN_STONE_STAIRS_UP"), travel_one_level("Travel up", "<"), KeyHint::keys(&["G", "<"])));
+        out.push(standing(
+            "travel-up",
+            "Travel up the stairs",
+            DockIcon::Dngn("DNGN_STONE_STAIRS_UP"),
+            travel_one_level("Travel up", "<"),
+            KeyHint::keys(&["G", "<"]),
+        ));
     }
     if down {
-        out.push(standing("travel-down", "Travel down the stairs", DockIcon::Dngn("DNGN_STONE_STAIRS_DOWN"), travel_one_level("Travel down", ">"), KeyHint::keys(&["G", ">"])));
+        out.push(standing(
+            "travel-down",
+            "Travel down the stairs",
+            DockIcon::Dngn("DNGN_STONE_STAIRS_DOWN"),
+            travel_one_level("Travel down", ">"),
+            KeyHint::keys(&["G", ">"]),
+        ));
     }
     out.push(standing("travel", "Travel to a level", DockIcon::Gui("CMD_INTERLEVEL_TRAVEL"), keys("Travel", "G"), KeyHint::keys(&["G"])));
     out.push(standing("search", "Find items and places", DockIcon::Gui("CMD_SEARCH_STASHES"), control("Search", 6), KeyHint::keys(&["Ctrl", "F"])));
@@ -194,7 +212,16 @@ mod tests {
     #[test]
     fn fight_and_travel() {
         let mut s = scene_with(None);
-        s.cells.insert(cell_key(9, 9), SceneCell { x: 9, y: 9, kind: CellKind::Floor, feature: Some(Feature::Stairs { dir: UpDown::Up, branch: false, exit: false }), ..Default::default() });
+        s.cells.insert(
+            cell_key(9, 9),
+            SceneCell {
+                x: 9,
+                y: 9,
+                kind: CellKind::Floor,
+                feature: Some(Feature::Stairs { dir: UpDown::Up, branch: false, exit: false }),
+                ..Default::default()
+            },
+        );
         let ctx = DockContext { under: underfoot(&s, None), hostiles_in_view: 2 };
         let ids: Vec<&str> = dock_actions(&ctx, &s).iter().map(|a| a.id).collect();
         assert_eq!(ids, ["fight", "rest", "wait", "travel-up", "travel", "search"]);

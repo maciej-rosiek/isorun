@@ -44,7 +44,12 @@ impl C {
     }
 
     pub fn to_color32(self) -> Color32 {
-        Color32::from_rgba_unmultiplied(self.r.round().clamp(0.0, 255.0) as u8, self.g.round().clamp(0.0, 255.0) as u8, self.b.round().clamp(0.0, 255.0) as u8, (self.a * 255.0).round().clamp(0.0, 255.0) as u8)
+        Color32::from_rgba_unmultiplied(
+            self.r.round().clamp(0.0, 255.0) as u8,
+            self.g.round().clamp(0.0, 255.0) as u8,
+            self.b.round().clamp(0.0, 255.0) as u8,
+            (self.a * 255.0).round().clamp(0.0, 255.0) as u8,
+        )
     }
 
     pub fn from_color32(c: Color32) -> C {
@@ -91,14 +96,22 @@ fn oklab(c: C) -> [f32; 3] {
     let l = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b).cbrt();
     let m = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b).cbrt();
     let s = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b).cbrt();
-    [0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s, 1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s, 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s]
+    [
+        0.2104542553 * l + 0.7936177850 * m - 0.0040720468 * s,
+        1.9779984951 * l - 2.4285922050 * m + 0.4505937099 * s,
+        0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s,
+    ]
 }
 
 fn from_oklab(lab: [f32; 3]) -> [f32; 3] {
     let l = (lab[0] + 0.3963377774 * lab[1] + 0.2158037573 * lab[2]).powi(3);
     let m = (lab[0] - 0.1055613458 * lab[1] - 0.0638541728 * lab[2]).powi(3);
     let s = (lab[0] - 0.0894841775 * lab[1] - 1.2914855480 * lab[2]).powi(3);
-    [to_srgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s), to_srgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s), to_srgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s)]
+    [
+        to_srgb(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+        to_srgb(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+        to_srgb(-0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s),
+    ]
 }
 
 /// Premultiplied sRGB, for interpolating and compositing as the browser does.
@@ -471,18 +484,45 @@ impl<'a> Raster<'a> {
         let inner_size = egui::vec2(size.x - b.w[1] - b.w[3], size.y - b.w[0] - b.w[2]).max(Vec2::ZERO);
         let inner_half = inner_size / 2.0;
         let r = style.radius;
-        let inner_r = [(r[0] - b.w[3].max(b.w[0])).max(0.0), (r[1] - b.w[1].max(b.w[0])).max(0.0), (r[2] - b.w[1].max(b.w[2])).max(0.0), (r[3] - b.w[3].max(b.w[2])).max(0.0)];
+        let inner_r = [
+            (r[0] - b.w[3].max(b.w[0])).max(0.0),
+            (r[1] - b.w[1].max(b.w[0])).max(0.0),
+            (r[2] - b.w[1].max(b.w[2])).max(0.0),
+            (r[3] - b.w[3].max(b.w[2])).max(0.0),
+        ];
         // how far in from the box's edge something other than the layers is painted: the corners,
         // the border, and each inset shadow, which reaches its offset and spread in and fades over
         // twice its blur (the normal curve is under a 255th of its colour there)
         let edge = 2.0 / px;
         let mut margin = r.iter().fold(0.0f32, |m, r| m.max(*r)) + b.w.iter().fold(0.0f32, |m, w| m.max(*w)) + edge;
         for s in &style.insets {
-            margin = margin.max(b.w.iter().fold(0.0f32, |m, w| m.max(*w)) + r.iter().fold(0.0f32, |m, r| m.max(*r)) + s.spread.max(0.0) + s.x.abs().max(s.y.abs()) + 2.0 * s.blur + edge);
+            margin = margin.max(
+                b.w.iter().fold(0.0f32, |m, w| m.max(*w))
+                    + r.iter().fold(0.0f32, |m, r| m.max(*r))
+                    + s.spread.max(0.0)
+                    + s.x.abs().max(s.y.abs())
+                    + 2.0 * s.blur
+                    + edge,
+            );
         }
         let m = (margin * px).ceil() as usize;
         let plain = if 2 * m < w && 2 * m < h { (m, w - m, m, h - m) } else { (0, 0, 0, 0) };
-        Raster { style, size, px, w, h, layers, groups, half: size / 2.0, inner_centre: inner_min + inner_half, inner_half, inner_r, has_border: b.w.iter().any(|w| *w > 0.0), aa: 0.5 / px, plain }
+        Raster {
+            style,
+            size,
+            px,
+            w,
+            h,
+            layers,
+            groups,
+            half: size / 2.0,
+            inner_centre: inner_min + inner_half,
+            inner_half,
+            inner_r,
+            has_border: b.w.iter().any(|w| *w > 0.0),
+            aa: 0.5 / px,
+            plain,
+        }
     }
 
     fn point(&self, x: usize, y: usize) -> Pos2 {
@@ -537,7 +577,16 @@ impl<'a> Raster<'a> {
 
     /// The runs the same down a column, at each column.
     fn columns(&self) -> Vec<Vec<P>> {
-        self.groups.iter().map(|(a, run)| if *a == Along::Column { (0..self.w).map(|x| self.group_at(run, egui::pos2((x as f32 + 0.5) / self.px, self.half.y))).collect() } else { vec![] }).collect()
+        self.groups
+            .iter()
+            .map(|(a, run)| {
+                if *a == Along::Column {
+                    (0..self.w).map(|x| self.group_at(run, egui::pos2((x as f32 + 0.5) / self.px, self.half.y))).collect()
+                } else {
+                    vec![]
+                }
+            })
+            .collect()
     }
 
     /// The layers alone at a point, the runs the same along its row taken from `fixed` and those
@@ -558,11 +607,16 @@ impl<'a> Raster<'a> {
     /// Paint row `y` into `row`.
     fn row(&self, y: usize, row: &mut [Color32], columns: &[Vec<P>]) {
         let py = (y as f32 + 0.5) / self.px;
-        let fixed: Vec<P> = self.groups.iter().map(|(a, run)| if *a == Along::Row { self.group_at(run, egui::pos2(self.half.x, py)) } else { P::default() }).collect();
+        let fixed: Vec<P> =
+            self.groups.iter().map(|(a, run)| if *a == Along::Row { self.group_at(run, egui::pos2(self.half.x, py)) } else { P::default() }).collect();
         let (x0, x1, y0, y1) = self.plain;
         let inside = y >= y0 && y < y1;
         for (x, t) in row.iter_mut().enumerate() {
-            *t = if inside && x >= x0 && x < x1 { out(self.fill(self.point(x, y), x, &fixed, columns).scale(self.style.opacity)) } else { self.texel(x, y, &fixed, columns) };
+            *t = if inside && x >= x0 && x < x1 {
+                out(self.fill(self.point(x, y), x, &fixed, columns).scale(self.style.opacity))
+            } else {
+                self.texel(x, y, &fixed, columns)
+            };
         }
     }
 }
@@ -795,7 +849,12 @@ fn snap(painter: &egui::Painter, rect: Rect) -> Rect {
 /// An outer `box-shadow`: egui's blurred rect, moved and spread.
 pub fn outer_shadow(painter: &egui::Painter, rect: Rect, radius: [f32; 4], o: Outer) {
     let r = rect.translate(egui::vec2(o.x, o.y)).expand(o.spread);
-    let cr = egui::CornerRadius { nw: (radius[0] + o.spread).max(0.0).min(255.0) as u8, ne: (radius[1] + o.spread).max(0.0).min(255.0) as u8, se: (radius[2] + o.spread).max(0.0).min(255.0) as u8, sw: (radius[3] + o.spread).max(0.0).min(255.0) as u8 };
+    let cr = egui::CornerRadius {
+        nw: (radius[0] + o.spread).max(0.0).min(255.0) as u8,
+        ne: (radius[1] + o.spread).max(0.0).min(255.0) as u8,
+        se: (radius[2] + o.spread).max(0.0).min(255.0) as u8,
+        sw: (radius[3] + o.spread).max(0.0).min(255.0) as u8,
+    };
     if o.blur <= 0.0 {
         painter.rect_filled(r, cr, o.c.to_color32());
         return;
@@ -893,7 +952,12 @@ mod tests {
         let inner_half = inner_size / 2.0;
         let inner_centre = inner_min + inner_half;
         let r = style.radius;
-        let inner_r = [(r[0] - b.w[3].max(b.w[0])).max(0.0), (r[1] - b.w[1].max(b.w[0])).max(0.0), (r[2] - b.w[1].max(b.w[2])).max(0.0), (r[3] - b.w[3].max(b.w[2])).max(0.0)];
+        let inner_r = [
+            (r[0] - b.w[3].max(b.w[0])).max(0.0),
+            (r[1] - b.w[1].max(b.w[0])).max(0.0),
+            (r[2] - b.w[1].max(b.w[2])).max(0.0),
+            (r[3] - b.w[3].max(b.w[2])).max(0.0),
+        ];
         let has_border = b.w.iter().any(|w| *w > 0.0);
         let aa = 0.5 / px;
         let mut pixels = Vec::with_capacity(w * h);
@@ -939,7 +1003,12 @@ mod tests {
                 if c.a <= 0.0 {
                     pixels.push(Color32::TRANSPARENT);
                 } else {
-                    pixels.push(Color32::from_rgba_premultiplied(c.r.round().clamp(0.0, 255.0) as u8, c.g.round().clamp(0.0, 255.0) as u8, c.b.round().clamp(0.0, 255.0) as u8, (c.a * 255.0).round().clamp(0.0, 255.0) as u8));
+                    pixels.push(Color32::from_rgba_premultiplied(
+                        c.r.round().clamp(0.0, 255.0) as u8,
+                        c.g.round().clamp(0.0, 255.0) as u8,
+                        c.b.round().clamp(0.0, 255.0) as u8,
+                        (c.a * 255.0).round().clamp(0.0, 255.0) as u8,
+                    ));
                 }
             }
         }
@@ -953,7 +1022,15 @@ mod tests {
                 BoxStyle {
                     layers: vec![
                         Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.0), vec![sa(rgba(120, 90, 40, 0.16)), s(TRANSPARENT, 0.6)]),
-                        Layer::RepeatingLinear(0.0, vec![Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)), Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0)), Stop(TRANSPARENT, At::Pt(2.0)), Stop(TRANSPARENT, At::Pt(6.0))]),
+                        Layer::RepeatingLinear(
+                            0.0,
+                            vec![
+                                Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)),
+                                Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0)),
+                                Stop(TRANSPARENT, At::Pt(2.0)),
+                                Stop(TRANSPARENT, At::Pt(6.0)),
+                            ],
+                        ),
                         Layer::Linear(180.0, vec![sa(hex(0x1b1612)), sa(hex(0x0c0a08))]),
                     ],
                     radius: [6.0 * u; 4],
@@ -964,11 +1041,30 @@ mod tests {
                 egui::vec2(404.0, 809.0),
             ),
             (
-                BoxStyle { layers: vec![Layer::Radial(RadialSize::Ellipse(0.45, 0.4), (0.5, 0.45), vec![sa(rgba(216, 180, 95, 0.12)), s(TRANSPARENT, 0.7)]), Layer::Solid(rgba(0, 0, 0, 0.38))], radius: [5.0 * u; 4], border: Border::all(1.0, hex(0x33280f)), insets: vec![inset(0.0, 0.0, 24.0 * u, 0.0, rgba(0, 0, 0, 0.7))], ..Default::default() },
+                BoxStyle {
+                    layers: vec![
+                        Layer::Radial(RadialSize::Ellipse(0.45, 0.4), (0.5, 0.45), vec![sa(rgba(216, 180, 95, 0.12)), s(TRANSPARENT, 0.7)]),
+                        Layer::Solid(rgba(0, 0, 0, 0.38)),
+                    ],
+                    radius: [5.0 * u; 4],
+                    border: Border::all(1.0, hex(0x33280f)),
+                    insets: vec![inset(0.0, 0.0, 24.0 * u, 0.0, rgba(0, 0, 0, 0.7))],
+                    ..Default::default()
+                },
                 egui::vec2(312.0, 431.0),
             ),
             (
-                BoxStyle { layers: vec![Layer::Linear(90.0, vec![sa(hex(0x2a221a)), sa(hex(0x120e0a))]), Layer::Conic(30.0, (0.4, 0.5), vec![sa(hex(0x102030)), sa(hex(0x302010))])], radius: [4.0 * u, 0.0, 9.0 * u, 2.0], border: Border { w: [1.0, 2.0, 1.0, 3.0], c: [hex(0xff0000), hex(0x00ff00), hex(0x0000ff), hex(0xffffff)] }, insets: vec![inset(2.0, 3.0, 14.0 * u, 1.0, rgba(0, 0, 0, 0.9))], opacity: 0.5, ..Default::default() },
+                BoxStyle {
+                    layers: vec![
+                        Layer::Linear(90.0, vec![sa(hex(0x2a221a)), sa(hex(0x120e0a))]),
+                        Layer::Conic(30.0, (0.4, 0.5), vec![sa(hex(0x102030)), sa(hex(0x302010))]),
+                    ],
+                    radius: [4.0 * u, 0.0, 9.0 * u, 2.0],
+                    border: Border { w: [1.0, 2.0, 1.0, 3.0], c: [hex(0xff0000), hex(0x00ff00), hex(0x0000ff), hex(0xffffff)] },
+                    insets: vec![inset(2.0, 3.0, 14.0 * u, 1.0, rgba(0, 0, 0, 0.9))],
+                    opacity: 0.5,
+                    ..Default::default()
+                },
                 egui::vec2(207.0, 162.0),
             ),
         ]
@@ -993,7 +1089,13 @@ mod tests {
             let one_ms = started.elapsed().as_secs_f64() * 1000.0;
             eprintln!("{size:?}: {fast_ms:.1} ms, on one thread {one_ms:.1}, texel by texel {slow_ms:.1} ms");
             assert_eq!(fast.size, slow.size);
-            let worst = fast.pixels.iter().zip(&slow.pixels).map(|(a, b)| a.to_array().iter().zip(b.to_array()).map(|(x, y)| (*x as i32 - y as i32).abs()).max().unwrap()).max().unwrap();
+            let worst = fast
+                .pixels
+                .iter()
+                .zip(&slow.pixels)
+                .map(|(a, b)| a.to_array().iter().zip(b.to_array()).map(|(x, y)| (*x as i32 - y as i32).abs()).max().unwrap())
+                .max()
+                .unwrap();
             assert!(worst <= 1, "{size:?}: off by {worst}");
         }
     }
@@ -1006,7 +1108,13 @@ mod tests {
         let which: usize = std::env::var("BENCH_STYLE").ok().and_then(|v| v.parse().ok()).unwrap_or(0);
         let mut all = styles(0.75);
         all.push((BoxStyle { layers: vec![Layer::Solid(hex(0x102030))], ..Default::default() }, egui::vec2(404.0, 809.0)));
-        all.push((BoxStyle { layers: vec![Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.0), vec![sa(rgba(120, 90, 40, 0.16)), s(TRANSPARENT, 0.6)])], ..Default::default() }, egui::vec2(404.0, 809.0)));
+        all.push((
+            BoxStyle {
+                layers: vec![Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.0), vec![sa(rgba(120, 90, 40, 0.16)), s(TRANSPARENT, 0.6)])],
+                ..Default::default()
+            },
+            egui::vec2(404.0, 809.0),
+        ));
         let (st, size) = all.swap_remove(which);
         let r = Raster::new(&st, size, 2.6);
         let mut row = vec![Color32::TRANSPARENT; r.w];

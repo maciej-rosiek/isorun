@@ -155,21 +155,40 @@ pub enum Block {
     Nowrap(String),
     /// server HTML (the seed screen's body)
     Html(String),
-    Spellset { books: Vec<SpellBook>, colour: bool, first_row: i32 },
+    Spellset {
+        books: Vec<SpellBook>,
+        colour: bool,
+        first_row: i32,
+    },
     /// a god's Title / Favour table (`.god-favour`), each value in the god's colour
-    GodFavour { rows: Vec<(String, String)>, colour: u8 },
-    GodPowers { powers: Vec<(String, String, bool)>, colour: u8 },
+    GodFavour {
+        rows: Vec<(String, String)>,
+        colour: u8,
+    },
+    GodPowers {
+        powers: Vec<(String, String, bool)>,
+        colour: u8,
+    },
     /// `.tbl`: white-space pre
     Table(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Section {
-    Header { tiles: Vec<Tile>, tile_px: f32, title: String, colour: Option<u8>, formatted: bool },
+    Header {
+        tiles: Vec<Tile>,
+        tile_px: f32,
+        title: String,
+        colour: Option<u8>,
+        formatted: bool,
+    },
     Body(Vec<Block>),
     Actions(String),
     /// a footer: its formatted text, and the stop it is when it switches panes
-    Footer { text: String, stop: Option<String> },
+    Footer {
+        text: String,
+        stop: Option<String>,
+    },
     More(String),
 }
 
@@ -212,7 +231,14 @@ impl Builder {
         self.row += 1;
         for (i, (key, label)) in parsed.iter().enumerate() {
             let send = vec![cm::input(key)];
-            self.m.focusables.push(Focusable { label: label.clone(), act: Act::Send(send.clone()), row: Some(r), col: Some(i as i32), id: Some(format!("act:{key}")), ..Default::default() });
+            self.m.focusables.push(Focusable {
+                label: label.clone(),
+                act: Act::Send(send.clone()),
+                row: Some(r),
+                col: Some(i as i32),
+                id: Some(format!("act:{key}")),
+                ..Default::default()
+            });
             self.m.actions.push((key.clone(), label.clone(), send));
         }
         self.m.sections.push(Section::Actions(text.to_string()));
@@ -323,7 +349,8 @@ pub fn model(p: &Popup, icons: &TileIcons) -> PopupModel {
                 let body = s(&fo, "body");
                 if body != title {
                     let quote = s(&fo, "quote");
-                    b.m.sections.push(Section::Body(vec![Block::Formatted(body + if quote.is_empty() { String::new() } else { format!("\n\n{quote}") }.as_str())]));
+                    b.m.sections
+                        .push(Section::Body(vec![Block::Formatted(body + if quote.is_empty() { String::new() } else { format!("\n\n{quote}") }.as_str())]));
                 }
             }
             b.actions(&s(d, "actions"), true);
@@ -383,15 +410,30 @@ pub fn model(p: &Popup, icons: &TileIcons) -> PopupModel {
                 };
                 b.m.sections.push(Section::Body(blocks));
                 // "!/^: Overview | Powers | Wrath", and at an altar "J/Enter: join religion"
-                let panes_text = names.iter().enumerate().map(|(i, n)| if i == cur { format!("<white>{n}</white>") } else { n.to_string() }).collect::<Vec<_>>().join(" | ");
+                let panes_text =
+                    names.iter().enumerate().map(|(i, n)| if i == cur { format!("<white>{n}</white>") } else { n.to_string() }).collect::<Vec<_>>().join(" | ");
                 let mut text = format!("<cyan>!</cyan>/<cyan>^</cyan>:\u{a0}{panes_text}");
                 let r = b.row;
                 b.row += 1;
-                b.m.focusables.push(Focusable { label: names.join(" | "), act: Act::send([cm::input("!")]), row: Some(r), col: Some(0), id: Some("panes".into()), ..Default::default() });
+                b.m.focusables.push(Focusable {
+                    label: names.join(" | "),
+                    act: Act::send([cm::input("!")]),
+                    row: Some(r),
+                    col: Some(0),
+                    id: Some("panes".into()),
+                    ..Default::default()
+                });
                 if d.get("is_altar").is_some_and(isorun_webtiles::truthy) {
                     text.push_str(&format!("\u{a0}\u{a0}<cyan>J</cyan>/<cyan>Enter</cyan>: join religion{}", s(d, "service_fee")));
                     b.m.initial = b.m.focusables.len() as i32;
-                    b.m.focusables.push(Focusable { label: "Join religion".into(), act: Act::send([cm::key(Keys::ENTER)]), row: Some(r), col: Some(1), id: Some("join".into()), ..Default::default() });
+                    b.m.focusables.push(Focusable {
+                        label: "Join religion".into(),
+                        act: Act::send([cm::key(Keys::ENTER)]),
+                        row: Some(r),
+                        col: Some(1),
+                        id: Some("join".into()),
+                        ..Default::default()
+                    });
                 }
                 text.push_str(&prompt);
                 b.m.sections.push(Section::Footer { text, stop: None });
@@ -399,7 +441,8 @@ pub fn model(p: &Popup, icons: &TileIcons) -> PopupModel {
             } else {
                 b.describe_body(&panes[cur], if cur == 0 { spellbooks(d.get("spellset")) } else { Vec::new() }, false);
                 // the pane names sit behind the key that cycles them, in cyan
-                let names_text = names.iter().enumerate().map(|(i, n)| if i == cur { format!("<white>{n}</white>") } else { n.to_string() }).collect::<Vec<_>>().join(" | ");
+                let names_text =
+                    names.iter().enumerate().map(|(i, n)| if i == cur { format!("<white>{n}</white>") } else { n.to_string() }).collect::<Vec<_>>().join(" | ");
                 b.pane_action(&names, format!("[<cyan>!</cyan>]:\u{a0}{names_text}{prompt}"));
                 b.actions(&s(d, "actions"), true);
             }
@@ -423,7 +466,9 @@ pub fn model(p: &Popup, icons: &TileIcons) -> PopupModel {
             b.m.sections.push(Section::Body(vec![Block::Html(s(d, "body"))]));
             let r = b.row;
             b.row += 1;
-            for (i, (id, label, msg)) in [("seed", "Type seed", None), ("clear", "Clear", Some(45)), ("daily", "Today's daily seed", Some(100))].into_iter().enumerate() {
+            for (i, (id, label, msg)) in
+                [("seed", "Type seed", None), ("clear", "Clear", Some(45)), ("daily", "Today's daily seed", Some(100))].into_iter().enumerate()
+            {
                 let act = msg.map_or(Act::Keyboard, |k| Act::send([cm::key(k)]));
                 b.m.focusables.push(Focusable { label: label.into(), act, row: Some(r), col: Some(i as i32), id: Some(id.into()), ..Default::default() });
             }
@@ -446,7 +491,10 @@ pub fn model(p: &Popup, icons: &TileIcons) -> PopupModel {
         _ => {
             let title = if s(d, "title").is_empty() { p.kind.clone() } else { s(d, "title") };
             b.header(&title, Vec::new(), None);
-            let body = [s(d, "body"), s(d, "text")].into_iter().find(|t| !t.is_empty()).unwrap_or_else(|| Value::Object(d.clone()).to_string().chars().take(500).collect());
+            let body = [s(d, "body"), s(d, "text")]
+                .into_iter()
+                .find(|t| !t.is_empty())
+                .unwrap_or_else(|| Value::Object(d.clone()).to_string().chars().take(500).collect());
             b.m.sections.push(Section::Body(vec![Block::Paras(body)]));
         }
     }
@@ -462,7 +510,14 @@ pub fn model(p: &Popup, icons: &TileIcons) -> PopupModel {
             } else if sw.key.chars().count() == 1 {
                 send.push(cm::input(&sw.key));
             }
-            b.m.focusables.push(Focusable { label: sw.label.clone(), act: Act::Send(send.clone()), row: Some(r + sw.line as i32), col: Some(sw.col as i32), id: Some(format!("more:{}", sw.key)), ..Default::default() });
+            b.m.focusables.push(Focusable {
+                label: sw.label.clone(),
+                act: Act::Send(send.clone()),
+                row: Some(r + sw.line as i32),
+                col: Some(sw.col as i32),
+                id: Some(format!("more:{}", sw.key)),
+                ..Default::default()
+            });
             b.m.actions.push((sw.key.clone(), sw.label.clone(), send));
         }
         b.row += sws.iter().map(|s| s.line as i32).max().unwrap_or(0) + 1;
@@ -589,7 +644,9 @@ fn lay_body(ctx: &egui::Context, blocks: &[Block], st: &TextStyle, width: f32, i
                         };
                         let effect = rich::galley(ctx, rich::formatted(&sp.effect, &row_st, 0.0));
                         let range = rich::galley(ctx, rich::formatted(&sp.range, &row_st, 0.0));
-                        let fixed = if tile.is_some() { 32.0 + gap } else { 0.0 } + if sp.effect.is_empty() { 0.0 } else { effect.size().x + gap } + if sp.range.is_empty() { 0.0 } else { range.size().x + gap };
+                        let fixed = if tile.is_some() { 32.0 + gap } else { 0.0 }
+                            + if sp.effect.is_empty() { 0.0 } else { effect.size().x + gap }
+                            + if sp.range.is_empty() { 0.0 } else { range.size().x + gap };
                         let mut tj = rich::formatted(&format!("{} - {}", sp.letter, sp.title), &row_st, 0.0);
                         tj.wrap = egui::text::TextWrapping::truncate_at_width((half - fixed).max(10.0));
                         let title = rich::galley(ctx, tj);
@@ -651,10 +708,16 @@ fn body_natural(ctx: &egui::Context, blocks: &[Block], st: &TextStyle) -> f32 {
             Block::Spellset { books, .. } => books
                 .iter()
                 .flat_map(|b| b.spells.iter())
-                .map(|sp| 2.0 * (32.0 + rich::natural_width(ctx, rich::formatted(&format!("{} - {}  {}  {}", sp.letter, sp.title, sp.effect, sp.range), st, 0.0))))
+                .map(|sp| {
+                    2.0 * (32.0 + rich::natural_width(ctx, rich::formatted(&format!("{} - {}  {}  {}", sp.letter, sp.title, sp.effect, sp.range), st, 0.0)))
+                })
                 .fold(0.0, f32::max),
-            Block::GodFavour { rows, .. } => rows.iter().map(|(a, b)| rich::natural_width(ctx, rich::formatted(&format!("{a}    {b}"), st, 0.0))).fold(0.0, f32::max),
-            Block::GodPowers { powers, .. } => powers.iter().map(|(a, b, _)| rich::natural_width(ctx, rich::plain(&format!("{a} {b}"), st, 0.0)) + st.size).fold(0.0, f32::max),
+            Block::GodFavour { rows, .. } => {
+                rows.iter().map(|(a, b)| rich::natural_width(ctx, rich::formatted(&format!("{a}    {b}"), st, 0.0))).fold(0.0, f32::max)
+            }
+            Block::GodPowers { powers, .. } => {
+                powers.iter().map(|(a, b, _)| rich::natural_width(ctx, rich::plain(&format!("{a} {b}"), st, 0.0)) + st.size).fold(0.0, f32::max)
+            }
         };
         w = w.max(n);
     }
@@ -727,7 +790,11 @@ impl Overlays {
             let base = TextStyle::new(ctx, font, hex(0xdddddd));
             let natural = m.sections.iter().map(|s| if let Section::Body(b) = s { body_natural(ctx, b, &base) } else { 0.0 }).fold(0.0, f32::max);
             let room = screen.popup_max_w() - 2.0 - 2.0 * 0.8 * screen.rem() - frame::SCROLLBAR_W;
-            if natural > room { (font * room / natural).max(7.0).min(font) } else { font }
+            if natural > room {
+                (font * room / natural).max(7.0).min(font)
+            } else {
+                font
+            }
         } else {
             font
         };
@@ -774,7 +841,9 @@ impl Overlays {
                         words = words.max(frame::longest_word(&t));
                     }
                 }
-                Section::Actions(t) | Section::Footer { text: t, .. } | Section::More(t) => words = words.max(frame::longest_word(&formatted_string_to_text(t))),
+                Section::Actions(t) | Section::Footer { text: t, .. } | Section::More(t) => {
+                    words = words.max(frame::longest_word(&formatted_string_to_text(t)))
+                }
             }
         }
         let min_content = (words as f32 * widgets::ch(font)).max(tile_min);
@@ -823,7 +892,12 @@ impl Overlays {
             }
         }
         // the scrolling body is the tallest; it gives way when the popup would pass its max height
-        let body_ix = laid.iter().enumerate().filter_map(|(k, l)| if let L::Body(_, b) = l { Some((k, b.height)) } else { None }).max_by(|a, b| a.1.total_cmp(&b.1)).map(|x| x.0);
+        let body_ix = laid
+            .iter()
+            .enumerate()
+            .filter_map(|(k, l)| if let L::Body(_, b) = l { Some((k, b.height)) } else { None })
+            .max_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|x| x.0);
         let total: f32 = heights.iter().sum::<f32>() + 2.0;
         let max_h = screen.popup_max_h();
         let mut content_h = 0.0;
@@ -1112,7 +1186,10 @@ mod tests {
     #[test]
     fn action_words() {
         assert_eq!(parse_action_word("or (d)rop."), ActionWord { prefix: "or ".into(), suffix: ".".into(), text: "(d)rop".into(), key: Some("d".into()) });
-        assert_eq!(parse_actions("(w)ield, (q)uiver, or (d)rop."), vec![("w".into(), "(w)ield".into()), ("q".into(), "(q)uiver".into()), ("d".into(), "(d)rop".into())]);
+        assert_eq!(
+            parse_actions("(w)ield, (q)uiver, or (d)rop."),
+            vec![("w".into(), "(w)ield".into()), ("q".into(), "(q)uiver".into()), ("d".into(), "(d)rop".into())]
+        );
         assert_eq!(parse_actions("(<)go up."), vec![("<".into(), "(<)go up".into())]);
         assert!(parse_actions("").is_empty());
         assert!(parse_actions("nothing here").is_empty());
@@ -1120,7 +1197,10 @@ mod tests {
 
     #[test]
     fn scroller_keys() {
-        assert_eq!(scroller_actions("", "<lightgrey>    <white>Dungeon Overview and Level Annotations</white>", ""), "(G) Travel, (_) Altar, ($) Shops, (!) Annotate");
+        assert_eq!(
+            scroller_actions("", "<lightgrey>    <white>Dungeon Overview and Level Annotations</white>", ""),
+            "(G) Travel, (_) Altar, ($) Shops, (!) Annotate"
+        );
         assert_eq!(scroller_actions("help", "x", "<w>?</w>: List of commands\n<w>^</w>: Quickstart Guide\n"), "(?) List of commands, (^) Quickstart Guide");
         assert_eq!(scroller_actions("resists", "Player the Fighter", ""), "");
     }

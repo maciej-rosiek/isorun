@@ -13,8 +13,8 @@ use regex::Regex;
 use serde_json::Value;
 
 use crate::classify::{
-    beacon_for, classify_feature_with, door_state_name, feature_label, gate_faces, is_rubble, is_scenery, is_vegetation, item_rarity, item_tile_name, level_presentation,
-    liquid_label, liquid_of, stance_for, stands_free,
+    beacon_for, classify_feature_with, door_state_name, feature_label, gate_faces, is_rubble, is_scenery, is_vegetation, item_rarity, item_tile_name,
+    level_presentation, liquid_label, liquid_of, stance_for, stands_free,
 };
 use crate::enums::{halo_table, HaloTable, MfTable};
 use crate::monsters::{attitude_of, threat_of};

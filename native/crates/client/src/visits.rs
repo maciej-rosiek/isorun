@@ -312,7 +312,10 @@ mod tests {
         v.tick_at(29.0, true, Some(game.clone()));
         v.tick_at(30.0, true, Some(game.clone()));
         v.tick_at(60.0, true, None);
-        assert_eq!(sent(&v), ["/api/visit?id=x&e=visit", "/api/visit?id=x&e=game&m=play&s=cue", "/api/visit?id=x&e=beat&m=play&s=cue&t=18", "/api/visit?id=x&e=beat"]);
+        assert_eq!(
+            sent(&v),
+            ["/api/visit?id=x&e=visit", "/api/visit?id=x&e=game&m=play&s=cue", "/api/visit?id=x&e=beat&m=play&s=cue&t=18", "/api/visit?id=x&e=beat"]
+        );
     }
 
     #[test]

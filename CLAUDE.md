@@ -48,6 +48,7 @@ separate branch.) Other agents often share this checkout: commit your own paths 
 
     cd native
     cargo build -p <crate>; cargo test -p <crate>     # or --workspace (CI runs that)
+    cargo fmt --all                                    # rustfmt.toml's layout; CI checks it
     cargo run --release -p isorun-app --bin isorun     # the desktop app
 
 The app's flags: `--testbed` (the renderer's test level), `--perf` (frame and wire timing, `?perf`

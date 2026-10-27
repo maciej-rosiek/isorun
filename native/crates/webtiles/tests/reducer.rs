@@ -443,12 +443,7 @@ fn stays_playing_when_game_client_follows_game_started() {
     r(&mut w, json!({ "msg": "game_ended", "reason": "dead", "dump": "/morgue/alice/morgue-alice-1" }));
     assert_eq!(
         w.exit,
-        Some(GameExit {
-            reason: Some("dead".into()),
-            message: None,
-            dump: Some("/morgue/alice/morgue-alice-1".into()),
-            watched: Some("alice".into())
-        })
+        Some(GameExit { reason: Some("dead".into()), message: None, dump: Some("/morgue/alice/morgue-alice-1".into()), watched: Some("alice".into()) })
     );
     // a game_client before any game_started is a game still on its way
     let mut fresh = initial_state();
@@ -547,8 +542,7 @@ mod items_underfoot_cases {
         let at = msgs
             .iter()
             .position(|m| {
-                m["msg"] == "msgs"
-                    && m["messages"].as_array().is_some_and(|a| a.iter().any(|l| l["turn"] == 12185 && l["channel"] == Msgch::FLOOR_ITEMS))
+                m["msg"] == "msgs" && m["messages"].as_array().is_some_and(|a| a.iter().any(|l| l["turn"] == 12185 && l["channel"] == Msgch::FLOOR_ITEMS))
             })
             .unwrap();
         assert!(at > 0);
@@ -637,10 +631,7 @@ mod items_underfoot_cases {
         r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "<lightgrey>There are no items here.", "turn": 26, "channel": 0 }] }));
         assert!(!items_underfoot(&st));
         // the msgs line may precede the player update in a batch: same turn still counts
-        r(
-            &mut st,
-            json!({ "msg": "msgs", "messages": [{ "text": "<lightgrey>You see here a dagger.", "turn": 30, "channel": Msgch::FLOOR_ITEMS }] }),
-        );
+        r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "<lightgrey>You see here a dagger.", "turn": 30, "channel": Msgch::FLOOR_ITEMS }] }));
         r(&mut st, json!({ "msg": "player", "pos": { "x": 2, "y": 1 }, "turn": 30 }));
         assert!(items_underfoot(&st));
         // stairs to a level where the same coordinates are a different cell
@@ -664,20 +655,14 @@ mod items_underfoot_cases {
             json!({ "msg": "player", "pos": { "x": 1, "y": 1 }, "turn": 100, "gold": 20, "inv": { "0": { "base_type": 5, "quantity": 1, "name": "scroll of identify" } } }),
         );
         // the single item: one gain empties the pile
-        r(
-            &mut st,
-            json!({ "msg": "msgs", "messages": [{ "text": "<lightgrey>You see here a +0 halberd.", "turn": 100, "channel": Msgch::FLOOR_ITEMS }] }),
-        );
+        r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "<lightgrey>You see here a +0 halberd.", "turn": 100, "channel": Msgch::FLOOR_ITEMS }] }));
         assert_eq!(floor_items_label(&st).as_deref(), Some("<lightgrey>a +0 halberd"));
         r(&mut st, json!({ "msg": "player", "turn": 101, "inv": { "1": { "base_type": 0, "quantity": 1, "name": "+0 halberd" } } }));
         r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "<lightgrey>b - a +0 halberd", "turn": 100, "channel": 0 }] }));
         assert!(!items_underfoot(&st));
         assert_eq!(floor_items_label(&st), None);
         // a stack merging into a slot counts as one item ("i - 9 scrolls of identify (gained 1)")
-        r(
-            &mut st,
-            json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>) [ ?<lightgrey>.", "turn": 101, "channel": Msgch::FLOOR_ITEMS }] }),
-        );
+        r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>) [ ?<lightgrey>.", "turn": 101, "channel": Msgch::FLOOR_ITEMS }] }));
         assert_eq!(floor_items_label(&st).as_deref(), Some("<darkgrey>) [ ?"));
         r(&mut st, json!({ "msg": "player", "turn": 102, "inv": { "0": { "quantity": 2 } } }));
         assert_eq!(floor_items_label(&st).as_deref(), Some("2 items"));
@@ -739,15 +724,9 @@ mod items_underfoot_cases {
         );
         assert!(!items_underfoot(&st));
         // the glyph summary: † is a corpse, ÷ a skeleton (viewchar.cc dchar_table)
-        r(
-            &mut st,
-            json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>) [ ††<lightgrey>.", "turn": 101, "channel": Msgch::FLOOR_ITEMS }] }),
-        );
+        r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>) [ ††<lightgrey>.", "turn": 101, "channel": Msgch::FLOOR_ITEMS }] }));
         assert_eq!(floor_items_count(&st.player.floor_items.as_ref().unwrap().lines), Some(2));
-        r(
-            &mut st,
-            json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>†† ÷<lightgrey>.", "turn": 101, "channel": Msgch::FLOOR_ITEMS }] }),
-        );
+        r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>†† ÷<lightgrey>.", "turn": 101, "channel": Msgch::FLOOR_ITEMS }] }));
         assert!(!items_underfoot(&st));
     }
 
@@ -759,10 +738,7 @@ mod items_underfoot_cases {
         reduce(&mut st, &rec[0]);
         assert_eq!(st.player.turn, 29814);
         // as if the last cell had been a pile too
-        r(
-            &mut st,
-            json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>) [<lightgrey>.", "turn": 29814, "channel": Msgch::FLOOR_ITEMS }] }),
-        );
+        r(&mut st, json!({ "msg": "msgs", "messages": [{ "text": "Items here: <darkgrey>) [<lightgrey>.", "turn": 29814, "channel": Msgch::FLOOR_ITEMS }] }));
         r(&mut st, json!({ "msg": "player", "pos": { "x": 26, "y": 14 }, "turn": 29814 }));
         assert!(items_underfoot(&st));
         for m in &rec[1..] {
@@ -880,10 +856,7 @@ mod set_game_links {
         let by = |id: &str| st.lobby.games.iter().find(|g| g.id == id).cloned();
         let saved = |id: &str, label: &str, save: &str, rc: &str| GameLink { save: Some(save.into()), ..link(id, label, rc) };
         // a save to continue: the link moves from the name to the bracket text
-        assert_eq!(
-            by("dcss-web-trunk"),
-            Some(saved("dcss-web-trunk", "DCSS trunk", "orbruntest, a level 3 Minotaur Berserker of Trog", "dcss-web-trunk"))
-        );
+        assert_eq!(by("dcss-web-trunk"), Some(saved("dcss-web-trunk", "DCSS trunk", "orbruntest, a level 3 Minotaur Berserker of Trog", "dcss-web-trunk")));
         // a game whose slot another game type holds: greyed, no link; its id comes from nowhere, so it is not listed
         assert_eq!(by("seeded-web-trunk"), None);
         // a save another session has open: still linked
@@ -894,10 +867,7 @@ mod set_game_links {
         assert_eq!(by("sprint-web-trunk"), Some(link("sprint-web-trunk", "Sprint trunk", "dcss-web-trunk")));
         // the rows the home screen shows keep the save with the game
         let rows = game_link_rows(&st.lobby.games);
-        assert_eq!(
-            rows.trunk.iter().map(|g| g.save.clone()).collect::<Vec<_>>(),
-            vec![Some("orbruntest, a level 3 Minotaur Berserker of Trog".to_string())]
-        );
+        assert_eq!(rows.trunk.iter().map(|g| g.save.clone()).collect::<Vec<_>>(), vec![Some("orbruntest, a level 3 Minotaur Berserker of Trog".to_string())]);
         assert_eq!(rows.latest.iter().map(|g| g.save.clone()).collect::<Vec<_>>(), vec![Some("playing".to_string())]);
     }
 
@@ -977,10 +947,7 @@ mod set_game_links {
                 link("dcss-web-0.34", "DCSS 0.34", "dcss-web-0.34"),
                 link("seeded-web-0.34", "Seeded 0.34", "dcss-web-0.34"),
                 link("sprint-web-0.34", "Sprint 0.34", "dcss-web-0.34"),
-                GameLink {
-                    save: Some("orbrun, a level 9 Gnoll Fighter of Okawaru".into()),
-                    ..link("dcss-web-trunk", "DCSS trunk", "dcss-web-trunk")
-                },
+                GameLink { save: Some("orbrun, a level 9 Gnoll Fighter of Okawaru".into()), ..link("dcss-web-trunk", "DCSS trunk", "dcss-web-trunk") },
                 link("sprint-web-trunk", "Sprint trunk", "dcss-web-trunk"),
                 link("dcss-web-0.33", "DCSS 0.33", "dcss-web-0.33"),
             ]
@@ -988,10 +955,7 @@ mod set_game_links {
         let rows = game_link_rows(&st.lobby.games);
         assert_eq!(rows.latest_version.as_deref(), Some("0.34"));
         assert_eq!(rows.latest.iter().map(|g| g.label.as_str()).collect::<Vec<_>>(), vec!["DCSS 0.34"]);
-        assert_eq!(
-            rows.trunk.iter().map(|g| g.save.clone()).collect::<Vec<_>>(),
-            vec![Some("orbrun, a level 9 Gnoll Fighter of Okawaru".to_string())]
-        );
+        assert_eq!(rows.trunk.iter().map(|g| g.save.clone()).collect::<Vec<_>>(), vec![Some("orbrun, a level 9 Gnoll Fighter of Okawaru".to_string())]);
     }
 
     #[test]
@@ -1004,10 +968,7 @@ mod set_game_links {
                 "content": "<span class=\"fg7\"><br>DCSS trunk<span>[slot full]</span><a href=\"javascript:\" class=\"edit_rc_link\" data-game_id=\"dcss-web-trunk\">(edit rc)</a></span>",
             }),
         );
-        assert_eq!(
-            st.lobby.games,
-            vec![GameLink { save: Some("slot full".into()), disabled: true, ..link("dcss-web-trunk", "DCSS trunk", "dcss-web-trunk") }]
-        );
+        assert_eq!(st.lobby.games, vec![GameLink { save: Some("slot full".into()), disabled: true, ..link("dcss-web-trunk", "DCSS trunk", "dcss-web-trunk") }]);
     }
 
     #[test]

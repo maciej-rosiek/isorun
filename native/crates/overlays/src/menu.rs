@@ -135,7 +135,10 @@ impl Overlays {
             natural = natural.max(w);
         }
         let more_style = base.clone().colour(hex(0xaaaaaa));
-        let more_w = [&menu.more, &menu.alt_more].iter().map(|m| rich::natural_width(ctx, rich::formatted(&m.replacen("XXX", "top", 1), &more_style, 0.0))).fold(0.0, f32::max);
+        let more_w = [&menu.more, &menu.alt_more]
+            .iter()
+            .map(|m| rich::natural_width(ctx, rich::formatted(&m.replacen("XXX", "top", 1), &more_style, 0.0)))
+            .fold(0.0, f32::max);
         natural = natural.max(more_w);
         // the box: shrink to fit between the popup's min and max width
         let scroll_key = menu.stack_order;
@@ -216,7 +219,8 @@ impl Overlays {
         let more = more_text(menu, overflow, scroll, max_scroll);
         let more_plain = formatted_string_to_text(&more);
         if top {
-            self.menu_geom = MenuGeom { stack: menu.stack_order, rows: rows.iter().map(|r| (r.top, r.h)).collect(), client_h: body_h, scroll_h: content_h, inset: pad_y };
+            self.menu_geom =
+                MenuGeom { stack: menu.stack_order, rows: rows.iter().map(|r| (r.top, r.h)).collect(), client_h: body_h, scroll_h: content_h, inset: pad_y };
             let sw = switches(&more_plain);
             if self.menu_footer != sw {
                 self.menu_footer = sw;
@@ -302,7 +306,8 @@ impl Overlays {
                     x += 32.0 + gap;
                 }
                 bp.galley(Pos2::new(x, r.center().y - row.galley.size().y / 2.0), row.galley.clone(), Color32::WHITE);
-                let selectable = it.is_some_and(|it| it.level.unwrap_or(2) == 2 && (menu.tag == "use_item" || it.hotkeys.as_ref().is_some_and(|h| !h.is_empty()) || arrows));
+                let selectable =
+                    it.is_some_and(|it| it.level.unwrap_or(2) == 2 && (menu.tag == "use_item" || it.hotkeys.as_ref().is_some_and(|h| !h.is_empty()) || arrows));
                 if selectable && body.contains(r.center()) && ui.interact(r.intersect(body), id.with(("row", i)), egui::Sense::click()).clicked() {
                     clicked_row = Some(i);
                 }
@@ -610,7 +615,13 @@ impl Overlays {
         };
         let sideways = matches!(dir, Step::Left | Step::Right);
         if i >= 0 {
-            let next = focus_step(&slots, i, fd, StepOpts::default()).or_else(|| if sideways { focus_step(&slots, i, fd, StepOpts { columns: true, keep_column: false }) } else { None });
+            let next = focus_step(&slots, i, fd, StepOpts::default()).or_else(|| {
+                if sideways {
+                    focus_step(&slots, i, fd, StepOpts { columns: true, keep_column: false })
+                } else {
+                    None
+                }
+            });
             if let Some(n) = next {
                 self.footer_index = n as i32;
                 return true;
@@ -744,7 +755,13 @@ impl Overlays {
                     let k = self.menu_footer[self.footer_index as usize].key.clone();
                     return self.send_more_switch(&k, cx);
                 }
-                let hk = menu.items.get(hovered.max(0) as usize).filter(|_| hovered >= 0).and_then(|x| x.as_ref()).and_then(|it| it.hotkeys.as_ref()).and_then(|h| h.first().copied());
+                let hk = menu
+                    .items
+                    .get(hovered.max(0) as usize)
+                    .filter(|_| hovered >= 0)
+                    .and_then(|x| x.as_ref())
+                    .and_then(|it| it.hotkeys.as_ref())
+                    .and_then(|h| h.first().copied());
                 // what a click on the row does: an arrows menu acts on its hover (Space marks on a
                 // multiselect, Enter takes it on the rest); with no row under the cursor, A leaves as Esc does
                 if arrows && !multi && hovered < 0 {
@@ -759,7 +776,14 @@ impl Overlays {
             }
             MenuOp::AltSelect => {
                 // the hovered row's letter, shifted: `A`..`Z` put a shop item on the shopping list
-                if let Some(hk) = menu.items.get(hovered.max(0) as usize).filter(|_| hovered >= 0).and_then(|x| x.as_ref()).and_then(|it| it.hotkeys.as_ref()).and_then(|h| h.first().copied()) {
+                if let Some(hk) = menu
+                    .items
+                    .get(hovered.max(0) as usize)
+                    .filter(|_| hovered >= 0)
+                    .and_then(|x| x.as_ref())
+                    .and_then(|it| it.hotkeys.as_ref())
+                    .and_then(|h| h.first().copied())
+                {
                     if (97..=122).contains(&hk) {
                         cx.send(cm::key(hk as i32 - 32));
                     }

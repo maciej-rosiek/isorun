@@ -125,8 +125,16 @@ fn xbr2x(src: &[u32], w: usize, h: usize) -> Vec<u32> {
                 let mut corner = e;
                 if e != f && e != hh {
                     let i = at(1, 1);
-                    let across = pixel_distance(e, at(1, -1)) + pixel_distance(e, at(-1, 1)) + pixel_distance(i, at(2, 0)) + pixel_distance(i, at(0, 2)) + 4.0 * pixel_distance(hh, f);
-                    let along = pixel_distance(hh, at(-1, 0)) + pixel_distance(hh, at(1, 2)) + pixel_distance(f, at(2, 1)) + pixel_distance(f, at(0, -1)) + 4.0 * pixel_distance(e, i);
+                    let across = pixel_distance(e, at(1, -1))
+                        + pixel_distance(e, at(-1, 1))
+                        + pixel_distance(i, at(2, 0))
+                        + pixel_distance(i, at(0, 2))
+                        + 4.0 * pixel_distance(hh, f);
+                    let along = pixel_distance(hh, at(-1, 0))
+                        + pixel_distance(hh, at(1, 2))
+                        + pixel_distance(f, at(2, 1))
+                        + pixel_distance(f, at(0, -1))
+                        + 4.0 * pixel_distance(e, i);
                     if across < along {
                         corner = blend_pixels(e, if pixel_distance(e, f) <= pixel_distance(e, hh) { f } else { hh });
                     }

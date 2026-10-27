@@ -1,8 +1,8 @@
 //! Plays an offline game with no window: logs in, starts the game, sends keys and renders the
 //! scene into a PNG. `cargo run -p isorun-app --example offline -- out.png [keys]`.
 
-use isorun_client::session::{Session, SessionEvent};
 use isorun_client::servers;
+use isorun_client::session::{Session, SessionEvent};
 use isorun_webtiles::{cm, key_message, Phase};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -35,7 +35,13 @@ fn main() {
     eprintln!("lobby: {:?} as {:?}", game, s.state.lobby.username);
     s.send(cm::play(&game.id));
     pump(&mut s, 4.0);
-    eprintln!("after play: phase {:?} exit {:?} diags {:?} {:?}", s.state.phase, s.state.exit, s.diagnostics, s.state.diagnostics.iter().map(|d| d.text.clone()).collect::<Vec<_>>());
+    eprintln!(
+        "after play: phase {:?} exit {:?} diags {:?} {:?}",
+        s.state.phase,
+        s.state.exit,
+        s.diagnostics,
+        s.state.diagnostics.iter().map(|d| d.text.clone()).collect::<Vec<_>>()
+    );
     for c in keys.chars() {
         s.send(key_message(c as i32));
         pump(&mut s, 1.0);
@@ -46,7 +52,14 @@ fn main() {
     }
     eprintln!("gamedata after {:?}", t.elapsed());
     pump(&mut s, 0.5);
-    eprintln!("phase {:?}, gamedata {}, player at {:?}, {} billboards, {} cells, messages:", s.state.phase, s.gamedata.is_some(), s.scene.player, s.scene.billboards.len(), s.scene.cells.len());
+    eprintln!(
+        "phase {:?}, gamedata {}, player at {:?}, {} billboards, {} cells, messages:",
+        s.state.phase,
+        s.gamedata.is_some(),
+        s.scene.player,
+        s.scene.billboards.len(),
+        s.scene.cells.len()
+    );
     for m in s.state.messages.lines.iter().rev().take(5) {
         eprintln!("  {}", m.text);
     }
@@ -55,7 +68,8 @@ fn main() {
 
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).expect("adapter");
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
+    let (device, queue) =
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
     let mut r = isorun_render::IsoRenderer::new(device.clone(), queue.clone());
     r.set_torch_model(isorun_client::testbed::TORCH_GLB).unwrap();
     r.set_tiles(gd);
@@ -85,11 +99,19 @@ fn main() {
         std::thread::sleep(Duration::from_millis(20));
     }
     let bytes_per_row = (w * 4).div_ceil(256) * 256;
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: None, size: (bytes_per_row * h) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: None,
+        size: (bytes_per_row * h) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
     let mut encoder = device.create_command_encoder(&Default::default());
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo { texture: &target, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
-        wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: Some(h) } },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: Some(h) },
+        },
         wgpu::Extent3d { width: w, height: h, depth_or_array_layers: 1 },
     );
     queue.submit([encoder.finish()]);

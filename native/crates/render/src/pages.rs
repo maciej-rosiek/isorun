@@ -135,7 +135,16 @@ impl Pages {
     pub fn new(paint: PaintSettings, max_texture: u32) -> Self {
         let scale = crate::enhance::upscale_factor(paint.upscale);
         let page_texels = PAGE_TEXELS.min(max_texture / scale);
-        Pages { paint, page_texels, pages: Vec::new(), placed: HashMap::new(), averages: HashMap::new(), enhancer: Enhancer::new(), glowing: false, revision: 0 }
+        Pages {
+            paint,
+            page_texels,
+            pages: Vec::new(),
+            placed: HashMap::new(),
+            averages: HashMap::new(),
+            enhancer: Enhancer::new(),
+            glowing: false,
+            revision: 0,
+        }
     }
 
     pub fn paint(&self) -> &PaintSettings {
@@ -162,7 +171,14 @@ impl Pages {
     }
 
     /// The tile on its page; a new tile is placed and sent to be enhanced.
-    pub fn for_tile(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler, tiles: &dyn TileSource, rect: &TileRect) -> Option<Placed> {
+    pub fn for_tile(
+        &mut self,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        sampler: &wgpu::Sampler,
+        tiles: &dyn TileSource,
+        rect: &TileRect,
+    ) -> Option<Placed> {
         let key = rect_key(rect);
         if let Some(p) = self.placed.get(&key) {
             return *p;
@@ -172,7 +188,14 @@ impl Pages {
         placed
     }
 
-    fn place(&mut self, device: &wgpu::Device, layout: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler, tiles: &dyn TileSource, rect: &TileRect) -> Option<Placed> {
+    fn place(
+        &mut self,
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        sampler: &wgpu::Sampler,
+        tiles: &dyn TileSource,
+        rect: &TileRect,
+    ) -> Option<Placed> {
         let atlas = tiles.atlas(&rect.atlas)?;
         if rect.w == 0 || rect.h == 0 || rect.sx + rect.w > atlas.width || rect.sy + rect.h > atlas.height {
             return None;
@@ -226,7 +249,12 @@ impl Pages {
             let Some(page) = self.pages.get_mut(d.page as usize) else { continue };
             for (texture, pixels) in [(&page.colour, &d.tile.colour), (&page.normal, &d.tile.normal), (&page.surface, &d.tile.surface)] {
                 queue.write_texture(
-                    wgpu::TexelCopyTextureInfo { texture, mip_level: 0, origin: wgpu::Origin3d { x: d.slot.x, y: d.slot.y, z: 0 }, aspect: wgpu::TextureAspect::All },
+                    wgpu::TexelCopyTextureInfo {
+                        texture,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d { x: d.slot.x, y: d.slot.y, z: 0 },
+                        aspect: wgpu::TextureAspect::All,
+                    },
                     pixels,
                     wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(d.tile.w * 4), rows_per_image: Some(d.tile.h) },
                     wgpu::Extent3d { width: d.tile.w, height: d.tile.h, depth_or_array_layers: 1 },
@@ -265,7 +293,14 @@ pub fn mip_count(size: u32) -> u32 {
     32 - size.max(1).leading_zeros()
 }
 
-pub fn page_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, sampler: &wgpu::Sampler, colour: &wgpu::Texture, normal: &wgpu::Texture, surface: &wgpu::Texture) -> wgpu::BindGroup {
+pub fn page_bind_group(
+    device: &wgpu::Device,
+    layout: &wgpu::BindGroupLayout,
+    sampler: &wgpu::Sampler,
+    colour: &wgpu::Texture,
+    normal: &wgpu::Texture,
+    surface: &wgpu::Texture,
+) -> wgpu::BindGroup {
     let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
     // the normal and surface pages are read without anisotropy, as the web build's are (only its
     // colour page has 4): five of the ground's samples are of them, and on a software

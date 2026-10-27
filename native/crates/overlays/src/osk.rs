@@ -15,7 +15,11 @@ const TRAVEL_DEPTH_KEYS: [(char, &str); 4] = [('<', "Up"), ('>', "Down"), ('^', 
 /// What the keyboard types into: a prompt's own keys over the letters, and the button that submits.
 pub(crate) fn target(ti: &TextInputState) -> OskTarget {
     let tag = ti.tag.as_deref();
-    let extras = if tag == Some("travel_depth") { TRAVEL_DEPTH_KEYS.iter().map(|(ch, label)| OskExtra { ch: *ch, label: (*label).into() }).collect() } else { Vec::new() };
+    let extras = if tag == Some("travel_depth") {
+        TRAVEL_DEPTH_KEYS.iter().map(|(ch, label)| OskExtra { ch: *ch, label: (*label).into() }).collect()
+    } else {
+        Vec::new()
+    };
     // the prompt opened off Y (Set target on a skill row), so Y does not also confirm it: Start does
     let submit_button = submit_on_start_only(tag).then_some(isorun_input::Button::Start);
     OskTarget { extras, submit_button }

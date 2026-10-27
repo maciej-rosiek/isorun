@@ -531,7 +531,8 @@ impl GameScreen {
         self.parts.view.renderer.set_centre_lift(layout.centre_lift);
         self.parts.chat_capturing = self.parts.hud.chat.capturing(&ctx);
         let fullscreen = isorun_ui::fullscreen::is_on(&ctx);
-        self.parts.system_opts = client::SystemOpts { spectating: self.session.watching(), chat: self.chat_on(), can_fullscreen: self.opts.can_fullscreen, fullscreen };
+        self.parts.system_opts =
+            client::SystemOpts { spectating: self.session.watching(), chat: self.chat_on(), can_fullscreen: self.opts.can_fullscreen, fullscreen };
         if let Some(ClientMenu { kind: client::Kind::System { tab, .. }, tab_focus, .. }) = &self.parts.client {
             self.parts.system_at = (*tab, *tab_focus);
         }
@@ -636,7 +637,8 @@ impl GameScreen {
         if let Some(text) = &self.loading {
             // the veil over the screen while the tiles load; behind crawl's overlays when one is up
             let behind = Overlays::up(&self.session.state) && self.started;
-            let painter = ctx.layer_painter(egui::LayerId::new(if behind { egui::Order::Background } else { egui::Order::Foreground }, egui::Id::unique("isorun-loading")));
+            let painter = ctx
+                .layer_painter(egui::LayerId::new(if behind { egui::Order::Background } else { egui::Order::Foreground }, egui::Id::unique("isorun-loading")));
             painter.rect_filled(screen, 0.0, egui::Color32::from_black_alpha(217));
             let g = painter.layout_no_wrap(text.clone(), egui::FontId::monospace(16.0), isorun_ui::theme::INK);
             let at = if behind { egui::pos2(screen.center().x, screen.top() + screen.height() * 0.08) } else { screen.center() };
@@ -679,7 +681,12 @@ impl GameScreen {
 
     fn log_context(&self) -> perf::LogContext {
         let st = &self.session.state;
-        perf::LogContext { mode: format!("{:?}", self.ctx.mode).to_lowercase(), place: if st.player.place.is_empty() { String::new() } else { format!("{}:{}", st.player.place, st.player.depth) }, cells: self.session.scene.cells.len(), crowd: self.session.scene.billboards.len() }
+        perf::LogContext {
+            mode: format!("{:?}", self.ctx.mode).to_lowercase(),
+            place: if st.player.place.is_empty() { String::new() } else { format!("{}:{}", st.player.place, st.player.depth) },
+            cells: self.session.scene.cells.len(),
+            crowd: self.session.scene.billboards.len(),
+        }
     }
 
     /// A state came in: the hops, the fight, the sound, the travel's pace, the runner's waits,
@@ -718,7 +725,8 @@ impl GameScreen {
             let mut cx = OverlayCx::new(st, &mut self.parts.icons, &mut out);
             cx.watching = self.session.watching();
             if ctx.mode == Mode::Popup {
-                ctx.popup_actions = Some(self.parts.overlays.popup_actions().into_iter().map(|(key, label)| isorun_input::context::PopupAction { key, label }).collect());
+                ctx.popup_actions =
+                    Some(self.parts.overlays.popup_actions().into_iter().map(|(key, label)| isorun_input::context::PopupAction { key, label }).collect());
             }
             ctx.pageable = self.parts.overlays.pageable(&cx);
         }
@@ -858,13 +866,24 @@ impl GameScreen {
             } else if touch && !watching && (self.parts.client.is_some() || self.parts.find.open() || self.ctx.mode == Mode::Menu) && outside {
                 swallowed = true;
                 self.route(now, |r, io| r.back(io));
-            } else if !watching && self.parts.client.is_none() && !menus_keys && matches!(self.ctx.mode, Mode::Popup | Mode::Dialog) && mouse_control(&self.session.state) && (outside || button == 2) {
+            } else if !watching
+                && self.parts.client.is_none()
+                && !menus_keys
+                && matches!(self.ctx.mode, Mode::Popup | Mode::Dialog)
+                && mouse_control(&self.session.state)
+                && (outside || button == 2)
+            {
                 swallowed = true;
                 self.send(cm::key(27), now);
             }
         }
         // the pointer and the fingers over the view; none while a screen of ours or a panel covers it
-        let covered = swallowed || self.parts.client.is_some() || self.parts.find.open() || self.parts.hud.screen_open().is_some() || menus_keys || pointer_over_panel(&ctx);
+        let covered = swallowed
+            || self.parts.client.is_some()
+            || self.parts.find.open()
+            || self.parts.hud.screen_open().is_some()
+            || menus_keys
+            || pointer_over_panel(&ctx);
         self.gestures.view = view_rect;
         // what takes the pointer (the dock, the touch bar, the corner buttons, panels): a press
         // there is that widget's for its whole gesture, never the view's
@@ -909,7 +928,12 @@ impl GameScreen {
                     Deferred::Swing(x, y) => self.swing(x, y, now),
                     Deferred::ActionTab(id) => self.open_action_tab(id, now),
                     Deferred::ActionTabStep(step) => {
-                        let from = self.action_turn.as_ref().map(|t| t.target).or(self.ctx.menu.as_ref().and_then(|m| m.actions.as_ref().map(|a| a.current))).unwrap_or(self.action_tab_up);
+                        let from = self
+                            .action_turn
+                            .as_ref()
+                            .map(|t| t.target)
+                            .or(self.ctx.menu.as_ref().and_then(|m| m.actions.as_ref().map(|a| a.current)))
+                            .unwrap_or(self.action_tab_up);
                         self.open_action_tab(isorun_input::action_tabs::action_neighbour(from, step), now);
                     }
                     Deferred::ActionKey(key) => {
@@ -1059,7 +1083,17 @@ impl GameScreen {
                 CombatEvent::Hit { on, from, strength } => {
                     let token = self.token();
                     if let Some(cell) = cell_of(on) {
-                        self.landings.insert(token, (isorun_hud::damage_numbers::Landing::Hit { on_player: on == Fighter::Player, tier: strength.tier, amount: strength.amount.map(|a| a as i64) }, cell));
+                        self.landings.insert(
+                            token,
+                            (
+                                isorun_hud::damage_numbers::Landing::Hit {
+                                    on_player: on == Fighter::Player,
+                                    tier: strength.tier,
+                                    amount: strength.amount.map(|a| a as i64),
+                                },
+                                cell,
+                            ),
+                        );
                     }
                     {
                         let view = RendererView { renderer: &self.parts.view.renderer, width, animation_speed: self.client_settings.animation_speed };
@@ -1169,7 +1203,8 @@ impl GameScreen {
 
     fn send_action_key(&mut self, target: ActionTabId, now: f64) {
         let tab = action_tab(target);
-        self.action_turn = Some(ActionTurn { target, sent: Some(target), stage: TurnStage::Sent, last: self.session.state.messages.lines.last().cloned(), t: now });
+        self.action_turn =
+            Some(ActionTurn { target, sent: Some(target), stage: TurnStage::Sent, last: self.session.state.messages.lines.last().cloned(), t: now });
         self.execute(&Action::keys(vec![SeqItem::text(tab.key)], tab.label), now);
     }
 
@@ -1280,7 +1315,9 @@ impl GameScreen {
                 }
             }
         }
-        if let Some(h) = m.menu.items.get(m.menu.last_hovered.max(0) as usize).and_then(|i| i.as_ref()).and_then(|i| i.hotkeys.as_ref().and_then(|h| h.first().copied())) {
+        if let Some(h) =
+            m.menu.items.get(m.menu.last_hovered.max(0) as usize).and_then(|i| i.as_ref()).and_then(|i| i.hotkeys.as_ref().and_then(|h| h.first().copied()))
+        {
             self.pack_row.insert(page.clone(), h);
         }
         self.pack_page = Some(page);
@@ -1313,7 +1350,13 @@ impl GameScreen {
             return Some(SceneCursor { x: cell.0, y: cell.1, mode: CursorMode::Examine, tile, grid: false });
         };
         let gd = self.session.gamedata.as_ref();
-        let mode = if st.ui_state == UiState::VIEW_MAP { CursorMode::Map } else if st.input_mode == MouseMode::COMMAND { CursorMode::Examine } else { CursorMode::Target };
+        let mode = if st.ui_state == UiState::VIEW_MAP {
+            CursorMode::Map
+        } else if st.input_mode == MouseMode::COMMAND {
+            CursorMode::Examine
+        } else {
+            CursorMode::Target
+        };
         let tutorial = c(0).is_none() && c(2).is_none() && c(1).is_some();
         let tile = gd.and_then(|g| g.gd.icons.id(if tutorial { "TUTORIAL_CURSOR" } else { "CURSOR" }));
         Some(SceneCursor { x: cur.x, y: cur.y, mode, tile, grid: false })
@@ -1573,7 +1616,11 @@ impl GameScreen {
                 }
             }
             HudCommand::Choices { title, choices, remember } => {
-                let rows = choices.into_iter().enumerate().map(|(i, c)| Row { label: c.label, sub: c.sub, key: None, tile: c.tile, tiles: c.tiles, sep: c.sep, run: Some(Run::HudChoice(i)) }).collect();
+                let rows = choices
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, c)| Row { label: c.label, sub: c.sub, key: None, tile: c.tile, tiles: c.tiles, sep: c.sep, run: Some(Run::HudChoice(i)) })
+                    .collect();
                 self.parts.client = Some(ClientMenu::choices(&title, rows, remember, true));
             }
         }
@@ -1681,7 +1728,13 @@ impl GameScreen {
         let p = &self.session.state.player;
         let here = isorun_find::entry::level_label(&p.place, p.depth);
         let events = {
-            let view = isorun_find::View { driver: &self.parts.find, here: &here, scale: self.client_settings.ui_scale.max(0.5), pad: self.parts.last_input == InputDevice::Pad, touch: self.touch };
+            let view = isorun_find::View {
+                driver: &self.parts.find,
+                here: &here,
+                scale: self.client_settings.ui_scale.max(0.5),
+                pad: self.parts.last_input == InputDevice::Pad,
+                touch: self.touch,
+            };
             self.parts.find_screen.ui(ctx, &view, &mut self.parts.icons)
         };
         self.parts.find_typing = self.parts.find_screen.typing(ctx);
@@ -1747,7 +1800,12 @@ impl GameScreen {
         if !self.touch {
             return;
         }
-        let shown = !self.session.watching() && self.parts.client.is_none() && !self.parts.find.open() && !self.parts.menus.is_open() && !self.parts.chat_capturing && !self.parts.overlays.level_up.choosing();
+        let shown = !self.session.watching()
+            && self.parts.client.is_none()
+            && !self.parts.find.open()
+            && !self.parts.menus.is_open()
+            && !self.parts.chat_capturing
+            && !self.parts.overlays.level_up.choosing();
         let screen = isorun_ui::safe::rect(ui.ctx());
         let ctx = self.ctx.clone();
         let (a, bar) = isorun_input::touch_bar::touch_bar(ui, &ctx, shown, screen);
@@ -1910,9 +1968,14 @@ pub fn mouse_control(st: &GameState) -> bool {
 }
 
 fn audio_settings(s: &isorun_client::servers::Settings) -> AudioSettings {
-    AudioSettings { master_volume: s.master_volume, effects_volume: s.effects_volume, ambient_volume: s.ambient_volume, music_volume: s.music_volume, muted: s.muted }
+    AudioSettings {
+        master_volume: s.master_volume,
+        effects_volume: s.effects_volume,
+        ambient_volume: s.ambient_volume,
+        music_volume: s.music_volume,
+        muted: s.muted,
+    }
 }
-
 
 /// Every pad button that can be held, for the router's holds.
 const ALL_BUTTONS: [isorun_input::Button; 17] = {

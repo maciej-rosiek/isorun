@@ -295,7 +295,9 @@ fn cell_of(c: &Value) -> SceneCell {
         translucent: tiles_of(c, "translucent"),
         icons: tiles_of(c, "icons"),
         cloud: tile_of(c, "cloud"),
-        trail: c.get("trail").map(|t| Trail { from: t.get("from").and_then(Value::as_u64).map(|d| d as Dir8), to: t.get("to").and_then(Value::as_u64).map(|d| d as Dir8) }),
+        trail: c
+            .get("trail")
+            .map(|t| Trail { from: t.get("from").and_then(Value::as_u64).map(|d| d as Dir8), to: t.get("to").and_then(Value::as_u64).map(|d| d as Dir8) }),
         flags: CellFlags {
             water: flag("water"),
             lava: flag("lava"),
@@ -335,7 +337,18 @@ fn billboard_of(b: &Value) -> Option<Billboard> {
     out.layers = b
         .get("layers")
         .and_then(Value::as_array)
-        .map(|a| a.iter().filter_map(|l| Some(Layer { tile: tile_of(l, "tile")?, ox: num(l, "ox") as f32, oy: num(l, "oy") as f32, ymax: l.get("ymax").and_then(Value::as_f64).map(|v| v as f32) })).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|l| {
+                    Some(Layer {
+                        tile: tile_of(l, "tile")?,
+                        ox: num(l, "ox") as f32,
+                        oy: num(l, "oy") as f32,
+                        ymax: l.get("ymax").and_then(Value::as_f64).map(|v| v as f32),
+                    })
+                })
+                .collect()
+        })
         .unwrap_or_default();
     out.status_icons = b
         .get("statusIcons")
@@ -344,7 +357,14 @@ fn billboard_of(b: &Value) -> Option<Billboard> {
             a.iter()
                 .filter_map(|s| {
                     let f = |k: &str| s.get(k).and_then(Value::as_bool).unwrap_or(false);
-                    Some(StatusIcon { tile: tile_of(s, "tile")?, ox: num(s, "ox") as f32, oy: num(s, "oy") as f32, at_top: f("atTop"), square: f("square"), full: f("full") })
+                    Some(StatusIcon {
+                        tile: tile_of(s, "tile")?,
+                        ox: num(s, "ox") as f32,
+                        oy: num(s, "oy") as f32,
+                        at_top: f("atTop"),
+                        square: f("square"),
+                        full: f("full"),
+                    })
                 })
                 .collect()
         })
@@ -426,7 +446,19 @@ pub fn load_place(id: &str) -> Result<LoadedPlace, String> {
     let mut rects = HashMap::new();
     for (k, t) in atlas.get("tiles").and_then(Value::as_object).into_iter().flatten() {
         let Ok(tid) = k.parse::<TileId>() else { continue };
-        rects.insert(tid, TileRect { atlas: PLACE_ATLAS.into(), sx: num(t, "sx") as u32, sy: num(t, "sy") as u32, w: num(t, "w") as u32, h: num(t, "h") as u32, ox: num(t, "ox") as i32, oy: num(t, "oy") as i32, cell });
+        rects.insert(
+            tid,
+            TileRect {
+                atlas: PLACE_ATLAS.into(),
+                sx: num(t, "sx") as u32,
+                sy: num(t, "sy") as u32,
+                w: num(t, "w") as u32,
+                h: num(t, "h") as u32,
+                ox: num(t, "ox") as i32,
+                oy: num(t, "oy") as i32,
+                cell,
+            },
+        );
     }
     let eye = file.get("eye").map(|e| (int(e, "x"), int(e, "y"))).unwrap_or((0, 0));
     let scene = read_scene(file.get("scene").unwrap_or(&Value::Null));
@@ -474,8 +506,25 @@ impl RoomView {
         let _ = std::thread::Builder::new().name("room".into()).spawn(work);
         #[cfg(target_arch = "wasm32")]
         work();
-        let cam = IsoCamera::new(isorun_render::CameraAngles { rotation: (crate::splash::random() * 360.0) as f32, tilt: 0.0, perspective: 0.0 }, isorun_render::DEFAULT_VIEW.zoom);
-        RoomView { place, view: None, cam, loading: Some(slot), loaded: false, stick: 0.0, last: isorun_client::platform::seconds(), shown_at: None, reduced_motion: false, failed: false, drawn_at: 0.0, dragged_at: f64::NEG_INFINITY, redraw: true }
+        let cam = IsoCamera::new(
+            isorun_render::CameraAngles { rotation: (crate::splash::random() * 360.0) as f32, tilt: 0.0, perspective: 0.0 },
+            isorun_render::DEFAULT_VIEW.zoom,
+        );
+        RoomView {
+            place,
+            view: None,
+            cam,
+            loading: Some(slot),
+            loaded: false,
+            stick: 0.0,
+            last: isorun_client::platform::seconds(),
+            shown_at: None,
+            reduced_motion: false,
+            failed: false,
+            drawn_at: 0.0,
+            dragged_at: f64::NEG_INFINITY,
+            redraw: true,
+        }
     }
 
     /// Right stick: dx in [-1, 1]; zero releases it.
@@ -549,7 +598,11 @@ impl RoomView {
         // every frame while the room is handled, fades in or moves of its own; the orbit alone
         // and the stillness have their own cadences (`ORBIT_FRAME_SECONDS`, `STILL_FRAME_SECONDS`)
         let fading = self.shown_at.is_none() || (!self.reduced_motion && self.shown_at.is_some_and(|t| now - t < FADE_SECONDS as f64));
-        let busy = std::env::var_os("ISORUN_ALWAYS_DRAW").is_some_and(|v| v != "0") || fading || self.stick != 0.0 || now - self.dragged_at < DRAG_SETTLE_SECONDS || view.renderer.animating();
+        let busy = std::env::var_os("ISORUN_ALWAYS_DRAW").is_some_and(|v| v != "0")
+            || fading
+            || self.stick != 0.0
+            || now - self.dragged_at < DRAG_SETTLE_SECONDS
+            || view.renderer.animating();
         let cadence = if orbit > 0.0 { ORBIT_FRAME_SECONDS } else { STILL_FRAME_SECONDS };
         let redraw = busy || std::mem::take(&mut self.redraw) || now - self.drawn_at >= cadence;
         let drawn = view.paint_if(ui, rs, rect, redraw);

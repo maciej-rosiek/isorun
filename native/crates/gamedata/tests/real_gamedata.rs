@@ -13,16 +13,7 @@ fn load(dir: &std::path::Path) -> Gamedata {
 }
 
 fn rect(atlas: &str, sx: u32, sy: u32, w: u32, h: u32, ox: i32, oy: i32) -> TileRect {
-    TileRect {
-        atlas: atlas.into(),
-        sx,
-        sy,
-        w,
-        h,
-        ox,
-        oy,
-        cell: 32,
-    }
+    TileRect { atlas: atlas.into(), sx, sy, w, h, ox, oy, cell: 32 }
 }
 
 fn sorted(mut v: Vec<&str>) -> Vec<&str> {
@@ -32,18 +23,7 @@ fn sorted(mut v: Vec<&str>) -> Vec<&str> {
 
 fn check(gd: &Gamedata) {
     let r = gd.ranges;
-    assert_eq!(
-        [
-            r.floor_max,
-            r.wall_max,
-            r.feat_max,
-            r.main_max,
-            r.player_max,
-            r.gui_max,
-            r.icons_max
-        ],
-        [1104, 2668, 3454, 5215, 8883, 10173, 10345]
-    );
+    assert_eq!([r.floor_max, r.wall_max, r.feat_max, r.main_max, r.player_max, r.gui_max, r.icons_max], [1104, 2668, 3454, 5215, 8883, 10173, 10345]);
     assert_eq!((r.first_transparent, r.mcache_start), (1264, 7578));
     assert_eq!(gd.fingerprint, "9d8e177a");
     assert!(gd.modules().iter().all(|m| m.offset == 0));
@@ -79,27 +59,12 @@ fn check(gd: &Gamedata) {
     assert_eq!(gd.tile(2668, None), Some(rect("feat", 0, 0, 30, 32, 0, 0)));
     assert_eq!(gd.tile_count(2668), 13);
     assert_eq!(gd.tile(2670, None), Some(rect("feat", 62, 0, 32, 31, 0, 1)));
-    assert_eq!(
-        gd.tile(4667, None),
-        Some(rect("main", 254, 908, 32, 21, 0, 11))
-    );
-    assert_eq!(
-        gd.tile(7209, None),
-        Some(rect("player", 722, 1670, 28, 25, 2, 7))
-    );
-    assert_eq!(
-        gd.tile(7596, None),
-        Some(rect("player", 157, 2054, 22, 30, 5, 2))
-    );
+    assert_eq!(gd.tile(4667, None), Some(rect("main", 254, 908, 32, 21, 0, 11)));
+    assert_eq!(gd.tile(7209, None), Some(rect("player", 722, 1670, 28, 25, 2, 7)));
+    assert_eq!(gd.tile(7596, None), Some(rect("player", 157, 2054, 22, 30, 5, 2)));
     assert_eq!(gd.tile_count(7596), 6);
-    assert_eq!(
-        gd.tile(9509, None),
-        Some(rect("gui", 476, 518, 28, 28, 2, 2))
-    );
-    assert_eq!(
-        gd.tile(10181, None),
-        Some(rect("icons", 254, 0, 32, 32, 0, 0))
-    );
+    assert_eq!(gd.tile(9509, None), Some(rect("gui", 476, 518, 28, 28, 2, 2)));
+    assert_eq!(gd.tile(10181, None), Some(rect("icons", 254, 0, 32, 32, 0, 0)));
     assert_eq!(gd.tile(10345, None), None);
     assert_eq!(gd.tile_count(10345), 1);
 
@@ -114,56 +79,28 @@ fn check(gd: &Gamedata) {
 
     // a tile drawn at an odd width sits half a texel off centre, rounded down
     let feat = gd.module("feat").unwrap();
-    let odd = (feat.first..feat.end)
-        .find(|&id| feat.tile_info(id).is_some_and(|i| i.w == 31 && i.ox == 0))
-        .unwrap();
+    let odd = (feat.first..feat.end).find(|&id| feat.tile_info(id).is_some_and(|i| i.w == 31 && i.ox == 0)).unwrap();
     assert_eq!(gd.tile(odd as u32, None).unwrap().ox, 0);
 
     // status icons, from status-icon-sizes.js's switch
     assert!(gd.has_status_icon_sizes());
     let size = |n: &str| gd.status_icon_size(gd.icons.id(n).unwrap());
-    assert_eq!(
-        [
-            size("BERSERK"),
-            size("CONSTRICTED"),
-            size("DRAIN"),
-            size("CURSOR")
-        ],
-        [0, 11, 6, -1]
-    );
+    assert_eq!([size("BERSERK"), size("CONSTRICTED"), size("DRAIN"), size("CURSOR")], [0, 11, 6, -1]);
     assert_eq!(gd.status_icon_size(5), -1);
 
     // flag words, as prepare_fg_flags / prepare_bg_flags decode them
     let fg = gd.fg(&json!(0x10001 + 0x80000));
-    assert_eq!(
-        (fg.value, sorted(fg.set_flags().collect())),
-        (1, vec!["FLYING", "PET"])
-    );
-    let fg = gd.fg(&json!([
-        0x00100000 | 42 | 0x40000000,
-        0x18000000 | 0x40000000
-    ]));
-    assert_eq!(
-        (fg.value, sorted(fg.set_flags().collect())),
-        (42, vec!["EASY", "MAX_POISON", "MDAM_LIGHT", "STAB"])
-    );
+    assert_eq!((fg.value, sorted(fg.set_flags().collect())), (1, vec!["FLYING", "PET"]));
+    let fg = gd.fg(&json!([0x00100000 | 42 | 0x40000000, 0x18000000 | 0x40000000]));
+    assert_eq!((fg.value, sorted(fg.set_flags().collect())), (42, vec!["EASY", "MAX_POISON", "MDAM_LIGHT", "STAB"]));
     let fg = gd.fg(&json!([0x80000007u32, 0x0E | 0x20 | 0x00100000]));
-    assert_eq!(
-        (fg.value, sorted(fg.set_flags().collect())),
-        (7, vec!["DEMON_1", "GHOST", "MDAM_MOD"])
-    );
+    assert_eq!((fg.value, sorted(fg.set_flags().collect())), (7, vec!["DEMON_1", "GHOST", "MDAM_MOD"]));
     assert!(fg.get("GHOST") && !fg.get("PET") && !fg.get("NO_SUCH_FLAG"));
     assert_eq!(gd.fg_bits(0x80000007, 0x0E | 0x20 | 0x00100000), fg);
     let bg = gd.bg(&json!(0x04000000 | 0x00180000 | 12));
-    assert_eq!(
-        (bg.value, sorted(bg.set_flags().collect())),
-        (12, vec!["CURSOR1", "WATER"])
-    );
+    assert_eq!((bg.value, sorted(bg.set_flags().collect())), (12, vec!["CURSOR1", "WATER"]));
     let bg = gd.bg(&json!([0x80040005u32, 0x21]));
-    assert_eq!(
-        (bg.value, sorted(bg.set_flags().collect())),
-        (5, vec!["KRAKEN_SE", "KRAKEN_SW", "RAMPAGE", "UNSEEN"])
-    );
+    assert_eq!((bg.value, sorted(bg.set_flags().collect())), (5, vec!["KRAKEN_SE", "KRAKEN_SW", "RAMPAGE", "UNSEEN"]));
     assert_eq!(gd.bg(&json!(null)).value, 0);
     assert!(gd.fg_flag_names().iter().any(|n| n == "MDAM_ADEAD"));
 
@@ -178,23 +115,9 @@ fn check(gd: &Gamedata) {
     assert_eq!(gd.enums.get("ui", "VIEW_MAP"), Some(2));
     assert!(gd.enums.value("", "prepare_fg_flags").is_none());
 
-    assert!(verify_enums(
-        gd,
-        &[
-            ("texture", &[("FLOOR", 0), ("ICONS", 6)]),
-            ("", &[("MF_WALL", 2)])
-        ]
-    )
-    .is_empty());
+    assert!(verify_enums(gd, &[("texture", &[("FLOOR", 0), ("ICONS", 6)]), ("", &[("MF_WALL", 2)])]).is_empty());
     assert_eq!(
-        verify_enums(
-            gd,
-            &[
-                ("texture", &[("FLOOR", 1), ("NOPE", 3)]),
-                ("no_such_group", &[("A", 1)]),
-                ("", &[("mouse_mode", 0)]),
-            ]
-        ),
+        verify_enums(gd, &[("texture", &[("FLOOR", 1), ("NOPE", 3)]), ("no_such_group", &[("A", 1)]), ("", &[("mouse_mode", 0)]),]),
         [
             "enums.js texture.FLOOR = 0, client assumes 1",
             "enums.js has no texture.NOPE (client assumes 3)",
@@ -213,10 +136,7 @@ fn reads_the_recorded_fixture() {
 fn reads_the_offline_engines_gamedata() {
     let dir = common::engine_dir();
     if !dir.join("enums.js").exists() {
-        eprintln!(
-            "skipped: {} is not built (engine/build.sh stable)",
-            dir.display()
-        );
+        eprintln!("skipped: {} is not built (engine/build.sh stable)", dir.display());
         return;
     }
     check(&load(&dir));

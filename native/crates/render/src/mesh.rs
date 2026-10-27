@@ -135,8 +135,16 @@ pub struct GpuMesh {
 impl GpuMesh {
     pub fn new(device: &wgpu::Device, vertices: &[Vertex], indices: &[u32]) -> Self {
         GpuMesh {
-            vertices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("quads"), contents: bytemuck::cast_slice(vertices), usage: wgpu::BufferUsages::VERTEX }),
-            indices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("quad indices"), contents: bytemuck::cast_slice(indices), usage: wgpu::BufferUsages::INDEX }),
+            vertices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("quads"),
+                contents: bytemuck::cast_slice(vertices),
+                usage: wgpu::BufferUsages::VERTEX,
+            }),
+            indices: device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("quad indices"),
+                contents: bytemuck::cast_slice(indices),
+                usage: wgpu::BufferUsages::INDEX,
+            }),
             count: indices.len() as u32,
         }
     }

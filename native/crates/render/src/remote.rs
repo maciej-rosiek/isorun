@@ -130,7 +130,14 @@ mod tests {
     #[test]
     fn a_job_and_its_tile_go_through_bytes() {
         let pixels: Vec<u8> = (0..8 * 8 * 4).map(|i| (i * 7 % 256) as u8).collect();
-        let job = TileJob { pixels, w: 8, h: 8, framed: true, paint: PaintSettings { radius: 1.5, levels: 6.0, lift: 0.25, upscale: Upscale::Xbr }, label: Some(crate::labels::UNLABELLED) };
+        let job = TileJob {
+            pixels,
+            w: 8,
+            h: 8,
+            framed: true,
+            paint: PaintSettings { radius: 1.5, levels: 6.0, lift: 0.25, upscale: Upscale::Xbr },
+            label: Some(crate::labels::UNLABELLED),
+        };
         let back = decode_job(&encode_job(&job)).unwrap();
         assert_eq!(back.pixels, job.pixels);
         assert_eq!((back.w, back.h, back.framed, back.label), (8, 8, true, job.label));

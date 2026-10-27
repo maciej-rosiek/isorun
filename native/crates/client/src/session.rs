@@ -87,7 +87,8 @@ pub struct Session {
 impl Session {
     pub fn new(server: ServerInfo, username: Option<String>, wake: Arc<dyn Fn() + Send + Sync>) -> Self {
         let base = gamedata_base_for(&server);
-        let transport: Box<dyn crate::platform::net::Transport> = if server.offline { crate::engine::connect(wake.clone()) } else { Box::new(RemoteTransport::new(&server.ws, wake.clone())) };
+        let transport: Box<dyn crate::platform::net::Transport> =
+            if server.offline { crate::engine::connect(wake.clone()) } else { Box::new(RemoteTransport::new(&server.ws, wake.clone())) };
         Session {
             server,
             username,
@@ -218,7 +219,13 @@ impl Session {
         self.progress_load(&mut out);
         let total = crate::platform::seconds() - started;
         if total >= SLOW_SECONDS {
-            log::warn!("slow frame: the session's poll took {:.0} ms ({:.0} ms reading the connection, {count} events, the slowest a \"{}\" in {:.0} ms)", total * 1000.0, (polled - started) * 1000.0, slowest.1, slowest.0 * 1000.0);
+            log::warn!(
+                "slow frame: the session's poll took {:.0} ms ({:.0} ms reading the connection, {count} events, the slowest a \"{}\" in {:.0} ms)",
+                total * 1000.0,
+                (polled - started) * 1000.0,
+                slowest.1,
+                slowest.0 * 1000.0
+            );
         }
         out
     }
@@ -290,7 +297,15 @@ impl Session {
         let base = self.conn.gamedata_base.clone();
         let files = isorun_gamedata::gamedata_files();
         let now = crate::platform::seconds();
-        let mut load = GamedataLoad { version: version.clone(), requests: Vec::new(), files: HashMap::new(), total: files.len(), assembling: None, started: now, progress_at: now };
+        let mut load = GamedataLoad {
+            version: version.clone(),
+            requests: Vec::new(),
+            files: HashMap::new(),
+            total: files.len(),
+            assembling: None,
+            started: now,
+            progress_at: now,
+        };
         if self.server.offline {
             // the engine's files are on this device
             for f in &files {
@@ -401,10 +416,16 @@ impl Session {
         }
         self.last_scene_rev = r;
         let started = crate::platform::seconds();
-        let scene = build_scene(&self.state, &gd.gd, BuildOptions { previous: Some(&self.scene), dirty: Some(Dirty::of(&self.state)), record: Some(&mut self.record) });
+        let scene =
+            build_scene(&self.state, &gd.gd, BuildOptions { previous: Some(&self.scene), dirty: Some(Dirty::of(&self.state)), record: Some(&mut self.record) });
         let took = crate::platform::seconds() - started;
         if took >= SLOW_SECONDS {
-            log::warn!("slow frame: the scene took {:.0} ms to build ({} cells built, {} carried)", took * 1000.0, self.record.rebuilt(), self.record.carried());
+            log::warn!(
+                "slow frame: the scene took {:.0} ms to build ({} cells built, {} carried)",
+                took * 1000.0,
+                self.record.rebuilt(),
+                self.record.carried()
+            );
         }
         self.state.clear_dirty();
         self.scene = Arc::new(scene);

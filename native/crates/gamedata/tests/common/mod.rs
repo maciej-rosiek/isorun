@@ -14,9 +14,7 @@ fn repo() -> PathBuf {
 }
 
 pub fn fixture_dir() -> PathBuf {
-    repo()
-        .join("native/fixtures/gamedata")
-        .join(FIXTURE_SHA)
+    repo().join("native/fixtures/gamedata").join(FIXTURE_SHA)
 }
 
 pub fn engine_dir() -> PathBuf {
@@ -24,18 +22,10 @@ pub fn engine_dir() -> PathBuf {
 }
 
 pub fn fixture(name: &str) -> String {
-    std::fs::read_to_string(fixture_dir().join(name))
-        .unwrap_or_else(|e| panic!("fixture {name}: {e}"))
+    std::fs::read_to_string(fixture_dir().join(name)).unwrap_or_else(|e| panic!("fixture {name}: {e}"))
 }
 
 /// Every script of a gamedata directory, by name.
 pub fn read_dir(dir: &std::path::Path) -> HashMap<String, String> {
-    isorun_gamedata::script_files()
-        .into_iter()
-        .filter_map(|f| {
-            std::fs::read_to_string(dir.join(f))
-                .ok()
-                .map(|t| (f.to_string(), t))
-        })
-        .collect()
+    isorun_gamedata::script_files().into_iter().filter_map(|f| std::fs::read_to_string(dir.join(f)).ok().map(|t| (f.to_string(), t))).collect()
 }

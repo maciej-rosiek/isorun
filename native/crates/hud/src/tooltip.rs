@@ -287,7 +287,12 @@ pub fn layout_card(ctx: &egui::Context, tip: &Tip, kind: CardKind, u: f32, pad: 
             if i > 0 {
                 y += 3.0 * u;
             }
-            let v_st = TextStyle::new(Face::MonoBold, body_size, if l.tone.is_some() && l.tone != Some(Tone::Same) { C::from_color32(tone_colour(l.tone, hex(0xefe4cc))) } else { hex(0xefe4cc) }).line(1.4);
+            let v_st = TextStyle::new(
+                Face::MonoBold,
+                body_size,
+                if l.tone.is_some() && l.tone != Some(Tone::Same) { C::from_color32(tone_colour(l.tone, hex(0xefe4cc))) } else { hex(0xefe4cc) },
+            )
+            .line(1.4);
             let vg = v_st.galley(ctx, &l.value, None);
             items.push((egui::vec2(px + inner_w - vg.size().x, y), Item::Text(vg, v_st.colour, false)));
             text(&mut items, &k_st, &l.label, px, &mut y, None, false);
@@ -300,11 +305,15 @@ pub fn layout_card(ctx: &egui::Context, tip: &Tip, kind: CardKind, u: f32, pad: 
         let mut x = 0.0;
         let row_h = body_size * 1.4;
         for t in &tip.tags {
-            let st = TextStyle::new(Face::Mono, body_size, match t.tone {
-                Some(Tone::Better) => BETTER,
-                Some(Tone::Worse) => WORSE,
-                _ => hex(0x8fb3ff),
-            })
+            let st = TextStyle::new(
+                Face::Mono,
+                body_size,
+                match t.tone {
+                    Some(Tone::Better) => BETTER,
+                    Some(Tone::Worse) => WORSE,
+                    _ => hex(0x8fb3ff),
+                },
+            )
             .line(1.4);
             let g = st.galley(ctx, &t.text, None);
             if x > 0.0 && x + g.size().x > inner_w {

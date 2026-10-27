@@ -300,8 +300,13 @@ impl Hud {
         let frame = DockFrame::new(screen, settings.ui_scale, false);
         let dock_height = if dock_on { self.dock.height(ctx, &frame, &self.view) } else { 0.0 };
         let pane = st.messages.pane_height as i32;
-        let msg_rows = if compact { pane.min(if style::landscape_window(screen.size()) { COMPACT_MESSAGE_ROWS.0 } else { COMPACT_MESSAGE_ROWS.1 }) } else { pane };
-        let cells = if settings.hud == "dock" { game_split(&grid, msg_rows, STAT_WIDTH, if dock_on { (dock_height / grid.ch).ceil() as i32 } else { 0 }) } else { classic_split(&grid, msg_rows, STAT_WIDTH) };
+        let msg_rows =
+            if compact { pane.min(if style::landscape_window(screen.size()) { COMPACT_MESSAGE_ROWS.0 } else { COMPACT_MESSAGE_ROWS.1 }) } else { pane };
+        let cells = if settings.hud == "dock" {
+            game_split(&grid, msg_rows, STAT_WIDTH, if dock_on { (dock_height / grid.ch).ceil() as i32 } else { 0 })
+        } else {
+            classic_split(&grid, msg_rows, STAT_WIDTH)
+        };
         let view_cells = if map_view { level_map_split(&grid, &cells, hide_sidebar, hide_messages) } else { cells.view };
         let view = grid.rect(view_cells);
         let clear = grid.rect(cells.clear);
@@ -312,7 +317,19 @@ impl Hud {
         let minimap_cell = style::minimap_cell(settings.minimap_cell, screen.size());
         let minimap = style::minimap_shown(&settings.minimap, screen.size()).then_some((settings.minimap_tiles, minimap_cell));
         let panes = self.classic.layout(grid, cells, free, hide_stats, hide_sidebar, hide_messages || choosing, prompts, minimap);
-        let l = HudLayout { grid, cells, view, clear, dock: dock_on, dock_height, centre_lift, minimap: panes.minimap, minimap_cell: minimap_cell as f32, sidebar: grid.rect(cells.sidebar), panes };
+        let l = HudLayout {
+            grid,
+            cells,
+            view,
+            clear,
+            dock: dock_on,
+            dock_height,
+            centre_lift,
+            minimap: panes.minimap,
+            minimap_cell: minimap_cell as f32,
+            sidebar: grid.rect(cells.sidebar),
+            panes,
+        };
         self.layout = Some(l);
         l
     }
@@ -417,7 +434,8 @@ impl Hud {
             }
             // `i` and `@` open the dock's screens in command mode
             if cx.mode == Mode::Command && self.screen.is_none() && !cx.client_overlay && !self.chat.capturing(&ctx) {
-                let typed: Vec<String> = ui.input(|i| i.events.iter().filter_map(|e| if let egui::Event::Text(t) = e { Some(t.clone()) } else { None }).collect());
+                let typed: Vec<String> =
+                    ui.input(|i| i.events.iter().filter_map(|e| if let egui::Event::Text(t) = e { Some(t.clone()) } else { None }).collect());
                 let mods = ui.input(|i| i.modifiers.ctrl || i.modifiers.alt || i.modifiers.command);
                 if !mods {
                     if typed.iter().any(|t| t == "i") {
@@ -446,7 +464,16 @@ impl Hud {
             let items = pack_items(&p.inv);
             let worn = worn_now(p, &items, &self.memory.worn);
             let me = crate::classic::player_billboard(cx.scene);
-            let data = ScreenData { player: p, items: &items, worn: &worn, me, checking: self.probe.is_some(), pad: (cx.device == Device::Pad).then_some(cx.pad), weapon: crate::gear::weapon_line(p), quiver: p.quiver_desc.clone() };
+            let data = ScreenData {
+                player: p,
+                items: &items,
+                worn: &worn,
+                me,
+                checking: self.probe.is_some(),
+                pad: (cx.device == Device::Pad).then_some(cx.pad),
+                weapon: crate::gear::weapon_line(p),
+                quiver: p.quiver_desc.clone(),
+            };
             screen_up.own_keys = self.screens_read_keys;
             let mut events = vec![];
             for op in std::mem::take(&mut self.screen_ops) {
@@ -475,7 +502,10 @@ impl Hud {
         let mut v = DockView::from_player(&st.player);
         if cx.mode == Mode::Command && !watching {
             let label = floor_items_label(st);
-            let dctx = cx.dock_context.clone().unwrap_or_else(|| DockContext { under: underfoot(cx.scene, label.as_deref()), hostiles_in_view: hostiles_in_view(cx.scene) });
+            let dctx = cx
+                .dock_context
+                .clone()
+                .unwrap_or_else(|| DockContext { under: underfoot(cx.scene, label.as_deref()), hostiles_in_view: hostiles_in_view(cx.scene) });
             v.actions = dock_actions(&dctx, cx.scene);
         }
         v.slots = self.slots.clone();
@@ -748,14 +778,32 @@ impl Hud {
             return;
         }
         let choices = slot_choices(&self.slot_sources(cx.state));
-        let mut rows = vec![Choice { label: "Fill by itself".into(), sub: Some("the quiver, then your spells, abilities and consumables, in order".into()), tile: None, tiles: vec![], sep: false }];
+        let mut rows = vec![Choice {
+            label: "Fill by itself".into(),
+            sub: Some("the quiver, then your spells, abilities and consumables, in order".into()),
+            tile: None,
+            tiles: vec![],
+            sep: false,
+        }];
         let mut refs = vec![None];
         for c in choices {
             rows.push(Choice { label: formatted_string_to_text(&c.label), sub: Some(c.group.into()), tile: None, tiles: c.tiles.clone(), sep: false });
             refs.push(Some(c.r));
         }
-        rows.push(Choice { label: "Open the spell list".into(), sub: Some("the slots learn your spells from it".into()), tile: Some("CMD_CAST_SPELL"), tiles: vec![], sep: true });
-        rows.push(Choice { label: "Open the abilities".into(), sub: Some("the slots learn your abilities from it".into()), tile: Some("CMD_USE_ABILITY"), tiles: vec![], sep: false });
+        rows.push(Choice {
+            label: "Open the spell list".into(),
+            sub: Some("the slots learn your spells from it".into()),
+            tile: Some("CMD_CAST_SPELL"),
+            tiles: vec![],
+            sep: true,
+        });
+        rows.push(Choice {
+            label: "Open the abilities".into(),
+            sub: Some("the slots learn your abilities from it".into()),
+            tile: Some("CMD_USE_ABILITY"),
+            tiles: vec![],
+            sep: false,
+        });
         self.choices = Some(ChoiceFor::Slot(i, refs));
         cx.commands.push(HudCommand::Choices { title: format!("Quick slot {}", (i + 1) % 10), choices: rows, remember: "quick-slot" });
     }
@@ -834,7 +882,16 @@ impl Hud {
             self.classic.status(format!("Nothing in the pack goes on: {label}"), cx.now);
             return;
         }
-        let rows = fits.iter().map(|i| Choice { label: format!("{} - {}", i.letter, item_title(i.name())), sub: None, tile: None, tiles: crate::quick_slots::item_tiles(i), sep: false }).collect();
+        let rows = fits
+            .iter()
+            .map(|i| Choice {
+                label: format!("{} - {}", i.letter, item_title(i.name())),
+                sub: None,
+                tile: None,
+                tiles: crate::quick_slots::item_tiles(i),
+                sep: false,
+            })
+            .collect();
         self.choices = Some(ChoiceFor::Fill(fits));
         self.screen = None;
         cx.commands.push(HudCommand::Choices { title: format!("{label}: put on"), choices: rows, remember: "fill-place" });
@@ -849,7 +906,12 @@ impl Hud {
             return;
         }
         self.screen = None;
-        self.resume = resumes_after(id).then(|| Resume { id: ScreenId::Inventory, at: cx.now, left: false, watch: Some(ResumeWatch::of(id, item.letter.clone(), cx.state, cx.scene)) });
+        self.resume = resumes_after(id).then(|| Resume {
+            id: ScreenId::Inventory,
+            at: cx.now,
+            left: false,
+            watch: Some(ResumeWatch::of(id, item.letter.clone(), cx.state, cx.scene)),
+        });
         match id {
             ItemActionId::Use => cx.commands.push(HudCommand::Run(Action::Send(cm::inv_item_action(item.item.slot)))),
             ItemActionId::Describe => cx.commands.push(HudCommand::Run(Action::Send(cm::inv_item_describe(item.item.slot)))),

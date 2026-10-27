@@ -176,7 +176,6 @@ impl<'a> Builder<'a> {
             turn,
             anchor: self.anchor(cell),
             base,
-
         };
         self.push(cell, item);
     }
@@ -539,7 +538,17 @@ mod tests {
         let mut tiles = MapTiles::default();
         let mut b = Builder::new(&mut tiles, 10.0);
         let w = Color32::WHITE;
-        let quad = |tex, min: [f32; 2], max: [f32; 2]| Item { tex, min, max, uv_min: [0.0; 2], uv_max: [0.0; 2], colour: w, turn: Turn::Ground, anchor: [0.0; 2], base: false };
+        let quad = |tex, min: [f32; 2], max: [f32; 2]| Item {
+            tex,
+            min,
+            max,
+            uv_min: [0.0; 2],
+            uv_max: [0.0; 2],
+            colour: w,
+            turn: Turn::Ground,
+            anchor: [0.0; 2],
+            base: false,
+        };
         b.push((0, 0), quad(Tex::Atlas(1), [0.0, 0.0], [10.0, 10.0]));
         b.push((0, 0), quad(Tex::Atlas(0), [0.0, 0.0], [10.0, 10.0]));
         // a tall one, out over the cell above

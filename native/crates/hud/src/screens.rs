@@ -3,11 +3,13 @@
 //! a panel (`.popup.dock-screen`) with a title and a close button, hanging from 5% of the
 //! screen's height, and the stops the pad's cursor walks.
 
-use crate::gear::{equip_slot_of, item_action_keycaps, item_actions, item_title, obj, paper_doll, DollPlace, EquipSlot, ItemActionId, PackItem, Worn, DOLL_PLACES};
+use crate::gear::{
+    equip_slot_of, item_action_keycaps, item_actions, item_title, obj, paper_doll, DollPlace, EquipSlot, ItemActionId, PackItem, Worn, DOLL_PLACES,
+};
 use crate::glyphs::{Glyph, PadKind};
 use crate::icons::{self, Placed};
 use crate::item_compare::{compare_stats, item_name_parts, property_tone};
-use crate::paint::{hex, inset, outer, rgba, s, sa, Border, BoxCache, BoxStyle, Layer, RadialSize, Stop, At, C, TRANSPARENT};
+use crate::paint::{hex, inset, outer, rgba, s, sa, At, Border, BoxCache, BoxStyle, Layer, RadialSize, Stop, C, TRANSPARENT};
 use crate::quick_slots::item_tiles;
 use crate::style::{self, Face, TextStyle, DANGER, GOLD, GOLD_BRIGHT, INK, INK_DIM, TRIM};
 use crate::tooltip::{keycaps_width, layout_card, paint_keycaps, CardKind, KeyHint, KeycapSize, Tip, TipTag};
@@ -290,7 +292,8 @@ struct Command {
 }
 
 fn commands() -> Vec<Command> {
-    let cmd = |label, key: &'static str, sub, tile| Command { label, key, sub, tile, action: Action::Keys { label: label.into(), seq: vec![KeyStep::text(key)] } };
+    let cmd =
+        |label, key: &'static str, sub, tile| Command { label, key, sub, tile, action: Action::Keys { label: label.into(), seq: vec![KeyStep::text(key)] } };
     let ctl = |label, key, code, sub, tile| Command { label, key, sub, tile, action: Action::Keys { label: label.into(), seq: vec![KeyStep::key(code)] } };
     vec![
         cmd("Skills", "m", "what you are training, and how fast", "CMD_DISPLAY_SKILLS"),
@@ -360,7 +363,15 @@ fn screen_style(u: f32) -> BoxStyle {
     BoxStyle {
         layers: vec![
             Layer::Radial(RadialSize::EllipseFarthest, (0.5, 0.0), vec![sa(rgba(120, 90, 40, 0.16)), s(TRANSPARENT, 0.6)]),
-            Layer::RepeatingLinear(0.0, vec![Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)), Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0)), Stop(TRANSPARENT, At::Pt(2.0)), Stop(TRANSPARENT, At::Pt(6.0))]),
+            Layer::RepeatingLinear(
+                0.0,
+                vec![
+                    Stop(rgba(255, 255, 255, 0.012), At::Pt(0.0)),
+                    Stop(rgba(255, 255, 255, 0.012), At::Pt(2.0)),
+                    Stop(TRANSPARENT, At::Pt(2.0)),
+                    Stop(TRANSPARENT, At::Pt(6.0)),
+                ],
+            ),
             Layer::Linear(180.0, vec![sa(hex(0x1b1612)), sa(hex(0x0c0a08))]),
         ],
         radius: [6.0 * u; 4],
@@ -388,7 +399,13 @@ fn socket_style(u: f32, item_colour: Option<C>, doll: bool, hover: bool) -> BoxS
         layers.push(Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.6), vec![sa(c.mix(TRANSPARENT, 0.14)), s(TRANSPARENT, 0.7)]));
     }
     layers.push(Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.38), vec![sa(hex(0x221c16)), s(hex(0x080605), 0.8)]));
-    BoxStyle { layers, radius: [if doll { 6.0 } else { 4.0 } * u; 4], border: Border::all(1.0, border), insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000)), inset(0.0, 0.0, 14.0 * u, 0.0, rgba(0, 0, 0, 0.9))], ..Default::default() }
+    BoxStyle {
+        layers,
+        radius: [if doll { 6.0 } else { 4.0 } * u; 4],
+        border: Border::all(1.0, border),
+        insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000)), inset(0.0, 0.0, 14.0 * u, 0.0, rgba(0, 0, 0, 0.9))],
+        ..Default::default()
+    }
 }
 
 fn panel_style(u: f32, paper: bool, char_block: bool) -> BoxStyle {
@@ -396,7 +413,13 @@ fn panel_style(u: f32, paper: bool, char_block: bool) -> BoxStyle {
     if paper {
         layers.insert(0, Layer::Radial(RadialSize::Ellipse(0.45, 0.4), (0.5, 0.45), vec![sa(rgba(216, 180, 95, 0.12)), s(TRANSPARENT, 0.7)]));
     }
-    BoxStyle { layers, radius: [5.0 * u; 4], border: Border::all(1.0, hex(0x33280f)), insets: vec![inset(0.0, 0.0, if char_block { 18.0 } else { 24.0 * u }, 0.0, rgba(0, 0, 0, if char_block { 0.6 } else { 0.7 }))], ..Default::default() }
+    BoxStyle {
+        layers,
+        radius: [5.0 * u; 4],
+        border: Border::all(1.0, hex(0x33280f)),
+        insets: vec![inset(0.0, 0.0, if char_block { 18.0 } else { 24.0 * u }, 0.0, rgba(0, 0, 0, if char_block { 0.6 } else { 0.7 }))],
+        ..Default::default()
+    }
 }
 
 impl Screen {
@@ -478,7 +501,11 @@ impl Screen {
             ScreenOp::Quick | ScreenOp::Describe => {
                 let item = self.focus.as_deref().and_then(|f| f.strip_prefix("item:")).and_then(|l| data.items.iter().find(|i| i.letter == l));
                 if let Some(item) = item {
-                    let id = if op == ScreenOp::Describe { Some(ItemActionId::Describe) } else { item_actions(item, data.worn.get(&item.letter).copied()).first().map(|a| a.id) };
+                    let id = if op == ScreenOp::Describe {
+                        Some(ItemActionId::Describe)
+                    } else {
+                        item_actions(item, data.worn.get(&item.letter).copied()).first().map(|a| a.id)
+                    };
                     if let Some(id) = id {
                         out.push(ScreenEvent::Act(item.clone(), id));
                     }
@@ -577,7 +604,10 @@ impl Screen {
     }
 
     fn open_menu(&mut self, item: &PackItem, anchor: Rect, data: &ScreenData) {
-        let mut rows: Vec<(String, Vec<String>, Option<ItemActionId>)> = item_actions(item, data.worn.get(&item.letter).copied()).into_iter().map(|a| (a.label.clone(), item_action_keycaps(&a, &item.letter), Some(a.id))).collect();
+        let mut rows: Vec<(String, Vec<String>, Option<ItemActionId>)> = item_actions(item, data.worn.get(&item.letter).copied())
+            .into_iter()
+            .map(|a| (a.label.clone(), item_action_keycaps(&a, &item.letter), Some(a.id)))
+            .collect();
         if item.action_verb().is_some() {
             rows.push(("Add to quick slot".into(), vec![], None));
         }
@@ -639,12 +669,28 @@ fn frame(ui: &mut egui::Ui, boxes: &mut BoxCache, rect: Rect, title: &str, u: f3
     painter.rect_filled(Rect::from_min_size(egui::pos2(bar.left(), bar.bottom()), egui::vec2(bar.width(), 1.0)), 0.0, hex(0x3a2d16).to_color32());
     let line = Rect::from_min_size(egui::pos2(rect.left() + rect.width() * 0.2, bar.bottom()), egui::vec2(rect.width() * 0.6, 1.0));
     crate::paint::gradient_rect(&painter, line, false, &[(0.0, TRANSPARENT), (0.5, GOLD_BRIGHT), (1.0, TRANSPARENT)]);
-    crate::paint::shadowed_galley(&painter, egui::pos2(bar.center().x - g.size().x / 2.0, bar.top() + 12.0 * u), g, GOLD_BRIGHT.to_color32(), &[(0.0, 2.0, 6.0, Color32::BLACK)]);
+    crate::paint::shadowed_galley(
+        &painter,
+        egui::pos2(bar.center().x - g.size().x / 2.0, bar.top() + 12.0 * u),
+        g,
+        GOLD_BRIGHT.to_color32(),
+        &[(0.0, 2.0, 6.0, Color32::BLACK)],
+    );
     // the close button
     let cr = Rect::from_center_size(egui::pos2(bar.right() - 12.0 * u - 17.0 * u, bar.center().y), Vec2::splat(34.0 * u));
     let resp = ui.interact(cr, ui.scope_id().with("screen-close"), Sense::click());
     let hot = resp.hovered();
-    boxes.paint_box(&painter, &format!("screen-close:{hot}"), cr, &BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(hex(0x2a221a)), sa(hex(0x120e0a))])], border: Border::all(1.0, if hot { GOLD_BRIGHT } else { hex(0x4f3e20) }), ..Default::default() }.round(17.0 * u));
+    boxes.paint_box(
+        &painter,
+        &format!("screen-close:{hot}"),
+        cr,
+        &BoxStyle {
+            layers: vec![Layer::Linear(180.0, vec![sa(hex(0x2a221a)), sa(hex(0x120e0a))])],
+            border: Border::all(1.0, if hot { GOLD_BRIGHT } else { hex(0x4f3e20) }),
+            ..Default::default()
+        }
+        .round(17.0 * u),
+    );
     painter.text(cr.center(), egui::Align2::CENTER_CENTER, "✕", style::font(Face::MonoBold, 15.0 * u), if hot { GOLD_BRIGHT } else { INK_DIM }.to_color32());
     (egui::pos2(rect.left() + 1.0, bar.bottom() + 1.0), resp.clicked())
 }
@@ -655,7 +701,10 @@ fn footer(painter: &Painter, boxes: &mut BoxCache, centre_x: f32, top: f32, u: f
     let st = TextStyle::new(Face::Caps600, 12.0 * u, hex(0x857759)).spacing(0.06).line(1.0);
     let parts: [(Option<&str>, &str); 4] = [(Some("Enter"), ""), (None, " Select · "), (Some("Esc"), ""), (None, " Back")];
     let kc = KeycapSize { h: 20.0 * u, min_w: 20.0 * u, pad: 5.0 * u, font: 11.0 * u, wide_font: 11.0 * u };
-    let widths: Vec<f32> = parts.iter().map(|(k, t)| if let Some(k) = k { keycaps_width(ctx, &[k.to_string()], kc, u) + 0.35 * 12.0 * u } else { st.galley(ctx, t, None).size().x }).collect();
+    let widths: Vec<f32> = parts
+        .iter()
+        .map(|(k, t)| if let Some(k) = k { keycaps_width(ctx, &[k.to_string()], kc, u) + 0.35 * 12.0 * u } else { st.galley(ctx, t, None).size().x })
+        .collect();
     let total: f32 = widths.iter().sum();
     let mut x = centre_x - total / 2.0;
     let y = top + 4.0 * u;
@@ -719,7 +768,11 @@ impl Screen {
             let (w, h) = l.size_at(1.0, pack.len());
             (avail.width() / w).min(avail.height() * if compact { 1.0 } else { 0.95 } / h)
         };
-        let lay = layouts.iter().copied().max_by(|a, b| fit_of(a).min(u).total_cmp(&fit_of(b).min(u)).then(b.cols.cmp(&a.cols))).unwrap_or(InvLayout { arrange: InvArrange::Wide, cols: BACKPACK_COLUMNS });
+        let lay = layouts
+            .iter()
+            .copied()
+            .max_by(|a, b| fit_of(a).min(u).total_cmp(&fit_of(b).min(u)).then(b.cols.cmp(&a.cols)))
+            .unwrap_or(InvLayout { arrange: InvArrange::Wide, cols: BACKPACK_COLUMNS });
         let stacked = lay.arrange == InvArrange::Stacked;
         let side_by = lay.arrange == InvArrange::Beside;
         let cols = lay.cols;
@@ -733,10 +786,15 @@ impl Screen {
         let doll_h = 6.0 * place + 5.0 * 8.0 * u;
         let grid_w = cols as f32 * sock + (cols - 1) as f32 * 6.0 * u;
         let grid_h = rows as f32 * sock + (rows - 1) as f32 * 6.0 * u;
-        let (paper_h, bag_h) = if stacked || side_by { (doll_h + 28.0 * u + 2.0, grid_h + 28.0 * u + 2.0) } else { (doll_h.max(grid_h) + 28.0 * u + 2.0, doll_h.max(grid_h) + 28.0 * u + 2.0) };
+        let (paper_h, bag_h) = if stacked || side_by {
+            (doll_h + 28.0 * u + 2.0, grid_h + 28.0 * u + 2.0)
+        } else {
+            (doll_h.max(grid_h) + 28.0 * u + 2.0, doll_h.max(grid_h) + 28.0 * u + 2.0)
+        };
         let summary_h = 4.0 * u + 19.0 * u;
         let (width, height) = lay.size_at(u, pack.len());
-        let top = if compact { avail.top() + ((avail.height() - height) / 2.0).clamp(0.0, avail.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
+        let top =
+            if compact { avail.top() + ((avail.height() - height) / 2.0).clamp(0.0, avail.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
         self.panel = Some(rect);
         // a click on the panel is the panel's, not the world's
@@ -748,8 +806,14 @@ impl Screen {
         let painter = ui.painter().clone();
         let (paper, bag) = if stacked {
             let inner = width - 2.0 - 44.0 * u;
-            let paper = Rect::from_min_size(body + egui::vec2(22.0 * u + (inner - (doll_w + 28.0 * u + 2.0)) / 2.0, 18.0 * u), egui::vec2(doll_w + 28.0 * u + 2.0, paper_h));
-            let bag = Rect::from_min_size(egui::pos2(body.x + 22.0 * u + (inner - (grid_w + 28.0 * u + 2.0)) / 2.0, paper.bottom() + 22.0 * u), egui::vec2(grid_w + 28.0 * u + 2.0, bag_h));
+            let paper = Rect::from_min_size(
+                body + egui::vec2(22.0 * u + (inner - (doll_w + 28.0 * u + 2.0)) / 2.0, 18.0 * u),
+                egui::vec2(doll_w + 28.0 * u + 2.0, paper_h),
+            );
+            let bag = Rect::from_min_size(
+                egui::pos2(body.x + 22.0 * u + (inner - (grid_w + 28.0 * u + 2.0)) / 2.0, paper.bottom() + 22.0 * u),
+                egui::vec2(grid_w + 28.0 * u + 2.0, bag_h),
+            );
             (paper, bag)
         } else {
             let paper = Rect::from_min_size(body + egui::vec2(22.0 * u, 18.0 * u), egui::vec2(doll_w + 28.0 * u + 2.0, paper_h));
@@ -763,14 +827,23 @@ impl Screen {
         // finger rests on it (a long press): a tap's pointer stays where it was as a hover, and
         // the cursor stays on the item tapped, which stood a card over the backpack after a tap
         let touch_cards = isorun_ui::pointer::touch_mode(&ctx) && data.pad.is_none();
-        let card = |hovered: bool, focused: bool, rect: Rect| if touch_cards { isorun_ui::pointer::card_shows(&ctx, hovered, rect) } else { hovered || focused };
+        let card =
+            |hovered: bool, focused: bool, rect: Rect| if touch_cards { isorun_ui::pointer::card_shows(&ctx, hovered, rect) } else { hovered || focused };
         let pad = data.pad;
         let mut pointed = None;
 
         // the doll: the figure in the middle, the places around it
         let dl = paper.min + egui::vec2(15.0 * u, 15.0 * u);
         let fig = Rect::from_min_size(dl + egui::vec2(place + 8.0 * u, 0.0), egui::vec2(place * 2.4, 5.0 * place + 4.0 * 8.0 * u));
-        boxes.paint_box(&painter, "inv-figure", fig, &BoxStyle { layers: vec![Layer::Radial(RadialSize::Ellipse(0.45, 0.4), (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.14)), s(TRANSPARENT, 0.7)])], ..Default::default() });
+        boxes.paint_box(
+            &painter,
+            "inv-figure",
+            fig,
+            &BoxStyle {
+                layers: vec![Layer::Radial(RadialSize::Ellipse(0.45, 0.4), (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.14)), s(TRANSPARENT, 0.7)])],
+                ..Default::default()
+            },
+        );
         self.paint_figure(&painter, tiles, data.me, Rect::from_center_size(fig.center(), Vec2::splat(192.0 * u)), u, true);
         for p in DOLL_PLACES {
             let (c, r) = place_at(p);
@@ -782,7 +855,8 @@ impl Screen {
             let col_w = if c == 1 { place * 2.4 } else { place };
             let srect = Rect::from_min_size(egui::pos2(cell_x + (col_w - place) / 2.0, dl.y + r as f32 * (place + 8.0 * u)), Vec2::splat(place));
             let resp = ui.interact(srect, ui.scope_id().with(("doll", p.id())), Sense::click());
-            let focused = self.focus.as_deref() == Some(&format!("place:{}", p.id())) || doll.get(&p).is_some_and(|i| self.focus.as_deref() == Some(&format!("item:{}", i.letter)));
+            let focused = self.focus.as_deref() == Some(&format!("place:{}", p.id()))
+                || doll.get(&p).is_some_and(|i| self.focus.as_deref() == Some(&format!("item:{}", i.letter)));
             let hot = resp.hovered() || focused;
             if resp.hovered() {
                 pointed = Some(doll.get(&p).map_or_else(|| format!("place:{}", p.id()), |i| format!("item:{}", i.letter)));
@@ -815,7 +889,12 @@ impl Screen {
                     }
                     stops.push(Stop2 { id: format!("place:{}", p.id()), rect: srect, row: r, col: c });
                     if card(resp.hovered(), focused, srect) && self.menu.is_none() {
-                        let t = Tip { title: place_label(p).into(), sub: Some("Nothing here".into()), hints: vec![KeyHint::keys(&["Click"]).pad(Glyph::A).label("Put something on")], ..Default::default() };
+                        let t = Tip {
+                            title: place_label(p).into(),
+                            sub: Some("Nothing here".into()),
+                            hints: vec![KeyHint::keys(&["Click"]).pad(Glyph::A).label("Put something on")],
+                            ..Default::default()
+                        };
                         hover_tip = Some((vec![(t, CardKind::Small)], srect));
                     }
                     if isorun_ui::pointer::tap(&ctx, resp.clicked()) {
@@ -883,10 +962,16 @@ impl Screen {
         painter.galley(egui::pos2(x + coin + 0.4 * 16.0 * u, sy + 9.5 * u - gg.size().y / 2.0), gg, Color32::WHITE);
         x += coin + 0.4 * 16.0 * u + gw + 22.0 * u;
         if data.checking {
-            let cg = ctx.fonts_mut(|f| f.layout_no_wrap("reading what is worn".into(), egui::FontId::new(12.0 * u, egui::FontFamily::Monospace), hex(0x857759).to_color32()));
+            let cg = ctx.fonts_mut(|f| {
+                f.layout_no_wrap("reading what is worn".into(), egui::FontId::new(12.0 * u, egui::FontFamily::Monospace), hex(0x857759).to_color32())
+            });
             painter.galley(egui::pos2(x, sy + 9.5 * u - cg.size().y / 2.0), cg, Color32::WHITE);
         }
-        let slots = TextStyle::new(Face::Caps700, 13.0 * u, hex(0x857759)).spacing(0.08).line(1.0).galley(&ctx, &format!("{} / {PACK_LETTERS}", data.items.len()), None);
+        let slots = TextStyle::new(Face::Caps700, 13.0 * u, hex(0x857759)).spacing(0.08).line(1.0).galley(
+            &ctx,
+            &format!("{} / {PACK_LETTERS}", data.items.len()),
+            None,
+        );
         painter.galley(egui::pos2(bag.right() - 6.0 * u - slots.size().x, sy + 9.5 * u - slots.size().y / 2.0), slots, Color32::WHITE);
         if pad.is_none() {
             footer(&painter, boxes, if side_by { bag.center().x } else { rect.center().x }, sy + summary_h - 4.0 * u + 6.0 * u, u);
@@ -914,7 +999,9 @@ impl Screen {
             // a press outside the menu puts it away
             // where the press began, not the hover: a finger has no hover but on its own press frame
             let pressed_at = isorun_ui::pointer::any_pressed_at(ui.ctx()).map(|(p, _)| p);
-            if let Some(p) = pressed_at.filter(|p| !self.menu_rect(&ctx, host, tu).is_some_and(|r| r.contains(*p)) && !self.menu.as_ref().is_some_and(|m| m.anchor.contains(*p))) {
+            if let Some(p) = pressed_at
+                .filter(|p| !self.menu_rect(&ctx, host, tu).is_some_and(|r| r.contains(*p)) && !self.menu.as_ref().is_some_and(|m| m.anchor.contains(*p)))
+            {
                 let _ = p;
                 self.menu = None;
             }
@@ -928,8 +1015,12 @@ impl Screen {
         let slot = equip_slot_of(&item.item);
         let is_worn = on_doll.contains(&item.letter.as_str());
         let replaced = if !is_worn { slot.map(|s| worn_in(doll, s)).unwrap_or_default() } else { vec![] };
-        let mut cards: Vec<(Tip, CardKind)> = replaced.iter().map(|w| (item_tip(w, data.worn.get(&w.letter).copied(), None, Some("Equipped"), false), CardKind::Equipped)).collect();
-        cards.push((item_tip(item, data.worn.get(&item.letter).copied(), replaced.first().copied(), is_worn.then_some("Equipped"), true), if is_worn { CardKind::Equipped } else { CardKind::Plain }));
+        let mut cards: Vec<(Tip, CardKind)> =
+            replaced.iter().map(|w| (item_tip(w, data.worn.get(&w.letter).copied(), None, Some("Equipped"), false), CardKind::Equipped)).collect();
+        cards.push((
+            item_tip(item, data.worn.get(&item.letter).copied(), replaced.first().copied(), is_worn.then_some("Equipped"), true),
+            if is_worn { CardKind::Equipped } else { CardKind::Plain },
+        ));
         cards
     }
 
@@ -950,7 +1041,13 @@ impl Screen {
             crate::paint::shadowed_galley(painter, at, g, INK.to_color32(), &[(0.0, 0.0, 2.0, Color32::BLACK), (0.0, 1.0, 1.0, Color32::BLACK)]);
         }
         let lg = TextStyle::new(Face::Mono, 11.0 * u.max(SMALL_TEXT_UNIT), hex(0x7d6b48)).galley(painter.ctx(), &item.letter, None);
-        crate::paint::shadowed_galley(painter, rect.min + egui::vec2(1.0 + 5.0 * u, 1.0 + 3.0 * u), lg, hex(0x7d6b48).to_color32(), &[(0.0, 1.0, 1.0, Color32::BLACK)]);
+        crate::paint::shadowed_galley(
+            painter,
+            rect.min + egui::vec2(1.0 + 5.0 * u, 1.0 + 3.0 * u),
+            lg,
+            hex(0x7d6b48).to_color32(),
+            &[(0.0, 1.0, 1.0, Color32::BLACK)],
+        );
     }
 
     /// The player's figure, large: the doll composed at 32 texels, grown smooth, as the web
@@ -977,14 +1074,19 @@ impl Screen {
         let rect = self.menu_rect(&ctx, host, u)?;
         let m = self.menu.as_mut()?;
         let (_, rows) = menu_layout(&ctx, m, u);
-        boxes.paint_box(painter, &format!("inv-menu:{}x{}", rect.width() as i32, rect.height() as i32), rect, &BoxStyle {
-            layers: vec![Layer::Linear(180.0, vec![sa(hex(0x1d1915)), sa(hex(0x0b0908))])],
-            radius: [4.0 * u; 4],
-            border: Border::all(1.0, style::BRONZE),
-            insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000))],
-            outers: vec![outer(0.0, 10.0 * u, 30.0 * u, 0.0, rgba(0, 0, 0, 0.9))],
-            ..Default::default()
-        });
+        boxes.paint_box(
+            painter,
+            &format!("inv-menu:{}x{}", rect.width() as i32, rect.height() as i32),
+            rect,
+            &BoxStyle {
+                layers: vec![Layer::Linear(180.0, vec![sa(hex(0x1d1915)), sa(hex(0x0b0908))])],
+                radius: [4.0 * u; 4],
+                border: Border::all(1.0, style::BRONZE),
+                insets: vec![inset(0.0, 0.0, 0.0, 1.0, hex(0x000000))],
+                outers: vec![outer(0.0, 10.0 * u, 30.0 * u, 0.0, rgba(0, 0, 0, 0.9))],
+                ..Default::default()
+            },
+        );
         let title = TextStyle::new(Face::Caps700, 14.0 * u, colour(m.item.col())).line(1.2).galley(&ctx, &clean_title(&m.item), Some(320.0 * u));
         let mut y = rect.top() + 1.0 + 6.0 * u;
         let inner_l = rect.left() + 1.0 + 6.0 * u;
@@ -1034,7 +1136,15 @@ impl Screen {
         let ink = |c: C| TextStyle::new(Face::Mono, body, c).line(LINE);
         // the blocks' rows, laid out to measure
         let h3 = TextStyle::new(Face::Caps700, 14.0 * u, GOLD).spacing(0.14).upper().line(1.2);
-        let mods = |n: i64| if n > 0 { format!(" +{n}") } else if n < 0 { format!(" {n}") } else { String::new() };
+        let mods = |n: i64| {
+            if n > 0 {
+                format!(" +{n}")
+            } else if n < 0 {
+                format!(" {n}")
+            } else {
+                String::new()
+            }
+        };
         let attr = |now: i64, max: Option<i64>| -> (String, bool) {
             match max {
                 Some(m) if now < m => (format!("{now} ({m})"), true),
@@ -1072,13 +1182,22 @@ impl Screen {
             Line::Stat("Intelligence", i, id, false),
             Line::Stat("Dexterity", d, dd, false),
         ];
-        let mut arms = vec![Line::Head("Arms"), Line::Text(data.weapon.clone(), false), Line::Text(if data.quiver.is_empty() { "Nothing quivered".into() } else { data.quiver.clone() }, false), Line::Head("Status")];
+        let mut arms = vec![
+            Line::Head("Arms"),
+            Line::Text(data.weapon.clone(), false),
+            Line::Text(if data.quiver.is_empty() { "Nothing quivered".into() } else { data.quiver.clone() }, false),
+            Line::Head("Status"),
+        ];
         let lights: Vec<_> = p.status.iter().filter(|s| s.light.as_ref().is_some_and(|l| !l.is_empty())).collect();
         if lights.is_empty() {
             arms.push(Line::Text("Nothing out of the ordinary.".into(), true));
         }
         for st in lights {
-            arms.push(Line::Status(st.light.clone().unwrap_or_default(), colour(st.col.unwrap_or(7)), st.desc.clone().filter(|d| !d.is_empty()).or_else(|| st.text.clone()).unwrap_or_default()));
+            arms.push(Line::Status(
+                st.light.clone().unwrap_or_default(),
+                colour(st.col.unwrap_or(7)),
+                st.desc.clone().filter(|d| !d.is_empty()).or_else(|| st.text.clone()).unwrap_or_default(),
+            ));
         }
         // the commands: a grid of three columns as wide as the widest button
         let cmds = commands();
@@ -1139,14 +1258,19 @@ impl Screen {
         let block_rows_h: Vec<f32> = rows_of_blocks.iter().map(|r| r.iter().map(|(l, w)| block_h(l, *w)).fold(0.0, f32::max)).collect();
         let blocks_h = block_rows_h.iter().sum::<f32>() + gap * (block_rows_h.len() as f32 - 1.0);
         // the commands' columns: three where the widest fits, two with their labels wrapping, else one
-        let cmd_cols = (1..=3usize).rev().find(|&n| {
-            let cw = (inner_w - (n - 1) as f32 * 6.0 * u) / n as f32;
-            cw >= cmd_w || (n == 2 && cw >= 170.0 * u)
-        }).unwrap_or(1);
+        let cmd_cols = (1..=3usize)
+            .rev()
+            .find(|&n| {
+                let cw = (inner_w - (n - 1) as f32 * 6.0 * u) / n as f32;
+                cw >= cmd_w || (n == 2 && cw >= 170.0 * u)
+            })
+            .unwrap_or(1);
         let cw = (inner_w - (cmd_cols - 1) as f32 * 6.0 * u) / cmd_cols as f32;
         let cmd_labels: Vec<_> = cmds.iter().map(|c| ink(INK).galley(&ctx, c.label, Some((cw - cmd_fixed(c)).max(40.0 * u)))).collect();
         let rows_n = cmds.len().div_ceil(cmd_cols);
-        let cmd_row_h: Vec<f32> = (0..rows_n).map(|r| (r * cmd_cols..((r + 1) * cmd_cols).min(cmds.len())).map(|k| cmd_labels[k].size().y + 10.0 * u + 2.0).fold(cmd_h, f32::max)).collect();
+        let cmd_row_h: Vec<f32> = (0..rows_n)
+            .map(|r| (r * cmd_cols..((r + 1) * cmd_cols).min(cmds.len())).map(|k| cmd_labels[k].size().y + 10.0 * u + 2.0).fold(cmd_h, f32::max))
+            .collect();
         let cmds_h = cmd_row_h.iter().sum::<f32>() + (rows_n - 1) as f32 * 6.0 * u;
         let content_h = 18.0 * u + head_h + 14.0 * u + blocks_h + 14.0 * u + 14.0 * 1.2 * u + 14.0 * u + cmds_h + 8.0 * u;
         let title_h = 12.0 * u + 28.0 * 1.1 * u + 10.0 * u + 1.0;
@@ -1155,7 +1279,8 @@ impl Screen {
         // taller than the screen: the panel takes the height and its body scrolls
         let max_h = if compact { avail.height() } else { screen.height() * 0.95 };
         let height = natural_h.min(max_h).floor();
-        let top = if compact { avail.top() + ((avail.height() - height) / 2.0).clamp(0.0, avail.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
+        let top =
+            if compact { avail.top() + ((avail.height() - height) / 2.0).clamp(0.0, avail.height() * 0.05) } else { screen.top() + screen.height() * 0.05 };
         let rect = Rect::from_min_size(egui::pos2((screen.center().x - width / 2.0).round(), top.round()), egui::vec2(width, height));
         self.panel = Some(rect);
         ui.interact(rect, ui.scope_id().with("char-panel"), Sense::click());
@@ -1172,7 +1297,18 @@ impl Screen {
         let fig = Rect::from_min_size(egui::pos2(left, y + (head_h - fig_size) / 2.0), Vec2::splat(fig_size));
         painter.circle_filled(fig.center(), fig_size / 2.0 + 4.0 * u, TRIM.to_color32());
         painter.circle_filled(fig.center(), fig_size / 2.0 + 3.0 * u, hex(0x120e08).to_color32());
-        boxes.paint_box(&painter, &format!("char-figure:{}", fig_size as i32), fig, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.2)), s(rgba(0, 0, 0, 0.5), 0.7)])], border: Border::all(1.0, hex(0x4b3b1d)), insets: vec![inset(0.0, 0.0, 20.0, 0.0, hex(0x000000))], ..Default::default() }.round(fig_size / 2.0));
+        boxes.paint_box(
+            &painter,
+            &format!("char-figure:{}", fig_size as i32),
+            fig,
+            &BoxStyle {
+                layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.5, 0.55), vec![sa(rgba(216, 180, 95, 0.2)), s(rgba(0, 0, 0, 0.5), 0.7)])],
+                border: Border::all(1.0, hex(0x4b3b1d)),
+                insets: vec![inset(0.0, 0.0, 20.0, 0.0, hex(0x000000))],
+                ..Default::default()
+            }
+            .round(fig_size / 2.0),
+        );
         self.paint_figure(&painter, tiles, data.me, Rect::from_center_size(fig.center(), Vec2::splat(fig_size * 160.0 / 180.0)), u, false);
         let nx = fig.right() + 22.0 * u;
         let mut ny = fig.center().y - name_lines_h / 2.0;
@@ -1204,7 +1340,10 @@ impl Screen {
         let track_w = (240.0 * u).min(name_w - xpg.size().x - 10.0 * u).max(60.0 * u);
         let track = Rect::from_min_size(egui::pos2(nx, ny + (body * LINE * 0.9 - 9.0 * u) / 2.0), egui::vec2(track_w, 9.0 * u));
         painter.rect_filled(track, 4.0 * u, hex(0x090705).to_color32());
-        let fill = Rect::from_min_size(track.min + egui::vec2(1.0, 1.0), egui::vec2((track.width() - 2.0) * (p.progress.clamp(0, 100) as f32 / 100.0), track.height() - 2.0));
+        let fill = Rect::from_min_size(
+            track.min + egui::vec2(1.0, 1.0),
+            egui::vec2((track.width() - 2.0) * (p.progress.clamp(0, 100) as f32 / 100.0), track.height() - 2.0),
+        );
         if fill.width() > 0.0 {
             crate::paint::gradient_rect(&painter, fill, true, &[(0.0, hex(0xf1d58e)), (0.6, hex(0xc08d34)), (1.0, hex(0x8a611c))]);
         }
@@ -1303,7 +1442,17 @@ impl Screen {
                 let seen = br.intersect(view);
                 let resp = ui.interact(if seen.is_positive() { seen } else { Rect::NOTHING }, ui.scope_id().with(("char-cmd", k)), Sense::click());
                 let hot = resp.hovered() || self.focus.as_deref() == Some(id.as_str());
-                boxes.paint_box(&painter, &format!("char-command:{hot}"), br, &BoxStyle { layers: vec![Layer::Linear(180.0, vec![sa(hex(0x2c241b)), sa(hex(0x130f0b))])], radius: [4.0 * u; 4], border: Border::all(1.0, if hot { GOLD_BRIGHT } else { hex(0x5a4724) }), ..Default::default() });
+                boxes.paint_box(
+                    &painter,
+                    &format!("char-command:{hot}"),
+                    br,
+                    &BoxStyle {
+                        layers: vec![Layer::Linear(180.0, vec![sa(hex(0x2c241b)), sa(hex(0x130f0b))])],
+                        radius: [4.0 * u; 4],
+                        border: Border::all(1.0, if hot { GOLD_BRIGHT } else { hex(0x5a4724) }),
+                        ..Default::default()
+                    },
+                );
                 let tile = Rect::from_min_size(egui::pos2(br.left() + 1.0 + 6.0 * u, br.center().y - 16.0 * u), Vec2::splat(32.0 * u));
                 if let Some(id) = icons::named(tiles, c.tile) {
                     let placed = tiles.rect(id).map(|rect| vec![Placed { rect, ox: 0.0, oy: 0.0 }]).unwrap_or_default();
@@ -1372,7 +1521,16 @@ fn beside(host: Rect, anchor: Rect, size: Vec2, gap: f32) -> Pos2 {
 fn paint_coin(painter: &Painter, boxes: &mut BoxCache, at: Pos2, size: f32) {
     let r = Rect::from_min_size(at, Vec2::splat(size));
     painter.circle_filled(r.center(), size / 2.0 + 1.0, hex(0x3b2804).to_color32());
-    boxes.paint_box(painter, "coin", r, &BoxStyle { layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.35, 0.35), vec![sa(hex(0xfff2b0)), s(hex(0xe0aa2c), 0.55), sa(hex(0x7b5208))])], ..Default::default() }.round(size / 2.0));
+    boxes.paint_box(
+        painter,
+        "coin",
+        r,
+        &BoxStyle {
+            layers: vec![Layer::Radial(RadialSize::CircleFarthest, (0.35, 0.35), vec![sa(hex(0xfff2b0)), s(hex(0xe0aa2c), 0.55), sa(hex(0x7b5208))])],
+            ..Default::default()
+        }
+        .round(size / 2.0),
+    );
 }
 
 #[cfg(test)]
@@ -1406,7 +1564,16 @@ mod tests {
         let items = pack(&[item(0, "a +0 ring mail", obj::ARMOUR, 7)]);
         let player = PlayerState::default();
         let worn = BTreeMap::new();
-        let data = ScreenData { player: &player, items: &items, worn: &worn, me: None, checking: false, pad: Some(PadKind::Xbox), weapon: String::new(), quiver: String::new() };
+        let data = ScreenData {
+            player: &player,
+            items: &items,
+            worn: &worn,
+            me: None,
+            checking: false,
+            pad: Some(PadKind::Xbox),
+            weapon: String::new(),
+            quiver: String::new(),
+        };
         let mut s = Screen::new(ScreenId::Inventory);
         let at = |x: f32| Rect::from_min_size(egui::pos2(x, 0.0), egui::vec2(50.0, 50.0));
         s.stops = vec![Stop2 { id: "place:helmet".into(), rect: at(0.0), row: 0, col: 0 }, Stop2 { id: "item:a".into(), rect: at(100.0), row: 0, col: 1 }];
@@ -1426,7 +1593,16 @@ mod tests {
         let items = pack(&[item(0, "a +0 hand axe", obj::WEAPONS, 7), item(1, "a potion of curing", obj::POTIONS, 2)]);
         let player = PlayerState::default();
         let worn = BTreeMap::new();
-        let data = ScreenData { player: &player, items: &items, worn: &worn, me: None, checking: false, pad: Some(PadKind::Xbox), weapon: String::new(), quiver: String::new() };
+        let data = ScreenData {
+            player: &player,
+            items: &items,
+            worn: &worn,
+            me: None,
+            checking: false,
+            pad: Some(PadKind::Xbox),
+            weapon: String::new(),
+            quiver: String::new(),
+        };
         let mut s = Screen::new(ScreenId::Inventory);
         let at = |x: f32, y: f32| Rect::from_min_size(egui::pos2(x, y), egui::vec2(50.0, 50.0));
         s.stops = vec![

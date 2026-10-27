@@ -69,11 +69,36 @@ const WIDEST_PAN: f32 = 0.65;
 /// The part of the hit points under which the heart beats.
 const HEARTBEAT_BELOW: f64 = 0.35;
 
-const DARK_PLACES: &[&str] = &["crypt", "cr", "tomb", "hell", "hel", "dis", "geh", "gehenna", "coc", "cocytus", "tar", "tartarus", "abyss", "pan", "pandemonium", "zot", "depths", "dep", "vaults", "vault", "slime", "sl"];
+const DARK_PLACES: &[&str] = &[
+    "crypt",
+    "cr",
+    "tomb",
+    "hell",
+    "hel",
+    "dis",
+    "geh",
+    "gehenna",
+    "coc",
+    "cocytus",
+    "tar",
+    "tartarus",
+    "abyss",
+    "pan",
+    "pandemonium",
+    "zot",
+    "depths",
+    "dep",
+    "vaults",
+    "vault",
+    "slime",
+    "sl",
+];
 const CAVE_PLACES: &[&str] = &["lair", "orc", "mines", "swamp", "spider", "snake", "shoals", "slime", "sl", "abyss", "dis", "geh", "coc", "tar", "hell", "hel"];
 const DARK_FROM_DEPTH: i64 = 12;
 
-static REFUSAL: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)^(okay, then|never mind|you (?:have|don't have|do not have) (?:no|nothing)|you (?:cannot|can't|are unable)|you can only|that is not|there is nothing)").unwrap());
+static REFUSAL: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?i)^(okay, then|never mind|you (?:have|don't have|do not have) (?:no|nothing)|you (?:cannot|can't|are unable)|you can only|that is not|there is nothing)").unwrap()
+});
 static SCHOOLS: Lazy<[(Regex, SoundName); 3]> = Lazy::new(|| {
     [
         (Regex::new(r"(?i)fire|flame|burn|blaze|inferno|scorch|sear|ignit").unwrap(), SoundName::CastFire),
@@ -124,12 +149,9 @@ pub fn sound_for_use<S: AsRef<str>>(kind: UseKind, lines: &[S]) -> Option<SoundN
     match kind {
         UseKind::Potion => Some(SoundName::Potion),
         UseKind::Scroll => Some(SoundName::Scroll),
-        UseKind::Cast => Some(
-            SCHOOLS
-                .iter()
-                .find(|(words, _)| lines.iter().any(|line| words.is_match(line.as_ref())))
-                .map_or(SoundName::Cast, |(_, sound)| *sound),
-        ),
+        UseKind::Cast => {
+            Some(SCHOOLS.iter().find(|(words, _)| lines.iter().any(|line| words.is_match(line.as_ref()))).map_or(SoundName::Cast, |(_, sound)| *sound))
+        }
     }
 }
 

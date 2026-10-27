@@ -1,7 +1,9 @@
 //! The port of `osk-cursor.test.ts`, the touch bar's labels, the gesture recogniser (game.ts's
 //! pointer handlers) and the routing of keys and pad events (game.ts `onKeyDown`, `pad`).
 
+use isorun_input::bindings::prompt_labels;
 use isorun_input::bindings::{Action, OskOp, UiOp};
+use isorun_input::context::MenuContext;
 use isorun_input::context::{Context, Mode, Target};
 use isorun_input::gamepad::{Button, DirSource, PadEvent};
 use isorun_input::keys::KeyLike;
@@ -9,20 +11,21 @@ use isorun_input::osk::*;
 use isorun_input::router::*;
 use isorun_input::runner::{Env, Runner, RunnerHooks};
 use isorun_input::touch::*;
-use isorun_input::bindings::prompt_labels;
-use isorun_input::context::MenuContext;
 use isorun_input::touch_bar::{prominent, shown_labels, touch_labels};
-use isorun_webtiles::{MenuItem, MenuState};
 use isorun_render::camera::{CameraAngles, IsoCamera};
 use isorun_scene::Scene;
 use isorun_webtiles::{cm, initial_state, GameState, MouseMode};
+use isorun_webtiles::{MenuItem, MenuState};
 use serde_json::Value;
 
 // ---------------------------------------------------------------------------
 // osk-cursor.test.ts
 
 fn extras() -> OskTarget {
-    OskTarget { extras: ['<', '>', '$', '^'].iter().zip(["up", "down", "last", "here"]).map(|(c, l)| OskExtra { ch: *c, label: l.into() }).collect(), submit_button: None }
+    OskTarget {
+        extras: ['<', '>', '$', '^'].iter().zip(["up", "down", "last", "here"]).map(|(c, l)| OskExtra { ch: *c, label: l.into() }).collect(),
+        submit_button: None,
+    }
 }
 
 #[test]
@@ -97,7 +100,18 @@ fn menu_ctx(tag: &str, flags: i64, more: &str, items: &[&str], f: impl FnOnce(&m
         kind: Some("menu".into()),
         last_hovered: 1,
         more: more.into(),
-        items: items.iter().enumerate().map(|(i, t)| Some(MenuItem { text: (*t).into(), level: Some(if t.starts_with(' ') { 2 } else { 1 }), hotkeys: t.starts_with(' ').then(|| vec![97 + i as i64]), ..Default::default() })).collect(),
+        items: items
+            .iter()
+            .enumerate()
+            .map(|(i, t)| {
+                Some(MenuItem {
+                    text: (*t).into(),
+                    level: Some(if t.starts_with(' ') { 2 } else { 1 }),
+                    hotkeys: t.starts_with(' ').then(|| vec![97 + i as i64]),
+                    ..Default::default()
+                })
+            })
+            .collect(),
         ..Default::default()
     };
     let mut st = initial_state();
@@ -116,7 +130,13 @@ const PICKUP_MORE: &str = "<lightgrey>[<w>Up</w>|<w>Down</w>] select\n[<w>Esc</w
 #[test]
 fn a_menu_of_marks_offers_accept_on_touch_gold_and_last_with_the_count() {
     // the pickup menu of the report (arrows select, multiselect), one row marked
-    let c = menu_ctx("pickup", 0x40004, PICKUP_MORE, &["Hand Weapons", " a + a +1 trident of protection", "Armour", " b - a +0 animal skin", " c - a +0 helmet"], |_| {});
+    let c = menu_ctx(
+        "pickup",
+        0x40004,
+        PICKUP_MORE,
+        &["Hand Weapons", " a + a +1 trident of protection", "Armour", " b - a +0 animal skin", " c - a +0 helmet"],
+        |_| {},
+    );
     let labels = bar(&c);
     assert_eq!(labels.last().map(String::as_str), Some("START accept (1)"), "{labels:?}");
     assert_eq!(labels.first().map(String::as_str), Some("B exit"));
@@ -150,7 +170,13 @@ fn a_menu_of_marks_with_nothing_chosen_keeps_its_accept_but_a_is_gold() {
 #[test]
 fn the_drop_menu_a_paged_inventory_accepts_but_selects_all_by_category() {
     // drop (MF_PAGED_INVENTORY): accept, toggle, exit; no `,`, its headers select a category each
-    let c = menu_ctx("drop", 0x40004 | isorun_webtiles::MenuFlag::PAGED_INVENTORY, &PICKUP_MORE.replace("(1 chosen)", "(3 chosen)"), &["Hand Weapons", " a + a club", " b + a dagger", " c + 3 darts"], |_| {});
+    let c = menu_ctx(
+        "drop",
+        0x40004 | isorun_webtiles::MenuFlag::PAGED_INVENTORY,
+        &PICKUP_MORE.replace("(1 chosen)", "(3 chosen)"),
+        &["Hand Weapons", " a + a club", " b + a dagger", " c + 3 darts"],
+        |_| {},
+    );
     let labels = bar(&c);
     assert_eq!(labels.last().map(String::as_str), Some("START accept (3)"), "{labels:?}");
     assert!(labels.contains(&"A toggle selected".to_string()));
@@ -241,9 +267,27 @@ fn two_fingers_zoom_turn_and_tilt_and_the_turn_ends_on_a_step() {
 #[test]
 fn the_wheel_zooms_and_with_shift_turns_a_step() {
     let mut g = Gestures::default();
-    let zoom = g.feed(&[egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta: egui::vec2(0.0, 1.0), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Wheel, modifiers: egui::Modifiers::default() }], 0.0);
+    let zoom = g.feed(
+        &[egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, 1.0),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers: egui::Modifiers::default(),
+        }],
+        0.0,
+    );
     assert!(matches!(zoom[..], [Gesture::Zoom(f)] if f > 1.0));
-    let turn = g.feed(&[egui::Event::MouseWheel { unit: egui::MouseWheelUnit::Line, delta: egui::vec2(0.0, -1.0), phase: egui::TouchPhase::Move, source: egui::MouseWheelSource::Wheel, modifiers: egui::Modifiers { shift: true, ..Default::default() } }], 0.0);
+    let turn = g.feed(
+        &[egui::Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Line,
+            delta: egui::vec2(0.0, -1.0),
+            phase: egui::TouchPhase::Move,
+            source: egui::MouseWheelSource::Wheel,
+            modifiers: egui::Modifiers { shift: true, ..Default::default() },
+        }],
+        0.0,
+    );
     assert!(matches!(turn[..], [Gesture::Turn(d)] if d == 45.0));
 }
 
@@ -311,7 +355,17 @@ impl R {
     fn new(facing: i32, settings: RouterSettings) -> Self {
         let mut st = initial_state();
         st.input_mode = MouseMode::COMMAND;
-        R { router: InputRouter::new(settings), runner: Runner::new(), st, scene: Scene { player: (5, 5), player_on_level: true, ..Default::default() }, ctx: Context::default(), cam: IsoCamera::new(CameraAngles { rotation: facing as f32 * 45.0, tilt: 0.0, perspective: 0.0 }, 68.0), host: Host::default(), now: 0.0, sent: Vec::new() }
+        R {
+            router: InputRouter::new(settings),
+            runner: Runner::new(),
+            st,
+            scene: Scene { player: (5, 5), player_on_level: true, ..Default::default() },
+            ctx: Context::default(),
+            cam: IsoCamera::new(CameraAngles { rotation: facing as f32 * 45.0, tilt: 0.0, perspective: 0.0 }, 68.0),
+            host: Host::default(),
+            now: 0.0,
+            sent: Vec::new(),
+        }
     }
 
     fn io<T>(&mut self, f: impl FnOnce(&mut InputRouter, &mut Io) -> T) -> T {

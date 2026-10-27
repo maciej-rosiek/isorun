@@ -158,7 +158,9 @@ pub fn pack_items(inv: &BTreeMap<i64, InvItem>) -> Vec<PackItem> {
         .filter(|it| it.quantity.unwrap_or(0) > 0 && it.base_type.is_some())
         .map(|it| {
             let letter = match it.extra.get("letter") {
-                Some(serde_json::Value::Number(n)) => n.as_u64().and_then(|c| char::from_u32(c as u32)).map(String::from).unwrap_or_else(|| index_to_letter(it.slot)),
+                Some(serde_json::Value::Number(n)) => {
+                    n.as_u64().and_then(|c| char::from_u32(c as u32)).map(String::from).unwrap_or_else(|| index_to_letter(it.slot))
+                }
                 Some(serde_json::Value::String(s)) if !s.is_empty() => s.clone(),
                 _ => index_to_letter(it.slot),
             };
@@ -501,7 +503,13 @@ pub(crate) mod tests {
     #[test]
     fn reads_worn_off_the_pack() {
         let row = |t: &str| Some(MenuItem { text: t.into(), ..Default::default() });
-        let w = worn_from_menu(&[row("a - a +0 war axe (weapon)"), row("b - a +2 leather armour (worn)"), row("<white>c + 3 darts (quivered)</white>"), row("Hand Weapons"), None]);
+        let w = worn_from_menu(&[
+            row("a - a +0 war axe (weapon)"),
+            row("b - a +2 leather armour (worn)"),
+            row("<white>c + 3 darts (quivered)</white>"),
+            row("Hand Weapons"),
+            None,
+        ]);
         assert_eq!(w.get("a"), Some(&Worn::Weapon));
         assert_eq!(w.get("b"), Some(&Worn::Worn));
         assert_eq!(w.get("c"), Some(&Worn::Quivered));
@@ -520,7 +528,13 @@ pub(crate) mod tests {
 
     #[test]
     fn the_player_message_wins_for_weapons() {
-        let items = pack(&[item(0, "a dagger", obj::WEAPONS, 1), item(1, "a club", obj::WEAPONS, 0), item(2, "a ring", obj::JEWELLERY, 2), item(3, "a ring", obj::JEWELLERY, 4), item(4, "a ring", obj::JEWELLERY, 5)]);
+        let items = pack(&[
+            item(0, "a dagger", obj::WEAPONS, 1),
+            item(1, "a club", obj::WEAPONS, 0),
+            item(2, "a ring", obj::JEWELLERY, 2),
+            item(3, "a ring", obj::JEWELLERY, 4),
+            item(4, "a ring", obj::JEWELLERY, 5),
+        ]);
         let mut known = BTreeMap::new();
         known.insert("a".to_string(), Worn::Weapon);
         known.insert("c".to_string(), Worn::Worn);

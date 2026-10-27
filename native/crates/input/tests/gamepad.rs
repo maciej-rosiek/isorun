@@ -71,7 +71,13 @@ fn only_the_first_frame_of_a_look_is_the_pad_speaking() {
 // which pad is primary on a Steam Deck with an external controller
 
 fn raw_pad(index: usize) -> RawPad {
-    RawPad { id: "Microsoft X-Box 360 pad (045e-028e)".into(), index, standard: false, buttons: vec![RawButton::default(); 11], axes: vec![0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0] }
+    RawPad {
+        id: "Microsoft X-Box 360 pad (045e-028e)".into(),
+        index,
+        standard: false,
+        buttons: vec![RawButton::default(); 11],
+        axes: vec![0.0, 0.0, -1.0, 0.0, 0.0, -1.0, 0.0, 0.0],
+    }
 }
 
 #[test]
@@ -113,7 +119,8 @@ fn when_a_steam_input_pad_and_its_raw_twin_wake_together_the_standard_one_is_rea
 // an unmapped pad is read in the standard layout
 
 fn raw(n: usize, axes: Vec<f32>, down: &[usize]) -> RawPad {
-    let mut p = RawPad { id: "Xbox Wireless Controller (Vendor: 045e Product: 0b13)".into(), index: 0, standard: false, buttons: vec![RawButton::default(); n], axes };
+    let mut p =
+        RawPad { id: "Xbox Wireless Controller (Vendor: 045e Product: 0b13)".into(), index: 0, standard: false, buttons: vec![RawButton::default(); n], axes };
     for &d in down {
         p.press(d, true);
     }
@@ -133,7 +140,10 @@ fn a_wired_xpad_pad_moves_back_start_guide_and_the_stick_clicks_to_their_slots()
 
 #[test]
 fn a_bluetooth_pad_skips_the_gaps_and_takes_the_triggers_off_axes_5_and_4() {
-    assert_eq!(held(&raw(15, vec![0.0, 0.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0], &[0, 1, 3, 4, 6, 7, 10, 11, 12, 13, 14])), vec![0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 16]);
+    assert_eq!(
+        held(&raw(15, vec![0.0, 0.0, 0.0, 0.0, -1.0, -1.0, 0.0, 0.0], &[0, 1, 3, 4, 6, 7, 10, 11, 12, 13, 14])),
+        vec![0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 16]
+    );
     assert_eq!(held(&raw(15, vec![0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, -1.0], &[])), vec![6, 7, 12, 15]);
     assert_eq!(standard_view(&raw(15, vec![0.1, 0.2, 0.3, 0.4, -1.0, -1.0, 0.0, 0.0], &[])).1, vec![0.1, 0.2, 0.3, 0.4]);
 }
@@ -194,7 +204,14 @@ fn the_right_stick_on_turn_reads_left_and_right_as_the_left_stick_does() {
     out.extend(not_settle(poll(&mut gp, 16.0, vec![Some(fake_pad(push.clone()))])));
     out.extend(not_settle(poll(&mut gp, 400.0, vec![Some(fake_pad(push))])));
     out.extend(not_settle(poll(&mut gp, 416.0, vec![Some(fake_pad(vec![0.0; 4]))])));
-    assert_eq!(out, vec![PadEvent::Dir { source: DirSource::RStick, dir: Some(2) }, PadEvent::DirRepeat { source: DirSource::RStick, dir: 2, n: 1 }, PadEvent::Dir { source: DirSource::RStick, dir: None }]);
+    assert_eq!(
+        out,
+        vec![
+            PadEvent::Dir { source: DirSource::RStick, dir: Some(2) },
+            PadEvent::DirRepeat { source: DirSource::RStick, dir: 2, n: 1 },
+            PadEvent::Dir { source: DirSource::RStick, dir: None }
+        ]
+    );
 }
 
 #[test]
@@ -293,7 +310,14 @@ fn a_scripted_pad_plays_its_steps() {
         gp.poll_source(t, &mut script);
         events.extend(gp.take_events());
     }
-    assert_eq!(events, vec![PadEvent::Press { button: Button::A, t: 100.0 }, PadEvent::Release { button: Button::A, t: 200.0, held: 100.0 }, PadEvent::Dir { source: DirSource::LStick, dir: Some(0) }]);
+    assert_eq!(
+        events,
+        vec![
+            PadEvent::Press { button: Button::A, t: 100.0 },
+            PadEvent::Release { button: Button::A, t: 200.0, held: 100.0 },
+            PadEvent::Dir { source: DirSource::LStick, dir: Some(0) }
+        ]
+    );
     assert!(script.done());
 }
 
@@ -412,7 +436,17 @@ fn the_level_map_stands_all_its_keys_in_the_corner() {
     let h = hints(&Store::default());
     let map = Context { mode: Mode::Levelmap, ..ctx() };
     let got: Vec<(&str, String)> = h.prompts(&map, HintMode::Contextual).into_iter().map(|l| (l.button.name(), l.label)).collect();
-    let want = [("X", "Describe"), ("Y", "Find you"), ("LB", "Up stairs"), ("RB", "Down stairs"), ("LT", "Zoom out"), ("RT", "Zoom in"), ("L3", "Find…"), ("R3", "Overview"), ("A", "Travel here")];
+    let want = [
+        ("X", "Describe"),
+        ("Y", "Find you"),
+        ("LB", "Up stairs"),
+        ("RB", "Down stairs"),
+        ("LT", "Zoom out"),
+        ("RT", "Zoom in"),
+        ("L3", "Find…"),
+        ("R3", "Overview"),
+        ("A", "Travel here"),
+    ];
     assert_eq!(got, want.iter().map(|(b, l)| (*b, l.to_string())).collect::<Vec<_>>());
     assert_eq!(h.prompts(&map, HintMode::Off).into_iter().map(|l| l.label).collect::<Vec<_>>(), vec!["Travel here"]);
     assert_eq!(teaching(&h, &map).into_iter().map(|t| t.1).collect::<Vec<_>>(), vec!["Move cursor"]);
@@ -420,9 +454,30 @@ fn the_level_map_stands_all_its_keys_in_the_corner() {
 
 #[test]
 fn never_advertises_b_regardless_of_hint_setting() {
-    for mode in [Mode::Command, Mode::Menu, Mode::Targeting, Mode::Levelmap, Mode::Popup, Mode::Newgame, Mode::Crt, Mode::Dialog, Mode::More, Mode::Prompt, Mode::Yesno, Mode::Text, Mode::Spectating, Mode::Lobby, Mode::Ended, Mode::Macro] {
+    for mode in [
+        Mode::Command,
+        Mode::Menu,
+        Mode::Targeting,
+        Mode::Levelmap,
+        Mode::Popup,
+        Mode::Newgame,
+        Mode::Crt,
+        Mode::Dialog,
+        Mode::More,
+        Mode::Prompt,
+        Mode::Yesno,
+        Mode::Text,
+        Mode::Spectating,
+        Mode::Lobby,
+        Mode::Ended,
+        Mode::Macro,
+    ] {
         let h = hints(&Store::default());
-        let c = Context { mode, focus: Some(FocusInfo { label: Some("Yes".into()), cancel_label: Some("No".into()), index: 0, count: 2, ..Default::default() }), ..ctx() };
+        let c = Context {
+            mode,
+            focus: Some(FocusInfo { label: Some("Yes".into()), cancel_label: Some("No".into()), index: 0, count: 2, ..Default::default() }),
+            ..ctx()
+        };
         for setting in [HintMode::Adaptive, HintMode::Contextual, HintMode::Off] {
             assert!(!h.prompts(&c, setting).iter().any(|l| l.button == Button::B), "{mode:?} {setting:?}");
         }

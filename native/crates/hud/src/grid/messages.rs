@@ -33,7 +33,11 @@ fn wrapped_log(log: &MessageLog, width: usize) -> Vec<Row> {
     let mut out = Vec::new();
     let text = width.saturating_sub(1).max(1);
     for l in &log.lines {
-        let marker = Span { text: if l.marker.is_some() { "_" } else { " " }.into(), fg: Some(if l.marker == Some(Marker::Turn) { TURN_MARKER } else { COMMAND_MARKER }), ..Default::default() };
+        let marker = Span {
+            text: if l.marker.is_some() { "_" } else { " " }.into(),
+            fg: Some(if l.marker == Some(Marker::Turn) { TURN_MARKER } else { COMMAND_MARKER }),
+            ..Default::default()
+        };
         for (i, row) in wrap_row(&from_formatted(&l.text, None), text).into_iter().enumerate() {
             let mut r = vec![if i == 0 { marker.clone() } else { Span::new(" ") }];
             r.extend(row);

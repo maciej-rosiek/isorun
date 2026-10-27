@@ -37,7 +37,25 @@ pub enum Button {
 }
 
 /// The standard layout's buttons by index.
-pub const BUTTON_INDEX: [Button; 17] = [Button::A, Button::B, Button::X, Button::Y, Button::LB, Button::RB, Button::LT, Button::RT, Button::Select, Button::Start, Button::L3, Button::R3, Button::DU, Button::DD, Button::DL, Button::DR, Button::Home];
+pub const BUTTON_INDEX: [Button; 17] = [
+    Button::A,
+    Button::B,
+    Button::X,
+    Button::Y,
+    Button::LB,
+    Button::RB,
+    Button::LT,
+    Button::RT,
+    Button::Select,
+    Button::Start,
+    Button::L3,
+    Button::R3,
+    Button::DU,
+    Button::DD,
+    Button::DL,
+    Button::DR,
+    Button::Home,
+];
 
 impl Button {
     /// The name the TypeScript uses ('A', 'SELECT', 'LSTICK_UP'), for logs and glyph lookups.
@@ -68,7 +86,11 @@ impl Button {
     }
 
     pub fn from_name(name: &str) -> Option<Button> {
-        BUTTON_INDEX.iter().chain([Button::LStickUp, Button::LStick, Button::RStick, Button::DPad].iter()).copied().find(|b| b.name().eq_ignore_ascii_case(name))
+        BUTTON_INDEX
+            .iter()
+            .chain([Button::LStickUp, Button::LStick, Button::RStick, Button::DPad].iter())
+            .copied()
+            .find(|b| b.name().eq_ignore_ascii_case(name))
     }
 }
 
@@ -82,13 +104,34 @@ pub enum DirSource {
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum PadEvent {
-    Press { button: Button, t: f64 },
-    Release { button: Button, t: f64, held: f64 },
-    Repeat { button: Button, n: u32 },
-    Dir { source: DirSource, dir: Option<Dir8> },
-    DirRepeat { source: DirSource, dir: Dir8, n: u32 },
+    Press {
+        button: Button,
+        t: f64,
+    },
+    Release {
+        button: Button,
+        t: f64,
+        held: f64,
+    },
+    Repeat {
+        button: Button,
+        n: u32,
+    },
+    Dir {
+        source: DirSource,
+        dir: Option<Dir8>,
+    },
+    DirRepeat {
+        source: DirSource,
+        dir: Dir8,
+        n: u32,
+    },
     /// `start`: true on the first frame of a deflection; false on the frames that follow and on the settle to 0,0
-    Look { dx: f32, dy: f32, start: bool },
+    Look {
+        dx: f32,
+        dy: f32,
+        start: bool,
+    },
 }
 
 /// Whether an event is the player choosing the controller: a button going
@@ -300,7 +343,12 @@ impl GamepadInput {
 
     /// Some button is down (or a stick out of its centre): the frames keep coming for its hold or repeat.
     pub fn busy(&self) -> bool {
-        !self.pressed.is_empty() || !self.virtual_held.is_empty() || self.dpad_dir.is_some() || self.stick_dir.is_some() || self.rstick_dir.is_some() || self.looking
+        !self.pressed.is_empty()
+            || !self.virtual_held.is_empty()
+            || self.dpad_dir.is_some()
+            || self.stick_dir.is_some()
+            || self.rstick_dir.is_some()
+            || self.looking
     }
 
     pub fn is_held(&self, b: Button) -> bool {
@@ -617,7 +665,13 @@ impl ScriptedPad {
         for part in script.split(';').map(str::trim).filter(|s| !s.is_empty()) {
             let mut f = part.splitn(3, ':');
             let t: f64 = f.next().and_then(|t| t.trim().parse().ok()).unwrap_or(0.0);
-            let buttons = f.next().unwrap_or("").split(',').filter_map(|b| Button::from_name(b.trim())).filter_map(|b| BUTTON_INDEX.iter().position(|x| *x == b)).collect();
+            let buttons = f
+                .next()
+                .unwrap_or("")
+                .split(',')
+                .filter_map(|b| Button::from_name(b.trim()))
+                .filter_map(|b| BUTTON_INDEX.iter().position(|x| *x == b))
+                .collect();
             let mut axes = [0.0; 4];
             if let Some(a) = f.next() {
                 for (i, v) in a.split(',').take(4).enumerate() {
@@ -686,7 +740,25 @@ impl PadSource for GilrsSource {
     fn pads(&mut self) -> Vec<Option<RawPad>> {
         use gilrs::{Axis, Button as G};
         while self.gilrs.next_event().is_some() {}
-        const ORDER: [G; 17] = [G::South, G::East, G::West, G::North, G::LeftTrigger, G::RightTrigger, G::LeftTrigger2, G::RightTrigger2, G::Select, G::Start, G::LeftThumb, G::RightThumb, G::DPadUp, G::DPadDown, G::DPadLeft, G::DPadRight, G::Mode];
+        const ORDER: [G; 17] = [
+            G::South,
+            G::East,
+            G::West,
+            G::North,
+            G::LeftTrigger,
+            G::RightTrigger,
+            G::LeftTrigger2,
+            G::RightTrigger2,
+            G::Select,
+            G::Start,
+            G::LeftThumb,
+            G::RightThumb,
+            G::DPadUp,
+            G::DPadDown,
+            G::DPadLeft,
+            G::DPadRight,
+            G::Mode,
+        ];
         self.gilrs
             .gamepads()
             .map(|(id, g)| {

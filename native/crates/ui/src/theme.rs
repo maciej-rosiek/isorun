@@ -34,7 +34,13 @@ pub fn install(ctx: &egui::Context) {
     v.hyperlink_color = GOLD_BRIGHT;
     ctx.all_styles_mut(|s| {
         s.visuals = v.clone();
-        for (style, size) in [(egui::TextStyle::Body, TEXT_PX), (egui::TextStyle::Button, TEXT_PX), (egui::TextStyle::Monospace, TEXT_PX), (egui::TextStyle::Small, 12.0), (egui::TextStyle::Heading, 22.0)] {
+        for (style, size) in [
+            (egui::TextStyle::Body, TEXT_PX),
+            (egui::TextStyle::Button, TEXT_PX),
+            (egui::TextStyle::Monospace, TEXT_PX),
+            (egui::TextStyle::Small, 12.0),
+            (egui::TextStyle::Heading, 22.0),
+        ] {
             if let Some(f) = s.text_styles.get_mut(&style) {
                 f.size = size;
             }

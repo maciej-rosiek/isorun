@@ -113,9 +113,18 @@ struct Glows {
 
 impl Glows {
     fn new(gpu: &Gpu, layout: &wgpu::BindGroupLayout, inner: u32, colour: u32, size: f32, dust: bool) -> Self {
-        let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("glow"), size: 48, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("glow"),
+            size: 48,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let c = linear(colour);
-        gpu.queue.write_buffer(&uniform, 0, bytemuck::bytes_of(&GlowUniform { colour: [c[0], c[1], c[2], size], inner: srgb(inner), mode: [dust as u8 as f32, 0.0, 0.0, 0.0] }));
+        gpu.queue.write_buffer(
+            &uniform,
+            0,
+            bytemuck::bytes_of(&GlowUniform { colour: [c[0], c[1], c[2], size], inner: srgb(inner), mode: [dust as u8 as f32, 0.0, 0.0, 0.0] }),
+        );
         let group = uniform_group(gpu, layout, &uniform);
         Glows { uniform, group, instances: DynamicBuffer::new(gpu, "glow instances", wgpu::BufferUsages::VERTEX, 1024), count: 0 }
     }
@@ -143,7 +152,11 @@ impl TorchLayer {
         use wgpu::util::DeviceExt;
         let layout = uniform_layout(gpu, 48);
         let module = shader(gpu, "glow", include_str!("shaders/glow.wgsl"));
-        let corners = gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("corners"), contents: bytemuck::cast_slice(&CORNERS), usage: wgpu::BufferUsages::VERTEX });
+        let corners = gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("corners"),
+            contents: bytemuck::cast_slice(&CORNERS),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
         // the texture's colour at the middle, times the material's
         let flames = Glows::new(gpu, &layout, 0xffbe6e, 0xffb060, GLOW_SIZE, false);
         let dust = Glows::new(gpu, &layout, 0xffdcb4, 0xffc890, MOTE_SIZE, true);
@@ -155,7 +168,20 @@ impl TorchLayer {
             wgpu::VertexBufferLayout { array_stride: 8, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x2] },
             wgpu::VertexBufferLayout { array_stride: 16, step_mode: wgpu::VertexStepMode::Instance, attributes: &wgpu::vertex_attr_array![1 => Float32x4] },
         ];
-        self.pipeline = Some(layer_pipeline(gpu, "glow", &self.module, "vs_glow", "fs_glow", &buffers, &[&self.layout], Blend::Additive, false, samples, true, Default::default()));
+        self.pipeline = Some(layer_pipeline(
+            gpu,
+            "glow",
+            &self.module,
+            "vs_glow",
+            "fs_glow",
+            &buffers,
+            &[&self.layout],
+            Blend::Additive,
+            false,
+            samples,
+            true,
+            Default::default(),
+        ));
     }
 
     /// Draw these torches.
@@ -176,7 +202,11 @@ impl TorchLayer {
 
     /// Put the motes in the air before the lit torches, over the open cell each hangs over.
     pub fn place_dust(&mut self, gpu: &Gpu, torches: &[Option<Torch>]) {
-        let lit: Vec<Vec3> = torches.iter().flatten().map(|t| Vec3::new(t.cell.0 as f32 + 0.5, t.position.y, t.cell.1 as f32 + 0.5).lerp(t.position, 1.0 - OUT_FROM_WALL)).collect();
+        let lit: Vec<Vec3> = torches
+            .iter()
+            .flatten()
+            .map(|t| Vec3::new(t.cell.0 as f32 + 0.5, t.position.y, t.cell.1 as f32 + 0.5).lerp(t.position, 1.0 - OUT_FROM_WALL))
+            .collect();
         let key: Vec<[u32; 3]> = lit.iter().map(|p| [(p.x * 100.0).round() as u32, (p.y * 100.0).round() as u32, (p.z * 100.0).round() as u32]).collect();
         if key == self.dust_key {
             return;
@@ -201,7 +231,11 @@ impl TorchLayer {
         }
         self.dust_strength = strength;
         let c = linear(0xffc890);
-        gpu.queue.write_buffer(&self.dust.uniform, 0, bytemuck::bytes_of(&GlowUniform { colour: [c[0], c[1], c[2], MOTE_SIZE], inner: srgb(0xffdcb4), mode: [1.0, strength, 0.0, 0.0] }));
+        gpu.queue.write_buffer(
+            &self.dust.uniform,
+            0,
+            bytemuck::bytes_of(&GlowUniform { colour: [c[0], c[1], c[2], MOTE_SIZE], inner: srgb(0xffdcb4), mode: [1.0, strength, 0.0, 0.0] }),
+        );
     }
 
     fn draw_glows_of(&self, pass: &mut wgpu::RenderPass<'_>, frame: &wgpu::BindGroup, glows: &Glows) {

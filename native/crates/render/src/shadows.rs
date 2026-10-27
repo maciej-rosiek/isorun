@@ -59,7 +59,14 @@ pub struct Shadows {
 impl Shadows {
     pub fn new(gpu: &Gpu, point_lights: u32) -> Self {
         let device = &gpu.device;
-        let sun = gpu.texture("sun shadow", SUN_SHADOW_MAP_SIZE, SUN_SHADOW_MAP_SIZE, DEPTH_FORMAT, 1, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING);
+        let sun = gpu.texture(
+            "sun shadow",
+            SUN_SHADOW_MAP_SIZE,
+            SUN_SHADOW_MAP_SIZE,
+            DEPTH_FORMAT,
+            1,
+            wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING,
+        );
         // OpenGL picks a texture's kind from its shape: a square one of 6n layers is a cube map
         // (array), which WebGL2 cannot draw into by layer or has not at all, and one of a single
         // layer is no array; a spare layer keeps it a 2D array there
@@ -75,11 +82,19 @@ impl Shadows {
             view_formats: &[],
         });
         let points_view = points.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2Array), ..Default::default() });
-        let views = device.create_buffer(&wgpu::BufferDescriptor { label: Some("shadow views"), size: VIEW_STRIDE * (1 + layers as u64), usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let views = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("shadow views"),
+            size: VIEW_STRIDE * (1 + layers as u64),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let view_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("shadow view"),
             layout: &gpu.shadow_view_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &views, offset: 0, size: std::num::NonZeroU64::new(96) }) }],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &views, offset: 0, size: std::num::NonZeroU64::new(96) }),
+            }],
         });
         let sun_view = sun.create_view(&wgpu::TextureViewDescriptor::default());
         Shadows { sun, sun_view, points, points_view, point_lights, views, view_group, scratch: Vec::new() }
@@ -92,7 +107,11 @@ impl Shadows {
     /// Adds a view to draw a shadow from; returns its offset.
     pub fn view(&mut self, view_proj: Mat4, light: Vec4, point: bool) -> u32 {
         let offset = self.scratch.len() as u32;
-        self.scratch.extend_from_slice(bytemuck::bytes_of(&ShadowViewUniform { view_proj: view_proj.to_cols_array_2d(), light: light.to_array(), mode: [point as u8 as f32, 0.0, 0.0, 0.0] }));
+        self.scratch.extend_from_slice(bytemuck::bytes_of(&ShadowViewUniform {
+            view_proj: view_proj.to_cols_array_2d(),
+            light: light.to_array(),
+            mode: [point as u8 as f32, 0.0, 0.0, 0.0],
+        }));
         self.scratch.resize(offset as usize + VIEW_STRIDE as usize, 0);
         offset
     }
@@ -104,6 +123,11 @@ impl Shadows {
     }
 
     pub fn layer_view(&self, layer: u32) -> wgpu::TextureView {
-        self.points.create_view(&wgpu::TextureViewDescriptor { dimension: Some(wgpu::TextureViewDimension::D2), base_array_layer: layer, array_layer_count: Some(1), ..Default::default() })
+        self.points.create_view(&wgpu::TextureViewDescriptor {
+            dimension: Some(wgpu::TextureViewDimension::D2),
+            base_array_layer: layer,
+            array_layer_count: Some(1),
+            ..Default::default()
+        })
     }
 }

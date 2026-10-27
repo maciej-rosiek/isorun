@@ -111,7 +111,13 @@ impl Osk {
         let rows = self.rows();
         let ch = rows.get(self.row)?.chars().nth(self.col)?;
         // an extra is sent as it is; a letter follows the shift
-        Some(if self.has_extras() && self.row == 0 { ch } else if self.shift { ch.to_ascii_uppercase() } else { ch })
+        Some(if self.has_extras() && self.row == 0 {
+            ch
+        } else if self.shift {
+            ch.to_ascii_uppercase()
+        } else {
+            ch
+        })
     }
 
     pub fn shifted(&self) -> bool {
@@ -177,14 +183,23 @@ impl Osk {
                 let (r, _) = ui.allocate_exact_size(egui::vec2(w, 1.6 * em + 0.6 * em), egui::Sense::hover());
                 ui.painter().rect_filled(r, 0.0, egui::Color32::from_rgba_unmultiplied(255, 255, 255, 9));
                 ui.painter().hline(r.x_range(), r.bottom(), egui::Stroke::new(1.0, gold));
-                ui.painter().text(egui::pos2(r.left() + 0.5 * em, r.center().y), egui::Align2::LEFT_CENTER, if preview.is_empty() { " " } else { preview }, font.clone(), egui::Color32::WHITE);
+                ui.painter().text(
+                    egui::pos2(r.left() + 0.5 * em, r.center().y),
+                    egui::Align2::LEFT_CENTER,
+                    if preview.is_empty() { " " } else { preview },
+                    font.clone(),
+                    egui::Color32::WHITE,
+                );
                 ui.add_space(0.3 * em);
                 let mut draw_key = |ui: &mut egui::Ui, r: usize, c: usize, label: String, width: f32, ch: char| {
                     let (rect, resp) = ui.allocate_exact_size(egui::vec2(width, key), egui::Sense::click());
                     let focused = r == self.row && c == self.col;
                     let p = ui.painter();
                     if focused {
-                        p.add(egui::epaint::Shadow { offset: [0, 0], blur: 12, spread: 0, color: egui::Color32::from_rgba_unmultiplied(216, 180, 95, 89) }.as_shape(rect, 2.0));
+                        p.add(
+                            egui::epaint::Shadow { offset: [0, 0], blur: 12, spread: 0, color: egui::Color32::from_rgba_unmultiplied(216, 180, 95, 89) }
+                                .as_shape(rect, 2.0),
+                        );
                         p.rect_filled(rect, 2.0, egui::Color32::from_rgba_unmultiplied(216, 180, 95, 71));
                         p.rect_stroke(rect, 2.0, egui::Stroke::new(1.0, gold), egui::StrokeKind::Inside);
                     } else {

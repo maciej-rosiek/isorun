@@ -16,7 +16,9 @@ pub mod palette;
 
 pub use atlas::MapTiles;
 pub use build::{Mode, Style};
-pub use layout::{cell_pixels, map_cell_size, minimap_box, StickPan, MINIMAP_CELLS, MINIMAP_CELL_DEFAULT, MINIMAP_TILES_DEFAULT, MINIMAP_TILES_MAX, MINIMAP_TILES_MIN};
+pub use layout::{
+    cell_pixels, map_cell_size, minimap_box, StickPan, MINIMAP_CELLS, MINIMAP_CELL_DEFAULT, MINIMAP_TILES_DEFAULT, MINIMAP_TILES_MAX, MINIMAP_TILES_MIN,
+};
 pub use level_map::{LevelMap, MapResponse};
 pub use minimap::Minimap;
 pub use palette::MinimapColours;

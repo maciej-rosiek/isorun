@@ -50,7 +50,14 @@ pub struct Minimap {
 
 impl Default for Minimap {
     fn default() -> Self {
-        Minimap { cell: layout::MINIMAP_CELL_DEFAULT as f32, style: Style::default(), turns: true, upright_yaw: None, ink: Color32::from_rgb(0xba, 0xbd, 0xb6), cache: None }
+        Minimap {
+            cell: layout::MINIMAP_CELL_DEFAULT as f32,
+            style: Style::default(),
+            turns: true,
+            upright_yaw: None,
+            ink: Color32::from_rgb(0xba, 0xbd, 0xb6),
+            cache: None,
+        }
     }
 }
 
@@ -68,7 +75,16 @@ impl Minimap {
     /// column's top-right corner), centred on the cell `centre` (the camera's) with `up_yaw`
     /// (radians, the camera's yaw) at the top, and the server's own cursor (targeting, `x`
     /// examine) when it has one. A click on it is the game's cue to open the level map.
-    pub fn ui(&mut self, ui: &mut egui::Ui, rect: Rect, scene: &Scene, tiles: &mut MapTiles, centre: (i32, i32), up_yaw: f32, cursor: Option<&SceneCursor>) -> egui::Response {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        scene: &Scene,
+        tiles: &mut MapTiles,
+        centre: (i32, i32),
+        up_yaw: f32,
+        cursor: Option<&SceneCursor>,
+    ) -> egui::Response {
         let response = ui.allocate_rect(rect, Sense::click());
         if rect.width() <= 0.0 || rect.height() <= 0.0 {
             return response;
@@ -109,7 +125,17 @@ impl Minimap {
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn draw(&self, rect: Rect, scene: &Scene, tiles: &mut MapTiles, centre: (i32, i32), up: f32, cursor: Option<&SceneCursor>, ppp: f32, painter: &egui::Painter) -> Drawn {
+    fn draw(
+        &self,
+        rect: Rect,
+        scene: &Scene,
+        tiles: &mut MapTiles,
+        centre: (i32, i32),
+        up: f32,
+        cursor: Option<&SceneCursor>,
+        ppp: f32,
+        painter: &egui::Painter,
+    ) -> Drawn {
         let cs = self.cell.max(1.0);
         let (w, h) = (rect.width(), rect.height());
         let origin = layout::view_origin(w, h, cs, Some(centre), scene.bounds);

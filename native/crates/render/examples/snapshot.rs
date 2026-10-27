@@ -85,7 +85,8 @@ fn main() {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
     let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions::default())).expect("adapter");
     eprintln!("adapter: {:?}", adapter.get_info().name);
-    let (device, queue) = pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
+    let (device, queue) =
+        pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
     device.on_uncaptured_error(std::sync::Arc::new(|e| panic!("wgpu: {e}")));
     let mut r = IsoRenderer::new(device.clone(), queue.clone());
     let glb = std::fs::read(format!("{root}/torch_mounted.glb")).unwrap();
@@ -134,11 +135,19 @@ fn main() {
     eprintln!("{frames} frames in {:?}", start.elapsed());
     let (rw, rh) = r.render_size();
     let bytes_per_row = (rw * 4).div_ceil(256) * 256;
-    let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: None, size: (bytes_per_row * rh) as u64, usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ, mapped_at_creation: false });
+    let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+        label: None,
+        size: (bytes_per_row * rh) as u64,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
     let mut encoder = device.create_command_encoder(&Default::default());
     encoder.copy_texture_to_buffer(
         wgpu::TexelCopyTextureInfo { texture: &target, mip_level: 0, origin: wgpu::Origin3d::ZERO, aspect: wgpu::TextureAspect::All },
-        wgpu::TexelCopyBufferInfo { buffer: &buffer, layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: Some(rh) } },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &buffer,
+            layout: wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(bytes_per_row), rows_per_image: Some(rh) },
+        },
         wgpu::Extent3d { width: rw, height: rh, depth_or_array_layers: 1 },
     );
     queue.submit([encoder.finish()]);

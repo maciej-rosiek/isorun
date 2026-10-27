@@ -38,20 +38,14 @@ pub struct FlagWord {
 
 impl PartialEq for FlagWord {
     fn eq(&self, other: &Self) -> bool {
-        self.value == other.value
-            && self.lo == other.lo
-            && self.hi == other.hi
-            && self.set_flags().eq(other.set_flags())
+        self.value == other.value && self.lo == other.lo && self.hi == other.hi && self.set_flags().eq(other.set_flags())
     }
 }
 
 impl FlagWord {
     /// Whether the flag of this name is set; false for a name the table does not have.
     pub fn get(&self, name: &str) -> bool {
-        self.names
-            .iter()
-            .position(|n| n == name)
-            .is_some_and(|i| self.is_set(i))
+        self.names.iter().position(|n| n == name).is_some_and(|i| self.is_set(i))
     }
 
     /// Whether the flag at this index of [`FlagWord::names`] is set.
@@ -66,11 +60,7 @@ impl FlagWord {
 
     /// The names of the flags that are set, in table order.
     pub fn set_flags(&self) -> impl Iterator<Item = &str> + '_ {
-        self.names
-            .iter()
-            .enumerate()
-            .filter(|(i, _)| self.is_set(*i))
-            .map(|(_, n)| n.as_str())
+        self.names.iter().enumerate().filter(|(i, _)| self.is_set(*i)).map(|(_, n)| n.as_str())
     }
 
     /// The same word with its tile moved by `offset` (zero, "no tile", stays zero).
@@ -109,14 +99,8 @@ fn mask_of(v: &Value) -> Option<Mask> {
 
 impl FlagSpec {
     /// Read a flag table out of the value `enums.js` built for it.
-    pub(crate) fn from_value(
-        v: &Value,
-        what: &str,
-        diags: &mut Vec<String>,
-    ) -> Result<FlagSpec, String> {
-        let obj = v
-            .as_obj()
-            .ok_or_else(|| format!("{what} is not an object"))?;
+    pub(crate) fn from_value(v: &Value, what: &str, diags: &mut Vec<String>) -> Result<FlagSpec, String> {
+        let obj = v.as_obj().ok_or_else(|| format!("{what} is not an object"))?;
         let obj = obj.borrow();
         let mut names: Vec<String> = Vec::new();
         let intern = |name: &str, names: &mut Vec<String>| -> usize {
@@ -133,9 +117,7 @@ impl FlagSpec {
             for (name, m) in f.borrow().entries() {
                 match mask_of(m) {
                     Some(m) => flags.push((intern(name, &mut names), m)),
-                    None => diags.push(format!(
-                        "enums.js: {what}.flags.{name} has no mask; left out"
-                    )),
+                    None => diags.push(format!("enums.js: {what}.flags.{name} has no mask; left out")),
                 }
             }
         } else {
@@ -145,16 +127,12 @@ impl FlagSpec {
         if let Some(Value::Arr(ex)) = obj.get("exclusive_flags") {
             for (i, group) in ex.borrow().iter().enumerate() {
                 let Some(g) = group.as_obj() else {
-                    diags.push(format!(
-                        "enums.js: {what}.exclusive_flags[{i}] is not an object; left out"
-                    ));
+                    diags.push(format!("enums.js: {what}.exclusive_flags[{i}] is not an object; left out"));
                     continue;
                 };
                 let g = g.borrow();
                 let Some(mask) = g.get("mask").and_then(mask_of) else {
-                    diags.push(format!(
-                        "enums.js: {what}.exclusive_flags[{i}] has no mask; left out"
-                    ));
+                    diags.push(format!("enums.js: {what}.exclusive_flags[{i}] has no mask; left out"));
                     continue;
                 };
                 let mut values = Vec::new();
@@ -164,9 +142,7 @@ impl FlagSpec {
                     }
                     match mask_of(val) {
                         Some(m) => values.push((intern(name, &mut names), m)),
-                        None => diags.push(format!(
-                            "enums.js: {what}.exclusive_flags[{i}].{name} has no value"
-                        )),
+                        None => diags.push(format!("enums.js: {what}.exclusive_flags[{i}].{name} has no value")),
                     }
                 }
                 exclusive.push((mask, values));
@@ -174,17 +150,9 @@ impl FlagSpec {
         }
         let mask = obj.get("mask").map(to_number).unwrap_or(f64::NAN);
         if names.len() > 128 {
-            diags.push(format!(
-                "enums.js: {what} has {} flags; only the first 128 are decoded",
-                names.len()
-            ));
+            diags.push(format!("enums.js: {what} has {} flags; only the first 128 are decoded", names.len()));
         }
-        Ok(FlagSpec {
-            names: names.into(),
-            flags,
-            exclusive,
-            mask,
-        })
+        Ok(FlagSpec { names: names.into(), flags, exclusive, mask })
     }
 
     pub(crate) fn names(&self) -> &[String] {
@@ -194,13 +162,7 @@ impl FlagSpec {
     /// `prepare_flags` for one word, its halves as JavaScript numbers (at least two).
     pub(crate) fn decode(&self, words: &[f64]) -> FlagWord {
         let w0 = to_int32(words[0]);
-        let and = |m: &[f64]| -> Vec<i32> {
-            words
-                .iter()
-                .zip(m)
-                .map(|(a, b)| to_int32(*a) & to_int32(*b))
-                .collect()
-        };
+        let and = |m: &[f64]| -> Vec<i32> { words.iter().zip(m).map(|(a, b)| to_int32(*a) & to_int32(*b)).collect() };
         let mut bits = 0u128;
         let mut set = |i: usize, on: bool| {
             if i < 128 {
@@ -227,11 +189,7 @@ impl FlagSpec {
                 let on = match v {
                     Mask::Words(v) => {
                         // array_equal: (a[i] || 0) != (b[i] || 0) over the longer of the two
-                        let or0 = |x: Option<&f64>| {
-                            x.copied()
-                                .filter(|x| *x != 0.0 && !x.is_nan())
-                                .unwrap_or(0.0)
-                        };
+                        let or0 = |x: Option<&f64>| x.copied().filter(|x| *x != 0.0 && !x.is_nan()).unwrap_or(0.0);
                         (0..val.len().max(v.len())).all(|k| or0(val.get(k)) == or0(v.get(k)))
                     }
                     Mask::Num(v) => val.first().is_some_and(|x| x == v),
@@ -239,13 +197,7 @@ impl FlagSpec {
                 set(*i, on);
             }
         }
-        FlagWord {
-            value: (w0 & to_int32(self.mask)) as u32,
-            lo: w0 as u32,
-            hi: to_int32(words[1]) as u32,
-            bits,
-            names: self.names.clone(),
-        }
+        FlagWord { value: (w0 & to_int32(self.mask)) as u32, lo: w0 as u32, hi: to_int32(words[1]) as u32, bits, names: self.names.clone() }
     }
 }
 

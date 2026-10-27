@@ -180,7 +180,12 @@ pub struct SlotChoice {
 pub fn slot_choices(src: &SlotSources) -> Vec<SlotChoice> {
     let mut out = Vec::new();
     if !src.quiver.is_empty() {
-        out.push(SlotChoice { r: SlotRef::Fire, label: src.quiver.clone(), group: "Quiver", tiles: src.quiver_item.as_ref().map(item_tiles).unwrap_or_default() });
+        out.push(SlotChoice {
+            r: SlotRef::Fire,
+            label: src.quiver.clone(),
+            group: "Quiver",
+            tiles: src.quiver_item.as_ref().map(item_tiles).unwrap_or_default(),
+        });
     }
     for s in src.spells {
         out.push(SlotChoice { r: SlotRef::Spell(s.letter.clone()), label: s.name.clone(), group: "Spell", tiles: s.tiles.clone() });
@@ -189,7 +194,12 @@ pub fn slot_choices(src: &SlotSources) -> Vec<SlotChoice> {
         out.push(SlotChoice { r: SlotRef::Ability(a.letter.clone()), label: a.name.clone(), group: "Ability", tiles: a.tiles.clone() });
     }
     for c in src.items.iter().filter(|i| i.action_verb().is_some()) {
-        out.push(SlotChoice { r: SlotRef::Item(c.item.slot), label: c.item.name.clone().unwrap_or_else(|| c.letter.clone()), group: "Item", tiles: item_tiles(c) });
+        out.push(SlotChoice {
+            r: SlotRef::Item(c.item.slot),
+            label: c.item.name.clone().unwrap_or_else(|| c.letter.clone()),
+            group: "Item",
+            tiles: item_tiles(c),
+        });
     }
     out
 }
@@ -256,7 +266,13 @@ impl KnownAction {
         let tiles = o
             .get("tiles")
             .and_then(|t| t.as_array())
-            .map(|a| a.iter().filter_map(|t| Some(TileLayer { t: t.get("t")?.as_f64()? as i64, tex: t.get("tex").and_then(|x| x.as_f64()).map(|x| x as i64), ymax: None })).collect())
+            .map(|a| {
+                a.iter()
+                    .filter_map(|t| {
+                        Some(TileLayer { t: t.get("t")?.as_f64()? as i64, tex: t.get("tex").and_then(|x| x.as_f64()).map(|x| x as i64), ymax: None })
+                    })
+                    .collect()
+            })
             .unwrap_or_default();
         Some(KnownAction { letter, name, tiles })
     }
@@ -277,7 +293,17 @@ mod tests {
         MenuState {
             tag: tag.into(),
             title: MenuTitle { text: title.into(), ..Default::default() },
-            items: rows.iter().map(|r| Some(MenuItem { text: r.to_string(), hotkeys: Some(vec![r.trim().chars().next().unwrap() as i64]), tiles: Some(vec![TileRef { t: 7, tex: 3, ymax: None }]), ..Default::default() })).collect(),
+            items: rows
+                .iter()
+                .map(|r| {
+                    Some(MenuItem {
+                        text: r.to_string(),
+                        hotkeys: Some(vec![r.trim().chars().next().unwrap() as i64]),
+                        tiles: Some(vec![TileRef { t: 7, tex: 3, ymax: None }]),
+                        ..Default::default()
+                    })
+                })
+                .collect(),
             ..Default::default()
         }
     }
@@ -286,7 +312,13 @@ mod tests {
     fn spells_and_abilities_from_menus() {
         let m = menu("spell", "<w>Your spells (cast)</w>", &[" a - Magic Dart              Conj      1    0%", " b - Foxfire     Conj/Fire   1   12%"]);
         let s = spells_from_menu(&m).unwrap();
-        assert_eq!(s, vec![KnownAction { letter: "a".into(), name: "Magic Dart".into(), tiles: vec![TileLayer { t: 7, tex: Some(3), ymax: None }] }, KnownAction { letter: "b".into(), name: "Foxfire".into(), tiles: vec![TileLayer { t: 7, tex: Some(3), ymax: None }] }]);
+        assert_eq!(
+            s,
+            vec![
+                KnownAction { letter: "a".into(), name: "Magic Dart".into(), tiles: vec![TileLayer { t: 7, tex: Some(3), ymax: None }] },
+                KnownAction { letter: "b".into(), name: "Foxfire".into(), tiles: vec![TileLayer { t: 7, tex: Some(3), ymax: None }] }
+            ]
+        );
         assert!(spells_from_menu(&menu("spell", "Memorise which spell?", &[])).is_none());
         assert_eq!(abilities_from_menu(&menu("ability", "Abilities", &["a + Berserk     Piety"])).unwrap()[0].name, "Berserk");
     }
@@ -298,7 +330,14 @@ mod tests {
         potion.item.extra.insert("action_verb".into(), serde_json::json!("Quaff"));
         let spells = [known("a", "Magic Dart"), known("b", "Foxfire")];
         let abilities = [known("a", "Berserk")];
-        let src = SlotSources { spells: &spells, abilities: &abilities, consumables: vec![potion.clone()], items: vec![potion], quiver: "Fire: 3 stones".into(), quiver_item: None };
+        let src = SlotSources {
+            spells: &spells,
+            abilities: &abilities,
+            consumables: vec![potion.clone()],
+            items: vec![potion],
+            quiver: "Fire: 3 stones".into(),
+            quiver_item: None,
+        };
         let mut pins = vec![None; SLOT_COUNT];
         pins[2] = Some(SlotRef::Spell("b".into()));
         pins[9] = Some(SlotRef::Spell("z".into()));

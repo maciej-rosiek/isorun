@@ -98,11 +98,18 @@ pub fn install_fonts(ctx: &egui::Context) {
         ("hud-cinzel-700", include_bytes!("../assets/fonts/cinzel-700.ttf").as_slice(), Face::Caps700),
         ("hud-cinzel-900", include_bytes!("../assets/fonts/cinzel-900.ttf").as_slice(), Face::Caps900),
     ] {
-        ctx.add_font(FontInsert::new(name, egui::FontData::from_static(bytes), vec![InsertFontFamily { family: family(fam), priority: FontPriority::Highest }]));
+        ctx.add_font(FontInsert::new(
+            name,
+            egui::FontData::from_static(bytes),
+            vec![InsertFontFamily { family: family(fam), priority: FontPriority::Highest }],
+        ));
     }
     // what Cinzel lacks (the stars of the piety, the arrows) falls back on the mono, as the
     // browser falls back on the next family
-    let fallback = [family(Face::Caps600), family(Face::Caps700), family(Face::Caps900)].into_iter().map(|f| InsertFontFamily { family: f, priority: FontPriority::Lowest }).collect();
+    let fallback = [family(Face::Caps600), family(Face::Caps700), family(Face::Caps900)]
+        .into_iter()
+        .map(|f| InsertFontFamily { family: f, priority: FontPriority::Lowest })
+        .collect();
     ctx.add_font(FontInsert::new("hud-mono-fallback", egui::FontData::from_static(include_bytes!("../../ui/assets/fonts/dejavu-sans-mono-400.ttf")), fallback));
 }
 
@@ -191,7 +198,13 @@ impl TextStyle {
     }
 
     pub fn format(&self) -> egui::TextFormat {
-        egui::TextFormat { font_id: font(self.face, self.size), color: self.colour, extra_letter_spacing: self.spacing * self.size, line_height: self.line.map(|k| k * self.size), ..Default::default() }
+        egui::TextFormat {
+            font_id: font(self.face, self.size),
+            color: self.colour,
+            extra_letter_spacing: self.spacing * self.size,
+            line_height: self.line.map(|k| k * self.size),
+            ..Default::default()
+        }
     }
 
     /// The text laid out, wrapped at `wrap` when given.

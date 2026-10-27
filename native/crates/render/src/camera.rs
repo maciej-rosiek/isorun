@@ -171,7 +171,11 @@ impl IsoCamera {
         let t = 1.0 - (-EASE_PER_SECOND * dt).exp();
         self.yaw = if (self.yaw_target - self.yaw).abs() < 1e-4 { self.yaw_target } else { self.yaw + (self.yaw_target - self.yaw) * t };
         self.tilt = if (self.tilt_target - self.tilt).abs() < 0.01 { self.tilt_target } else { self.tilt + (self.tilt_target - self.tilt) * t };
-        self.perspective = if (self.perspective_target - self.perspective).abs() < 0.01 { self.perspective_target } else { self.perspective + (self.perspective_target - self.perspective) * t };
+        self.perspective = if (self.perspective_target - self.perspective).abs() < 0.01 {
+            self.perspective_target
+        } else {
+            self.perspective + (self.perspective_target - self.perspective) * t
+        };
         let zt = 1.0 - (-ZOOM_EASE_PER_SECOND * dt).exp();
         self.zoom = if (self.zoom_target - self.zoom).abs() < 0.01 { self.zoom_target } else { self.zoom * (self.zoom_target / self.zoom).powf(zt) };
         let follow_target = if self.slow_follow { SLOW_FOLLOW_SECONDS } else { FOLLOW_SECONDS };

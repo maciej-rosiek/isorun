@@ -3,7 +3,7 @@
 //! ([`parse_prompt`]), which the prompt card draws as chips.
 
 use crate::menu_nav::char_at;
-use isorun_webtiles::{formatted_string_to_spans, formatted_string_to_text, GameState, MenuState, Msgch, MouseMode, Phase, UiState};
+use isorun_webtiles::{formatted_string_to_spans, formatted_string_to_text, GameState, MenuState, MouseMode, Msgch, Phase, UiState};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -419,7 +419,14 @@ fn menu_yesno(menu: &MenuState) -> Option<ParsedPrompt> {
         if options.is_empty() {
             return None;
         }
-        return Some(ParsedPrompt { text: formatted_string_to_text(&menu.title.text).trim().into(), options, yesno: true, cancel: true, default: dflt, ..Default::default() });
+        return Some(ParsedPrompt {
+            text: formatted_string_to_text(&menu.title.text).trim().into(),
+            options,
+            yesno: true,
+            cancel: true,
+            default: dflt,
+            ..Default::default()
+        });
     }
     let text = formatted_string_to_text(&menu.more).trim().to_string();
     let d = YESNO_DEFAULT_RE.captures(&text)?;
@@ -455,7 +462,8 @@ pub fn parse_prompt(state: &GameState) -> Option<ParsedPrompt> {
         // prompt.cc `yesno` prints the question bare, and uppercase is right for every call, so
         // the answers are Y and N. Pickup's prompt is not `yesno` and takes only lowercase.
         if yesno_mode && !YESNO_NAG_RE.is_match(&text) {
-            let options = if PICKUP_YESNO_RE.is_match(&text) { vec![PromptOption::new("y", "Yes"), PromptOption::new("n", "No")] } else { default_yesno().options };
+            let options =
+                if PICKUP_YESNO_RE.is_match(&text) { vec![PromptOption::new("y", "Yes"), PromptOption::new("n", "No")] } else { default_yesno().options };
             let default = YESNO_DEFAULT_RE.captures(&text).map(|d| if d.get(1).is_some() { "Y".to_string() } else { "N".to_string() });
             return Some(ParsedPrompt { text, options, yesno: true, cancel: true, default, ..Default::default() });
         }
@@ -475,7 +483,12 @@ pub fn parse_prompt(state: &GameState) -> Option<ParsedPrompt> {
             let end = chars[at..].iter().position(|&ch| ch == ' ').map_or(chars.len(), |p| at + p);
             let word: String = chars[start..end].iter().collect();
             let label = word.trim_end_matches([',', '.', '?', '!', ':', ';']);
-            options.push(PromptOption { hotkey: c[1].to_string(), label: if label.is_empty() { c[1].to_string() } else { label.to_string() }, held: None, colour: Some(log_colour_at(&l.text, start)) });
+            options.push(PromptOption {
+                hotkey: c[1].to_string(),
+                label: if label.is_empty() { c[1].to_string() } else { label.to_string() },
+                held: None,
+                colour: Some(log_colour_at(&l.text, start)),
+            });
         }
         if !options.is_empty() {
             let stat_gain = STAT_GAIN_RE.is_match(&text);
@@ -582,7 +595,11 @@ mod tests {
 
     #[test]
     fn choice_prompts() {
-        let p = parse_prompt(&state(MouseMode::PROMPT, &[("You have reached level 2!", Some(0)), ("<cyan>Increase (S)trength, (I)ntelligence, or (D)exterity? </cyan>", P)])).unwrap();
+        let p = parse_prompt(&state(
+            MouseMode::PROMPT,
+            &[("You have reached level 2!", Some(0)), ("<cyan>Increase (S)trength, (I)ntelligence, or (D)exterity? </cyan>", P)],
+        ))
+        .unwrap();
         assert_eq!(labels(&p), ["S=(S)trength", "I=(I)ntelligence", "D=(D)exterity"]);
         assert!(p.stat_gain && !p.cancel);
         assert_eq!(p.options[0].colour, Some(3));
@@ -599,7 +616,11 @@ mod tests {
         let p = parse_prompt(&state(MouseMode::PROMPT, &[("Waypoint (0-9, D - delete waypoint)", P)])).unwrap();
         assert_eq!(labels(&p)[..3], ["0=0", "1=1", "2=2"]);
         assert!(labels(&p).contains(&"D=Delete waypoint".to_string()));
-        let shout = parse_prompt(&state(MouseMode::PROMPT, &[("What would you like to say?", P), (" t - Shout!", Some(0)), ("r - Retreat!             s - Stop attacking.", Some(0))])).unwrap();
+        let shout = parse_prompt(&state(
+            MouseMode::PROMPT,
+            &[("What would you like to say?", P), (" t - Shout!", Some(0)), ("r - Retreat!             s - Stop attacking.", Some(0))],
+        ))
+        .unwrap();
         assert_eq!(labels(&shout), ["t=Shout!", "r=Retreat!", "s=Stop attacking"]);
         let swap = parse_prompt(&state(MouseMode::PROMPT, &[("Which ring to remove? < or c - a ring of protection from fire (worn)", P)])).unwrap();
         assert_eq!(labels(&swap), ["c=A ring of protection from fire"]);

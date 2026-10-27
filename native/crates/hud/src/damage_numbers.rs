@@ -12,9 +12,15 @@ use egui::{Color32, Painter, Pos2};
 pub enum Landing {
     Attack,
     /// a hit: on the player or not, crawl's "!"s (`tier`), the amount when the line says it
-    Hit { on_player: bool, tier: u32, amount: Option<i64> },
+    Hit {
+        on_player: bool,
+        tier: u32,
+        amount: Option<i64>,
+    },
     Miss,
-    Death { on_player: bool },
+    Death {
+        on_player: bool,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -64,7 +70,12 @@ pub fn dealt_floater(tier: u32, amount: Option<i64>) -> Option<Floater> {
     if amount.is_none() && strength < UNNUMBERED_TIER {
         return None;
     }
-    Some(Floater { text: amount.map_or_else(|| "!".repeat(strength), |a| a.to_string()), tone: Tone::Dealt, scale: TIER_SCALES[strength], shake: strength == TIER_SCALES.len() - 1 })
+    Some(Floater {
+        text: amount.map_or_else(|| "!".repeat(strength), |a| a.to_string()),
+        tone: Tone::Dealt,
+        scale: TIER_SCALES[strength],
+        shake: strength == TIER_SCALES.len() - 1,
+    })
 }
 
 /// The damage the player took, as big as the share of the most hit points it took.
@@ -145,11 +156,7 @@ impl DamageNumbers {
         match self.claim_drops(said, now) {
             Some(taken) => {
                 // a blow that did no harm reads as one on a monster does: "0", not "-0"
-                let f = if taken <= 0 {
-                    Floater { text: "0".into(), tone: Tone::Miss, scale: 0.9, shake: false }
-                } else {
-                    taken_floater(taken, self.hp_max)
-                };
+                let f = if taken <= 0 { Floater { text: "0".into(), tone: Tone::Miss, scale: 0.9, shake: false } } else { taken_floater(taken, self.hp_max) };
                 self.spawn(at, f, now);
                 true
             }

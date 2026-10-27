@@ -106,7 +106,10 @@ impl TileIcons {
         let scale = cell.width() / rect.cell.max(1) as f32;
         let min = cell.min + egui::vec2(rect.ox as f32, rect.oy as f32) * scale;
         let dest = egui::Rect::from_min_size(min, egui::vec2(rect.w as f32, rect.h as f32) * scale);
-        let uv = egui::Rect::from_min_max(egui::pos2(rect.sx as f32 / size.x, rect.sy as f32 / size.y), egui::pos2((rect.sx + rect.w) as f32 / size.x, (rect.sy + rect.h) as f32 / size.y));
+        let uv = egui::Rect::from_min_max(
+            egui::pos2(rect.sx as f32 / size.x, rect.sy as f32 / size.y),
+            egui::pos2((rect.sx + rect.w) as f32 / size.x, (rect.sy + rect.h) as f32 / size.y),
+        );
         painter.image(tex.id(), dest, uv, tint);
     }
 

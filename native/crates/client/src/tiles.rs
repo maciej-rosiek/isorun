@@ -29,7 +29,8 @@ pub fn decode_png(bytes: &[u8]) -> Result<AtlasImage, String> {
 
 /// Parse the scripts and decode the atlases fetched for one version.
 pub fn assemble(version: &str, files: HashMap<String, Vec<u8>>) -> Result<LoadedGamedata, String> {
-    let texts: HashMap<String, String> = files.iter().filter(|(k, _)| k.ends_with(".js")).map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).into_owned())).collect();
+    let texts: HashMap<String, String> =
+        files.iter().filter(|(k, _)| k.ends_with(".js")).map(|(k, v)| (k.clone(), String::from_utf8_lossy(v).into_owned())).collect();
     let gd = isorun_gamedata::load_gamedata_from_map(&texts, version).map_err(|e| format!("{}: {}", e.path, e.message))?;
     let mut atlases = HashMap::new();
     for name in isorun_gamedata::ATLASES {

@@ -9,8 +9,8 @@ use std::collections::HashMap;
 use common::{gd, messages, msg_type, replayed};
 use isorun_gamedata::Gamedata;
 use isorun_scene::{
-    cell_key, Attitude, Billboard, BillboardKind, CellKind, DoorState, FaceTiles, Feature, HandItem, HandLayer, ItemRarity, Scene, SceneCell, Sky, Stance, UpDown,
-    Visibility,
+    cell_key, Attitude, Billboard, BillboardKind, CellKind, DoorState, FaceTiles, Feature, HandItem, HandLayer, ItemRarity, Scene, SceneCell, Sky, Stance,
+    UpDown, Visibility,
 };
 use isorun_scene_webtiles::*;
 use isorun_webtiles::{initial_state, map_key, reduce, CellMonster, GameState, InvItem, ItemTile, MapCell, Monster, TileLayer, TileRef, TileWord, TypeData};

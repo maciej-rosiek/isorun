@@ -68,7 +68,19 @@ pub struct Driver {
 
 impl Default for Driver {
     fn default() -> Self {
-        Driver { phase: Phase::Idle, query: EVERYTHING.into(), since: 0.0, lines_at: 0, refreshing: false, read: (-1, u64::MAX), entries: Vec::new(), menu_up: false, hiding_useless: true, matches: None, notice: None }
+        Driver {
+            phase: Phase::Idle,
+            query: EVERYTHING.into(),
+            since: 0.0,
+            lines_at: 0,
+            refreshing: false,
+            read: (-1, u64::MAX),
+            entries: Vec::new(),
+            menu_up: false,
+            hiding_useless: true,
+            matches: None,
+            notice: None,
+        }
     }
 }
 
@@ -138,7 +150,8 @@ impl Driver {
                     self.phase = Phase::Shown;
                 } else if !prompt && st.menus.is_empty() && st.input_mode == MouseMode::COMMAND {
                     // crawl is back at its commands with no menu: its message says why
-                    let said: Vec<String> = st.messages.lines.iter().skip(self.lines_at.min(st.messages.lines.len())).map(|l| formatted_string_to_text(&l.text)).collect();
+                    let said: Vec<String> =
+                        st.messages.lines.iter().skip(self.lines_at.min(st.messages.lines.len())).map(|l| formatted_string_to_text(&l.text)).collect();
                     let said = said.join(" ");
                     self.entries.clear();
                     self.menu_up = false;

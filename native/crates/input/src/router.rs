@@ -9,7 +9,10 @@
 //! chat) and does what is not input (open a screen, draw the aim arrow). Each call takes an
 //! [`Io`]: the runner, the [`Env`] of the moment and the host.
 
-use crate::bindings::{arms_tap_or_hold, button_action, hold_action, level_map, resolve, screen_key, stop_explore, Action, CommandCategory, MenuOp, OskOp, ScreenKey, SeqItem, UiOp, HOLD_MS};
+use crate::bindings::{
+    arms_tap_or_hold, button_action, hold_action, level_map, resolve, screen_key, stop_explore, Action, CommandCategory, MenuOp, OskOp, ScreenKey, SeqItem,
+    UiOp, HOLD_MS,
+};
 use crate::context::{derive_mode, Context, Mode};
 use crate::focus::FocusOp;
 use crate::gamepad::{is_pad_activity, Button, DirSource, PadEvent};
@@ -517,7 +520,8 @@ impl InputRouter {
             }
         }
         self.execute(a, io);
-        self.pad_step = if matches!(a, Action::Step { .. }) && io.env.ctx.mode == Mode::Command && io.runner.last_step != before_step { io.runner.last_step } else { None };
+        self.pad_step =
+            if matches!(a, Action::Step { .. }) && io.env.ctx.mode == Mode::Command && io.runner.last_step != before_step { io.runner.last_step } else { None };
         if self.hints.is_some() {
             let ev = self.pad_hint_evidence(io);
             let now = io.env.now;
@@ -660,7 +664,13 @@ impl InputRouter {
                 io.host.chat_focus();
             }
             if let PadEvent::Dir { dir: Some(d), .. } | PadEvent::DirRepeat { dir: d, .. } = ev {
-                io.host.scroll_log(if *d == 0 { -1 } else if *d == 4 { 1 } else { 0 });
+                io.host.scroll_log(if *d == 0 {
+                    -1
+                } else if *d == 4 {
+                    1
+                } else {
+                    0
+                });
             }
             return;
         }
@@ -948,7 +958,9 @@ impl InputRouter {
             };
             if let Some(op) = op {
                 io.host.client_overlay_input(op);
-            } else if io.host.open_menu() == Some(OverlayMenu::Battle) && (key.key == crate::action_tabs::SWAP_WEAPONS_KEY || key.key == crate::action_tabs::SHOUT_KEY) {
+            } else if io.host.open_menu() == Some(OverlayMenu::Battle)
+                && (key.key == crate::action_tabs::SWAP_WEAPONS_KEY || key.key == crate::action_tabs::SHOUT_KEY)
+            {
                 // an empty tab of X's actions: crawl's own keys for the two that are no list
                 io.host.action_key(&key.key);
             } else if !key.alt && !key.meta {
@@ -1104,7 +1116,8 @@ impl InputRouter {
             Gesture::Click { pos, button } => self.click(pos, button, io),
             Gesture::LongPress { pos } => {
                 // the cell menu where there is one; a description of the cell otherwise
-                let menu = !io.env.watching && io.env.ctx.mode == Mode::Command && !io.host.level_map_open() && io.host.mouse_control() && io.host.open_cell_menu(pos);
+                let menu =
+                    !io.env.watching && io.env.ctx.mode == Mode::Command && !io.host.level_map_open() && io.host.mouse_control() && io.host.open_cell_menu(pos);
                 if !menu {
                     self.click(pos, 3, io);
                 }

@@ -45,7 +45,21 @@ pub enum PadLesson {
     Fight,
 }
 
-pub const LESSONS: [PadLesson; 13] = [PadLesson::Move, PadLesson::Look, PadLesson::Commands, PadLesson::Equipment, PadLesson::Explore, PadLesson::Examine, PadLesson::Travel, PadLesson::Wait, PadLesson::Rest, PadLesson::Navigate, PadLesson::TargetCursor, PadLesson::MapCursor, PadLesson::Fight];
+pub const LESSONS: [PadLesson; 13] = [
+    PadLesson::Move,
+    PadLesson::Look,
+    PadLesson::Commands,
+    PadLesson::Equipment,
+    PadLesson::Explore,
+    PadLesson::Examine,
+    PadLesson::Travel,
+    PadLesson::Wait,
+    PadLesson::Rest,
+    PadLesson::Navigate,
+    PadLesson::TargetCursor,
+    PadLesson::MapCursor,
+    PadLesson::Fight,
+];
 
 impl PadLesson {
     pub fn id(self) -> &'static str {
@@ -118,7 +132,8 @@ pub fn pad_lesson(a: &Action, ctx: &Context) -> Option<PadLesson> {
         }
     }
     match a {
-        Action::Menu { op: MenuOp::Next | MenuOp::Prev | MenuOp::Left | MenuOp::Right } | Action::Focus { op: FocusOp::Next | FocusOp::Prev | FocusOp::Left | FocusOp::Right } => Some(PadLesson::Navigate),
+        Action::Menu { op: MenuOp::Next | MenuOp::Prev | MenuOp::Left | MenuOp::Right }
+        | Action::Focus { op: FocusOp::Next | FocusOp::Prev | FocusOp::Left | FocusOp::Right } => Some(PadLesson::Navigate),
         Action::Cursor { .. } => match ctx.mode {
             Mode::Targeting => Some(PadLesson::TargetCursor),
             Mode::Levelmap => Some(PadLesson::MapCursor),
@@ -275,11 +290,12 @@ impl GamepadHints {
         }
         let all = bar_labels(ctx);
         // Confirmation is navigation, not a tutorial reminder. B is always implicit.
-        let navigation: Vec<BindingLabel> = if matches!(ctx.mode, Mode::Menu | Mode::Targeting | Mode::Levelmap | Mode::Popup | Mode::Newgame | Mode::Crt | Mode::Dialog) {
-            all.iter().filter(|l| l.button == Button::A || (ctx.mode == Mode::Menu && l.button == Button::Start)).cloned().collect()
-        } else {
-            Vec::new()
-        };
+        let navigation: Vec<BindingLabel> =
+            if matches!(ctx.mode, Mode::Menu | Mode::Targeting | Mode::Levelmap | Mode::Popup | Mode::Newgame | Mode::Crt | Mode::Dialog) {
+                all.iter().filter(|l| l.button == Button::A || (ctx.mode == Mode::Menu && l.button == Button::Start)).cloned().collect()
+            } else {
+                Vec::new()
+            };
         let decision = matches!(ctx.mode, Mode::More | Mode::Prompt | Mode::Yesno);
         let mut contextual = if mode == HintMode::Off && !decision { navigation.clone() } else { prompt_labels(ctx) };
         for l in &navigation {
@@ -290,7 +306,8 @@ impl GamepadHints {
         if mode != HintMode::Adaptive {
             return contextual;
         }
-        let tip = |button: Button, label: &str, action: Action| BindingLabel { button, label: label.into(), action, contextual: false, teaching: true, hold: None };
+        let tip =
+            |button: Button, label: &str, action: Action| BindingLabel { button, label: label.into(), action, contextual: false, teaching: true, hold: None };
         let mut teaching: Vec<BindingLabel> = Vec::new();
         if ctx.mode == Mode::Command && threatened(ctx) {
             // The one thing worth teaching mid-fight, and only until it has been used once.

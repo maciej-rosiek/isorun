@@ -69,7 +69,10 @@ impl View3d {
             // without a second view format (WebGL2) the renderer writes the plain texture and
             // encodes the colour itself (its composite's ENCODE_SRGB)
             let (srgb, format) = if views {
-                (texture.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), ..Default::default() }), wgpu::TextureFormat::Rgba8UnormSrgb)
+                (
+                    texture.create_view(&wgpu::TextureViewDescriptor { format: Some(wgpu::TextureFormat::Rgba8UnormSrgb), ..Default::default() }),
+                    wgpu::TextureFormat::Rgba8UnormSrgb,
+                )
             } else {
                 (texture.create_view(&Default::default()), wgpu::TextureFormat::Rgba8Unorm)
             };

@@ -331,7 +331,20 @@ mod tests {
     use super::*;
 
     fn entry() -> LobbyEntry {
-        LobbyEntry { id: 1, username: "bob".into(), game_id: "dcss-0.34".into(), xl: Some("12".into()), char: Some("MiBe".into()), place: Some("D:7".into()), god: Some("Trog".into()), dur: Some("7684".into()), idle_time: Some(150), spectator_count: Some(2), milestone: Some("killed Sigmund.".into()), ..Default::default() }
+        LobbyEntry {
+            id: 1,
+            username: "bob".into(),
+            game_id: "dcss-0.34".into(),
+            xl: Some("12".into()),
+            char: Some("MiBe".into()),
+            place: Some("D:7".into()),
+            god: Some("Trog".into()),
+            dur: Some("7684".into()),
+            idle_time: Some(150),
+            spectator_count: Some(2),
+            milestone: Some("killed Sigmund.".into()),
+            ..Default::default()
+        }
     }
 
     #[test]

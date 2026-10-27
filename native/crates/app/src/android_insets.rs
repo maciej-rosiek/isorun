@@ -60,7 +60,12 @@ fn read(app: &AndroidApp) -> Result<[i32; 4], String> {
             Ok([f(env, jni_str!("top"))?, f(env, jni_str!("right"))?, f(env, jni_str!("bottom"))?, f(env, jni_str!("left"))?])
         } else {
             let m = |env: &mut jni::Env, name: &'static jni::strings::JNIStr| env.call_method(&insets, name, jni_sig!("()I"), &[]).and_then(|v| v.i());
-            Ok([m(env, jni_str!("getSystemWindowInsetTop"))?, m(env, jni_str!("getSystemWindowInsetRight"))?, m(env, jni_str!("getSystemWindowInsetBottom"))?, m(env, jni_str!("getSystemWindowInsetLeft"))?])
+            Ok([
+                m(env, jni_str!("getSystemWindowInsetTop"))?,
+                m(env, jni_str!("getSystemWindowInsetRight"))?,
+                m(env, jni_str!("getSystemWindowInsetBottom"))?,
+                m(env, jni_str!("getSystemWindowInsetLeft"))?,
+            ])
         }
     })
     .map_err(|e| e.to_string())

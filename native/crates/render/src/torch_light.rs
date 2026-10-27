@@ -64,8 +64,20 @@ fn clear(scene: &Scene, from: (f32, f32), to: (f32, f32)) -> bool {
     let step_y = if dy > 0.0 { 1 } else { -1 };
     let across_x = if dx != 0.0 { (1.0 / dx).abs() } else { f32::INFINITY };
     let across_y = if dy != 0.0 { (1.0 / dy).abs() } else { f32::INFINITY };
-    let mut next_x = if dx > 0.0 { (x as f32 + 1.0 - from.0) * across_x } else if dx < 0.0 { (from.0 - x as f32) * across_x } else { f32::INFINITY };
-    let mut next_y = if dy > 0.0 { (y as f32 + 1.0 - from.1) * across_y } else if dy < 0.0 { (from.1 - y as f32) * across_y } else { f32::INFINITY };
+    let mut next_x = if dx > 0.0 {
+        (x as f32 + 1.0 - from.0) * across_x
+    } else if dx < 0.0 {
+        (from.0 - x as f32) * across_x
+    } else {
+        f32::INFINITY
+    };
+    let mut next_y = if dy > 0.0 {
+        (y as f32 + 1.0 - from.1) * across_y
+    } else if dy < 0.0 {
+        (from.1 - y as f32) * across_y
+    } else {
+        f32::INFINITY
+    };
     loop {
         if next_x.min(next_y) >= 1.0 {
             return true;
@@ -211,7 +223,12 @@ impl TorchLightMap {
             }
         }
         gpu.queue.write_texture(
-            wgpu::TexelCopyTextureInfo { texture: &self.texture, mip_level: 0, origin: wgpu::Origin3d { x: w.x0 as u32, y: w.y0 as u32, z: 0 }, aspect: wgpu::TextureAspect::All },
+            wgpu::TexelCopyTextureInfo {
+                texture: &self.texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d { x: w.x0 as u32, y: w.y0 as u32, z: 0 },
+                aspect: wgpu::TextureAspect::All,
+            },
             bytemuck::cast_slice(&data),
             wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width as u32 * 8), rows_per_image: Some((w.y1 - w.y0) as u32) },
             wgpu::Extent3d { width: width as u32, height: (w.y1 - w.y0) as u32, depth_or_array_layers: 1 },

@@ -209,7 +209,14 @@ impl LevelUp {
             .enumerate()
             .filter_map(|(col, s)| {
                 let o = options.iter().find(|o| o.hotkey.to_ascii_uppercase() == s.hotkey)?;
-                Some(Focusable { label: s.name.into(), act: Act::send([cm::input(&o.hotkey)]), row: Some(0), col: Some(col as i32), id: Some(format!("stat:{}", s.hotkey)), ..Default::default() })
+                Some(Focusable {
+                    label: s.name.into(),
+                    act: Act::send([cm::input(&o.hotkey)]),
+                    row: Some(0),
+                    col: Some(col as i32),
+                    id: Some(format!("stat:{}", s.hotkey)),
+                    ..Default::default()
+                })
             })
             .collect()
     }
@@ -275,7 +282,17 @@ impl LevelUp {
         let height_at = |rem: f32| {
             let narrow = screen.w() <= 760.0;
             let pad = if narrow { (rem, rem, rem) } else { (1.5 * rem, 3.0 * rem, 1.8 * rem) };
-            let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + if screen.w() <= 760.0 { 4.0 * 1.3 } else { 2.6 } * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
+            let card_h = 1.2 * rem
+                + 5.2 * rem
+                + 0.45 * rem
+                + 1.7 * rem
+                + 0.45 * rem
+                + 1.35 * rem * 1.2
+                + 0.45 * rem
+                + if screen.w() <= 760.0 { 4.0 * 1.3 } else { 2.6 } * 0.85 * rem
+                + 0.45 * rem
+                + 1.7 * rem
+                + 1.0 * rem;
             let mut h = pad.0 + 0.95 * rem * 1.3 + level_size_at(rem) * 1.1 * 0.82 + 0.5 * rem + 2.0 + 0.9 * rem + 1.9 * rem + pad.2;
             if choosing_now {
                 h += 0.4 * rem + 1.6 * rem * 1.3 + rem + card_h + 1.2 * rem + 1.7 * 0.9 * rem;
@@ -317,8 +334,22 @@ impl LevelUp {
         let choosing = self.choice.clone();
         let card_w = if screen.w() <= 760.0 { ((screen.w() - 2.0 * rem - 1.2 * rem) / 3.0).max(60.0) } else { 14.5 * rem };
         let card_gap = if screen.w() <= 760.0 { 0.6 * rem } else { 1.1 * rem };
-        let ask_g = choosing.as_ref().map(|_| ctx.fonts_mut(|f| f.layout_no_wrap(format!("Raise an attribute by {}", self.gain()), FontId::new(1.6 * rem, display.clone()), widgets::hex(0xefe4cc))));
-        let card_h = 1.2 * rem + 5.2 * rem + 0.45 * rem + 1.7 * rem + 0.45 * rem + 1.35 * rem * 1.2 + 0.45 * rem + if screen.w() <= 760.0 { 4.0 * 1.3 } else { 2.6 } * 0.85 * rem + 0.45 * rem + 1.7 * rem + 1.0 * rem;
+        let ask_g = choosing.as_ref().map(|_| {
+            ctx.fonts_mut(|f| {
+                f.layout_no_wrap(format!("Raise an attribute by {}", self.gain()), FontId::new(1.6 * rem, display.clone()), widgets::hex(0xefe4cc))
+            })
+        });
+        let card_h = 1.2 * rem
+            + 5.2 * rem
+            + 0.45 * rem
+            + 1.7 * rem
+            + 0.45 * rem
+            + 1.35 * rem * 1.2
+            + 0.45 * rem
+            + if screen.w() <= 760.0 { 4.0 * 1.3 } else { 2.6 } * 0.85 * rem
+            + 0.45 * rem
+            + 1.7 * rem
+            + 1.0 * rem;
         let pad = if screen.w() <= 760.0 { (rem, rem, rem) } else { (1.5 * rem, 3.0 * rem, 1.8 * rem) };
         // the gains' chips in rows that fit the panel (a phone's is narrow)
         let chips_w = (22.0 * rem).max(if choosing.is_some() { 3.0 * card_w + 2.0 * card_gap } else { 0.0 });
@@ -342,19 +373,31 @@ impl LevelUp {
         let cards_w = 3.0 * card_w + 2.0 * card_gap;
         let w = (22.0 * rem).max(if choosing.is_some() { cards_w } else { 0.0 }) + 2.0 * pad.1;
         // centred in the screen less its 8vh foot
-        let area = if h > screen.h() * 0.84 { screen.rect } else { Rect::from_min_max(screen.rect.min, Pos2::new(screen.rect.right(), screen.rect.bottom() - 0.08 * screen.h())) };
+        let area = if h > screen.h() * 0.84 {
+            screen.rect
+        } else {
+            Rect::from_min_max(screen.rect.min, Pos2::new(screen.rect.right(), screen.rect.bottom() - 0.08 * screen.h()))
+        };
         let panel = Rect::from_center_size(area.center() - Vec2::new(0.0, lift), Vec2::new(w, h));
         let mut clicked: Option<String> = None;
         let mut panel_clicked = false;
         let mut outside = false;
         let more = self.more;
-        let backdrop = egui::Area::new(egui::Id::unique("isorun-level-up-dim")).order(egui::Order::Foreground).fixed_pos(screen.rect.min).interactable(false).show(ctx, |ui| {
-            let p = ui.painter();
-            let stops = if choosing.is_some() { vec![(0.0, rgba(4, 3, 2, 0.75)), (0.75, rgba(4, 3, 2, 0.45)), (1.0, rgba(4, 3, 2, 0.45))] } else { vec![(0.0, rgba(4, 3, 2, 0.6)), (0.6, rgba(4, 3, 2, 0.0))] };
-            let stops: Vec<_> = stops.into_iter().map(|(t, c)| (t, alpha(c))).collect();
-            let tex = widgets::radial_gradient(ui.ctx(), (0.5, 0.45), screen.w() / screen.h(), &stops);
-            widgets::paint_texture(p, screen.rect, 0.0, tex);
-        });
+        let backdrop = egui::Area::new(egui::Id::unique("isorun-level-up-dim"))
+            .order(egui::Order::Foreground)
+            .fixed_pos(screen.rect.min)
+            .interactable(false)
+            .show(ctx, |ui| {
+                let p = ui.painter();
+                let stops = if choosing.is_some() {
+                    vec![(0.0, rgba(4, 3, 2, 0.75)), (0.75, rgba(4, 3, 2, 0.45)), (1.0, rgba(4, 3, 2, 0.45))]
+                } else {
+                    vec![(0.0, rgba(4, 3, 2, 0.6)), (0.6, rgba(4, 3, 2, 0.0))]
+                };
+                let stops: Vec<_> = stops.into_iter().map(|(t, c)| (t, alpha(c))).collect();
+                let tex = widgets::radial_gradient(ui.ctx(), (0.5, 0.45), screen.w() / screen.h(), &stops);
+                widgets::paint_texture(p, screen.rect, 0.0, tex);
+            });
         ctx.move_to_top(backdrop.response.layer_id);
         // a click anywhere off the panel answers it
         if let Some((pos, _)) = isorun_ui::pointer::any_pressed_at(ctx) {
@@ -366,7 +409,12 @@ impl LevelUp {
             let mut y = panel.top() + pad.0;
             // the rays and the glow behind the number
             let glow_c = Pos2::new(cx, panel.top() + 4.6 * rem);
-            let glow = widgets::radial_gradient(ui.ctx(), (0.5, 0.5), 26.0 / 14.0, &[(0.0, alpha(rgba(255, 205, 110, 0.55 * 0.6))), (0.45, alpha(rgba(255, 170, 60, 0.18 * 0.6))), (0.7, Color32::TRANSPARENT)]);
+            let glow = widgets::radial_gradient(
+                ui.ctx(),
+                (0.5, 0.5),
+                26.0 / 14.0,
+                &[(0.0, alpha(rgba(255, 205, 110, 0.55 * 0.6))), (0.45, alpha(rgba(255, 170, 60, 0.18 * 0.6))), (0.7, Color32::TRANSPARENT)],
+            );
             widgets::paint_texture(&p, Rect::from_center_size(glow_c, Vec2::new(26.0 * rem, 14.0 * rem)), 0.0, glow);
             rays(&p, glow_c, 23.0 * rem, ((now - b_opened(&self.open)) as f32).min(2.6), fade);
             p.galley(Pos2::new(cx - kicker.size().x / 2.0 + 0.3 * 0.95 * rem, y), kicker.clone(), alpha(rgba(243, 214, 140, 1.0)));
@@ -375,26 +423,39 @@ impl LevelUp {
             y += level_g.size().y * 0.82 + 0.5 * rem;
             // the rule fades in and out at its ends, with a glow (`box-shadow: 0 0 10px`)
             let rule_r = Rect::from_center_size(Pos2::new(cx, y + 1.0), Vec2::new(22.0 * rem, 2.0));
-            p.add(egui::epaint::Shadow { offset: [0, 0], blur: 10, spread: 0, color: rgba(255, 200, 100, 0.35 * fade) }.as_shape(rule_r.shrink2(Vec2::new(4.0 * rem, 0.0)), egui::CornerRadius::ZERO));
-            widgets::hgradient(&p, rule_r, &[(0.0, Color32::TRANSPARENT), (0.3, alpha(rgba(243, 214, 140, 1.0))), (0.5, alpha(widgets::hex(0xfff3cf))), (0.7, alpha(rgba(243, 214, 140, 1.0))), (1.0, Color32::TRANSPARENT)]);
+            p.add(
+                egui::epaint::Shadow { offset: [0, 0], blur: 10, spread: 0, color: rgba(255, 200, 100, 0.35 * fade) }
+                    .as_shape(rule_r.shrink2(Vec2::new(4.0 * rem, 0.0)), egui::CornerRadius::ZERO),
+            );
+            widgets::hgradient(
+                &p,
+                rule_r,
+                &[
+                    (0.0, Color32::TRANSPARENT),
+                    (0.3, alpha(rgba(243, 214, 140, 1.0))),
+                    (0.5, alpha(widgets::hex(0xfff3cf))),
+                    (0.7, alpha(rgba(243, 214, 140, 1.0))),
+                    (1.0, Color32::TRANSPARENT),
+                ],
+            );
             y += 2.0 + 0.9 * rem;
             // the gains, chips side by side
             for (row_i, row) in chip_rows.iter().enumerate() {
-            let gw: f32 = row.iter().map(|&i| gain_gs[i].0.size().x + 1.5 * rem + 2.0).sum::<f32>() + row.len().saturating_sub(1) as f32 * 0.6 * rem;
-            let mut x = cx - gw / 2.0;
-            let ry = y + row_i as f32 * (chip_h + 0.4 * rem);
-            for (g, tone) in row.iter().map(|&i| &gain_gs[i]) {
-                let r = Rect::from_min_size(Pos2::new(x, ry), Vec2::new(g.size().x + 1.5 * rem + 2.0, g.size().y + 0.5 * rem + 2.0));
-                let border = match *tone {
-                    "hp" => rgba(255, 110, 90, 0.45),
-                    "mp" => rgba(110, 160, 255, 0.45),
-                    _ => rgba(243, 214, 140, 0.35),
-                };
-                p.rect_filled(r, r.height() / 2.0, alpha(rgba(12, 10, 8, 0.82)));
-                p.rect_stroke(r, r.height() / 2.0, egui::Stroke::new(1.0, alpha(border)), egui::StrokeKind::Inside);
-                p.galley(r.center() - g.size() / 2.0, g.clone(), Color32::WHITE);
-                x = r.right() + 0.6 * rem;
-            }
+                let gw: f32 = row.iter().map(|&i| gain_gs[i].0.size().x + 1.5 * rem + 2.0).sum::<f32>() + row.len().saturating_sub(1) as f32 * 0.6 * rem;
+                let mut x = cx - gw / 2.0;
+                let ry = y + row_i as f32 * (chip_h + 0.4 * rem);
+                for (g, tone) in row.iter().map(|&i| &gain_gs[i]) {
+                    let r = Rect::from_min_size(Pos2::new(x, ry), Vec2::new(g.size().x + 1.5 * rem + 2.0, g.size().y + 0.5 * rem + 2.0));
+                    let border = match *tone {
+                        "hp" => rgba(255, 110, 90, 0.45),
+                        "mp" => rgba(110, 160, 255, 0.45),
+                        _ => rgba(243, 214, 140, 0.35),
+                    };
+                    p.rect_filled(r, r.height() / 2.0, alpha(rgba(12, 10, 8, 0.82)));
+                    p.rect_stroke(r, r.height() / 2.0, egui::Stroke::new(1.0, alpha(border)), egui::StrokeKind::Inside);
+                    p.galley(r.center() - g.size() / 2.0, g.clone(), Color32::WHITE);
+                    x = r.right() + 0.6 * rem;
+                }
             }
             y += gains_h;
             if let (Some((options, pad_kind)), Some(ask)) = (&choosing, &ask_g) {
@@ -435,7 +496,12 @@ impl LevelUp {
                         widgets::KeyHint::Cap("Enter"),
                     ]
                 };
-                let size = widgets::key_hints(&ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::unique("isorun-measure"))).with_clip_rect(Rect::NOTHING), Pos2::ZERO, &parts, &cap);
+                let size = widgets::key_hints(
+                    &ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Background, egui::Id::unique("isorun-measure"))).with_clip_rect(Rect::NOTHING),
+                    Pos2::ZERO,
+                    &parts,
+                    &cap,
+                );
                 widgets::key_hints(&p, Pos2::new(cx - size.width() / 2.0, y), &parts, &cap);
             }
             if resp.clicked() {
@@ -562,8 +628,16 @@ fn stat_card(ui: &mut egui::Ui, r: Rect, s: &Stat, now_val: i64, gain: i64, focu
     // the emblem: a ring with the skill's icon
     let er = 2.6 * rem;
     let ec = Pos2::new(cx, y + er);
-    p.add(egui::epaint::Shadow { offset: [0, 0], blur: 18, spread: 0, color: accent(0.25) }.as_shape(Rect::from_center_size(ec, Vec2::splat(2.0 * er)), egui::CornerRadius::same(er as u8)));
-    widgets::paint_texture(&p, Rect::from_center_size(ec, Vec2::splat(2.0 * er)), er, widgets::radial_gradient(ctx, (0.5, 0.5), 1.0, &[(0.0, accent(0.28)), (0.7, rgba(0, 0, 0, 0.6)), (1.0, rgba(0, 0, 0, 0.6))]));
+    p.add(
+        egui::epaint::Shadow { offset: [0, 0], blur: 18, spread: 0, color: accent(0.25) }
+            .as_shape(Rect::from_center_size(ec, Vec2::splat(2.0 * er)), egui::CornerRadius::same(er as u8)),
+    );
+    widgets::paint_texture(
+        &p,
+        Rect::from_center_size(ec, Vec2::splat(2.0 * er)),
+        er,
+        widgets::radial_gradient(ctx, (0.5, 0.5), 1.0, &[(0.0, accent(0.28)), (0.7, rgba(0, 0, 0, 0.6)), (1.0, rgba(0, 0, 0, 0.6))]),
+    );
     p.circle_stroke(ec, er - 1.0, egui::Stroke::new(2.0, accent(0.55)));
     if let Some(tex) = screen_icon(ctx, icons, s.icon) {
         // `mix-blend-mode: screen; clip-path: circle(42%)`: the icon's black is no colour at all, and

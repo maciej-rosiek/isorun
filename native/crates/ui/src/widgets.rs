@@ -176,7 +176,10 @@ pub fn radial_gradient(ctx: &egui::Context, centre: (f32, f32), aspect: f32, sto
 
 /// Paint a texture into a rounded rect (the gradient fills of [`linear_gradient`] and [`radial_gradient`]).
 pub fn paint_texture(painter: &Painter, rect: Rect, radius: f32, tex: TextureId) {
-    painter.add(RectShape::filled(rect, CornerRadius::same(radius.round() as u8), Color32::WHITE).with_texture(tex, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))));
+    painter.add(
+        RectShape::filled(rect, CornerRadius::same(radius.round() as u8), Color32::WHITE)
+            .with_texture(tex, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0))),
+    );
 }
 
 /// A horizontal gradient as a mesh of vertex colours: for thin things (a rule a pixel or two
@@ -233,7 +236,10 @@ impl PanelLook {
     /// `.hud-dock .popup` (dock.css): crawl's popups in the dock's dark stone with a gold trim.
     pub fn dock_popup() -> Self {
         PanelLook {
-            fills: vec![Fill::Radial((0.5, 0.0), vec![(0.0, rgba(120, 90, 40, 0.14)), (0.6, rgba(120, 90, 40, 0.0))]), Fill::Linear(180, vec![(0.0, rgba(27, 22, 18, 0.97)), (1.0, rgba(12, 10, 8, 0.97))])],
+            fills: vec![
+                Fill::Radial((0.5, 0.0), vec![(0.0, rgba(120, 90, 40, 0.14)), (0.6, rgba(120, 90, 40, 0.0))]),
+                Fill::Linear(180, vec![(0.0, rgba(27, 22, 18, 0.97)), (1.0, rgba(12, 10, 8, 0.97))]),
+            ],
             border: Stroke::new(1.0, palette::TRIM),
             radius: 6.0,
             insets: vec![(1.0, Color32::BLACK), (3.0, rgba(184, 145, 63, 0.15))],
@@ -243,12 +249,24 @@ impl PanelLook {
 
     /// `.popup` (styles.css): the plain look without the dock.
     pub fn popup() -> Self {
-        PanelLook { fills: vec![Fill::Solid(rgba(10, 10, 14, 0.96))], border: Stroke::new(1.0, hex(0x555555)), radius: 6.0, insets: vec![], shadow: Some((8.0, 40.0, rgba(0, 0, 0, 0.7))) }
+        PanelLook {
+            fills: vec![Fill::Solid(rgba(10, 10, 14, 0.96))],
+            border: Stroke::new(1.0, hex(0x555555)),
+            radius: 6.0,
+            insets: vec![],
+            shadow: Some((8.0, 40.0, rgba(0, 0, 0, 0.7))),
+        }
     }
 
     /// `.prompt-card`: the yes/no and choice card in the middle of the view.
     pub fn prompt_card() -> Self {
-        PanelLook { fills: vec![Fill::Solid(rgba(10, 10, 14, 0.94))], border: Stroke::new(1.0, hex(0x555555)), radius: 8.0, insets: vec![], shadow: Some((8.0, 40.0, rgba(0, 0, 0, 0.7))) }
+        PanelLook {
+            fills: vec![Fill::Solid(rgba(10, 10, 14, 0.94))],
+            border: Stroke::new(1.0, hex(0x555555)),
+            radius: 8.0,
+            insets: vec![],
+            shadow: Some((8.0, 40.0, rgba(0, 0, 0, 0.7))),
+        }
     }
 
     /// `.popup.newgame`: character creation's parchment-dark frame.
@@ -280,7 +298,9 @@ pub fn paint_panel(painter: &Painter, rect: Rect, look: &PanelLook) {
                 painter.rect_filled(rect, cr, *c);
             }
             Fill::Linear(angle, stops) => paint_texture(painter, rect, look.radius, linear_gradient(ctx, *angle, stops)),
-            Fill::Radial(centre, stops) => paint_texture(painter, rect, look.radius, radial_gradient(ctx, *centre, rect.width() / rect.height().max(1.0), stops)),
+            Fill::Radial(centre, stops) => {
+                paint_texture(painter, rect, look.radius, radial_gradient(ctx, *centre, rect.width() / rect.height().max(1.0), stops))
+            }
         }
     }
     let inner = rect.shrink(look.border.width);
@@ -324,7 +344,16 @@ pub struct KeycapLook {
 impl KeycapLook {
     /// `.prompt-card .chip kbd`: 0.85em bold white on #15171c, a 2px foot. `size` is the chip's font size.
     pub fn chip(size: f32) -> Self {
-        KeycapLook { size: size * 0.85, min_em: 1.5, pad_x: 0.3 * size * 0.85, bg: hex(0x15171c), fg: Color32::WHITE, border: rgba(255, 255, 255, 0.35), foot: 2.0, radius: 3.0 }
+        KeycapLook {
+            size: size * 0.85,
+            min_em: 1.5,
+            pad_x: 0.3 * size * 0.85,
+            bg: hex(0x15171c),
+            fg: Color32::WHITE,
+            border: rgba(255, 255, 255, 0.35),
+            foot: 2.0,
+            radius: 3.0,
+        }
     }
     /// `.level-up kbd`: 0.85rem, 1.7em square, a 3px foot.
     pub fn level_up(size: f32) -> Self {
@@ -332,7 +361,16 @@ impl KeycapLook {
     }
     /// `.popup .more kbd`: the key named in a footer line, outlined in the line's own colour.
     pub fn footer(size: f32) -> Self {
-        KeycapLook { size: size * 0.9, min_em: 0.0, pad_x: 0.3 * size * 0.9, bg: Color32::TRANSPARENT, fg: hex(0xdddddd), border: hex(0x555555), foot: 1.0, radius: 3.0 }
+        KeycapLook {
+            size: size * 0.9,
+            min_em: 0.0,
+            pad_x: 0.3 * size * 0.9,
+            bg: Color32::TRANSPARENT,
+            fg: hex(0xdddddd),
+            border: hex(0x555555),
+            foot: 1.0,
+            radius: 3.0,
+        }
     }
 }
 
@@ -354,7 +392,10 @@ pub fn keycap(painter: &Painter, at: Pos2, text: &str, look: &KeycapLook) -> Rec
     // the border, its bottom edge thicker: the cap's foot
     painter.rect_stroke(rect, cr, Stroke::new(1.0, look.border), StrokeKind::Inside);
     if look.foot > 1.0 {
-        let foot = Rect::from_min_max(Pos2::new(rect.left() + look.radius * 0.5, rect.bottom() - look.foot), Pos2::new(rect.right() - look.radius * 0.5, rect.bottom()));
+        let foot = Rect::from_min_max(
+            Pos2::new(rect.left() + look.radius * 0.5, rect.bottom() - look.foot),
+            Pos2::new(rect.right() - look.radius * 0.5, rect.bottom()),
+        );
         painter.rect_filled(foot, 0.0, look.border);
     }
     let text_pos = Pos2::new(rect.center().x - galley.size().x / 2.0, rect.top() + (rect.height() - look.foot + 1.0 - galley.size().y) / 2.0);
@@ -412,7 +453,11 @@ pub fn card(painter: &Painter, rect: Rect, title: &str, title_font: FontId, titl
     painter.galley(Pos2::new(rect.left() + pad, top), galley, title_colour);
     let y = top + h + pad * 0.5;
     // a rule that fades out at both ends (the tooltip cards' and the level-up banner's)
-    hgradient(painter, Rect::from_min_max(Pos2::new(rect.left() + pad, y), Pos2::new(rect.right() - pad, y + 1.0)), &[(0.0, Color32::TRANSPARENT), (0.3, palette::GOLD), (0.7, palette::GOLD), (1.0, Color32::TRANSPARENT)]);
+    hgradient(
+        painter,
+        Rect::from_min_max(Pos2::new(rect.left() + pad, y), Pos2::new(rect.right() - pad, y + 1.0)),
+        &[(0.0, Color32::TRANSPARENT), (0.3, palette::GOLD), (0.7, palette::GOLD), (1.0, Color32::TRANSPARENT)],
+    );
     Rect::from_min_max(Pos2::new(rect.left() + pad, y + pad * 0.5), Pos2::new(rect.right() - pad, rect.bottom() - pad))
 }
 
@@ -448,7 +493,11 @@ pub fn button(ui: &mut egui::Ui, rect: Rect, id: egui::Id, label: &str, look: Bu
             let primary = look == ButtonLook::BronzePrimary;
             let shadow = Shadow { offset: [0, 3], blur: 10, spread: 0, color: rgba(0, 0, 0, 0.6) };
             painter.add(shadow.as_shape(rect, CornerRadius::same(6)));
-            let stops = if primary { vec![(0.0, rgba(74, 58, 30, 0.96)), (1.0, rgba(24, 18, 10, 0.96))] } else { vec![(0.0, rgba(42, 36, 29, 0.95)), (1.0, rgba(14, 12, 9, 0.95))] };
+            let stops = if primary {
+                vec![(0.0, rgba(74, 58, 30, 0.96)), (1.0, rgba(24, 18, 10, 0.96))]
+            } else {
+                vec![(0.0, rgba(42, 36, 29, 0.95)), (1.0, rgba(14, 12, 9, 0.95))]
+            };
             paint_texture(painter, rect, 6.0, linear_gradient(&ctx, 180, &stops));
             painter.rect_stroke(rect, 6.0, Stroke::new(1.0, if primary { palette::BRONZE } else { palette::BRONZE_DIM }), StrokeKind::Inside);
             let colour = if primary { palette::BRONZE_BRIGHT } else { palette::INK };

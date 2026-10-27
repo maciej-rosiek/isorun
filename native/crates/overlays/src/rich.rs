@@ -292,7 +292,14 @@ mod tests {
     #[test]
     fn server_html_spans() {
         let s = html_spans("  <span class=\"fg8 bg0\">b - Maces &amp; Flails </span><span class='fg3'>0.8</span>");
-        assert_eq!(s, vec![HtmlSpan { text: "  ".into(), fg: None, bg: None }, HtmlSpan { text: "b - Maces & Flails ".into(), fg: Some(8), bg: Some(0) }, HtmlSpan { text: "0.8".into(), fg: Some(3), bg: None }]);
+        assert_eq!(
+            s,
+            vec![
+                HtmlSpan { text: "  ".into(), fg: None, bg: None },
+                HtmlSpan { text: "b - Maces & Flails ".into(), fg: Some(8), bg: Some(0) },
+                HtmlSpan { text: "0.8".into(), fg: Some(3), bg: None }
+            ]
+        );
         assert_eq!(html_spans("a<br>b").iter().map(|s| s.text.as_str()).collect::<String>(), "a\nb");
     }
 }

@@ -182,7 +182,12 @@ mod tests {
     }
 
     fn pack_menu(title: &str) -> MenuState {
-        MenuState { tag: "inventory".into(), flags: MenuFlag::PAGED_INVENTORY, title: MenuTitle { text: title.into(), ..Default::default() }, ..Default::default() }
+        MenuState {
+            tag: "inventory".into(),
+            flags: MenuFlag::PAGED_INVENTORY,
+            title: MenuTitle { text: title.into(), ..Default::default() },
+            ..Default::default()
+        }
     }
 
     #[test]

@@ -6,7 +6,10 @@ use crate::action_tabs::{action_neighbour, action_tab, action_tab_of, ActionTabI
 use crate::focus::FocusInfo;
 use crate::pack_tabs::{neighbour, pack_strip};
 use isorun_scene::{is_threat, BillboardKind, CellKind, Dir8, Feature, Scene, SceneCell};
-use isorun_webtiles::{floor_items_label, formatted_string_to_spans, formatted_string_to_text, is_stationary_item_name, GameMessage, GameState, MenuState, MouseMode, Phase, UiState};
+use isorun_webtiles::{
+    floor_items_label, formatted_string_to_spans, formatted_string_to_text, is_stationary_item_name, GameMessage, GameState, MenuState, MouseMode, Phase,
+    UiState,
+};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -43,16 +46,36 @@ pub enum Layer {
 /// What a cell is, for the contextual action.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Target {
-    None { label: String },
+    None {
+        label: String,
+    },
     /// `hostile` means worth swinging at: a plant ahead is not an attack prompt
-    Monster { id: Option<i64>, hostile: bool, label: String },
+    Monster {
+        id: Option<i64>,
+        hostile: bool,
+        label: String,
+    },
     /// `items`: things also lie on this cell, named as the server did, colour tags and all
-    Feature { feature: Feature, label: String, items: Option<String> },
-    Item { label: String },
-    Wall { label: String },
-    DoorClosed { label: String },
-    Unknown { label: String },
-    Cloud { label: String },
+    Feature {
+        feature: Feature,
+        label: String,
+        items: Option<String>,
+    },
+    Item {
+        label: String,
+    },
+    Wall {
+        label: String,
+    },
+    DoorClosed {
+        label: String,
+    },
+    Unknown {
+        label: String,
+    },
+    Cloud {
+        label: String,
+    },
 }
 
 impl Default for Target {
@@ -452,8 +475,9 @@ re!(HINT_ONLY_RE, r"^\(.*\)$");
 /// `_issue_orders_prompt`: " t - Shout!"). The key is one character; a label runs to
 /// the next comma or parenthesis, or to a gap of two spaces where two share a line. One
 /// parenthesis closing the label is passed over and left out of it.
-static KEYED_RE: Lazy<fancy_regex::Regex> =
-    Lazy::new(|| fancy_regex::Regex::new(r"(?:^|[\s(,])([A-Za-z0-9!?*.<>_^~&%/#:]|Tab/Enter|Enter|Tab) - ([^,()]+?)(?: \([^()]*\))?(?=\s{2,}|[,)]|\s*$)").unwrap());
+static KEYED_RE: Lazy<fancy_regex::Regex> = Lazy::new(|| {
+    fancy_regex::Regex::new(r"(?:^|[\s(,])([A-Za-z0-9!?*.<>_^~&%/#:]|Tab/Enter|Enter|Tab) - ([^,()]+?)(?: \([^()]*\))?(?=\s{2,}|[,)]|\s*$)").unwrap()
+});
 
 /// the named keys a prompt spells out, as the key to send: Tab and Enter are not text
 fn named_key(k: &str) -> &str {
@@ -642,12 +666,26 @@ fn menu_yesno(menu: &MenuState) -> Option<ParsedPrompt> {
         if options.is_empty() {
             return None;
         }
-        return Some(ParsedPrompt { text: formatted_string_to_text(&menu.title.text).trim().into(), options, yesno: true, cancel: true, default: dflt, ..Default::default() });
+        return Some(ParsedPrompt {
+            text: formatted_string_to_text(&menu.title.text).trim().into(),
+            options,
+            yesno: true,
+            cancel: true,
+            default: dflt,
+            ..Default::default()
+        });
     }
     let text = formatted_string_to_text(&menu.more).trim().to_string();
     let d = YESNO_DEFAULT_RE.captures(&text)?;
     let default = Some(if d.get(1).is_some() { "Y" } else { "N" }.to_string());
-    Some(ParsedPrompt { text, options: vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No")], yesno: true, cancel: true, default, ..Default::default() })
+    Some(ParsedPrompt {
+        text,
+        options: vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No")],
+        yesno: true,
+        cancel: true,
+        default,
+        ..Default::default()
+    })
 }
 
 /// Parse hotkeys from the latest prompt-channel message. Only when the server
@@ -682,7 +720,11 @@ fn parse_prompt(state: &GameState) -> Option<ParsedPrompt> {
         // false takes only an uppercase Y; uppercase is right for every call. Pickup's prompt
         // is not `yesno` and takes only lowercase.
         if yesno_mode && !YESNO_NAG_RE.is_match(&text) {
-            let options = if PICKUP_YESNO_RE.is_match(&text) { vec![PromptOption::new("y", "Yes"), PromptOption::new("n", "No")] } else { vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No")] };
+            let options = if PICKUP_YESNO_RE.is_match(&text) {
+                vec![PromptOption::new("y", "Yes"), PromptOption::new("n", "No")]
+            } else {
+                vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No")]
+            };
             let default = YESNO_DEFAULT_RE.captures(&text).map(|d| if d.get(1).is_some() { "Y" } else { "N" }.to_string());
             return Some(ParsedPrompt { text, options, yesno: true, cancel: true, default, ..Default::default() });
         }
@@ -701,7 +743,12 @@ fn parse_prompt(state: &GameState) -> Option<ParsedPrompt> {
             let end = text[m.start()..].find(' ').map_or(text.len(), |p| p + m.start());
             let label = text[start..end].trim_end_matches([',', '.', '?', '!', ':', ';']);
             let hotkey = c[1].to_string();
-            options.push(PromptOption { label: if label.is_empty() { hotkey.clone() } else { label.to_string() }, hotkey, held: None, colour: Some(log_colour_at(&l.text, char_at(&text, start))) });
+            options.push(PromptOption {
+                label: if label.is_empty() { hotkey.clone() } else { label.to_string() },
+                hotkey,
+                held: None,
+                colour: Some(log_colour_at(&l.text, char_at(&text, start))),
+            });
         }
         if !options.is_empty() {
             let stat_gain = STAT_GAIN_RE.is_match(&text);
@@ -721,7 +768,13 @@ fn parse_prompt(state: &GameState) -> Option<ParsedPrompt> {
 
 /// A yes/no's answers when nothing names them: prompt.cc `yesno` takes Y and N, whatever the rc.
 pub fn default_yesno() -> ParsedPrompt {
-    ParsedPrompt { text: String::new(), options: vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No")], yesno: true, cancel: true, ..Default::default() }
+    ParsedPrompt {
+        text: String::new(),
+        options: vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No")],
+        yesno: true,
+        cancel: true,
+        ..Default::default()
+    }
 }
 
 re!(MARKED_RE, r"^\s*\S\s[+#]\s");
@@ -784,7 +837,11 @@ pub fn menu_context(state: &GameState) -> Option<MenuContext> {
         });
     }
     if let Some(tab) = action_tab_of(menu) {
-        ctx.actions = Some(ActionsContext { current: tab, prev: action_tab(action_neighbour(tab, -1)).label.into(), next: action_tab(action_neighbour(tab, 1)).label.into() });
+        ctx.actions = Some(ActionsContext {
+            current: tab,
+            prev: action_tab(action_neighbour(tab, -1)).label.into(),
+            next: action_tab(action_neighbour(tab, 1)).label.into(),
+        });
     }
     Some(ctx)
 }
@@ -864,7 +921,16 @@ pub fn derive_context(state: &GameState, scene: &Scene, heading: Dir8, layer: La
     let in_view = scene.monsters_in_view();
     let hostiles = in_view.iter().filter(|b| is_threat(b)).count();
     let p = &state.player;
-    let mut ctx = Context { mode, layer, ahead, under, hostiles_in_view: hostiles, monsters_in_view: in_view.len(), readied_action: readied_action(Some(&p.quiver_desc)), ..Default::default() };
+    let mut ctx = Context {
+        mode,
+        layer,
+        ahead,
+        under,
+        hostiles_in_view: hostiles,
+        monsters_in_view: in_view.len(),
+        readied_action: readied_action(Some(&p.quiver_desc)),
+        ..Default::default()
+    };
     if p.hp < p.hp_max || p.mp < p.mp_max {
         ctx.injured = true;
     }

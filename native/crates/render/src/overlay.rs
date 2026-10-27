@@ -28,7 +28,11 @@ struct Shape {
 
 fn shape(gpu: &Gpu, triangles: &[[f32; 2]]) -> Shape {
     Shape {
-        vertices: gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("overlay"), contents: bytemuck::cast_slice(triangles), usage: wgpu::BufferUsages::VERTEX }),
+        vertices: gpu.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("overlay"),
+            contents: bytemuck::cast_slice(triangles),
+            usage: wgpu::BufferUsages::VERTEX,
+        }),
         count: triangles.len() as u32,
         instances: DynamicBuffer::new(gpu, "overlay instances", wgpu::BufferUsages::VERTEX, 1024),
         drawn: 0,
@@ -76,16 +80,27 @@ type Cursor = ((i32, i32), f32, [f32; 3]);
 
 impl Overlay {
     pub fn new(gpu: &Gpu) -> Self {
-        Overlay { module: shader(gpu, "overlay", include_str!("shaders/overlay.wgsl")), pipeline: None, arrow: shape(gpu, &arrow()), square: shape(gpu, &square()), dot: shape(gpu, &dot()) }
+        Overlay {
+            module: shader(gpu, "overlay", include_str!("shaders/overlay.wgsl")),
+            pipeline: None,
+            arrow: shape(gpu, &arrow()),
+            square: shape(gpu, &square()),
+            dot: shape(gpu, &dot()),
+        }
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
         let buffers = [
             wgpu::VertexBufferLayout { array_stride: 8, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x2] },
-            wgpu::VertexBufferLayout { array_stride: 80, step_mode: wgpu::VertexStepMode::Instance, attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4] },
+            wgpu::VertexBufferLayout {
+                array_stride: 80,
+                step_mode: wgpu::VertexStepMode::Instance,
+                attributes: &wgpu::vertex_attr_array![1 => Float32x4, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4],
+            },
         ];
         let bias = wgpu::DepthBiasState { constant: -2, slope_scale: -2.0, clamp: 0.0 };
-        self.pipeline = Some(layer_pipeline(gpu, "overlay", &self.module, "vs_overlay", "fs_overlay", &buffers, &[], Blend::Opaque, true, samples, false, bias));
+        self.pipeline =
+            Some(layer_pipeline(gpu, "overlay", &self.module, "vs_overlay", "fs_overlay", &buffers, &[], Blend::Opaque, true, samples, false, bias));
     }
 
     /// Where the pointer's pieces are this frame.

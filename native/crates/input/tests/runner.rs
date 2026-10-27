@@ -58,7 +58,15 @@ impl H {
     }
 
     fn run<T>(&mut self, f: impl FnOnce(&mut Runner, &mut Env, &mut Rec) -> T) -> T {
-        let mut env = Env { state: &self.st, scene: &self.scene, ctx: &self.ctx, camera: &mut self.cam, now: self.now, watching: self.watching, confirm_dangerous: false };
+        let mut env = Env {
+            state: &self.st,
+            scene: &self.scene,
+            ctx: &self.ctx,
+            camera: &mut self.cam,
+            now: self.now,
+            watching: self.watching,
+            confirm_dangerous: false,
+        };
         let out = f(&mut self.r, &mut env, &mut self.hooks);
         self.sent.extend(self.r.take_outbox());
         out
@@ -282,7 +290,8 @@ fn refuses_autofight_outside_command_mode() {
 #[test]
 fn items_on_stairs_require_a_choice_with_no_key_sent_while_choosing() {
     let mut h = controls();
-    h.ctx.under = Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stairs".into(), items: Some("a potion".into()) };
+    h.ctx.under =
+        Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stairs".into(), items: Some("a potion".into()) };
     h.run(|r, env, hk| r.contextual(None, env, hk));
     assert_eq!(h.hooks.ui, vec![UiOp::Interact]);
     assert!(h.sent.is_empty());
@@ -306,7 +315,8 @@ fn bare_stairs_still_work_with_one_press() {
 
 fn door(heading: u8) -> H {
     let mut h = H::new(0);
-    h.ctx = Context { ahead: Target::Feature { feature: Feature::Door { state: DoorState::Open }, label: "open door".into(), items: None }, ..Default::default() };
+    h.ctx =
+        Context { ahead: Target::Feature { feature: Feature::Door { state: DoorState::Open }, label: "open door".into(), items: None }, ..Default::default() };
     h.r.heading = heading;
     h
 }
@@ -456,7 +466,12 @@ fn lb_sends_x_alone_the_cursor_crawl_opens_on_the_player_is_left_there() {
 
 #[test]
 fn never_sends_a_direction_or_target_of_its_own_whatever_stands_ahead() {
-    for ahead in [Target::none("floor"), Target::Unknown { label: "unexplored".into() }, Target::Item { label: "a dagger".into() }, Target::DoorClosed { label: "closed door".into() }] {
+    for ahead in [
+        Target::none("floor"),
+        Target::Unknown { label: "unexplored".into() },
+        Target::Item { label: "a dagger".into() },
+        Target::DoorClosed { label: "closed door".into() },
+    ] {
         let mut h = examine_h(4, ahead);
         examine(&mut h);
         h.frame();
@@ -622,7 +637,9 @@ fn left_and_right_walk_the_cursor_round_the_player() {
     h.cursor(12, 8);
     h.step(6, StepOpts::default());
     assert_eq!(last(&h, 1), vec!["h"]);
-    for ((x, y), right) in [((12, 9), "j"), ((12, 10), "j"), ((12, 11), "j"), ((12, 12), "h"), ((11, 12), "h"), ((8, 12), "k"), ((8, 10), "k"), ((8, 8), "l"), ((10, 8), "l")] {
+    for ((x, y), right) in
+        [((12, 9), "j"), ((12, 10), "j"), ((12, 11), "j"), ((12, 12), "h"), ((11, 12), "h"), ((8, 12), "k"), ((8, 10), "k"), ((8, 8), "l"), ((10, 8), "l")]
+    {
         h.cursor(x, y);
         h.step(2, StepOpts::default());
         assert_eq!(last(&h, 1), vec![right], "at {x},{y}");

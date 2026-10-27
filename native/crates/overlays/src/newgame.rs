@@ -131,9 +131,8 @@ pub fn reflow(g: &Grid, n: i32) -> Grid {
         placed.push((x, y0, y1, col, used));
         used += h;
     }
-    let map = |x: i32, y: i32| -> (i32, i32) {
-        placed.iter().find(|p| p.0 == x && y >= p.1 && y < p.2).map(|p| (p.3, p.4 + y - p.1)).unwrap_or((x.min(n - 1), y))
-    };
+    let map =
+        |x: i32, y: i32| -> (i32, i32) { placed.iter().find(|p| p.0 == x && y >= p.1 && y < p.2).map(|p| (p.3, p.4 + y - p.1)).unwrap_or((x.min(n - 1), y)) };
     let mut out = Grid { menu_id: g.menu_id.clone(), cols: n, rows: 0, ..Default::default() };
     for b in &g.buttons {
         let (x, y) = map(b.x, b.y);
@@ -209,7 +208,14 @@ impl Overlays {
         let doll = tiles::doll(p.data.get("doll"));
         let doll_w = if doll.is_empty() { 0.0 } else { 96.0 + 0.6 * 34.0 * u };
         // a long title ("... Please select your background.") wraps on a narrow screen
-        let title = spaced_wrapped(ctx, &formatted_string_to_text(&p.data.get("title").map(isorun_webtiles::js_string).unwrap_or_default()), title_font, 0.08 * 34.0 * u, palette::GOLD_BRIGHT, (width - 48.0 * u - doll_w).max(120.0));
+        let title = spaced_wrapped(
+            ctx,
+            &formatted_string_to_text(&p.data.get("title").map(isorun_webtiles::js_string).unwrap_or_default()),
+            title_font,
+            0.08 * 34.0 * u,
+            palette::GOLD_BRIGHT,
+            (width - 48.0 * u - doll_w).max(120.0),
+        );
         let head_h = (16.0 * u + title.size().y.max(34.0 * u * 1.1).max(if doll.is_empty() { 0.0 } else { 96.0 }) + 4.0 * u).ceil();
         let prompt = p.data.get("prompt").map(isorun_webtiles::js_string).filter(|s| !s.is_empty());
         let prompt_st = TextStyle::new(ctx, 18.0 * u, palette::BRONZE_BRIGHT).line(18.0 * u * 1.3);
@@ -245,8 +251,14 @@ impl Overlays {
             let mut sizes = Vec::new();
             for b in &g.buttons {
                 let name_w = rich::natural_width(ctx, if b.formatted { rich::formatted(&b.name, &st, 0.0) } else { rich::plain(&b.name, &st, 0.0) });
-                let key_w = b.key.as_ref().map_or(0.0, |k| (rich::natural_width(ctx, rich::plain(k, &TextStyle::new(ctx, font * 0.85, palette::BRONZE_BRIGHT), 0.0)) + 0.6 * key_font).max(1.5 * key_font) + 2.0 + 10.0 * u);
-                let suf_w: f32 = b.suffixes.iter().map(|s| rich::natural_width(ctx, rich::formatted(s, &TextStyle::new(ctx, font, TERM8), 0.0)) + 10.0 * u).sum();
+                let key_w = b.key.as_ref().map_or(0.0, |k| {
+                    (rich::natural_width(ctx, rich::plain(k, &TextStyle::new(ctx, font * 0.85, palette::BRONZE_BRIGHT), 0.0)) + 0.6 * key_font)
+                        .max(1.5 * key_font)
+                        + 2.0
+                        + 10.0 * u
+                });
+                let suf_w: f32 =
+                    b.suffixes.iter().map(|s| rich::natural_width(ctx, rich::formatted(s, &TextStyle::new(ctx, font, TERM8), 0.0)) + 10.0 * u).sum();
                 let tile_w = if b.tiles.is_empty() { 0.0 } else { ts + 10.0 * u };
                 let w = 6.0 * u + tile_w + key_w + name_w + suf_w + 12.0 * u + 2.0;
                 let h = (if b.tiles.is_empty() { widgets::normal_line_height(font) } else { ts } + 8.0 * u + 2.0).max(min_h);
@@ -255,7 +267,8 @@ impl Overlays {
                 sizes.push(h);
             }
             for (x, y, l) in &g.labels {
-                let lw = rich::natural_width(ctx, rich::plain(&formatted_string_to_text(l), &TextStyle::new(ctx, 20.0 * u, palette::GOLD), 0.0)) + 0.1 * 20.0 * u * l.len() as f32;
+                let lw = rich::natural_width(ctx, rich::plain(&formatted_string_to_text(l), &TextStyle::new(ctx, 20.0 * u, palette::GOLD), 0.0))
+                    + 0.1 * 20.0 * u * l.len() as f32;
                 col_w[*x as usize] = col_w[*x as usize].max(lw);
                 row_h[*y as usize] = row_h[*y as usize].max(10.0 * u + 20.0 * u * 1.2 + 4.0 * u + 1.0);
             }
@@ -294,7 +307,8 @@ impl Overlays {
         let desc_gs: Vec<_> = all.iter().map(|b| desc_for(b)).collect();
         let desc_h = desc_gs.iter().map(|g| g.size().y).fold(0.0, f32::max) + 28.0 * u;
         let (main_cols, main_rows, _, main_h) = lay_grid(&main, font, 56.0 * u, grid_inner);
-        let (sub_cols, sub_rows, _, sub_h) = if sub.buttons.is_empty() { (vec![], vec![], vec![], 0.0) } else { lay_grid(&sub, 0.9 * font, 36.0 * u, grid_inner) };
+        let (sub_cols, sub_rows, _, sub_h) =
+            if sub.buttons.is_empty() { (vec![], vec![], vec![], 0.0) } else { lay_grid(&sub, 0.9 * font, 36.0 * u, grid_inner) };
         let choices_h = main_h + if sub.buttons.is_empty() { 0.0 } else { sub_h + 1.0 };
         let details_h = hero_h + desc_h;
         let cols_h_natural = if compact { choices_h + 1.0 + details_h.min(0.24 * screen.h()) } else { choices_h.max(details_h) };
@@ -341,10 +355,14 @@ impl Overlays {
                 y += 1.0;
             }
             // the choices, scrolling when the screen is short
-            let choices = Rect::from_min_size(Pos2::new(rect.left() + 1.0, y), Vec2::new(choices_w, if compact { (cols_h - details_h.min(0.24 * screen.h()) - 1.0).max(40.0) } else { cols_h }));
+            let choices = Rect::from_min_size(
+                Pos2::new(rect.left() + 1.0, y),
+                Vec2::new(choices_w, if compact { (cols_h - details_h.min(0.24 * screen.h()) - 1.0).max(40.0) } else { cols_h }),
+            );
             // the main grid is the scrolling body; the sub grid (random, recommended) stays under it
             let sub_total = if sub.buttons.is_empty() { 0.0 } else { sub_h + 1.0 };
-            let main_view = if sub_in_body { choices } else { Rect::from_min_size(choices.min, Vec2::new(choices.width(), (choices.height() - sub_total).max(0.0))) };
+            let main_view =
+                if sub_in_body { choices } else { Rect::from_min_size(choices.min, Vec2::new(choices.width(), (choices.height() - sub_total).max(0.0))) };
             let body_h = if sub_in_body { main_h + sub_total } else { main_h };
             new_scroll = frame::wheel(ui, main_view, body_h, scroll);
             let mut cp = pt.with_clip_rect(main_view);
@@ -421,7 +439,17 @@ impl Overlays {
             } else {
                 pt.rect_filled(Rect::from_min_size(Pos2::new(details.left() - 1.0, details.top()), Vec2::new(1.0, details.height())), 0.0, palette::RULE);
             }
-            widgets::paint_texture(&pt, details, 0.0, widgets::radial_gradient(ui.ctx(), (0.5, 0.2), details.width() / details.height().max(1.0), &[(0.0, rgba(120, 90, 40, 0.16)), (0.7, rgba(120, 90, 40, 0.0))]));
+            widgets::paint_texture(
+                &pt,
+                details,
+                0.0,
+                widgets::radial_gradient(
+                    ui.ctx(),
+                    (0.5, 0.2),
+                    details.width() / details.height().max(1.0),
+                    &[(0.0, rgba(120, 90, 40, 0.16)), (0.7, rgba(120, 90, 40, 0.0))],
+                ),
+            );
             let dp = pt.with_clip_rect(details);
             let shown = shown_id.as_ref().and_then(|id| lays.iter().find(|l| &l.id == id)).map(|l| l.index);
             if let Some(i) = shown {
@@ -494,7 +522,10 @@ fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::
     let r = if on { r.translate(Vec2::new(2.0 * u, 0.0)) } else { r };
     let radius = 4.0 * u;
     if on {
-        p.add(egui::epaint::Shadow { offset: [0, 0], blur: (14.0 * u) as u8, spread: 0, color: rgba(232, 201, 138, 0.35) }.as_shape(r, egui::CornerRadius::same(radius as u8)));
+        p.add(
+            egui::epaint::Shadow { offset: [0, 0], blur: (14.0 * u) as u8, spread: 0, color: rgba(232, 201, 138, 0.35) }
+                .as_shape(r, egui::CornerRadius::same(radius as u8)),
+        );
         widgets::paint_texture(p, r, radius, widgets::linear_gradient(&ctx, 180, &[(0.0, rgba(120, 90, 40, 0.55)), (1.0, rgba(60, 45, 20, 0.55))]));
         p.rect_stroke(r.shrink(1.0), radius, egui::Stroke::new(1.0, rgba(255, 230, 170, 0.25)), egui::StrokeKind::Inside);
         p.rect_stroke(r, radius, egui::Stroke::new(1.0, palette::GOLD_BRIGHT), egui::StrokeKind::Inside);
@@ -505,7 +536,11 @@ fn draw_button(_ui: &egui::Ui, p: &egui::Painter, icons: &mut isorun_ui::tiles::
     }
     if b.highlight == 2 {
         // a recommended choice: a green edge on the left
-        p.rect_filled(Rect::from_min_size(r.min, Vec2::new(3.0 * u, r.height())), egui::CornerRadius { nw: radius as u8, sw: radius as u8, ne: 0, se: 0 }, hex(0x5f9e3f));
+        p.rect_filled(
+            Rect::from_min_size(r.min, Vec2::new(3.0 * u, r.height())),
+            egui::CornerRadius { nw: radius as u8, sw: radius as u8, ne: 0, se: 0 },
+            hex(0x5f9e3f),
+        );
     }
     let ink = if on { palette::GOLD_BRIGHT } else { fade(palette::INK) };
     let mut x = r.left() + 1.0 + 6.0 * u;
@@ -553,7 +588,19 @@ mod tests {
     use super::*;
 
     fn button(x: i32, y: i32, k: char) -> Button {
-        Button { hotkey: k as i64, x, y, tiles: vec![], key: Some(k.to_string()), name: k.to_string(), formatted: false, suffixes: vec![], description: String::new(), highlight: 0, label: k.to_string() }
+        Button {
+            hotkey: k as i64,
+            x,
+            y,
+            tiles: vec![],
+            key: Some(k.to_string()),
+            name: k.to_string(),
+            formatted: false,
+            suffixes: vec![],
+            description: String::new(),
+            highlight: 0,
+            label: k.to_string(),
+        }
     }
 
     #[test]

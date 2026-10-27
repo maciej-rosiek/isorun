@@ -200,7 +200,8 @@ fn percentage_colour(p: &PlayerState, opts: &Obj, name: &str) -> Option<String> 
     if has_status(p, &booster(name)) {
         return Some("boosted_stat".into());
     }
-    let (value, max) = if name == "hp" { (p.hp, if p.real_hp_max != 0 && p.real_hp_max != p.hp_max { p.real_hp_max } else { p.hp_max }) } else { (p.mp, p.mp_max) };
+    let (value, max) =
+        if name == "hp" { (p.hp, if p.real_hp_max != 0 && p.real_hp_max != p.hp_max { p.real_hp_max } else { p.hp_max }) } else { (p.mp, p.mp_max) };
     threshold_colour(opts.get(&format!("{name}_colour")), value as f64 / (if max == 0 { 1 } else { max }) as f64 * 100.0).map(|c| format!("colour_{c}"))
 }
 
@@ -450,7 +451,12 @@ pub fn stats_rows(p: &PlayerState, opts: &Obj, prev: BarMemory, width: usize, po
     if show_dc(p.doom) {
         right[0].push(Span::new(if compact { " " } else { "  " }));
         right[0].push(cap_short(compact, "Doom:", "Dm:"));
-        right[0].push(Span { text: format!(" {}%", p.doom), fg: Some(doom_colour), title: (!p.doom_desc.is_empty()).then(|| p.doom_desc.clone()), ..Default::default() });
+        right[0].push(Span {
+            text: format!(" {}%", p.doom),
+            fg: Some(doom_colour),
+            title: (!p.doom_desc.is_empty()).then(|| p.doom_desc.clone()),
+            ..Default::default()
+        });
     }
     if show_dc(p.contam) {
         right[1].push(Span::new(" "));

@@ -67,7 +67,11 @@ impl Metrics {
 
     pub fn row_height(&self) -> f32 {
         // a short window (a phone on its side) fits more rows: still a finger's height
-        if self.short { 2.9 * self.rem } else { 3.4 * self.rem }
+        if self.short {
+            2.9 * self.rem
+        } else {
+            3.4 * self.rem
+        }
     }
 
     pub fn label_inset(&self) -> f32 {
@@ -107,19 +111,34 @@ impl FrontEnd {
         // the room, its veil, the shade the menus stand on
         let background = ui.painter().clone();
         background.rect_filled(rect, 0.0, Color32::from_rgb(0x03, 0x03, 0x05));
-        radial(&background, rect, pos2(rect.left() + rect.width() * 0.28, rect.top() + rect.height() * 0.32), &[(0.0, Color32::from_rgb(0x17, 0x13, 0x1f)), (0.58, Color32::from_rgb(0x09, 0x08, 0x0d)), (1.0, Color32::from_rgb(0x03, 0x03, 0x05))]);
+        radial(
+            &background,
+            rect,
+            pos2(rect.left() + rect.width() * 0.28, rect.top() + rect.height() * 0.32),
+            &[(0.0, Color32::from_rgb(0x17, 0x13, 0x1f)), (0.58, Color32::from_rgb(0x09, 0x08, 0x0d)), (1.0, Color32::from_rgb(0x03, 0x03, 0x05))],
+        );
         let rs = self.rs.clone();
         let settings = self.settings.clone();
         self.room.paint(ui, &rs, rect, &settings);
         gradient(&background, rect, false, &crate::room::Tint::veil(self.room.place.tint));
         if s.cls == Cls::Home || self.view == View::Exit {
-            gradient(&background, rect, true, &[(0.0, rgba(3, 2, 6, 0.9)), (0.4, rgba(3, 2, 6, 0.8)), (0.56, rgba(3, 2, 6, 0.45)), (0.74, rgba(3, 2, 6, 0.12)), (1.0, rgba(3, 2, 6, 0.06))]);
+            gradient(
+                &background,
+                rect,
+                true,
+                &[(0.0, rgba(3, 2, 6, 0.9)), (0.4, rgba(3, 2, 6, 0.8)), (0.56, rgba(3, 2, 6, 0.45)), (0.74, rgba(3, 2, 6, 0.12)), (1.0, rgba(3, 2, 6, 0.06))],
+            );
             gradient(&background, rect, false, &[(0.0, rgba(3, 2, 6, 0.45)), (0.25, rgba(3, 2, 6, 0.0)), (0.7, rgba(3, 2, 6, 0.0)), (1.0, rgba(3, 2, 6, 0.7))]);
             if m.phone {
                 gradient(&background, rect, false, &[(0.0, rgba(3, 2, 6, 0.55)), (1.0, rgba(3, 2, 6, 0.75))]);
             }
         } else {
-            radial(&background, rect, pos2(rect.center().x, rect.top() + rect.height() * 0.45), &[(0.0, rgba(5, 4, 9, 0.12)), (0.62, rgba(4, 3, 8, 0.45)), (1.0, rgba(2, 2, 4, 0.75))]);
+            radial(
+                &background,
+                rect,
+                pos2(rect.center().x, rect.top() + rect.height() * 0.45),
+                &[(0.0, rgba(5, 4, 9, 0.12)), (0.62, rgba(4, 3, 8, 0.45)), (1.0, rgba(2, 2, 4, 0.75))],
+            );
         }
         // a drag on the scenery looks around the room; a press that never moves does nothing
         let scenery = ui.interact(rect, egui::Id::NULL.with("room-scenery"), Sense::drag());
@@ -333,9 +352,18 @@ impl FrontEnd {
         let line = if m.short { 1.0 } else { 1.1 };
         let title = galley(ctx, &s.title, &Style::new(size, m.faces.title(), INK).line(size * line), f32::INFINITY);
         let orb = 0.71 * size;
-        let lede_size = if m.short { 0.9 * m.rem } else if m.compact { m.rem } else { m.note() };
+        let lede_size = if m.short {
+            0.9 * m.rem
+        } else if m.compact {
+            m.rem
+        } else {
+            m.note()
+        };
         let lede_w = if m.short { width } else { (34.0 * m.rem).min(width) };
-        let lede = s.lede.as_ref().map(|l| galley(ctx, l, &Style::new(lede_size, m.faces.regular(), INK_DIM).spacing(0.02 * lede_size).line(1.55 * lede_size), lede_w));
+        let lede = s
+            .lede
+            .as_ref()
+            .map(|l| galley(ctx, l, &Style::new(lede_size, m.faces.regular(), INK_DIM).spacing(0.02 * lede_size).line(1.55 * lede_size), lede_w));
         let splash = if m.short {
             None
         } else {
@@ -345,7 +373,16 @@ impl FrontEnd {
             })
         };
         let title_w = orb + 0.16 * size + title.size().x;
-        let (lede_gap, splash_gap) = (if m.short { 0.0 } else if m.compact { 0.4 * m.rem } else { 0.75 * m.rem }, m.rem);
+        let (lede_gap, splash_gap) = (
+            if m.short {
+                0.0
+            } else if m.compact {
+                0.4 * m.rem
+            } else {
+                0.75 * m.rem
+            },
+            m.rem,
+        );
         let height = if m.short {
             title.size().y.max(lede.as_ref().map(|l| l.size().y).unwrap_or(0.0))
         } else {
@@ -391,7 +428,14 @@ impl FrontEnd {
         let title_size = if m.narrow { m.fs.min(1.6 * m.rem) } else { (0.06 * m.w).clamp(2.4 * m.rem, 3.2 * m.rem) };
         let title = galley(&ctx, &s.title, &Style::new(title_size, m.faces.title(), GOLD_BRIGHT).line(1.05 * title_size), head_w);
         let lede_size = if m.narrow { m.fs.min(1.05 * m.rem) } else { 0.85 * m.rem };
-        let lede = s.lede.as_ref().map(|l| galley(&ctx, &upper(l), &Style::new(lede_size, m.faces.bold(), INK_DIM).spacing(if m.narrow { 0.0 } else { 0.14 * lede_size }).line(1.5 * lede_size), head_w));
+        let lede = s.lede.as_ref().map(|l| {
+            galley(
+                &ctx,
+                &upper(l),
+                &Style::new(lede_size, m.faces.bold(), INK_DIM).spacing(if m.narrow { 0.0 } else { 0.14 * lede_size }).line(1.5 * lede_size),
+                head_w,
+            )
+        });
         let mut y = full.top();
         let mut x = full.left();
         shadowed(ui.painter(), pos2(x, y), &title, GOLD_BRIGHT, 0.6);
@@ -534,7 +578,8 @@ impl FrontEnd {
         let main_w = width - self.beside_width(ctx, s, m);
         let under = m.phone && s.rows.iter().map(|r| r.also.len()).max().unwrap_or(0) >= 2;
         let beside_h = 44.0f32.max(m.note() * 1.6);
-        s.rows.iter().map(|r| self.row_height(ctx, r, m, main_w) + 0.3 * m.rem + if under && !r.also.is_empty() { beside_h } else { 0.0 }).sum::<f32>() - if s.rows.is_empty() { 0.0 } else { 0.3 * m.rem }
+        s.rows.iter().map(|r| self.row_height(ctx, r, m, main_w) + 0.3 * m.rem + if under && !r.also.is_empty() { beside_h } else { 0.0 }).sum::<f32>()
+            - if s.rows.is_empty() { 0.0 } else { 0.3 * m.rem }
     }
 
     /// The width the columns beside the rows take (each as wide as its widest label).
@@ -543,7 +588,15 @@ impl FrontEnd {
         if cols == 0 || (m.phone && cols >= 2) {
             return 0.0;
         }
-        (0..cols).map(|k| s.rows.iter().filter_map(|r| r.also.get(k)).map(|a| galley(ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem + 0.2 * m.rem).fold(0.0, f32::max)).sum()
+        (0..cols)
+            .map(|k| {
+                s.rows
+                    .iter()
+                    .filter_map(|r| r.also.get(k))
+                    .map(|a| galley(ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem + 0.2 * m.rem)
+                    .fold(0.0, f32::max)
+            })
+            .sum()
     }
 
     /// Paint the rows from `at`; the bottom they reach comes back.
@@ -551,7 +604,15 @@ impl FrontEnd {
         let ctx = ui.ctx().clone();
         let beside_w = self.beside_width(&ctx, s, m);
         let cols = s.rows.iter().map(|r| r.also.len()).max().unwrap_or(0);
-        let col_w: Vec<f32> = (0..cols).map(|k| s.rows.iter().filter_map(|r| r.also.get(k)).map(|a| galley(&ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem).fold(0.0, f32::max)).collect();
+        let col_w: Vec<f32> = (0..cols)
+            .map(|k| {
+                s.rows
+                    .iter()
+                    .filter_map(|r| r.also.get(k))
+                    .map(|a| galley(&ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem)
+                    .fold(0.0, f32::max)
+            })
+            .collect();
         let main_w = width - beside_w;
         let mut y = at.y;
         for (i, r) in s.rows.iter().enumerate() {
@@ -562,7 +623,12 @@ impl FrontEnd {
             let gap = if r.gap && !r.heading { 0.7 * m.rem } else { 0.0 };
             if r.heading {
                 let top = y + if r.gap { 0.9 * m.rem } else { 0.0 } + 0.2 * m.rem;
-                let g = galley(&ctx, &upper(&r.label), &Style::new(0.75 * m.rem, m.faces.bold(), INK_DIM).spacing(0.14 * 0.75 * m.rem).line(1.5 * 0.75 * m.rem), f32::INFINITY);
+                let g = galley(
+                    &ctx,
+                    &upper(&r.label),
+                    &Style::new(0.75 * m.rem, m.faces.bold(), INK_DIM).spacing(0.14 * 0.75 * m.rem).line(1.5 * 0.75 * m.rem),
+                    f32::INFINITY,
+                );
                 shadowed(ui.painter(), pos2(at.x + 0.7 * m.rem, top), &g, INK_DIM, 0.6);
                 y += h;
                 continue;
@@ -581,7 +647,8 @@ impl FrontEnd {
             let under = m.phone && cols >= 2;
             let mut bx = if under { at.x + m.label_inset() - 0.5 * m.rem } else { at.x + main_w + 0.2 * m.rem };
             for (k, a) in r.also.iter().enumerate() {
-                let w = if under { galley(&ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem } else { col_w.get(k).copied().unwrap_or(0.0) };
+                let w =
+                    if under { galley(&ctx, &a.label, &m.text(m.note(), C8), f32::INFINITY).size().x + m.rem } else { col_w.get(k).copied().unwrap_or(0.0) };
                 let top = if under { rect.bottom() } else { rect.top() + (rect.height() - beside_h) / 2.0 };
                 let br = Rect::from_min_size(pos2(bx, top), vec2(w, beside_h));
                 self.paint_beside(ui, a, br, m, clicks);
@@ -617,7 +684,16 @@ impl FrontEnd {
         if focused {
             gradient(&p, rect, true, &[(0.0, rgba(216, 180, 95, 0.2)), (0.55, rgba(216, 180, 95, 0.05)), (1.0, rgba(216, 180, 95, 0.0))]);
         }
-        let colour = fade(if focused { GOLD_BRIGHT } else if resp.hovered() { INK } else { C7 }, alpha);
+        let colour = fade(
+            if focused {
+                GOLD_BRIGHT
+            } else if resp.hovered() {
+                INK
+            } else {
+                C7
+            },
+            alpha,
+        );
         let text_w = rect.width() - m.label_inset() - m.rem;
         let label = galley(&ctx, &r.label, &m.text(m.action(), colour), text_w);
         let sub = r.sub.as_ref().map(|t| galley(&ctx, t, &m.text(m.note(), fade(INK_DIM, alpha)), text_w));
@@ -637,7 +713,11 @@ impl FrontEnd {
         // the chosen account's dot: after its name, and only when something is not right yet
         if let Some(c) = r.conn.filter(|c| matches!(c, Conn::Wait | Conn::Down)) {
             let d = 0.5 * m.action();
-            let colour = if c == Conn::Down { C12 } else { fade(GOLD, 0.6 + 0.4 * (isorun_client::platform::seconds() as f32 * std::f32::consts::TAU / 1.4).cos().abs()) };
+            let colour = if c == Conn::Down {
+                C12
+            } else {
+                fade(GOLD, 0.6 + 0.4 * (isorun_client::platform::seconds() as f32 * std::f32::consts::TAU / 1.4).cos().abs())
+            };
             let centre = pos2(after + 0.6 * m.action() + d / 2.0, top + label.size().y - label.size().y / 2.0);
             p.circle_filled(centre, d * 0.9, fade(colour, 0.25));
             p.circle_filled(centre, d / 2.0, colour);
@@ -671,7 +751,13 @@ impl FrontEnd {
             gradient(p, rect, true, &[(0.0, rgba(216, 180, 95, 0.2)), (0.55, rgba(216, 180, 95, 0.05)), (1.0, rgba(216, 180, 95, 0.0))]);
             p.rect_stroke(rect, 0.0, egui::Stroke::new(1.0, GOLD), egui::StrokeKind::Inside);
         }
-        let colour = if focused { GOLD_BRIGHT } else if resp.hovered() { C15 } else { C8 };
+        let colour = if focused {
+            GOLD_BRIGHT
+        } else if resp.hovered() {
+            C15
+        } else {
+            C8
+        };
         let g = galley(ui.ctx(), &a.label, &m.text(m.note(), colour), f32::INFINITY);
         p.galley(pos2(rect.left() + 0.5 * m.rem, rect.center().y - g.size().y / 2.0), g, colour);
     }
@@ -693,7 +779,10 @@ impl FrontEnd {
             let g = galley(&ctx, "@", &Style::new(m.action(), m.faces.bold(), GOLD_BRIGHT), f32::INFINITY);
             p.galley(pos2(rect.left() + m.cursor_inset(), top + (label.size().y - g.size().y) / 2.0), g, GOLD_BRIGHT);
         }
-        let input_rect = Rect::from_min_max(pos2(rect.left() + m.label_inset(), top + label.size().y + 0.3 * m.rem), pos2(rect.right() - m.rem, top + label.size().y + 0.3 * m.rem + 44.0));
+        let input_rect = Rect::from_min_max(
+            pos2(rect.left() + m.label_inset(), top + label.size().y + 0.3 * m.rem),
+            pos2(rect.right() - m.rem, top + label.size().y + 0.3 * m.rem + 44.0),
+        );
         let placeholder = match f {
             Field::Name => "name",
             Field::Password => "password",
@@ -775,7 +864,13 @@ impl FrontEnd {
                 }
                 h
             });
-            let min = if m.short { 1.5 } else if m.compact { 2.4 } else { 3.0 } * m.note();
+            let min = if m.short {
+                1.5
+            } else if m.compact {
+                2.4
+            } else {
+                3.0
+            } * m.note();
             return tallest.fold(min, f32::max);
         }
         let (text, fine, _) = self.said();
@@ -813,7 +908,8 @@ impl FrontEnd {
             .iter()
             .map(|u| {
                 let g = galley(ctx, &u.label, &m.text(m.note(), INK_DIM), f32::INFINITY);
-                let extra = if u.dot { 0.95 * m.note() } else { 0.0 } + if u.conn.is_some_and(|c| matches!(c, Conn::Wait | Conn::Down)) { 1.1 * m.note() } else { 0.0 };
+                let extra =
+                    if u.dot { 0.95 * m.note() } else { 0.0 } + if u.conn.is_some_and(|c| matches!(c, Conn::Wait | Conn::Down)) { 1.1 * m.note() } else { 0.0 };
                 let sub = u.sub.as_ref().map(|t| galley(ctx, t, &m.text(m.note(), INK_DIM), f32::INFINITY).size().x + m.rem).unwrap_or(0.0);
                 let w = pad_l + g.size().x + extra + sub + 0.5 * m.rem;
                 (g, w)
@@ -881,7 +977,11 @@ impl FrontEnd {
             let mut after = rect.left() + pad_l + g.size().x;
             if let Some(c) = u.conn.filter(|c| matches!(c, Conn::Wait | Conn::Down)) {
                 let d = 0.5 * m.note();
-                let colour = if c == Conn::Down { C12 } else { fade(GOLD, 0.6 + 0.4 * (isorun_client::platform::seconds() as f32 * std::f32::consts::TAU / 1.4).cos().abs()) };
+                let colour = if c == Conn::Down {
+                    C12
+                } else {
+                    fade(GOLD, 0.6 + 0.4 * (isorun_client::platform::seconds() as f32 * std::f32::consts::TAU / 1.4).cos().abs())
+                };
                 p.circle_filled(pos2(after + 0.6 * m.note() + d / 2.0, rect.center().y), d / 2.0, colour);
                 after += 0.6 * m.note() + d;
                 ctx.request_repaint_after(std::time::Duration::from_millis(50));
@@ -927,7 +1027,12 @@ impl Head {
         let baseline = at.y + self.title.rows.first().map(|r| r.rect().top() + r.row.size.y * 0.8).unwrap_or(self.size);
         let orb = Rect::from_min_size(pos2(at.x, baseline - self.orb + 0.055 * self.size), vec2(self.orb, self.orb));
         // drop-shadow(0 0 8px orange) drop-shadow(0 0 18px violet): a soft glow round the orb
-        radial(p, orb.expand(0.25 * self.orb), orb.center(), &[(0.0, rgba(185, 120, 31, 0.3)), (0.45, rgba(139, 63, 176, 0.12)), (0.7, rgba(139, 63, 176, 0.0)), (1.0, rgba(0, 0, 0, 0.0))]);
+        radial(
+            p,
+            orb.expand(0.25 * self.orb),
+            orb.center(),
+            &[(0.0, rgba(185, 120, 31, 0.3)), (0.45, rgba(139, 63, 176, 0.12)), (0.7, rgba(139, 63, 176, 0.0)), (1.0, rgba(0, 0, 0, 0.0))],
+        );
         p.image(tex.id(), orb, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         let tx = at.x + self.orb + 0.16 * self.size;
         shadowed(p, pos2(tx, at.y), &self.title, INK, 0.7);

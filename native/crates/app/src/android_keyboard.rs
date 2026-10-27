@@ -18,7 +18,8 @@ pub fn follow(ctx: &egui::Context) {
     let key = egui::Id::unique("isorun-android-keyboard");
     let was: bool = ctx.data(|d| d.get_temp(key)).unwrap_or(false);
     let want = ime.is_some();
-    let tapped = ime.is_some_and(|ime| ctx.input(|i| i.events.iter().any(|e| matches!(e, Event::PointerButton { pos, pressed: false, .. } if ime.rect.contains(*pos)))));
+    let tapped =
+        ime.is_some_and(|ime| ctx.input(|i| i.events.iter().any(|e| matches!(e, Event::PointerButton { pos, pressed: false, .. } if ime.rect.contains(*pos)))));
     ctx.data_mut(|d| d.insert_temp(key, want));
     let show = if want && (!was || tapped) {
         true
@@ -46,7 +47,8 @@ fn call(app: &AndroidApp, show: bool) -> Result<(), String> {
             view = env.call_method(&window, jni_str!("getDecorView"), jni_sig!("()Landroid/view/View;"), &[])?.l()?;
         }
         let name = env.new_string("input_method")?;
-        let imm = env.call_method(&activity, jni_str!("getSystemService"), jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"), &[JValue::Object(&name)])?.l()?;
+        let imm =
+            env.call_method(&activity, jni_str!("getSystemService"), jni_sig!("(Ljava/lang/String;)Ljava/lang/Object;"), &[JValue::Object(&name)])?.l()?;
         if imm.is_null() {
             return Ok(());
         }
@@ -58,7 +60,8 @@ fn call(app: &AndroidApp, show: bool) -> Result<(), String> {
                 let version = env.find_class(jni_str!("android/os/Build$VERSION"))?;
                 let sdk = env.get_static_field(&JClass::from(version), jni_str!("SDK_INT"), jni_sig!("I"))?.i()?;
                 if sdk >= 30 {
-                    let controller = env.call_method(&window, jni_str!("getInsetsController"), jni_sig!("()Landroid/view/WindowInsetsController;"), &[])?.l()?;
+                    let controller =
+                        env.call_method(&window, jni_str!("getInsetsController"), jni_sig!("()Landroid/view/WindowInsetsController;"), &[])?.l()?;
                     if !controller.is_null() {
                         // WindowInsets.Type.ime()
                         env.call_method(&controller, jni_str!("show"), jni_sig!("(I)V"), &[JValue::Int(8)])?;

@@ -131,10 +131,13 @@ pub fn noise_pixels() -> Vec<u8> {
             }
         }
     }
-    field.iter().flat_map(|v| {
-        let b = ((v / total) * 255.0).round() as u8;
-        [b, b, b, 255]
-    }).collect()
+    field
+        .iter()
+        .flat_map(|v| {
+            let b = ((v / total) * 255.0).round() as u8;
+            [b, b, b, 255]
+        })
+        .collect()
 }
 
 pub fn noise_texture(gpu: &Gpu) -> wgpu::Texture {
@@ -216,9 +219,22 @@ impl FogLayer {
 
     pub fn new(gpu: &Gpu) -> Self {
         let float = wgpu::TextureSampleType::Float { filterable: true };
-        let tex = |binding| wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: float, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None };
-        let layout = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("fog"), entries: &[crate::gpu::uniform_entry(0, 48, false), tex(1), tex(2), tex(3), tex(4)] });
-        let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some("fog"), size: 48, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let tex = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture { sample_type: float, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+            count: None,
+        };
+        let layout = gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("fog"),
+            entries: &[crate::gpu::uniform_entry(0, 48, false), tex(1), tex(2), tex(3), tex(4)],
+        });
+        let uniform = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("fog"),
+            size: 48,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         FogLayer {
             enabled: true,
             settings: crate::lights::diorama().fog,
@@ -244,8 +260,22 @@ impl FogLayer {
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
-        let buffers = [wgpu::VertexBufferLayout { array_stride: 12, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3] }];
-        self.pipeline = Some(layer_pipeline(gpu, "fog", &self.module, "vs_fog", "fs_fog", &buffers, &[&self.layout], Blend::Alpha, false, samples, true, Default::default()));
+        let buffers =
+            [wgpu::VertexBufferLayout { array_stride: 12, step_mode: wgpu::VertexStepMode::Vertex, attributes: &wgpu::vertex_attr_array![0 => Float32x3] }];
+        self.pipeline = Some(layer_pipeline(
+            gpu,
+            "fog",
+            &self.module,
+            "vs_fog",
+            "fs_fog",
+            &buffers,
+            &[&self.layout],
+            Blend::Alpha,
+            false,
+            samples,
+            true,
+            Default::default(),
+        ));
     }
 
     pub fn configure(&mut self, settings: &FogSettings) {
@@ -321,7 +351,8 @@ impl FogLayer {
         self.height = height;
         self.grid = (x0, y0, w, h);
         let rgba = |v: &[u8]| v.iter().flat_map(|&b| [b, 0, 0, 255]).collect::<Vec<u8>>();
-        let textures = [&self.from.field, &self.to.field, &self.from.mask, &self.to.mask].map(|d| gpu.texture_with("fog", w as u32, h as u32, wgpu::TextureFormat::Rgba8Unorm, &rgba(d)));
+        let textures = [&self.from.field, &self.to.field, &self.from.mask, &self.to.mask]
+            .map(|d| gpu.texture_with("fog", w as u32, h as u32, wgpu::TextureFormat::Rgba8Unorm, &rgba(d)));
         let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
         self.group = Some(gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("fog"),
@@ -341,10 +372,12 @@ impl FogLayer {
         let mut indices: Vec<u32> = Vec::new();
         for y in 0..h {
             for x in 0..w {
-                let near = (-1i32..=1).any(|dy| (-1i32..=1).any(|dx| {
-                    let (nx, ny) = (x as i32 + dx, y as i32 + dy);
-                    nx >= 0 && ny >= 0 && (nx as usize) < w && (ny as usize) < h && foggy[ny as usize * w + nx as usize]
-                }));
+                let near = (-1i32..=1).any(|dy| {
+                    (-1i32..=1).any(|dx| {
+                        let (nx, ny) = (x as i32 + dx, y as i32 + dy);
+                        nx >= 0 && ny >= 0 && (nx as usize) < w && (ny as usize) < h && foggy[ny as usize * w + nx as usize]
+                    })
+                });
                 if !near {
                     continue;
                 }
@@ -363,7 +396,11 @@ impl FogLayer {
     pub fn upload(&self, gpu: &Gpu) {
         let c = linear(self.settings.colour);
         let (x0, y0, w, h) = self.grid;
-        let u = FogUniform { colour: [c[0], c[1], c[2], 1.0], params: [self.settings.density, self.settings.softness, self.height, self.blend], grid: [x0 as f32, y0 as f32, w as f32, h as f32] };
+        let u = FogUniform {
+            colour: [c[0], c[1], c[2], 1.0],
+            params: [self.settings.density, self.settings.softness, self.height, self.blend],
+            grid: [x0 as f32, y0 as f32, w as f32, h as f32],
+        };
         gpu.queue.write_buffer(&self.uniform, 0, bytemuck::bytes_of(&u));
     }
 

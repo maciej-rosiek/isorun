@@ -1,6 +1,8 @@
 //! The port of `apps/isorun/test/audio-cues.test.ts`, and the rest of the cues' rules.
 
-use isorun_audio::cues::{ambient_levels, cues_for_combat, heartbeat_delay, hearing, mood_for, sound_for_line, sound_for_use, use_kind_of_key, CombatEvent, Fighter, UseKind};
+use isorun_audio::cues::{
+    ambient_levels, cues_for_combat, hearing, heartbeat_delay, mood_for, sound_for_line, sound_for_use, use_kind_of_key, CombatEvent, Fighter, UseKind,
+};
 use isorun_audio::{AmbientLevels, Mood, SoundName};
 
 #[test]

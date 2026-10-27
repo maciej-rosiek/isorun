@@ -2,7 +2,7 @@
 //! against what it would replace (screens.ts `itemTip`).
 
 use crate::gear::{obj, PackItem};
-use crate::tooltip::{Tone, TipLine};
+use crate::tooltip::{TipLine, Tone};
 use isorun_webtiles::formatted_string_to_text;
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -180,7 +180,11 @@ pub fn compare_stats(candidate: &PackItem, worn: Option<&PackItem>) -> Vec<TipLi
             }
             let better = if s.higher_is_better { diff > 0.0 } else { diff < 0.0 };
             let sign = if diff > 0.0 { "+" } else { "" };
-            TipLine { label: s.label.into(), value: format!("{value} ({sign}{})", fixed(diff, s.decimals)), tone: Some(if better { Tone::Better } else { Tone::Worse }) }
+            TipLine {
+                label: s.label.into(),
+                value: format!("{value} ({sign}{})", fixed(diff, s.decimals)),
+                tone: Some(if better { Tone::Better } else { Tone::Worse }),
+            }
         })
         .collect()
 }

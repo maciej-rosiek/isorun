@@ -36,7 +36,13 @@ pub fn here_actions(ctx: &Context, scene: &Scene) -> Vec<(String, Action)> {
         match feature {
             Feature::Stairs { dir, exit, .. } => {
                 let down = *dir == UpDown::Down;
-                let l = if *exit { "Leave the dungeon" } else if down { "Go down" } else { "Go up" };
+                let l = if *exit {
+                    "Leave the dungeon"
+                } else if down {
+                    "Go down"
+                } else {
+                    "Go up"
+                };
                 out.push((l.to_string(), keys(l, if down { ">" } else { "<" })));
             }
             Feature::Hatch { dir } => {
@@ -82,7 +88,11 @@ pub fn cell_menu_rows(ctx: &Context, scene: &Scene, x: i32, y: i32) -> Vec<CellM
             rows.push(CellMenuRow { label, run: CellMenuRun::Action(action) });
         }
     } else {
-        let monster = if cell.visibility == Visibility::Visible { scene.billboards.iter().find(|b| b.x == x && b.y == y && b.kind == BillboardKind::Monster && !b.scenery) } else { None };
+        let monster = if cell.visibility == Visibility::Visible {
+            scene.billboards.iter().find(|b| b.x == x && b.y == y && b.kind == BillboardKind::Monster && !b.scenery)
+        } else {
+            None
+        };
         let adjacent = (x - px).abs().max((y - py).abs()) == 1;
         if monster.is_some_and(is_threat) {
             if adjacent {
@@ -184,7 +194,10 @@ impl CellMenu {
         if top < screen.top() {
             top = self.at.y + gap;
         }
-        let pos = egui::pos2(left.clamp(screen.left(), (screen.right() - size.x).max(screen.left())), top.clamp(screen.top(), (screen.bottom() - size.y).max(screen.top())));
+        let pos = egui::pos2(
+            left.clamp(screen.left(), (screen.right() - size.x).max(screen.left())),
+            top.clamp(screen.top(), (screen.bottom() - size.y).max(screen.top())),
+        );
         let mut picked = None;
         let inner = egui::Area::new(id).order(egui::Order::Foreground).fixed_pos(pos).show(ctx, |ui| {
             let pad = 6.0 * hu;
@@ -197,24 +210,29 @@ impl CellMenu {
             let frame = egui::Frame::new().inner_margin(pad).show(ui, |ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                 if !self.details.is_empty() {
-                    egui::Frame::new().inner_margin(egui::Margin { left: (10.0 * hu) as i8, right: (10.0 * hu) as i8, top: (4.0 * hu) as i8, bottom: (8.0 * hu) as i8 }).show(ui, |ui| {
-                        for (i, d) in self.details.iter().enumerate() {
-                            let colour = d.tone.map_or(ROW_INK, |t| t.colour());
-                            let (size, family) = if i == 0 { (22.0 * hu, caps.clone()) } else { (17.0 * hu, egui::FontFamily::Proportional) };
-                            ui.label(egui::RichText::new(&d.text).color(colour).font(egui::FontId::new(size, family)));
-                            if let Some(w) = d.wound {
-                                ui.add_space(4.0 * hu);
-                                let (rect, _) = ui.allocate_exact_size(egui::vec2(ui.available_width().max(min_w - 2.0 * pad - 20.0 * hu), 8.0 * hu), egui::Sense::hover());
-                                let p = ui.painter();
-                                p.rect_filled(rect, 2.0 * hu, egui::Color32::BLACK);
-                                let (fill, top, bottom) = wound_bar(w);
-                                let bar = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * fill, rect.height())).shrink(1.0);
-                                vertical_gradient(p, bar, top, bottom);
-                                p.rect_stroke(rect, 2.0 * hu, egui::Stroke::new(1.0, TRIM_DARK), egui::StrokeKind::Inside);
-                                ui.add_space(5.0 * hu);
+                    egui::Frame::new()
+                        .inner_margin(egui::Margin { left: (10.0 * hu) as i8, right: (10.0 * hu) as i8, top: (4.0 * hu) as i8, bottom: (8.0 * hu) as i8 })
+                        .show(ui, |ui| {
+                            for (i, d) in self.details.iter().enumerate() {
+                                let colour = d.tone.map_or(ROW_INK, |t| t.colour());
+                                let (size, family) = if i == 0 { (22.0 * hu, caps.clone()) } else { (17.0 * hu, egui::FontFamily::Proportional) };
+                                ui.label(egui::RichText::new(&d.text).color(colour).font(egui::FontId::new(size, family)));
+                                if let Some(w) = d.wound {
+                                    ui.add_space(4.0 * hu);
+                                    let (rect, _) = ui.allocate_exact_size(
+                                        egui::vec2(ui.available_width().max(min_w - 2.0 * pad - 20.0 * hu), 8.0 * hu),
+                                        egui::Sense::hover(),
+                                    );
+                                    let p = ui.painter();
+                                    p.rect_filled(rect, 2.0 * hu, egui::Color32::BLACK);
+                                    let (fill, top, bottom) = wound_bar(w);
+                                    let bar = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width() * fill, rect.height())).shrink(1.0);
+                                    vertical_gradient(p, bar, top, bottom);
+                                    p.rect_stroke(rect, 2.0 * hu, egui::Stroke::new(1.0, TRIM_DARK), egui::StrokeKind::Inside);
+                                    ui.add_space(5.0 * hu);
+                                }
                             }
-                        }
-                    });
+                        });
                     let r = ui.min_rect();
                     ui.painter().hline(r.x_range(), r.bottom(), egui::Stroke::new(1.0, egui::Color32::from_rgb(0x3a, 0x2d, 0x16)));
                     ui.add_space(4.0 * hu);
@@ -245,7 +263,15 @@ impl CellMenu {
             let rect = frame.response.rect;
             let mut shapes = vec![egui::Shape::Noop];
             // box-shadow: 0 10hu 30hu rgba(0,0,0,0.9)
-            shapes.push(egui::Shape::from(egui::epaint::Shadow { offset: [0, (10.0 * hu) as i8], blur: (30.0 * hu).min(255.0) as u8, spread: 0, color: egui::Color32::from_black_alpha(230) }.as_shape(rect, 4.0 * hu)));
+            shapes.push(egui::Shape::from(
+                egui::epaint::Shadow {
+                    offset: [0, (10.0 * hu) as i8],
+                    blur: (30.0 * hu).min(255.0) as u8,
+                    spread: 0,
+                    color: egui::Color32::from_black_alpha(230),
+                }
+                .as_shape(rect, 4.0 * hu),
+            ));
             let mut mesh = egui::Mesh::default();
             let top = egui::Color32::from_rgba_unmultiplied(29, 25, 21, 247);
             let bottom = egui::Color32::from_rgba_unmultiplied(11, 9, 8, 247);

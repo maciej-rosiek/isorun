@@ -83,7 +83,10 @@ pub enum PadEvent {
     Dir(NavDir),
     Press(PadButton),
     /// The right stick, -1 to 1 each way; zero lets go.
-    Look { dx: f32, dy: f32 },
+    Look {
+        dx: f32,
+        dy: f32,
+    },
 }
 
 /// What the app tells the front end about where it runs.
@@ -106,7 +109,15 @@ pub struct FrontOptions {
 
 impl Default for FrontOptions {
     fn default() -> Self {
-        FrontOptions { can_quit: !cfg!(target_arch = "wasm32"), can_fullscreen: true, fullscreen: false, app_downloads: cfg!(target_arch = "wasm32"), testbed: false, pad: false, mouse: true }
+        FrontOptions {
+            can_quit: !cfg!(target_arch = "wasm32"),
+            can_fullscreen: true,
+            fullscreen: false,
+            app_downloads: cfg!(target_arch = "wasm32"),
+            testbed: false,
+            pad: false,
+            mouse: true,
+        }
     }
 }
 
@@ -134,7 +145,6 @@ pub enum View {
 
 /// The way off a screen.
 pub const BACK: &str = "back";
-
 
 /// How long a server has to answer for an rc file before the editor says it did not.
 const RC_SECONDS: f64 = 10.0;
@@ -204,7 +214,11 @@ pub enum Act {
     SubmitNewProfile,
     Register,
     ExitClose,
-    ExitDump { title: String, url: Option<String>, href: String },
+    ExitDump {
+        title: String,
+        url: Option<String>,
+        href: String,
+    },
     Open(String),
     Terminate(bool),
     RcSave,
@@ -267,7 +281,24 @@ pub struct Row {
 
 impl Row {
     pub fn new(id: impl Into<String>, label: impl Into<String>, marker: &'static str, hint: impl Into<String>, act: Act) -> Self {
-        Row { id: id.into(), label: label.into(), sub: None, conn: None, marker, hint: hint.into(), fine: None, act, also: Vec::new(), input: None, text: false, main: false, off: false, gap: false, heading: false, dot: false }
+        Row {
+            id: id.into(),
+            label: label.into(),
+            sub: None,
+            conn: None,
+            marker,
+            hint: hint.into(),
+            fine: None,
+            act,
+            also: Vec::new(),
+            input: None,
+            text: false,
+            main: false,
+            off: false,
+            gap: false,
+            heading: false,
+            dot: false,
+        }
     }
 
     pub fn sub(mut self, s: impl Into<String>) -> Self {
@@ -636,7 +667,12 @@ impl FrontEnd {
     /// home screen leads with it.
     fn play(&mut self, game_id: &str) {
         let Some(s) = &mut self.session else { return };
-        servers::set_last(&servers::LastPlayed { server_id: s.server.id.clone(), game_id: Some(game_id.to_string()), username: s.state.lobby.username.clone(), gamedata_version: servers::get_last().and_then(|l| l.gamedata_version) });
+        servers::set_last(&servers::LastPlayed {
+            server_id: s.server.id.clone(),
+            game_id: Some(game_id.to_string()),
+            username: s.state.lobby.username.clone(),
+            gamedata_version: servers::get_last().and_then(|l| l.gamedata_version),
+        });
         s.send(cm::play(game_id));
         self.intent = Some(Intent::Play(game_id.to_string()));
     }
@@ -834,7 +870,8 @@ impl FrontEnd {
                     let says = matches!(self.view, View::Login | View::Register | View::Home | View::Watch | View::Accounts | View::Versions | View::Rc);
                     self.schedule_retry(now);
                     if says {
-                        self.error = Some(if self.retry_at.is_some() { "Connection lost. Reconnecting…".into() } else { format!("Connection closed: {reason}") });
+                        self.error =
+                            Some(if self.retry_at.is_some() { "Connection lost. Reconnecting…".into() } else { format!("Connection closed: {reason}") });
                     }
                     if matches!(self.view, View::Login | View::Register) {
                         self.show_home();
@@ -911,10 +948,16 @@ impl FrontEnd {
     fn start_game(&mut self) {
         let Some(s) = self.session.take() else { return };
         self.rejoining = None;
-        let watching = s.state.watching.clone().or(match &self.intent {
-            Some(Intent::Watch(w)) => Some(w.clone()),
-            _ => None,
-        }).or(self.watching.take()).filter(|_| s.state.phase != Phase::Playing);
+        let watching = s
+            .state
+            .watching
+            .clone()
+            .or(match &self.intent {
+                Some(Intent::Watch(w)) => Some(w.clone()),
+                _ => None,
+            })
+            .or(self.watching.take())
+            .filter(|_| s.state.phase != Phase::Playing);
         self.intent = None;
         self.boot("Entering the dungeon…");
         self.out = Some(match watching {
@@ -963,7 +1006,15 @@ impl FrontEnd {
                     Some(d) => vec![d.clone()],
                     None => whereis::morgue_dir_guesses(who),
                 };
-                self.start_where(WhereRead { key: key.clone(), server: server.clone(), who: who.to_string(), dirs, known: known.is_some(), at: 0, request: http::get("about:blank", || {}) });
+                self.start_where(WhereRead {
+                    key: key.clone(),
+                    server: server.clone(),
+                    who: who.to_string(),
+                    dirs,
+                    known: known.is_some(),
+                    at: 0,
+                    request: http::get("about:blank", || {}),
+                });
             }
         }
         self.whereis.get(&key).cloned().flatten()
@@ -1146,7 +1197,11 @@ impl FrontEnd {
             }
         }
         let want = self.want.take().or_else(|| s.focus.clone()).or_else(|| self.marks.get(&self.view).cloned());
-        let pick = want.filter(|w| w != BACK && has(w)).or_else(|| s.rows.iter().find(|r| r.main && has(&r.id)).map(|r| r.id.clone())).or_else(|| items.iter().find(|(i, _, _)| i != BACK).map(|(i, _, _)| i.clone())).or_else(|| items.first().map(|(i, _, _)| i.clone()));
+        let pick = want
+            .filter(|w| w != BACK && has(w))
+            .or_else(|| s.rows.iter().find(|r| r.main && has(&r.id)).map(|r| r.id.clone()))
+            .or_else(|| items.iter().find(|(i, _, _)| i != BACK).map(|(i, _, _)| i.clone()))
+            .or_else(|| items.first().map(|(i, _, _)| i.clone()));
         if pick != self.cursor {
             self.cursor = pick;
             self.on_cursor(s);
@@ -1593,7 +1648,18 @@ impl FrontEnd {
         let again = self.rc.as_ref().is_some_and(|r| servers::same_account(Some(&r.account), Some(&a)) && r.game_id == game_id);
         if !again {
             servers::set_chosen_account(Some(&a));
-            self.rc = Some(RcEdit { account: a.clone(), game_id, text: String::new(), saved: None, state: RcState::Reading, asked: false, note: None, leaving: false, pending: None, editing: false });
+            self.rc = Some(RcEdit {
+                account: a.clone(),
+                game_id,
+                text: String::new(),
+                saved: None,
+                state: RcState::Reading,
+                asked: false,
+                note: None,
+                leaving: false,
+                pending: None,
+                editing: false,
+            });
         }
         self.ensure_session(&server, Some(&a.username));
         self.set_view(View::Rc);
@@ -1980,9 +2046,19 @@ impl FrontEnd {
                 if contents.as_deref() == Some(text.as_str()) {
                     rc.saved = Some(text);
                     rc.leaving = false;
-                    rc.note = Some((format!("Saved{}. It counts from the next game you start or continue.", if offline { String::new() } else { format!(" on {place}") }), false));
+                    rc.note = Some((
+                        format!("Saved{}. It counts from the next game you start or continue.", if offline { String::new() } else { format!(" on {place}") }),
+                        false,
+                    ));
                 } else {
-                    rc.note = Some((if contents.is_none() { format!("No answer from {place}. Your text is still here: try Save again.") } else { format!("{place} did not keep it. Your text is still here: try Save again.") }, true));
+                    rc.note = Some((
+                        if contents.is_none() {
+                            format!("No answer from {place}. Your text is still here: try Save again.")
+                        } else {
+                            format!("{place} did not keep it. Your text is still here: try Save again.")
+                        },
+                        true,
+                    ));
                 }
             }
             None => match contents {
@@ -2025,7 +2101,11 @@ impl FrontEnd {
     pub(crate) fn games(&self, server: &ServerInfo) -> Option<Vec<isorun_webtiles::GameLink>> {
         let live = self.session.as_ref().filter(|s| s.conn.open && s.server.id == server.id).map(|s| s.state.lobby.games.clone()).filter(|g| !g.is_empty());
         live.or_else(|| {
-            servers::get_games(&server.id).map(|v| v.into_iter().map(|c| isorun_webtiles::GameLink { id: c.id, label: c.label, save: c.save, disabled: c.disabled, rc: c.rc, ..Default::default() }).collect())
+            servers::get_games(&server.id).map(|v| {
+                v.into_iter()
+                    .map(|c| isorun_webtiles::GameLink { id: c.id, label: c.label, save: c.save, disabled: c.disabled, rc: c.rc, ..Default::default() })
+                    .collect()
+            })
         })
     }
 
@@ -2034,7 +2114,8 @@ impl FrontEnd {
     }
 
     pub(crate) fn conn_of(&self, account: &Account, chosen: bool) -> Conn {
-        let s = servers::find_server(&account.server_id).and_then(|sv| self.session.as_ref().filter(|s| s.server.id == sv.id && s.username.as_deref() == Some(account.username.as_str())));
+        let s = servers::find_server(&account.server_id)
+            .and_then(|sv| self.session.as_ref().filter(|s| s.server.id == sv.id && s.username.as_deref() == Some(account.username.as_str())));
         account_conn(s, account, chosen)
     }
 

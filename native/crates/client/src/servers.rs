@@ -2,8 +2,8 @@
 //! `servers.ts`). The keys and the shapes of what is stored are the web build's, so the two read
 //! the same data.
 
-use crate::platform::storage::{has, load, save};
 use crate::platform::now_ms;
+use crate::platform::storage::{has, load, save};
 use isorun_webtiles::GameLink;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -32,7 +32,16 @@ pub const HOSTED_ORIGIN: &str = "https://isorun.maciej-rosiek.workers.dev";
 
 /// The server that is this device: the offline engine. Its accounts are profiles.
 pub fn offline_server() -> ServerInfo {
-    ServerInfo { id: "offline".into(), name: "Offline".into(), region: None, ws: String::new(), http: String::new(), host: "this device".into(), custom: false, offline: true }
+    ServerInfo {
+        id: "offline".into(),
+        name: "Offline".into(),
+        region: None,
+        ws: String::new(),
+        http: String::new(),
+        host: "this device".into(),
+        custom: false,
+        offline: true,
+    }
 }
 
 pub const DEFAULT_PROFILE: &str = "Player";
@@ -208,7 +217,11 @@ pub fn set_chosen_account(a: Option<&Account>) {
 #[serde(untagged)]
 enum StoredToken {
     Bare(String),
-    Timed { token: String, #[serde(default, skip_serializing_if = "Option::is_none")] until: Option<f64> },
+    Timed {
+        token: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        until: Option<f64>,
+    },
 }
 
 fn read_tokens() -> BTreeMap<String, StoredToken> {
@@ -286,7 +299,8 @@ pub struct LastCharacter {
 
 pub fn describe_character(c: &LastCharacter) -> String {
     let who = if c.title.is_empty() { c.name.clone() } else { format!("{}{}{}", c.name, if c.title.starts_with(',') { "" } else { " " }, c.title) };
-    let what = [c.species.clone(), if c.xl > 0 { format!("XL{}", c.xl) } else { String::new() }].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
+    let what =
+        [c.species.clone(), if c.xl > 0 { format!("XL{}", c.xl) } else { String::new() }].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
     [who, what].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(", ")
 }
 
@@ -303,7 +317,8 @@ pub fn describe_place(c: &LastCharacter) -> String {
 /// "isorun the Chiller | Vine Stalker of Vehumet - Isorun": a game's window title.
 pub fn game_title(c: &LastCharacter, base: &str) -> String {
     let who = if c.title.is_empty() { c.name.clone() } else { format!("{}{}{}", c.name, if c.title.starts_with(',') { "" } else { " " }, c.title) };
-    let what = format!("{}{}", c.species, if c.god.is_empty() { String::new() } else { format!("{}{}", if c.species.is_empty() { "of " } else { " of " }, c.god) });
+    let what =
+        format!("{}{}", c.species, if c.god.is_empty() { String::new() } else { format!("{}{}", if c.species.is_empty() { "of " } else { " of " }, c.god) });
     let game = [who, what].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" | ");
     [game, base.to_string()].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" - ")
 }
@@ -356,7 +371,10 @@ pub fn get_games(server_id: &str) -> Option<Vec<CachedGame>> {
 
 pub fn set_games(server_id: &str, games: &[GameLink]) {
     let mut all: BTreeMap<String, Vec<CachedGame>> = load(GAMES_KEY, BTreeMap::new());
-    all.insert(server_id.to_string(), games.iter().map(|g| CachedGame { id: g.id.clone(), label: g.label.clone(), save: g.save.clone(), disabled: g.disabled, rc: g.rc.clone() }).collect());
+    all.insert(
+        server_id.to_string(),
+        games.iter().map(|g| CachedGame { id: g.id.clone(), label: g.label.clone(), save: g.save.clone(), disabled: g.disabled, rc: g.rc.clone() }).collect(),
+    );
     save(GAMES_KEY, &all);
 }
 
@@ -378,7 +396,11 @@ pub fn morgue_url_for(server: &ServerInfo, dump: &str) -> Option<String> {
     if server.offline {
         return None;
     }
-    let full = if dump.starts_with("http://") || dump.starts_with("https://") { format!("{dump}.txt") } else { format!("{}{}{}.txt", server.http, if dump.starts_with('/') { "" } else { "/" }, dump) };
+    let full = if dump.starts_with("http://") || dump.starts_with("https://") {
+        format!("{dump}.txt")
+    } else {
+        format!("{}{}{}.txt", server.http, if dump.starts_with('/') { "" } else { "/" }, dump)
+    };
     if cfg!(target_arch = "wasm32") {
         let (_, rest) = full.split_once("://")?;
         Some(format!("{}/morgue-proxy/{rest}", web_origin()))

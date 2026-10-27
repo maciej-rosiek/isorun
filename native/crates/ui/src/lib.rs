@@ -3,10 +3,10 @@
 pub mod fonts;
 pub mod fullscreen;
 pub mod harness;
-pub mod safe;
-pub mod scroll;
 pub mod keys;
 pub mod pointer;
+pub mod safe;
+pub mod scroll;
 pub mod text;
 pub mod theme;
 pub mod tiles;

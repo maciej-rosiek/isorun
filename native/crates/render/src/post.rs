@@ -110,7 +110,12 @@ pub struct Post {
 }
 
 fn tex_entry(binding: u32, sample: wgpu::TextureSampleType) -> wgpu::BindGroupLayoutEntry {
-    wgpu::BindGroupLayoutEntry { binding, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Texture { sample_type: sample, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false }, count: None }
+    wgpu::BindGroupLayoutEntry {
+        binding,
+        visibility: wgpu::ShaderStages::FRAGMENT,
+        ty: wgpu::BindingType::Texture { sample_type: sample, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+        count: None,
+    }
 }
 
 fn view(t: &wgpu::Texture) -> wgpu::TextureView {
@@ -120,32 +125,89 @@ fn view(t: &wgpu::Texture) -> wgpu::TextureView {
 impl Post {
     pub fn new(gpu: &Gpu) -> Self {
         let device = &gpu.device;
-        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("post"), source: wgpu::ShaderSource::Wgsl(include_str!("shaders/post.wgsl").into()) });
+        let module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("post"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/post.wgsl").into()),
+        });
         let float = wgpu::TextureSampleType::Float { filterable: true };
         let frame_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("post frame"),
             entries: &[
                 wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, std::mem::size_of::<PostUniform>() as u64, false) },
-                wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
-                wgpu::BindGroupLayoutEntry { binding: 2, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
                 // the depth's: WebGL2 (OpenGL ES 3) takes a depth texture whose own filter is linear,
                 // as wgpu leaves it, for incomplete unless a nearest sampler is bound with it, and
                 // then reads 0 everywhere
-                wgpu::BindGroupLayoutEntry { binding: 3, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering), count: None },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::NonFiltering),
+                    count: None,
+                },
             ],
         });
-        let ao_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("ao"), entries: &[tex_entry(0, wgpu::TextureSampleType::Float { filterable: false }), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Float { filterable: false })] });
+        let ao_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("ao"),
+            entries: &[
+                tex_entry(0, wgpu::TextureSampleType::Float { filterable: false }),
+                tex_entry(1, float),
+                tex_entry(2, wgpu::TextureSampleType::Float { filterable: false }),
+            ],
+        });
         let source_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("source"), entries: &[tex_entry(0, float)] });
         let composite_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("composite"),
-            entries: &[tex_entry(0, float), tex_entry(1, float), tex_entry(2, wgpu::TextureSampleType::Float { filterable: false }), tex_entry(3, float), tex_entry(4, float), tex_entry(5, float), tex_entry(6, float)],
+            entries: &[
+                tex_entry(0, float),
+                tex_entry(1, float),
+                tex_entry(2, wgpu::TextureSampleType::Float { filterable: false }),
+                tex_entry(3, float),
+                tex_entry(4, float),
+                tex_entry(5, float),
+                tex_entry(6, float),
+            ],
         });
-        let sum_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("bloom sum"), entries: &(0..5).map(|i| tex_entry(i, float)).collect::<Vec<_>>() });
-        let blur_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("blur"), entries: &[wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, 32, true) }] });
-        let sum_uniform_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("bloom sum uniform"), entries: &[wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, 32, false) }] });
-        let uniform = device.create_buffer(&wgpu::BufferDescriptor { label: Some("post"), size: std::mem::size_of::<PostUniform>() as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        let blur_uniform = device.create_buffer(&wgpu::BufferDescriptor { label: Some("blurs"), size: BLUR_STRIDE * 64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
-        let sum_uniform = device.create_buffer(&wgpu::BufferDescriptor { label: Some("bloom sums"), size: BLUR_STRIDE * 2, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let sum_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("bloom sum"),
+            entries: &(0..5).map(|i| tex_entry(i, float)).collect::<Vec<_>>(),
+        });
+        let blur_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("blur"),
+            entries: &[wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, 32, true) }],
+        });
+        let sum_uniform_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("bloom sum uniform"),
+            entries: &[wgpu::BindGroupLayoutEntry { visibility: wgpu::ShaderStages::FRAGMENT, ..uniform_entry(0, 32, false) }],
+        });
+        let uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("post"),
+            size: std::mem::size_of::<PostUniform>() as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let blur_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("blurs"),
+            size: BLUR_STRIDE * 64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let sum_uniform = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("bloom sums"),
+            size: BLUR_STRIDE * 2,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let frame_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("post frame"),
             layout: &frame_layout,
@@ -159,13 +221,19 @@ impl Post {
         let blur_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("blur"),
             layout: &blur_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &blur_uniform, offset: 0, size: std::num::NonZeroU64::new(32) }) }],
+            entries: &[wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &blur_uniform, offset: 0, size: std::num::NonZeroU64::new(32) }),
+            }],
         });
         let sum_group = |offset: u64| {
             device.create_bind_group(&wgpu::BindGroupDescriptor {
                 label: Some("bloom sum"),
                 layout: &sum_uniform_layout,
-                entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &sum_uniform, offset, size: std::num::NonZeroU64::new(32) }) }],
+                entries: &[wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer: &sum_uniform, offset, size: std::num::NonZeroU64::new(32) }),
+                }],
             })
         };
         let sum_groups = [sum_group(0), sum_group(BLUR_STRIDE)];
@@ -178,7 +246,12 @@ impl Post {
                 label: Some(label),
                 layout: Some(layout),
                 vertex: wgpu::VertexState { module: &module, entry_point: Some("vs_full"), buffers: &[], compilation_options: Default::default() },
-                fragment: Some(wgpu::FragmentState { module: &module, entry_point: Some(fs), targets: &[Some(format.into())], compilation_options: Default::default() }),
+                fragment: Some(wgpu::FragmentState {
+                    module: &module,
+                    entry_point: Some(fs),
+                    targets: &[Some(format.into())],
+                    compilation_options: Default::default(),
+                }),
                 primitive: wgpu::PrimitiveState::default(),
                 depth_stencil: None,
                 multisample: wgpu::MultisampleState::default(),
@@ -251,10 +324,13 @@ impl Post {
             }
             Chain { high: tex(label, bw, bh, HDR_FORMAT), sum: tex(label, (bw / 2).max(1), (bh / 2).max(1), HDR_FORMAT), mips }
         };
-        let (aw, ah) = (((width as f32 * self.ao_resolution.max(0.1)).round() as u32).max(1), ((height as f32 * self.ao_resolution.max(0.1)).round() as u32).max(1));
+        let (aw, ah) =
+            (((width as f32 * self.ao_resolution.max(0.1)).round() as u32).max(1), ((height as f32 * self.ao_resolution.max(0.1)).round() as u32).max(1));
         let (hw, hh) = (((width as f32 * BLUR_RESOLUTION).round() as u32).max(1), ((height as f32 * BLUR_RESOLUTION).round() as u32).max(1));
         let ms = (samples > 1).then(|| {
-            let t = |label, format| gpu.texture(label, width, height, format, samples, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING);
+            let t = |label, format| {
+                gpu.texture(label, width, height, format, samples, wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::TEXTURE_BINDING)
+            };
             (t("ms colour", HDR_FORMAT), t("ms normal", NORMAL_FORMAT), t("ms emission", HDR_FORMAT), t("ms depth", DEPTH_FORMAT))
         });
         self.targets = Some(Targets {
@@ -287,7 +363,10 @@ impl Post {
                 module: &self.module,
                 entry_point: Some("fs_composite"),
                 targets: &[Some(format.into())],
-                compilation_options: wgpu::PipelineCompilationOptions { constants: &[("ENCODE_SRGB", if format.is_srgb() { 0.0 } else { 1.0 })], ..Default::default() },
+                compilation_options: wgpu::PipelineCompilationOptions {
+                    constants: &[("ENCODE_SRGB", if format.is_srgb() { 0.0 } else { 1.0 })],
+                    ..Default::default()
+                },
             }),
             primitive: wgpu::PrimitiveState::default(),
             depth_stencil: None,
@@ -306,7 +385,12 @@ impl Post {
     fn pass_clear<'e>(encoder: &'e mut wgpu::CommandEncoder, label: &str, target: &wgpu::TextureView, clear: wgpu::Color) -> wgpu::RenderPass<'e> {
         encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some(label),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment { view: target, depth_slice: None, resolve_target: None, ops: wgpu::Operations { load: wgpu::LoadOp::Clear(clear), store: wgpu::StoreOp::Store } })],
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                depth_slice: None,
+                resolve_target: None,
+                ops: wgpu::Operations { load: wgpu::LoadOp::Clear(clear), store: wgpu::StoreOp::Store },
+            })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
@@ -315,7 +399,11 @@ impl Post {
     }
 
     fn source_group(&self, device: &wgpu::Device, t: &wgpu::Texture) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("source"), layout: &self.source_layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view(t)) }] })
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("source"),
+            layout: &self.source_layout,
+            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view(t)) }],
+        })
     }
 
     fn blur_params(&mut self, step: [f32; 2], sigma: f32, taps: f32, pass: [f32; 4]) -> u32 {
@@ -325,7 +413,17 @@ impl Post {
         offset
     }
 
-    fn blur(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, src: &wgpu::Texture, tmp: &wgpu::Texture, dst: &wgpu::Texture, texels: f32, sigma: f32, taps: f32) {
+    fn blur(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        src: &wgpu::Texture,
+        tmp: &wgpu::Texture,
+        dst: &wgpu::Texture,
+        texels: f32,
+        sigma: f32,
+        taps: f32,
+    ) {
         let (sw, sh) = (src.width() as f32, src.height() as f32);
         let (tw, th) = (tmp.width() as f32, tmp.height() as f32);
         // a step is a texel of the image the pass draws, as three's blurs measure it
@@ -352,7 +450,18 @@ impl Post {
     }
 
     /// three's BloomNode: the high pass, five mips each blurred more, summed with their factors.
-    fn bloom(&mut self, device: &wgpu::Device, encoder: &mut wgpu::CommandEncoder, source: &wgpu::Texture, chain: &Chain, threshold: f32, strength: f32, radius: f32, sum_slot: u64, queue: &wgpu::Queue) {
+    fn bloom(
+        &mut self,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        source: &wgpu::Texture,
+        chain: &Chain,
+        threshold: f32,
+        strength: f32,
+        radius: f32,
+        sum_slot: u64,
+        queue: &wgpu::Queue,
+    ) {
         let high = self.blur_params([0.0, 0.0], 1.0, 0.0, [threshold, 0.01, 1.0, 0.0]);
         let g = self.source_group(device, source);
         {
@@ -378,7 +487,11 @@ impl Post {
         let group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("bloom sum"),
             layout: &self.sum_layout,
-            entries: &entries.iter().enumerate().map(|(i, v)| wgpu::BindGroupEntry { binding: i as u32, resource: wgpu::BindingResource::TextureView(v) }).collect::<Vec<_>>(),
+            entries: &entries
+                .iter()
+                .enumerate()
+                .map(|(i, v)| wgpu::BindGroupEntry { binding: i as u32, resource: wgpu::BindingResource::TextureView(v) })
+                .collect::<Vec<_>>(),
         });
         let sum_group = &self.sum_groups[(sum_slot / BLUR_STRIDE) as usize];
         let v = view(&chain.sum);
@@ -391,7 +504,15 @@ impl Post {
     }
 
     /// Run the effects over the scene the scene pass drew, onto `output`.
-    pub fn render(&mut self, gpu: &Gpu, encoder: &mut wgpu::CommandEncoder, lights: &IsoLights, frame: &PostFrame, output: &wgpu::TextureView, format: wgpu::TextureFormat) {
+    pub fn render(
+        &mut self,
+        gpu: &Gpu,
+        encoder: &mut wgpu::CommandEncoder,
+        lights: &IsoLights,
+        frame: &PostFrame,
+        output: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
+    ) {
         let device = &gpu.device;
         let Some(targets) = self.targets.take() else { return };
         self.blur_scratch.clear();

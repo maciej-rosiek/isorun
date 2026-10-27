@@ -109,7 +109,8 @@ impl eframe::App for HarnessApp {
         }
         // what the game is at, for whoever drives the harness from outside
         let st = &self.game.session.state;
-        let status = format!("{:?} · ui {} · menus {} · lines {} · input_mode {}", st.phase, st.ui.len(), st.menus.len(), st.messages.lines.len(), st.input_mode);
+        let status =
+            format!("{:?} · ui {} · menus {} · lines {} · input_mode {}", st.phase, st.ui.len(), st.menus.len(), st.messages.lines.len(), st.input_mode);
         ui.painter().text(egui::pos2(6.0, 4.0), egui::Align2::LEFT_TOP, status, egui::FontId::monospace(11.0), egui::Color32::from_gray(140));
         ui.ctx().request_repaint();
     }
@@ -125,7 +126,11 @@ impl eframe::App for HarnessApp {
 pub fn run(title: &str, component: impl FnMut(&mut egui::Ui, &mut Game) -> bool + 'static) -> eframe::Result {
     let _ = env_logger::try_init();
     let profile = std::env::var("ISORUN_PROFILE").unwrap_or_else(|_| "harness".into());
-    let options = eframe::NativeOptions { viewport: egui::ViewportBuilder::default().with_title(title).with_inner_size([1600.0, 1000.0]), wgpu_options: crate::wgpu_options(), ..Default::default() };
+    let options = eframe::NativeOptions {
+        viewport: egui::ViewportBuilder::default().with_title(title).with_inner_size([1600.0, 1000.0]),
+        wgpu_options: crate::wgpu_options(),
+        ..Default::default()
+    };
     let mut component: Option<Component> = Some(Box::new(component));
     eframe::run_native(
         title,

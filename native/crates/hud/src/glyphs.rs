@@ -77,7 +77,8 @@ impl Glyph {
 }
 
 const DISC: Color32 = Color32::from_rgb(0x15, 0x17, 0x1c);
-const XBOX: [Color32; 4] = [Color32::from_rgb(0x6f, 0xcf, 0x6f), Color32::from_rgb(0xff, 0x6e, 0x6e), Color32::from_rgb(0x6d, 0x9c, 0xff), Color32::from_rgb(0xff, 0xd3, 0x5c)];
+const XBOX: [Color32; 4] =
+    [Color32::from_rgb(0x6f, 0xcf, 0x6f), Color32::from_rgb(0xff, 0x6e, 0x6e), Color32::from_rgb(0x6d, 0x9c, 0xff), Color32::from_rgb(0xff, 0xd3, 0x5c)];
 const NINTENDO: Color32 = Color32::from_rgb(0xe8, 0xe8, 0xec);
 const PS_CROSS: Color32 = Color32::from_rgb(0x7b, 0x9d, 0xff);
 const PS_CIRCLE: Color32 = Color32::from_rgb(0xff, 0x6b, 0x6b);
@@ -229,7 +230,11 @@ pub fn paint_glyph(painter: &Painter, g: Glyph, kind: PadKind, origin: Pos2, em:
     let stick = |label: &str| {
         pen.circle_fill(12.0, 12.0, 11.0, DISC);
         pen.circle_stroke(12.0, 12.0, 6.5, 1.5, pen.cur(0.8));
-        pen.stroke_path("M12 1.5 L10 3.5 M12 1.5 L14 3.5 M12 22.5 L10 20.5 M12 22.5 L14 20.5 M1.5 12 L3.5 10 M1.5 12 L3.5 14 M22.5 12 L20.5 10 M22.5 12 L20.5 14", 1.3, pen.cur(0.55));
+        pen.stroke_path(
+            "M12 1.5 L10 3.5 M12 1.5 L14 3.5 M12 22.5 L10 20.5 M12 22.5 L14 20.5 M1.5 12 L3.5 10 M1.5 12 L3.5 14 M22.5 12 L20.5 10 M22.5 12 L20.5 14",
+            1.3,
+            pen.cur(0.55),
+        );
         pen.text(12.0, 12.5, label, 8.5, colour);
     };
     let dpad = |arm: Option<u8>| {

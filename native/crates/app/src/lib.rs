@@ -1,16 +1,15 @@
 //! Isorun, the game: the front end, the game screen and the HUD over the isometric renderer, on
 //! eframe (egui and wgpu) for the desktop, Android and the web.
 
-pub mod app;
 #[cfg(target_os = "android")]
 mod android_insets;
 #[cfg(target_os = "android")]
 mod android_keyboard;
+pub mod app;
 
-use isorun_client::servers;
 #[cfg(target_os = "android")]
 use isorun_client::platform;
-
+use isorun_client::servers;
 
 /// The command line (natively) or the page's query words (on the web).
 pub fn launch_args() -> Vec<String> {
@@ -34,7 +33,10 @@ pub fn native_options() -> eframe::NativeOptions {
         Some([w.parse::<f32>().ok()?, h.parse::<f32>().ok()?])
     });
     eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_title(servers::APP_NAME).with_inner_size(size.unwrap_or([1600.0, 1000.0])).with_min_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default()
+            .with_title(servers::APP_NAME)
+            .with_inner_size(size.unwrap_or([1600.0, 1000.0]))
+            .with_min_inner_size([320.0, 240.0]),
         wgpu_options: isorun_ui::wgpu_options(),
         // the window opens at its own size each time: a remembered one outlives what it was for
         // (a run at a phone's size for a test opened every later run as small)

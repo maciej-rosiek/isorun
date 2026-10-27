@@ -61,7 +61,13 @@ pub struct DrawUniform {
 
 impl DrawUniform {
     pub fn plain(receive_shadow: bool) -> Self {
-        DrawUniform { model: Mat4::IDENTITY.to_cols_array_2d(), tint: [1.0; 4], look: [0.0, 0.0, receive_shadow as u8 as f32, 1.0], harm: [0.0; 4], aura: [0.0; 4] }
+        DrawUniform {
+            model: Mat4::IDENTITY.to_cols_array_2d(),
+            tint: [1.0; 4],
+            look: [0.0, 0.0, receive_shadow as u8 as f32, 1.0],
+            harm: [0.0; 4],
+            aura: [0.0; 4],
+        }
     }
 
     pub fn at(model: Mat4, receive_shadow: bool) -> Self {
@@ -81,7 +87,12 @@ pub const DRAW_STRIDE: usize = 256;
 
 impl DrawBuffer {
     pub fn new(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, capacity: usize) -> Self {
-        let buffer = device.create_buffer(&wgpu::BufferDescriptor { label: Some("draws"), size: (capacity * DRAW_STRIDE) as u64, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let buffer = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("draws"),
+            size: (capacity * DRAW_STRIDE) as u64,
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
         let bind_group = draw_bind_group(device, layout, &buffer);
         DrawBuffer { buffer, bind_group, capacity, data: Vec::new() }
     }
@@ -123,7 +134,14 @@ pub fn draw_bind_group(device: &wgpu::Device, layout: &wgpu::BindGroupLayout, bu
     device.create_bind_group(&wgpu::BindGroupDescriptor {
         label: Some("draw"),
         layout,
-        entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding { buffer, offset: 0, size: std::num::NonZeroU64::new(std::mem::size_of::<DrawUniform>() as u64) }) }],
+        entries: &[wgpu::BindGroupEntry {
+            binding: 0,
+            resource: wgpu::BindingResource::Buffer(wgpu::BufferBinding {
+                buffer,
+                offset: 0,
+                size: std::num::NonZeroU64::new(std::mem::size_of::<DrawUniform>() as u64),
+            }),
+        }],
     })
 }
 

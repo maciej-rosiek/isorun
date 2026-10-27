@@ -120,7 +120,12 @@ pub struct CombatLayer {
 impl CombatLayer {
     /// Blood or sparks in the air, a splat still spreading, the camera's shake or the flash fading.
     pub fn animating(&self) -> bool {
-        !self.drops.is_empty() || !self.sparks.is_empty() || self.trauma > 1e-3 || self.punch > 1e-3 || self.light_amount > 1e-2 || self.splats.iter().any(|s| s.age < s.grow)
+        !self.drops.is_empty()
+            || !self.sparks.is_empty()
+            || self.trauma > 1e-3
+            || self.punch > 1e-3
+            || self.light_amount > 1e-2
+            || self.splats.iter().any(|s| s.age < s.grow)
     }
 
     pub fn new(gpu: &Gpu) -> Self {
@@ -181,7 +186,8 @@ impl CombatLayer {
             }
         }
         for _ in 0..(s.sparks * flash.min(1.0)).round() as usize {
-            let mut v = Vec3::new(self.rng.range(-1.0, 1.0), self.rng.range(-0.2, 1.0), self.rng.range(-1.0, 1.0)).normalize_or_zero() * self.rng.range(2.5, 5.5);
+            let mut v =
+                Vec3::new(self.rng.range(-1.0, 1.0), self.rng.range(-0.2, 1.0), self.rng.range(-1.0, 1.0)).normalize_or_zero() * self.rng.range(2.5, 5.5);
             v -= away * 1.5;
             if self.sparks.len() < MAX_SPARKS {
                 let (life, size) = (self.rng.range(0.12, 0.28), self.rng.range(0.02, 0.04));
@@ -252,7 +258,9 @@ impl CombatLayer {
                 s.age += dt;
             }
             let grown = s.size * (s.age / s.grow).min(1.0).sqrt();
-            let m = Mat4::from_scale_rotation_translation(Vec3::new(grown, 1.0, grown * 0.8), Quat::from_rotation_y(s.angle), Vec3::new(s.x, SPLAT_HEIGHT, s.z)) * Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+            let m =
+                Mat4::from_scale_rotation_translation(Vec3::new(grown, 1.0, grown * 0.8), Quat::from_rotation_y(s.angle), Vec3::new(s.x, SPLAT_HEIGHT, s.z))
+                    * Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2);
             splats.push(Instance::new(m, 1.0));
         }
         self.splats_batch.set(gpu, &splats);
@@ -305,7 +313,11 @@ fn streaks(list: &[Particle], facing: Quat, right: Vec3, up: Vec3, stretch: f32)
             let fade = if p.life.is_finite() { 1.0 - p.age / p.life } else { 1.0 };
             let rotation = facing * Quat::from_rotation_z(along.atan2(across));
             let size = p.size * fade;
-            let m = Mat4::from_scale_rotation_translation(Vec3::new(size + (across * across + along * along).sqrt() * STREAK * stretch, size, 1.0), rotation, p.position);
+            let m = Mat4::from_scale_rotation_translation(
+                Vec3::new(size + (across * across + along * along).sqrt() * STREAK * stretch, size, 1.0),
+                rotation,
+                p.position,
+            );
             Instance::new(m, 1.0)
         })
         .collect()

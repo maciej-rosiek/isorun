@@ -425,7 +425,17 @@ pub struct PerfOverlay {
 
 impl PerfOverlay {
     pub fn new(enabled: bool) -> Self {
-        PerfOverlay { profile: FrameProfile::default(), net: NetProfile::default(), enabled, log: Vec::new(), header: Vec::new(), last_sample: 0.0, last_context: String::new(), saved: None, shown: Default::default() }
+        PerfOverlay {
+            profile: FrameProfile::default(),
+            net: NetProfile::default(),
+            enabled,
+            log: Vec::new(),
+            header: Vec::new(),
+            last_sample: 0.0,
+            last_context: String::new(),
+            saved: None,
+            shown: Default::default(),
+        }
     }
 
     /// Start the log: what it was taken on.
@@ -457,7 +467,17 @@ impl PerfOverlay {
         }
         let worst = r.worst.as_ref().map(|w| format!(" worst {:.1}", w.0)).unwrap_or_default();
         let parts: Vec<String> = r.sections.iter().map(|s| format!("{} {:.1}/{:.1}", s.name, s.p50, s.p95)).collect();
-        let mut line = format!("{:>8.1}s {} f{} drop{} body {:.1}/{:.1}{worst} | {} | rtt {:.0}", now / 1000.0, format_verdict(&v), r.frames, r.dropped, r.body.p50, r.body.p95, parts.join(" "), n.rtt.p50);
+        let mut line = format!(
+            "{:>8.1}s {} f{} drop{} body {:.1}/{:.1}{worst} | {} | rtt {:.0}",
+            now / 1000.0,
+            format_verdict(&v),
+            r.frames,
+            r.dropped,
+            r.body.p50,
+            r.body.p95,
+            parts.join(" "),
+            n.rtt.p50
+        );
         line.truncate(260);
         log::debug!("perf {line}");
         self.log.push(line);
@@ -534,9 +554,18 @@ impl PerfOverlay {
             egui::Frame::NONE.fill(Color32::from_black_alpha(153)).inner_margin(egui::Margin::symmetric(6, 4)).show(ui, |ui| {
                 ui.spacing_mut().item_spacing.y = 0.0;
                 ui.add(egui::Label::new(egui::RichText::new(verdict_text).font(font.clone()).strong().color(colour)).wrap_mode(egui::TextWrapMode::Extend));
-                ui.add(egui::Label::new(egui::RichText::new(&body).font(font.clone()).color(Color32::from_rgb(0, 0xff, 0))).wrap_mode(egui::TextWrapMode::Extend));
+                ui.add(
+                    egui::Label::new(egui::RichText::new(&body).font(font.clone()).color(Color32::from_rgb(0, 0xff, 0))).wrap_mode(egui::TextWrapMode::Extend),
+                );
                 let saved = matches!(fresh, Some((Ok(_), _)));
-                ui.add(egui::Label::new(egui::RichText::new(hint).font(font.clone()).color(if saved { Color32::from_rgb(0, 0xff, 0) } else { Color32::from_rgb(0x88, 0xaa, 0x88) })).wrap_mode(egui::TextWrapMode::Extend));
+                ui.add(
+                    egui::Label::new(egui::RichText::new(hint).font(font.clone()).color(if saved {
+                        Color32::from_rgb(0, 0xff, 0)
+                    } else {
+                        Color32::from_rgb(0x88, 0xaa, 0x88)
+                    }))
+                    .wrap_mode(egui::TextWrapMode::Extend),
+                );
             });
         });
         let _ = screen;

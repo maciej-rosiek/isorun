@@ -114,29 +114,67 @@ pub enum CommandCategory {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Action {
     /// `turns`: left / right rotate the camera instead of strafing; `held`: a repeat tick of a held direction
-    Step { dir: RelDir, run: bool, attack: bool, turns: bool, held: bool },
-    Turn { right: bool },
-    Look { dx: f32, dy: f32 },
+    Step {
+        dir: RelDir,
+        run: bool,
+        attack: bool,
+        turns: bool,
+        held: bool,
+    },
+    Turn {
+        right: bool,
+    },
+    Look {
+        dx: f32,
+        dy: f32,
+    },
     /// A: act underfoot, then ahead. Overlapping interactions open a chooser.
-    Contextual { alt: Option<bool> },
+    Contextual {
+        alt: Option<bool>,
+    },
     /// RT: one normal DCSS autofight step, including the server's safety checks.
     Fight,
     /// Open look mode ahead, or describe the cursor's cell when already looking.
     Examine,
     /// Fire the quivered action (`f`), or confirm the shot when already aiming.
     Fire,
-    Hold { tap: Box<Action>, hold: Box<Action> },
+    Hold {
+        tap: Box<Action>,
+        hold: Box<Action>,
+    },
     /// `contextual`: the binding exists only because of the situation, so the bar shows it unasked;
     /// `keeps_map`: the keys leave the level map for another screen, and the map stays drawn until that screen is up;
     /// `repeats`: held, the button sends the keys again and again
-    Keys { seq: Vec<SeqItem>, label: String, contextual: bool, keeps_map: bool, repeats: bool },
-    Menu { op: MenuOp },
-    Cursor { dir: Dir8 },
-    Prompt { hotkey: String },
+    Keys {
+        seq: Vec<SeqItem>,
+        label: String,
+        contextual: bool,
+        keeps_map: bool,
+        repeats: bool,
+    },
+    Menu {
+        op: MenuOp,
+    },
+    Cursor {
+        dir: Dir8,
+    },
+    Prompt {
+        hotkey: String,
+    },
     /// the focus layer's cursor over the top overlay (popup, prompt, CRT screen, dialog)
-    Focus { op: FocusOp },
-    Ui { op: UiOp, arg: Option<i32>, category: Option<CommandCategory>, section: Option<String> },
-    Osk { op: OskOp, dir: Option<Dir8> },
+    Focus {
+        op: FocusOp,
+    },
+    Ui {
+        op: UiOp,
+        arg: Option<i32>,
+        category: Option<CommandCategory>,
+        section: Option<String>,
+    },
+    Osk {
+        op: OskOp,
+        dir: Option<Dir8>,
+    },
 }
 
 impl Action {
@@ -493,7 +531,10 @@ fn levelmap_table(ctx: &Context) -> Table {
 /// The focus layer's set, shared by every overlay that is not a server menu:
 /// the d-pad moves one cursor over what the screen offers, A takes it, B cancels.
 fn focus_base() -> Table {
-    Table::default().with(Button::A, Action::focus(FocusOp::Select)).with(Button::B, Action::focus(FocusOp::Cancel)).with(Button::Select, palette(CommandCategory::Command))
+    Table::default()
+        .with(Button::A, Action::focus(FocusOp::Select))
+        .with(Button::B, Action::focus(FocusOp::Cancel))
+        .with(Button::Select, palette(CommandCategory::Command))
 }
 
 /// The focus set, with the bumpers where there is a page to turn (`Context.pageable`).
@@ -764,7 +805,24 @@ pub struct BindingLabel {
 }
 
 /// The bar's display order: face buttons, the d-pad (clockwise from up), then shoulders, sticks, and the system pair.
-pub const BAR_ORDER: [Button; 16] = [Button::A, Button::B, Button::X, Button::Y, Button::DU, Button::DR, Button::DD, Button::DL, Button::LB, Button::RB, Button::LT, Button::RT, Button::L3, Button::R3, Button::Select, Button::Start];
+pub const BAR_ORDER: [Button; 16] = [
+    Button::A,
+    Button::B,
+    Button::X,
+    Button::Y,
+    Button::DU,
+    Button::DR,
+    Button::DD,
+    Button::DL,
+    Button::LB,
+    Button::RB,
+    Button::LT,
+    Button::RT,
+    Button::L3,
+    Button::R3,
+    Button::Select,
+    Button::Start,
+];
 
 /// Every binding of the context as a label, in display order.
 pub fn bar_labels(ctx: &Context) -> Vec<BindingLabel> {
@@ -774,9 +832,23 @@ pub fn bar_labels(ctx: &Context) -> Vec<BindingLabel> {
         let Some(a) = t.get(b) else { continue };
         if let Action::Hold { tap, hold } = a {
             let h = action_label(hold, ctx);
-            out.push(BindingLabel { button: b, teaching: false, label: action_label(tap, ctx), action: (**tap).clone(), hold: (h != NO_ACTION).then_some(h), contextual: is_contextual(a, ctx) });
+            out.push(BindingLabel {
+                button: b,
+                teaching: false,
+                label: action_label(tap, ctx),
+                action: (**tap).clone(),
+                hold: (h != NO_ACTION).then_some(h),
+                contextual: is_contextual(a, ctx),
+            });
         } else {
-            out.push(BindingLabel { button: b, teaching: false, label: action_label(a, ctx), action: a.clone(), hold: None, contextual: is_contextual(a, ctx) });
+            out.push(BindingLabel {
+                button: b,
+                teaching: false,
+                label: action_label(a, ctx),
+                action: a.clone(),
+                hold: None,
+                contextual: is_contextual(a, ctx),
+            });
         }
     }
     out
@@ -787,7 +859,14 @@ pub fn prompt_labels(ctx: &Context) -> Vec<BindingLabel> {
     let mut labels: Vec<BindingLabel> = bar_labels(ctx).into_iter().filter(|l| l.contextual && l.button != Button::B).collect();
     if ctx.mode == Mode::Command {
         if let Target::Monster { hostile: true, label, .. } = &ctx.ahead {
-            labels.push(BindingLabel { button: Button::LStickUp, teaching: false, label: format!("Attack {label}"), action: Action::step(0), hold: None, contextual: true });
+            labels.push(BindingLabel {
+                button: Button::LStickUp,
+                teaching: false,
+                label: format!("Attack {label}"),
+                action: Action::step(0),
+                hold: None,
+                contextual: true,
+            });
         }
     }
     labels
@@ -853,7 +932,9 @@ fn menu_row_examines(m: &MenuContext) -> bool {
         return false;
     }
     let i = menu.last_hovered;
-    i >= 0 && m.hoverable.contains(&(i as usize)) && menu.items.get(i as usize).and_then(|it| it.as_ref()).and_then(|it| it.hotkeys.as_ref()).is_some_and(|h| !h.is_empty())
+    i >= 0
+        && m.hoverable.contains(&(i as usize))
+        && menu.items.get(i as usize).and_then(|it| it.as_ref()).and_then(|it| it.hotkeys.as_ref()).is_some_and(|h| !h.is_empty())
 }
 
 fn single_text(a: &Action) -> Option<&str> {
@@ -1093,7 +1174,13 @@ pub fn action_label(a: &Action, ctx: &Context) -> String {
             }
         }
         Action::Ui { op, arg, .. } => match op {
-            UiOp::PopupAction => ctx.popup_actions.as_ref().and_then(|p| p.get(arg.unwrap_or(0).max(0) as usize)).map(|p| p.label.clone()).filter(|l| !l.is_empty()).unwrap_or_else(|| "Action".into()),
+            UiOp::PopupAction => ctx
+                .popup_actions
+                .as_ref()
+                .and_then(|p| p.get(arg.unwrap_or(0).max(0) as usize))
+                .map(|p| p.label.clone())
+                .filter(|l| !l.is_empty())
+                .unwrap_or_else(|| "Action".into()),
             // the bumpers on X's actions name the tab they turn to
             UiOp::ActionTab => {
                 let actions = ctx.menu.as_ref().and_then(|m| m.actions.as_ref());
@@ -1139,7 +1226,9 @@ pub fn menu_has_sections(menu: &isorun_webtiles::MenuState) -> bool {
 /// Whether A must ask which of two underfoot interactions the player intends.
 pub fn has_interaction_choice(ctx: &Context) -> bool {
     match &ctx.under {
-        Target::Feature { feature, items: Some(_), .. } => matches!(feature, Feature::Stairs { .. } | Feature::Hatch { .. } | Feature::Portal | Feature::Shop | Feature::Transporter | Feature::Altar { .. }),
+        Target::Feature { feature, items: Some(_), .. } => {
+            matches!(feature, Feature::Stairs { .. } | Feature::Hatch { .. } | Feature::Portal | Feature::Shop | Feature::Transporter | Feature::Altar { .. })
+        }
         _ => false,
     }
 }
@@ -1283,7 +1372,16 @@ fn resolve_dir(source: DirSource, dir: Dir8, repeat: bool, ctx: &Context) -> Opt
             if repeat {
                 None
             } else {
-                Some(Action::ui_arg(UiOp::ScrollLog, if dir == 0 { -1 } else if dir == 4 { 1 } else { 0 }))
+                Some(Action::ui_arg(
+                    UiOp::ScrollLog,
+                    if dir == 0 {
+                        -1
+                    } else if dir == 4 {
+                        1
+                    } else {
+                        0
+                    },
+                ))
             }
         }
         _ => None,

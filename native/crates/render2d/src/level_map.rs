@@ -65,7 +65,18 @@ pub struct LevelMap {
 
 impl Default for LevelMap {
     fn default() -> Self {
-        LevelMap { style: Style::default(), minibars: None, background: Color32::BLACK, list: None, lists_built: 0, drawn: None, marks: None, origin: (0, 0), cs: 32.0, rect: Rect::NOTHING }
+        LevelMap {
+            style: Style::default(),
+            minibars: None,
+            background: Color32::BLACK,
+            list: None,
+            lists_built: 0,
+            drawn: None,
+            marks: None,
+            origin: (0, 0),
+            cs: 32.0,
+            rect: Rect::NOTHING,
+        }
     }
 }
 
@@ -101,7 +112,16 @@ impl LevelMap {
     /// `centre` (the server's view centre, or the player's cell without one), with the cursor.
     /// The pointer over it picks cells.
     #[allow(clippy::too_many_arguments)]
-    pub fn ui(&mut self, ui: &mut egui::Ui, rect: Rect, scene: &Scene, tiles: &mut MapTiles, cell: f32, centre: (i32, i32), cursor: Option<&SceneCursor>) -> MapResponse {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        rect: Rect,
+        scene: &Scene,
+        tiles: &mut MapTiles,
+        cell: f32,
+        centre: (i32, i32),
+        cursor: Option<&SceneCursor>,
+    ) -> MapResponse {
         let response = ui.allocate_rect(rect, Sense::click());
         let cs = cell.max(1.0);
         self.cs = cs;

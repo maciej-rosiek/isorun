@@ -44,7 +44,18 @@ pub struct TileLabel {
 }
 
 /// A tile no label names: a little relief from its brightness, matte, giving no light.
-pub const UNLABELLED: TileLabel = TileLabel { material: 32, relief: 1, bright_is_high: true, joints: Joints::None, gloss: 0, wet: false, glow: 0, sparkle: false, translucent: false, motion: Motion::None };
+pub const UNLABELLED: TileLabel = TileLabel {
+    material: 32,
+    relief: 1,
+    bright_is_high: true,
+    joints: Joints::None,
+    gloss: 0,
+    wet: false,
+    glow: 0,
+    sparkle: false,
+    translucent: false,
+    motion: Motion::None,
+};
 
 #[derive(Deserialize)]
 struct LabelFile {
@@ -86,10 +97,7 @@ fn table() -> &'static HashMap<u32, TileLabel> {
     TABLE.get_or_init(|| {
         let file: LabelFile = serde_json::from_str(include_str!("tile-labels.json")).expect("tile-labels.json");
         let labels: Vec<TileLabel> = file.labels.iter().map(|l| decode_label(l)).collect();
-        file.tiles
-            .into_iter()
-            .filter_map(|(hash, i)| Some((u32::from_str_radix(&hash, 16).ok()?, labels.get(i).copied().unwrap_or(UNLABELLED))))
-            .collect()
+        file.tiles.into_iter().filter_map(|(hash, i)| Some((u32::from_str_radix(&hash, 16).ok()?, labels.get(i).copied().unwrap_or(UNLABELLED)))).collect()
     })
 }
 

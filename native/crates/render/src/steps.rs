@@ -69,7 +69,18 @@ impl StepLayer {
         let shared = ParticleShared::new(gpu);
         let puffs_batch = ParticleBatch::new(gpu, &shared, "fs_puff", Blend::Alpha, false);
         let prints_batch = ParticleBatch::new(gpu, &shared, "fs_print", Blend::Alpha, false);
-        StepLayer { settings: StepSettings { colour: 0x8a7a66, dust: 1.0, prints: 6.0 }, shared, puffs_batch, prints_batch, puffs: Vec::new(), prints: Vec::new(), landings: Vec::new(), next_print: 0, rng: Rng::new(0x57e95), colour_set: None }
+        StepLayer {
+            settings: StepSettings { colour: 0x8a7a66, dust: 1.0, prints: 6.0 },
+            shared,
+            puffs_batch,
+            prints_batch,
+            puffs: Vec::new(),
+            prints: Vec::new(),
+            landings: Vec::new(),
+            next_print: 0,
+            rng: Rng::new(0x57e95),
+            colour_set: None,
+        }
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
@@ -135,7 +146,11 @@ impl StepLayer {
             .map(|p| {
                 p.age += dt;
                 let left = if stay > 0.0 { 1.0 - p.age / stay } else { 0.0 };
-                let m = Mat4::from_scale_rotation_translation(Vec3::new(PRINT_WIDTH, 1.0, PRINT_LENGTH), Quat::from_rotation_y(p.angle), Vec3::new(p.x, PRINT_HEIGHT, p.z)) * Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2);
+                let m = Mat4::from_scale_rotation_translation(
+                    Vec3::new(PRINT_WIDTH, 1.0, PRINT_LENGTH),
+                    Quat::from_rotation_y(p.angle),
+                    Vec3::new(p.x, PRINT_HEIGHT, p.z),
+                ) * Mat4::from_rotation_x(-std::f32::consts::FRAC_PI_2);
                 Instance::new(m, (left / PRINT_FADE).clamp(0.0, 1.0))
             })
             .collect();
@@ -158,7 +173,9 @@ impl StepLayer {
                 return;
             }
             let spread = self.rng.range(0.0, std::f32::consts::TAU);
-            let velocity = Vec3::new(spread.cos() * PUFF_SPREAD + dx / len * 0.3, self.rng.range(0.3, 1.0) * PUFF_RISE, spread.sin() * PUFF_SPREAD + dy / len * 0.3) * strength;
+            let velocity =
+                Vec3::new(spread.cos() * PUFF_SPREAD + dx / len * 0.3, self.rng.range(0.3, 1.0) * PUFF_RISE, spread.sin() * PUFF_SPREAD + dy / len * 0.3)
+                    * strength;
             let position = Vec3::new(at.0 as f32 + 0.5 + self.rng.range(-0.12, 0.12), PUFF_HEIGHT, at.1 as f32 + 0.5 + self.rng.range(-0.12, 0.12));
             let (life, size) = (self.rng.range(0.5, 0.9), self.rng.range(0.12, 0.2) * strength);
             self.puffs.push(Puff { position, velocity, age: 0.0, life, size });

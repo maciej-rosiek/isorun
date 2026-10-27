@@ -35,9 +35,12 @@ fn whole_level_frames() {
         s.revision = 1 + frame / 20;
         let centre = (40 + (frame / 10) as i32, 35);
         let t = Instant::now();
-        let mut out = ctx.run_ui(egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 1000.0))), ..Default::default() }, |ui| {
-            map.ui(ui, egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 1000.0)), &s, &mut tiles, 32.0, centre, None);
-        });
+        let mut out = ctx.run_ui(
+            egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 1000.0))), ..Default::default() },
+            |ui| {
+                map.ui(ui, egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1600.0, 1000.0)), &s, &mut tiles, 32.0, centre, None);
+            },
+        );
         let built = t.elapsed().as_secs_f64() * 1e3;
         // what egui does with it before the GPU: the meshes into its own primitives
         let prims = ctx.tessellate(std::mem::take(&mut out.shapes), out.pixels_per_point);

@@ -211,7 +211,21 @@ pub fn diorama() -> IsoLights {
         sun_intensity: 4.85,
         torch: PointLightSpec { colour: 0xffe8d7, intensity: 10.0, distance: 6.5, decay: 0.5 },
         shadow_softness: 2.5,
-        shading: ShadingSettings { wrap: 0.25, bands: 5.0, relief: 0.3, depth: 0.06, sprites: 0.2, gloss: 0.25, rim: 0.4, cavity: 0.55, variation: 0.01, wetness: 0.25, glow: 0.9, sparkle: 0.65, dust: 0.5 },
+        shading: ShadingSettings {
+            wrap: 0.25,
+            bands: 5.0,
+            relief: 0.3,
+            depth: 0.06,
+            sprites: 0.2,
+            gloss: 0.25,
+            rim: 0.4,
+            cavity: 0.55,
+            variation: 0.01,
+            wetness: 0.25,
+            glow: 0.9,
+            sparkle: 0.65,
+            dust: 0.5,
+        },
         paint: PaintSettings { radius: 0.0, levels: 0.0, lift: 1.4, upscale: Upscale::Scale2x },
         walls: Walls { bevel: 0.0, moss: 0.25, moss_colour: 0x707070 },
         ao: Ao { enabled: true, intensity: 1.0, radius: 0.85 },
@@ -365,9 +379,12 @@ pub struct IsoQuality {
     pub shadows: bool,
 }
 
-pub const QUALITY_LOW: IsoQuality = IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false, shadows: true };
-pub const QUALITY_MEDIUM: IsoQuality = IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false, shadows: true };
-pub const QUALITY_HIGH: IsoQuality = IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true, shadows: true };
+pub const QUALITY_LOW: IsoQuality =
+    IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false, shadows: true };
+pub const QUALITY_MEDIUM: IsoQuality =
+    IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false, shadows: true };
+pub const QUALITY_HIGH: IsoQuality =
+    IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true, shadows: true };
 
 pub fn quality(name: &str) -> Option<IsoQuality> {
     match name {
@@ -405,7 +422,19 @@ pub struct Detail {
 
 impl SurfaceDetail {
     pub fn detail(self) -> Detail {
-        let d = |depth_steps, gloss, rim, cavity, variation, wetness, glow, sparkle, dust, statuses, liquids| Detail { depth_steps, gloss, rim, cavity, variation, wetness, glow, sparkle, dust, statuses, liquids };
+        let d = |depth_steps, gloss, rim, cavity, variation, wetness, glow, sparkle, dust, statuses, liquids| Detail {
+            depth_steps,
+            gloss,
+            rim,
+            cavity,
+            variation,
+            wetness,
+            glow,
+            sparkle,
+            dust,
+            statuses,
+            liquids,
+        };
         match self {
             SurfaceDetail::Off => d(0, false, false, false, false, false, false, false, false, false, false),
             SurfaceDetail::Low => d(0, false, true, true, true, false, false, false, false, true, false),

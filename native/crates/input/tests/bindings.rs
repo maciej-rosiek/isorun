@@ -71,7 +71,16 @@ fn menu_ctx(menu: MenuState) -> MenuContext {
 fn maps_every_input_mode_the_official_client_knows() {
     let mut st = initial_state();
     st.phase = Phase::Playing;
-    for (mode, want) in [(MouseMode::COMMAND, Mode::Command), (MouseMode::MORE, Mode::More), (MouseMode::YESNO, Mode::Yesno), (MouseMode::PROMPT, Mode::Prompt), (MouseMode::TARGET, Mode::Targeting), (MouseMode::TARGET_DIR, Mode::Targeting), (MouseMode::TARGET_PATH, Mode::Targeting), (MouseMode::MACRO, Mode::Macro)] {
+    for (mode, want) in [
+        (MouseMode::COMMAND, Mode::Command),
+        (MouseMode::MORE, Mode::More),
+        (MouseMode::YESNO, Mode::Yesno),
+        (MouseMode::PROMPT, Mode::Prompt),
+        (MouseMode::TARGET, Mode::Targeting),
+        (MouseMode::TARGET_DIR, Mode::Targeting),
+        (MouseMode::TARGET_PATH, Mode::Targeting),
+        (MouseMode::MACRO, Mode::Macro),
+    ] {
         st.input_mode = mode;
         assert_eq!(derive_mode(&st), want, "input mode {mode}");
     }
@@ -168,7 +177,14 @@ fn labels_a_and_b_from_the_focus_cursor_falling_back_to_close_confirm() {
 
 #[test]
 fn a_yesno_puts_yes_on_a_and_no_on_b_and_always_on_x() {
-    let prompt = ParsedPrompt { text: "Really?".into(), options: vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No"), PromptOption::new("A", "Always")], yesno: true, cancel: true, default: Some("N".into()), ..Default::default() };
+    let prompt = ParsedPrompt {
+        text: "Really?".into(),
+        options: vec![PromptOption::new("Y", "Yes"), PromptOption::new("N", "No"), PromptOption::new("A", "Always")],
+        yesno: true,
+        cancel: true,
+        default: Some("N".into()),
+        ..Default::default()
+    };
     let c = Context { mode: Mode::Yesno, prompt: Some(prompt), ..ctx() };
     let t = binding_table(&c);
     assert_eq!(t.get(Button::A), Some(&Action::prompt("Y")));
@@ -209,7 +225,14 @@ fn the_skills_screen_is_a_crt_menu_focus_not_the_server_hover_set() {
 fn x_examines_the_hovered_row_of_a_menu_that_describes_its_rows() {
     let row = |letter: char| Some(MenuItem { text: format!(" {letter} - x"), hotkeys: Some(vec![letter as i64]), level: Some(2), ..Default::default() });
     let spells = |tag: &str, hovered: i64| {
-        let menu = MenuState { tag: tag.into(), kind: Some("menu".into()), items: vec![Some(MenuItem { text: " Spells".into(), level: Some(1), ..Default::default() }), row('a'), row('b')], flags: 0x40002, last_hovered: hovered, ..Default::default() };
+        let menu = MenuState {
+            tag: tag.into(),
+            kind: Some("menu".into()),
+            items: vec![Some(MenuItem { text: " Spells".into(), level: Some(1), ..Default::default() }), row('a'), row('b')],
+            flags: 0x40002,
+            last_hovered: hovered,
+            ..Default::default()
+        };
         Context { mode: Mode::Menu, menu: Some(MenuContext { hoverable: vec![1, 2], arrows_select: true, ..MenuContext::of(menu) }), ..ctx() }
     };
     let c = spells("spell", 1);
@@ -235,7 +258,11 @@ fn newgame_keeps_random_recommended_an_unparsed_prompt_keeps_list_and_help() {
     assert_eq!(ng.get(Button::Y).and_then(|a| a.label()), Some("Recommended"));
     let bare = binding_table(&Context { mode: Mode::Prompt, ..ctx() });
     assert_eq!(bare.get(Button::X).and_then(|a| a.label()), Some("List"));
-    let parsed = binding_table(&Context { mode: Mode::Prompt, prompt: Some(ParsedPrompt { options: vec![PromptOption::new("w", "wield")], cancel: true, ..Default::default() }), ..ctx() });
+    let parsed = binding_table(&Context {
+        mode: Mode::Prompt,
+        prompt: Some(ParsedPrompt { options: vec![PromptOption::new("w", "wield")], cancel: true, ..Default::default() }),
+        ..ctx()
+    });
     assert_eq!(parsed.get(Button::X), None);
     assert_eq!(parsed.get(Button::Y), None);
     assert_eq!(parsed.get(Button::A), Some(&Action::focus(FocusOp::Select)));
@@ -264,20 +291,47 @@ fn the_more_chip_under_a_reads_as_the_panes_more_row() {
 
 #[test]
 fn a_prompt_answer_read_off_the_log_wears_the_logs_colour() {
-    let c = Context { mode: Mode::Prompt, prompt: Some(ParsedPrompt { options: vec![PromptOption { hotkey: "S".into(), label: "(S)trength".into(), held: None, colour: Some(3) }, PromptOption::new("y", "Yes")], cancel: true, ..Default::default() }), ..ctx() };
+    let c = Context {
+        mode: Mode::Prompt,
+        prompt: Some(ParsedPrompt {
+            options: vec![PromptOption { hotkey: "S".into(), label: "(S)trength".into(), held: None, colour: Some(3) }, PromptOption::new("y", "Yes")],
+            cancel: true,
+            ..Default::default()
+        }),
+        ..ctx()
+    };
     assert_eq!(action_label(&Action::prompt("S"), &c), "<cyan>(S)trength</cyan>");
     assert_eq!(action_label(&Action::prompt("y"), &c), "Yes");
-    let f = |colour: Option<i64>| Context { mode: Mode::Prompt, focus: Some(FocusInfo { label: Some(if colour.is_some() { "(S)trength" } else { "Dungeon" }.into()), colour, index: 0, count: 3, ..Default::default() }), ..ctx() };
+    let f = |colour: Option<i64>| Context {
+        mode: Mode::Prompt,
+        focus: Some(FocusInfo {
+            label: Some(if colour.is_some() { "(S)trength" } else { "Dungeon" }.into()),
+            colour,
+            index: 0,
+            count: 3,
+            ..Default::default()
+        }),
+        ..ctx()
+    };
     assert_eq!(action_label(&Action::focus(FocusOp::Select), &f(Some(15))), "<white>(S)trength</white>");
     assert_eq!(action_label(&Action::focus(FocusOp::Select), &f(None)), "Dungeon");
 }
 
 #[test]
 fn every_non_command_mode_can_reach_its_section_of_the_palette() {
-    for (mode, section) in [(Mode::Targeting, CommandCategory::Targeting), (Mode::Levelmap, CommandCategory::Levelmap), (Mode::Menu, CommandCategory::Menu), (Mode::Crt, CommandCategory::Command), (Mode::Prompt, CommandCategory::Command)] {
+    for (mode, section) in [
+        (Mode::Targeting, CommandCategory::Targeting),
+        (Mode::Levelmap, CommandCategory::Levelmap),
+        (Mode::Menu, CommandCategory::Menu),
+        (Mode::Crt, CommandCategory::Command),
+        (Mode::Prompt, CommandCategory::Command),
+    ] {
         let c = Context { mode, menu: (mode == Mode::Menu).then(|| menu_ctx(MenuState::default())), ..ctx() };
         let t = binding_table(&c);
-        let pal = t.iter().map(|(_, a)| if let Action::Hold { hold, .. } = a { hold.as_ref() } else { a }).find(|a| matches!(a, Action::Ui { op: UiOp::Palette, .. }));
+        let pal = t
+            .iter()
+            .map(|(_, a)| if let Action::Hold { hold, .. } = a { hold.as_ref() } else { a })
+            .find(|a| matches!(a, Action::Ui { op: UiOp::Palette, .. }));
         assert!(matches!(pal, Some(Action::Ui { category: Some(c), .. }) if *c == section), "{mode:?}");
     }
 }
@@ -403,7 +457,8 @@ fn a_takes_the_stairs_underfoot_even_with_a_monster_ahead() {
 
 #[test]
 fn items_on_stairs_use_a_chooser_instead_of_a_hold_binding() {
-    let under = Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stairs".into(), items: Some("a +0 mace".into()) };
+    let under =
+        Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stairs".into(), items: Some("a +0 mace".into()) };
     let c = Context { under, ..ctx() };
     assert_eq!(contextual_label(&c, false), "Descend");
     assert_eq!(contextual_label(&c, true), "a +0 mace");
@@ -436,7 +491,12 @@ fn held_on_the_level_map_the_triggers_keep_zooming_nothing_else_repeats() {
 
 #[test]
 fn a_held_rt_stops_where_the_swing_led_somewhere_else() {
-    for c in [Context { mode: Mode::More, ..ctx() }, Context { mode: Mode::Targeting, ..ctx() }, Context { mode: Mode::Targeting, examining: true, ..ctx() }, Context { mode: Mode::Menu, ..ctx() }] {
+    for c in [
+        Context { mode: Mode::More, ..ctx() },
+        Context { mode: Mode::Targeting, ..ctx() },
+        Context { mode: Mode::Targeting, examining: true, ..ctx() },
+        Context { mode: Mode::Menu, ..ctx() },
+    ] {
         assert_eq!(resolve(&PadEvent::Repeat { button: Button::RT, n: 1 }, &c), None);
     }
 }
@@ -538,7 +598,13 @@ fn look_a_sends_v_x_travels_y_helps_b_cancels_bumpers_cycle_monsters_triggers_ob
 #[test]
 fn look_the_corner_shows_the_three_keys_the_server_prompts() {
     let feature = Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stone staircase".into(), items: None };
-    for (cursor, name) in [(Some(goblin()), "goblin"), (Some(Target::Item { label: "a +0 halberd".into() }), "a +0 halberd"), (Some(feature), "stone staircase"), (Some(Target::none("here")), "here"), (None, "here")] {
+    for (cursor, name) in [
+        (Some(goblin()), "goblin"),
+        (Some(Target::Item { label: "a +0 halberd".into() }), "a +0 halberd"),
+        (Some(feature), "stone staircase"),
+        (Some(Target::none("here")), "here"),
+        (None, "here"),
+    ] {
         assert_eq!(show(&look(Context { cursor, ..ctx() })), vec![format!("A Examine {name}"), "X Travel here".into(), "Y Help".into()]);
     }
 }
@@ -584,7 +650,11 @@ fn the_dpad_still_moves_the_cursor_facing_relative() {
 // the shop menu
 
 fn shop_row(letter: char, sign: char, name: &str) -> Option<MenuItem> {
-    Some(MenuItem { text: format!("<lightgreen>{letter} {sign} </lightgreen><lightgrey>  30 gold   {name}</lightgrey>"), hotkeys: Some(vec![letter as i64]), ..Default::default() })
+    Some(MenuItem {
+        text: format!("<lightgreen>{letter} {sign} </lightgreen><lightgrey>  30 gold   {name}</lightgrey>"),
+        hotkeys: Some(vec![letter as i64]),
+        ..Default::default()
+    })
 }
 
 fn shop_menu(mode: &str, rows: Vec<Option<MenuItem>>, hovered: i64) -> MenuState {
@@ -593,7 +663,16 @@ fn shop_menu(mode: &str, rows: Vec<Option<MenuItem>>, hovered: i64) -> MenuState
         "examine" => "[<w>!</w>] buy|<w>examine</w> items",
         _ => "",
     };
-    MenuState { tag: "shop".into(), flags: 0x0004, title: MenuTitle { text: "Welcome".into(), ..Default::default() }, more: format!("<yellow>You have 100 gold pieces.</yellow>\n[<w>Esc</w>] exit          {mode_text}"), total_items: rows.len() as i64, items: rows, last_hovered: hovered, ..Default::default() }
+    MenuState {
+        tag: "shop".into(),
+        flags: 0x0004,
+        title: MenuTitle { text: "Welcome".into(), ..Default::default() },
+        more: format!("<yellow>You have 100 gold pieces.</yellow>\n[<w>Esc</w>] exit          {mode_text}"),
+        total_items: rows.len() as i64,
+        items: rows,
+        last_hovered: hovered,
+        ..Default::default()
+    }
 }
 
 fn shop_ctx(mode: &str, rows: Vec<Option<MenuItem>>, hovered: i64) -> Context {
@@ -606,7 +685,10 @@ fn shop_ctx(mode: &str, rows: Vec<Option<MenuItem>>, hovered: i64) -> Context {
 #[test]
 fn the_shop_reads_the_mode_and_each_rows_mark_from_what_the_server_printed() {
     let s = shop_context(&shop_menu("buy", vec![shop_row('a', '-', "a potion"), shop_row('b', '+', "a scroll"), shop_row('c', '$', "a wand")], 1));
-    assert_eq!(s, ShopContext { can_buy: true, mode: ShopMode::Buy, hovered_marked: true, hovered_listed: false, any_marked: true, any_listed: true, sort_order: None });
+    assert_eq!(
+        s,
+        ShopContext { can_buy: true, mode: ShopMode::Buy, hovered_marked: true, hovered_listed: false, any_marked: true, any_listed: true, sort_order: None }
+    );
     let e = shop_context(&shop_menu("examine", vec![shop_row('a', '-', "a potion")], 0));
     assert_eq!(e.mode, ShopMode::Examine);
     assert!(e.can_buy);
@@ -704,7 +786,8 @@ fn the_d1_exit_prompts_leave_dungeon() {
 #[test]
 fn stairs_underfoot_prompt_descend_or_interact_with_items() {
     assert_eq!(show(&Context { under: stairs(UpDown::Down), ..ctx() }), vec!["A Descend"]);
-    let with_items = Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stairs".into(), items: Some("a +0 mace".into()) };
+    let with_items =
+        Target::Feature { feature: Feature::Stairs { dir: UpDown::Down, branch: false, exit: false }, label: "stairs".into(), items: Some("a +0 mace".into()) };
     assert_eq!(show(&Context { under: with_items, ..ctx() }), vec!["A Interact"]);
 }
 
@@ -730,13 +813,23 @@ fn old_layer_values_do_not_reveal_modifier_controls() {
 fn a_menu_of_marks_shows_start_once_something_is_marked_a_shop_its_marks() {
     let menu = MenuContext::of(MenuState { tag: "inv".into(), kind: Some("menu".into()), ..Default::default() });
     assert!(show(&Context { mode: Mode::Menu, menu: Some(menu.clone()), ..ctx() }).is_empty());
-    assert_eq!(show(&Context { mode: Mode::Menu, menu: Some(MenuContext { multiselect: true, any_marked: true, ..menu.clone() }), ..ctx() }), vec!["START accept"]);
-    let shop = ShopContext { can_buy: true, mode: ShopMode::Buy, hovered_marked: true, hovered_listed: false, any_marked: true, any_listed: false, sort_order: None };
+    assert_eq!(
+        show(&Context { mode: Mode::Menu, menu: Some(MenuContext { multiselect: true, any_marked: true, ..menu.clone() }), ..ctx() }),
+        vec!["START accept"]
+    );
+    let shop =
+        ShopContext { can_buy: true, mode: ShopMode::Buy, hovered_marked: true, hovered_listed: false, any_marked: true, any_listed: false, sort_order: None };
     let with = |shop: ShopContext| Context { mode: Mode::Menu, menu: Some(MenuContext { shop: Some(shop), ..menu.clone() }), ..ctx() };
-    assert_eq!(show(&with(shop.clone())), vec!["A mark item for purchase", "X buy|examine items", "Y put item on shopping list", "LT List marked", "START buy marked items"]);
+    assert_eq!(
+        show(&with(shop.clone())),
+        vec!["A mark item for purchase", "X buy|examine items", "Y put item on shopping list", "LT List marked", "START buy marked items"]
+    );
     let bare = ShopContext { hovered_marked: false, any_marked: false, ..shop.clone() };
     assert_eq!(show(&with(bare.clone())), vec!["A mark item for purchase", "X buy|examine items", "Y put item on shopping list"]);
-    assert_eq!(show(&with(ShopContext { mode: ShopMode::Examine, ..bare.clone() })), vec!["A examine item", "X buy|examine items", "Y put item on shopping list"]);
+    assert_eq!(
+        show(&with(ShopContext { mode: ShopMode::Examine, ..bare.clone() })),
+        vec!["A examine item", "X buy|examine items", "Y put item on shopping list"]
+    );
     assert_eq!(show(&with(ShopContext { can_buy: false, mode: ShopMode::Examine, ..bare })), vec!["A examine item", "Y put item on shopping list"]);
 }
 
@@ -750,7 +843,11 @@ fn a_prompt_shows_its_answers_without_a_start_hint() {
 
 #[test]
 fn a_popup_puts_its_first_action_on_x() {
-    let c = Context { mode: Mode::Popup, popup_actions: Some(vec![PopupAction { key: "!".into(), label: "Status".into() }, PopupAction { key: "x".into(), label: "Xamine".into() }]), ..ctx() };
+    let c = Context {
+        mode: Mode::Popup,
+        popup_actions: Some(vec![PopupAction { key: "!".into(), label: "Status".into() }, PopupAction { key: "x".into(), label: "Xamine".into() }]),
+        ..ctx()
+    };
     assert_eq!(show(&c), vec!["X Status"]);
     assert_eq!(binding_table(&c).get(Button::X), Some(&Action::ui_arg(UiOp::PopupAction, 0)));
     assert_eq!(binding_table(&Context { mode: Mode::Popup, popup_actions: Some(vec![]), ..ctx() }).get(Button::X), None);

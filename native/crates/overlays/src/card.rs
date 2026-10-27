@@ -78,7 +78,11 @@ impl Overlays {
                     mode,
                     pp.text,
                     pp.letters.map(|l| format!("{l:?}|{}|", pp.from.clone().unwrap_or_default())).unwrap_or_default(),
-                    pp.options.iter().map(|o| format!("{}={}{}", o.hotkey, o.label, o.held.as_ref().map(|h| format!(":{h}")).unwrap_or_default())).collect::<Vec<_>>().join(",")
+                    pp.options
+                        .iter()
+                        .map(|o| format!("{}={}{}", o.hotkey, o.label, o.held.as_ref().map(|h| format!(":{h}")).unwrap_or_default()))
+                        .collect::<Vec<_>>()
+                        .join(",")
                 );
                 p = Some(pp);
             }
@@ -111,12 +115,29 @@ impl Overlays {
             return;
         }
         let lead = if p.yesno { None } else { prompt_lead(&p.text) };
-        let chips: Vec<Chip> = p.options.iter().map(|o| Chip { label: o.label.clone(), hotkey: o.hotkey.clone(), colour: o.colour, held: o.held.clone(), from: p.from.as_deref() == Some(o.hotkey.as_str()) }).collect();
+        let chips: Vec<Chip> = p
+            .options
+            .iter()
+            .map(|o| Chip {
+                label: o.label.clone(),
+                hotkey: o.hotkey.clone(),
+                colour: o.colour,
+                held: o.held.clone(),
+                from: p.from.as_deref() == Some(o.hotkey.as_str()),
+            })
+            .collect();
         if let Some(_kind) = p.letters {
             // four rows of thirteen: a-m, n-z, A-M, N-Z; the bumpers hop two rows between the cases
             const COLS: usize = 13;
             for (i, c) in chips.iter().enumerate() {
-                self.prompt_focusables.push(Focusable { label: c.label.clone(), act: Act::send([answer(&c.hotkey)]), row: Some((i / COLS) as i32), col: Some((i % COLS) as i32), id: Some(format!("letter:{}", c.hotkey)), ..Default::default() });
+                self.prompt_focusables.push(Focusable {
+                    label: c.label.clone(),
+                    act: Act::send([answer(&c.hotkey)]),
+                    row: Some((i / COLS) as i32),
+                    col: Some((i % COLS) as i32),
+                    id: Some(format!("letter:{}", c.hotkey)),
+                    ..Default::default()
+                });
             }
             let from = p.from.as_ref().and_then(|f| chips.iter().position(|c| &c.hotkey == f));
             self.prompt_initial = Some(from.unwrap_or(0) as i32);
@@ -126,11 +147,27 @@ impl Overlays {
             // a yes/no's answers are on A and B, not under a cursor
             if !p.yesno {
                 for (i, c) in chips.iter().enumerate() {
-                    self.prompt_focusables.push(Focusable { label: c.label.clone(), colour: c.colour, act: Act::send([answer(&c.hotkey)]), row: Some(0), col: Some(i as i32), id: Some(format!("chip:{i}")), ..Default::default() });
+                    self.prompt_focusables.push(Focusable {
+                        label: c.label.clone(),
+                        colour: c.colour,
+                        act: Act::send([answer(&c.hotkey)]),
+                        row: Some(0),
+                        col: Some(i as i32),
+                        id: Some(format!("chip:{i}")),
+                        ..Default::default()
+                    });
                 }
             }
         }
-        self.card = Some(Card { text: (lead.is_none() && !p.text.is_empty()).then(|| p.text.clone()), lead, chips, letters: p.letters, yesno: p.yesno, default: p.default.clone(), pad });
+        self.card = Some(Card {
+            text: (lead.is_none() && !p.text.is_empty()).then(|| p.text.clone()),
+            lead,
+            chips,
+            letters: p.letters,
+            yesno: p.yesno,
+            default: p.default.clone(),
+            pad,
+        });
         // the same prompt drawn for another device: the cursor stays on the chip it was on
         if same_screen {
             self.nav.set(self.prompt_focusables.clone(), &format!("prompt:{screen}"), self.prompt_focus_opts, self.prompt_initial, false);
@@ -188,7 +225,9 @@ impl Overlays {
                 if default {
                     caps.push("Enter".into());
                 }
-                let caps_w: f32 = caps.iter().map(|k| widgets::keycap_size(ctx, k, &cap).x).sum::<f32>() + caps.len() as f32 * 0.5 * chip_font + if default { 0.25 * cap.size } else { 0.0 };
+                let caps_w: f32 = caps.iter().map(|k| widgets::keycap_size(ctx, k, &cap).x).sum::<f32>()
+                    + caps.len() as f32 * 0.5 * chip_font
+                    + if default { 0.25 * cap.size } else { 0.0 };
                 let (px_l, px_r, py) = if card.letters.is_some() { (0.0, 0.0, 0.3 * chip_font) } else { (0.6 * chip_font, 0.9 * chip_font, 0.35 * chip_font) };
                 let inner_h = label.size().y.max(if caps.is_empty() { 0.0 } else { 1.5 * 0.85 * chip_font });
                 let w = if card.letters.is_some() { 2.0 * font } else { px_l + caps_w + label.size().x + px_r + 2.0 };
@@ -197,8 +236,10 @@ impl Overlays {
             .collect();
         // a phone's card is as wide as its screen less the margins, as every popup there
         let max_w = if screen.compact() { screen.popup_max_w() } else { (0.94 * screen.w()).min(48.0 * font) };
-        let text_g = card.text.as_ref().map(|t| rich::galley(ctx, rich::plain(t, &TextStyle::new(ctx, 1.05 * font, Color32::WHITE), max_w - 2.0 * pad_x - 2.0)));
-        let lead_g = card.lead.as_ref().filter(|l| !l.is_empty()).map(|l| rich::galley(ctx, rich::plain(l, &TextStyle::new(ctx, 1.05 * font, Color32::WHITE), 0.0)));
+        let text_g =
+            card.text.as_ref().map(|t| rich::galley(ctx, rich::plain(t, &TextStyle::new(ctx, 1.05 * font, Color32::WHITE), max_w - 2.0 * pad_x - 2.0)));
+        let lead_g =
+            card.lead.as_ref().filter(|l| !l.is_empty()).map(|l| rich::galley(ctx, rich::plain(l, &TextStyle::new(ctx, 1.05 * font, Color32::WHITE), 0.0)));
         // the chips' rows (flex-wrap, centred)
         let row_gap = 0.6 * font;
         let avail = max_w - 2.0 * pad_x - 2.0;
@@ -234,7 +275,11 @@ impl Overlays {
         let slot_g = (card.letters == Some(Letters::Item)).then(|| {
             let i = self.nav.index().max(0) as usize;
             let c = card.chips.get(i).cloned();
-            let mut job = rich::plain(&format!("{}\u{a0}", c.as_ref().map_or(String::new(), |c| c.hotkey.clone())), &TextStyle::new(ctx, font, Color32::WHITE).bold(), 0.0);
+            let mut job = rich::plain(
+                &format!("{}\u{a0}", c.as_ref().map_or(String::new(), |c| c.hotkey.clone())),
+                &TextStyle::new(ctx, font, Color32::WHITE).bold(),
+                0.0,
+            );
             let rest = match c.and_then(|c| c.held) {
                 Some(h) => rich::formatted(&h, &TextStyle::new(ctx, font, hex(0xdddddd)), 0.0),
                 None => rich::plain("empty", &TextStyle::new(ctx, font, hex(0x777777)), 0.0),

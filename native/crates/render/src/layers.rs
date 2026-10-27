@@ -24,7 +24,12 @@ pub fn layer_pipeline(
     let premultiplied = !gpu.independent_blend && blend != Blend::Opaque;
     let targets = if premultiplied {
         // one blend for every target: the shader writes each so that it blends as its own would
-        crate::gpu::SCENE_TARGETS.iter().map(|f| Some(wgpu::ColorTargetState { format: *f, blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })).collect()
+        crate::gpu::SCENE_TARGETS
+            .iter()
+            .map(|f| {
+                Some(wgpu::ColorTargetState { format: *f, blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING), write_mask: wgpu::ColorWrites::ALL })
+            })
+            .collect()
     } else {
         scene_targets(blend, keep_normal)
     };
@@ -37,7 +42,13 @@ pub fn layer_pipeline(
         vertex: wgpu::VertexState { module, entry_point: Some(vs), buffers: &buffers, compilation_options: Default::default() },
         fragment: Some(wgpu::FragmentState { module, entry_point: Some(fs), targets: &targets, compilation_options }),
         primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
-        depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH_FORMAT, depth_write_enabled: Some(depth_write), depth_compare: Some(wgpu::CompareFunction::LessEqual), stencil: Default::default(), bias }),
+        depth_stencil: Some(wgpu::DepthStencilState {
+            format: DEPTH_FORMAT,
+            depth_write_enabled: Some(depth_write),
+            depth_compare: Some(wgpu::CompareFunction::LessEqual),
+            stencil: Default::default(),
+            bias,
+        }),
         multisample: wgpu::MultisampleState { count: samples, ..Default::default() },
         multiview_mask: None,
         cache: None,
@@ -46,7 +57,8 @@ pub fn layer_pipeline(
 
 pub fn shader(gpu: &Gpu, label: &str, source: &str) -> wgpu::ShaderModule {
     let source = if gpu.independent_blend { source.to_string() } else { premultiplied_source(source) };
-    gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some(label), source: wgpu::ShaderSource::Wgsl(crate::gpu::with_common(&source).into()) })
+    gpu.device
+        .create_shader_module(wgpu::ShaderModuleDescriptor { label: Some(label), source: wgpu::ShaderSource::Wgsl(crate::gpu::with_common(&source).into()) })
 }
 
 /// A layer shader for a device whose targets all blend alike (WebGL2): each fragment entry that
@@ -77,7 +89,11 @@ pub fn premultiplied_source(source: &str) -> String {
                 let bare: Vec<String> = params.iter().map(|p| strip_attributes(p)).collect();
                 let names: Vec<&str> = bare.iter().map(|p| p.split(':').next().unwrap_or("").trim()).collect();
                 out.push_str(&format!("fn {name}__shaded({}) -> FragmentOut ", bare.join(", ")));
-                wrappers.push_str(&format!("\n@fragment\nfn {name}({}) -> FragmentOut {{\n    return premultiplied({name}__shaded({}));\n}}\n", params.join(", "), names.join(", ")));
+                wrappers.push_str(&format!(
+                    "\n@fragment\nfn {name}({}) -> FragmentOut {{\n    return premultiplied({name}__shaded({}));\n}}\n",
+                    params.join(", "),
+                    names.join(", ")
+                ));
             }
             None => {
                 out.push_str("@fragment");
@@ -115,7 +131,9 @@ mod tests {
         let src = "struct FragmentOut { @location(0) colour: vec4<f32>, };\n@fragment\nfn fs_a(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {\n    return x;\n}\n@fragment\nfn fs_b(in: VertexOut) -> @location(0) vec4<f32> { return y; }\n";
         let out = super::premultiplied_source(src);
         assert!(out.contains("fn fs_a__shaded(in: VertexOut, front: bool) -> FragmentOut {"));
-        assert!(out.contains("@fragment\nfn fs_a(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {\n    return premultiplied(fs_a__shaded(in, front));"));
+        assert!(out.contains(
+            "@fragment\nfn fs_a(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {\n    return premultiplied(fs_a__shaded(in, front));"
+        ));
         assert!(out.contains("@fragment\nfn fs_b(in: VertexOut) -> @location(0) vec4<f32> {"));
     }
 }
@@ -134,11 +152,16 @@ fn strip_attributes(param: &str) -> String {
 
 /// The bind group layout of one uniform buffer, for a layer's own uniforms.
 pub fn uniform_layout(gpu: &Gpu, size: u64) -> wgpu::BindGroupLayout {
-    gpu.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("layer uniforms"), entries: &[crate::gpu::uniform_entry(0, size, false)] })
+    gpu.device
+        .create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: Some("layer uniforms"), entries: &[crate::gpu::uniform_entry(0, size, false)] })
 }
 
 pub fn uniform_group(gpu: &Gpu, layout: &wgpu::BindGroupLayout, buffer: &wgpu::Buffer) -> wgpu::BindGroup {
-    gpu.device.create_bind_group(&wgpu::BindGroupDescriptor { label: Some("layer uniforms"), layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }] })
+    gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("layer uniforms"),
+        layout,
+        entries: &[wgpu::BindGroupEntry { binding: 0, resource: buffer.as_entire_binding() }],
+    })
 }
 
 /// A buffer that grows, written whole each time it changes.
@@ -151,14 +174,23 @@ pub struct DynamicBuffer {
 impl DynamicBuffer {
     pub fn new(gpu: &Gpu, label: &'static str, usage: wgpu::BufferUsages, size: u64) -> Self {
         let usage = usage | wgpu::BufferUsages::COPY_DST;
-        DynamicBuffer { buffer: gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: size.max(16), usage, mapped_at_creation: false }), usage, label }
+        DynamicBuffer {
+            buffer: gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some(label), size: size.max(16), usage, mapped_at_creation: false }),
+            usage,
+            label,
+        }
     }
 
     /// Write `data`; returns whether the buffer was made again (bind groups over it are stale).
     pub fn write(&mut self, gpu: &Gpu, data: &[u8]) -> bool {
         let mut remade = false;
         if data.len() as u64 > self.buffer.size() {
-            self.buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor { label: Some(self.label), size: (data.len() as u64).next_power_of_two(), usage: self.usage, mapped_at_creation: false });
+            self.buffer = gpu.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(self.label),
+                size: (data.len() as u64).next_power_of_two(),
+                usage: self.usage,
+                mapped_at_creation: false,
+            });
             remade = true;
         }
         if !data.is_empty() {

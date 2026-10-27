@@ -8,18 +8,22 @@ use egui::{Event, PointerButton, Pos2};
 
 /// The first press of `button` this frame, where it landed.
 pub fn pressed_at(ctx: &egui::Context, button: PointerButton) -> Option<Pos2> {
-    ctx.input(|i| i.events.iter().find_map(|e| match e {
-        Event::PointerButton { pos, button: b, pressed: true, .. } if *b == button => Some(*pos),
-        _ => None,
-    }))
+    ctx.input(|i| {
+        i.events.iter().find_map(|e| match e {
+            Event::PointerButton { pos, button: b, pressed: true, .. } if *b == button => Some(*pos),
+            _ => None,
+        })
+    })
 }
 
 /// The first press of any button this frame: where, and which.
 pub fn any_pressed_at(ctx: &egui::Context) -> Option<(Pos2, PointerButton)> {
-    ctx.input(|i| i.events.iter().find_map(|e| match e {
-        Event::PointerButton { pos, button, pressed: true, .. } => Some((*pos, *button)),
-        _ => None,
-    }))
+    ctx.input(|i| {
+        i.events.iter().find_map(|e| match e {
+            Event::PointerButton { pos, button, pressed: true, .. } => Some((*pos, *button)),
+            _ => None,
+        })
+    })
 }
 
 /// How long a finger rests on something before its card shows (and a press that long is not a
@@ -119,7 +123,12 @@ mod tests {
     /// One frame at `time` with `events`; returns whether a card over `over` shows in it.
     fn frame(ctx: &egui::Context, time: f64, events: Vec<Event>, over: egui::Rect) -> bool {
         let mut shows = false;
-        let raw = egui::RawInput { time: Some(time), events, screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 800.0))), ..Default::default() };
+        let raw = egui::RawInput {
+            time: Some(time),
+            events,
+            screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(400.0, 800.0))),
+            ..Default::default()
+        };
         let mut out = ctx.run_pass(raw, |ctx| {
             note_frame(ctx, false);
             shows = card_shows(ctx, true, over);

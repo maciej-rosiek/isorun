@@ -69,7 +69,17 @@ pub struct GameMenus {
 
 impl Default for GameMenus {
     fn default() -> Self {
-        GameMenus { page: None, cursor: 0, marks: Default::default(), settings: settings::get(), lights: None, tips_reset: false, controls_alone: false, scroll: 0.0, scrolled_to: None }
+        GameMenus {
+            page: None,
+            cursor: 0,
+            marks: Default::default(),
+            settings: settings::get(),
+            lights: None,
+            tips_reset: false,
+            controls_alone: false,
+            scroll: 0.0,
+            scrolled_to: None,
+        }
     }
 }
 
@@ -150,16 +160,31 @@ impl GameMenus {
             }
             Page::Group(g) => {
                 for r in settings::group_rows(g) {
-                    out.push(Item { label: r.label.into(), hint: r.hint.into(), setting: Some(r.key), sep: false, off: r.is_off(&self.settings), act: Do::Setting });
+                    out.push(Item {
+                        label: r.label.into(),
+                        hint: r.hint.into(),
+                        setting: Some(r.key),
+                        sep: false,
+                        off: r.is_off(&self.settings),
+                        act: Do::Setting,
+                    });
                 }
                 if g == "Controls" {
-                    let mut t = item(if self.tips_reset { "Gamepad tips reset" } else { "Replay gamepad tips" }, "Forget which gamepad controls you have used and teach them again: switches Hints to Adaptive.", Do::Tips);
+                    let mut t = item(
+                        if self.tips_reset { "Gamepad tips reset" } else { "Replay gamepad tips" },
+                        "Forget which gamepad controls you have used and teach them again: switches Hints to Adaptive.",
+                        Do::Tips,
+                    );
                     t.sep = true;
                     out.push(t);
                     out.push(item("Gamepad controls", "What every button on the pad does, on each layer.", Do::Open(Page::Controls)));
                 }
                 if g == "Graphics" {
-                    let mut t = item("Tune the look", "Every light, colour and screen effect on sliders, shown at once over the game: the Look setting turns Custom.", Do::TuneLook);
+                    let mut t = item(
+                        "Tune the look",
+                        "Every light, colour and screen effect on sliders, shown at once over the game: the Look setting turns Custom.",
+                        Do::TuneLook,
+                    );
                     t.sep = true;
                     out.push(t);
                 }
@@ -351,7 +376,11 @@ impl GameMenus {
         let min_w = if page == Page::Settings { 22.0 * rem } else { 26.0 * rem };
         // a compact screen (a phone, touch.css) gives the menu its whole width less the margins
         let compact = screen.width() < 900.0 || screen.height() < 560.0;
-        let width = if compact { screen.width() - 16.0 } else { (1.2 * size + 1.5 * size + label_w + 2.0 * size + value_w + 1.2 * size + 0.8 * rem).max(min_w).min(screen.width() * 0.94) };
+        let width = if compact {
+            screen.width() - 16.0
+        } else {
+            (1.2 * size + 1.5 * size + label_w + 2.0 * size + value_w + 1.2 * size + 0.8 * rem).max(min_w).min(screen.width() * 0.94)
+        };
         let hint = items.get(self.cursor).map(|i| i.hint.clone()).unwrap_or_default();
         let hint_g = galley(ctx, &hint, &Style::new(0.82 * rem, face.clone(), INK_DIM), width - 1.6 * rem);
         let footer = match page {
@@ -378,11 +407,23 @@ impl GameMenus {
         } else {
             vec![]
         };
-        let controls_h = if sheet.is_empty() { 0.0 } else { 0.3 * rem + sheet.iter().map(|side| side.iter().map(|(k, g)| k.size().y.max(g.size().y) + 0.25 * rem).sum::<f32>() + 0.5 * rem).sum::<f32>() };
+        let controls_h = if sheet.is_empty() {
+            0.0
+        } else {
+            0.3 * rem + sheet.iter().map(|side| side.iter().map(|(k, g)| k.size().y.max(g.size().y) + 0.25 * rem).sum::<f32>() + 0.5 * rem).sum::<f32>()
+        };
         let title_h = size * 1.2 + rem;
         let body_h = items.len() as f32 * row_h + seps + 0.6 * rem + controls_h;
         let under_h = hint_g.size().y + 0.8 * rem + footer_g.size().y + rem;
-        let top = if screen.height() <= 780.0 { if compact { 8.0 } else { 20.0 } } else { 50.0 };
+        let top = if screen.height() <= 780.0 {
+            if compact {
+                8.0
+            } else {
+                20.0
+            }
+        } else {
+            50.0
+        };
         // taller than the window (a phone on its side, the gamepad sheet): the body scrolls
         let height = (title_h + body_h + under_h).min(screen.height() - top - 8.0);
         let view_h = height - title_h - under_h;
@@ -443,13 +484,20 @@ impl GameMenus {
                 let r = Rect::from_min_size(pos2(rect.left() + 0.4 * rem, y), vec2(width - 0.8 * rem, row_h));
                 // a row scrolled out of sight takes no taps
                 let seen = view.contains(r.center());
-                let resp = ui.interact(if seen { r } else { Rect::from_min_size(r.min, vec2(0.0, 0.0)) }, egui::Id::NULL.with(("game-menu-row", i)), Sense::click());
+                let resp =
+                    ui.interact(if seen { r } else { Rect::from_min_size(r.min, vec2(0.0, 0.0)) }, egui::Id::NULL.with(("game-menu-row", i)), Sense::click());
                 let focused = i == cursor;
                 if focused {
                     painter.rect_filled(r, 0.0, rgba(255, 212, 92, 0.2));
                     painter.rect_stroke(r, 0.0, egui::Stroke::new(1.0, rgba(255, 212, 92, 0.6)), egui::StrokeKind::Inside);
                 }
-                let colour = if it.off { C8 } else if focused || resp.hovered() { Color32::WHITE } else { C7 };
+                let colour = if it.off {
+                    C8
+                } else if focused || resp.hovered() {
+                    Color32::WHITE
+                } else {
+                    C7
+                };
                 let k = galley(ctx, &((b'a' + i as u8) as char).to_string(), &Style::new(size, face.clone(), Color32::WHITE), f32::INFINITY);
                 let mut x = r.left() + 0.6 * size;
                 painter.galley(pos2(x + 1.2 * size - k.size().x, r.center().y - k.size().y / 2.0), k, Color32::WHITE);
@@ -463,8 +511,22 @@ impl GameMenus {
                 if let Some(key) = it.setting {
                     let row = settings::rows().into_iter().find(|rr| rr.key == key);
                     let value = row.map(|rr| rr.value(&s)).unwrap_or_default();
-                    let vcol = if it.off { C8 } else if focused { Color32::WHITE } else if resp.hovered() { Color32::from_gray(0xdd) } else { C7 };
-                    let acol = if it.off { Color32::from_gray(0x44) } else if focused { ACCENT } else { Color32::from_gray(0x66) };
+                    let vcol = if it.off {
+                        C8
+                    } else if focused {
+                        Color32::WHITE
+                    } else if resp.hovered() {
+                        Color32::from_gray(0xdd)
+                    } else {
+                        C7
+                    };
+                    let acol = if it.off {
+                        Color32::from_gray(0x44)
+                    } else if focused {
+                        ACCENT
+                    } else {
+                        Color32::from_gray(0x66)
+                    };
                     let right = r.right() - 0.6 * size;
                     let gt = galley(ctx, ">", &Style::new(size, face.clone(), acol), f32::INFINITY);
                     let lt = galley(ctx, "<", &Style::new(size, face.clone(), acol), f32::INFINITY);
@@ -475,14 +537,19 @@ impl GameMenus {
                     let room = (gt_r.left() - 0.6 * size - (lt.size().x + 0.7 * size) - 0.6 * size - (label_end + 0.8 * size)).max(4.0 * size);
                     let val_w = natural_v.max(10.0 * size).min(room);
                     let val_r = Rect::from_min_size(pos2(gt_r.left() - 0.6 * size - val_w, r.top()), vec2(val_w, r.height()));
-                    let lt_r = Rect::from_min_size(pos2(val_r.left() - 0.6 * size - lt.size().x - 0.7 * size, r.top()), vec2(lt.size().x + 0.7 * size, r.height()));
+                    let lt_r =
+                        Rect::from_min_size(pos2(val_r.left() - 0.6 * size - lt.size().x - 0.7 * size, r.top()), vec2(lt.size().x + 0.7 * size, r.height()));
                     let vsize = if natural_v > val_w { (size * val_w / natural_v).max(0.7 * size) } else { size };
                     let mut job = egui::text::LayoutJob::simple_singleline(value.clone(), egui::FontId::new(vsize, face.clone()), vcol);
                     job.wrap = egui::text::TextWrapping::truncate_at_width(val_w);
                     let v = ctx.fonts_mut(|f| f.layout_job(job));
                     painter.galley(pos2(val_r.center().x - v.size().x / 2.0, r.center().y - v.size().y / 2.0), v, vcol);
                     for (d, g, ar) in [(-1, lt, lt_r), (1, gt, gt_r)] {
-                        let ares = ui.interact(if seen { ar } else { Rect::from_min_size(ar.min, vec2(0.0, 0.0)) }, egui::Id::NULL.with(("game-menu-arrow", i, d)), Sense::click());
+                        let ares = ui.interact(
+                            if seen { ar } else { Rect::from_min_size(ar.min, vec2(0.0, 0.0)) },
+                            egui::Id::NULL.with(("game-menu-arrow", i, d)),
+                            Sense::click(),
+                        );
                         let c = if ares.hovered() && !it.off { Color32::WHITE } else { acol };
                         painter.galley(pos2(ar.center().x - g.size().x / 2.0, r.center().y - g.size().y / 2.0), g, c);
                         if ares.clicked() && !it.off {

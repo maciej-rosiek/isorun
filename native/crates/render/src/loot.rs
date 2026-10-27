@@ -80,7 +80,11 @@ impl Flight {
         let age = now - self.start;
         let (height, turned, away) = if age < FLIGHT_SECONDS {
             let t = (age / FLIGHT_SECONDS) as f32;
-            (FLIGHT_START * (1.0 - t) + 4.0 * FLIGHT_HEIGHT * t * (1.0 - t), self.turn * std::f32::consts::TAU * FLIGHT_TURNS * t, (std::f32::consts::PI * t).sin())
+            (
+                FLIGHT_START * (1.0 - t) + 4.0 * FLIGHT_HEIGHT * t * (1.0 - t),
+                self.turn * std::f32::consts::TAU * FLIGHT_TURNS * t,
+                (std::f32::consts::PI * t).sin(),
+            )
         } else {
             let u = ((age - FLIGHT_SECONDS) / BOUNCE_SECONDS).min(1.0) as f32;
             (4.0 * BOUNCE_HEIGHT * u * (1.0 - u), 0.0, 0.0)
@@ -88,7 +92,12 @@ impl Flight {
         let position = Vec3::new(self.billboard.x as f32 + 0.5 + self.drift.0 * away, ground + height, self.billboard.y as f32 + 0.5 + self.drift.1 * away);
         let pivot = Vec3::new(0.0, TURN_PIVOT * pose.stretch, 0.0);
         let facing = Quat::from_euler(EulerRot::YXZ, -yaw, -pose.lean, 0.0);
-        self.model = Mat4::from_translation(position) * Mat4::from_quat(facing) * Mat4::from_translation(pivot) * Mat4::from_rotation_z(turned) * Mat4::from_translation(-pivot) * Mat4::from_scale(Vec3::new(1.0, pose.stretch, 1.0));
+        self.model = Mat4::from_translation(position)
+            * Mat4::from_quat(facing)
+            * Mat4::from_translation(pivot)
+            * Mat4::from_rotation_z(turned)
+            * Mat4::from_translation(-pivot)
+            * Mat4::from_scale(Vec3::new(1.0, pose.stretch, 1.0));
     }
 }
 
@@ -127,7 +136,18 @@ impl LootLayer {
                 .collect()
         };
         let (beams, halos) = (batches("fs_beam"), batches("fs_halo"));
-        LootLayer { shared, beams, halos, known: HashMap::new(), deaths: Vec::new(), flights: Vec::new(), worth: Vec::new(), marks: Vec::new(), landings: Vec::new(), clock: 0.0 }
+        LootLayer {
+            shared,
+            beams,
+            halos,
+            known: HashMap::new(),
+            deaths: Vec::new(),
+            flights: Vec::new(),
+            worth: Vec::new(),
+            marks: Vec::new(),
+            landings: Vec::new(),
+            clock: 0.0,
+        }
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
@@ -144,8 +164,13 @@ impl LootLayer {
     /// A new scene: an item new on the cell of a death flies out of it, and the good items in
     /// sight are marked.
     pub fn sync(&mut self, scene: &Scene, env: &mut ActorEnv) {
-        let covered: HashSet<(i32, i32)> = scene.billboards.iter().filter(|b| matches!(b.kind, BillboardKind::Monster | BillboardKind::Player)).map(|b| (b.x, b.y)).collect();
-        let items: Vec<&Billboard> = scene.billboards.iter().filter(|b| b.kind == BillboardKind::Item && scene.cell(b.x, b.y).is_some_and(|c| c.visibility != Visibility::Unseen)).collect();
+        let covered: HashSet<(i32, i32)> =
+            scene.billboards.iter().filter(|b| matches!(b.kind, BillboardKind::Monster | BillboardKind::Player)).map(|b| (b.x, b.y)).collect();
+        let items: Vec<&Billboard> = scene
+            .billboards
+            .iter()
+            .filter(|b| b.kind == BillboardKind::Item && scene.cell(b.x, b.y).is_some_and(|c| c.visibility != Visibility::Unseen))
+            .collect();
         for b in &items {
             let cell = (b.x, b.y);
             if self.known.insert(cell, b.tile) == Some(b.tile) || b.lying || b.scenery {
@@ -157,11 +182,23 @@ impl LootLayer {
             let seed = cell_seed(cell);
             let angle = seed * std::f32::consts::TAU;
             let visual = SpriteVisual::new(b, env, sprite_key(b), false, 0.0);
-            self.flights.push(Flight { billboard: (*b).clone(), visual, start: at + POP_DELAY, turn: if seed < 0.5 { 1.0 } else { -1.0 }, drift: (angle.cos() * FLIGHT_DRIFT, angle.sin() * FLIGHT_DRIFT), landed: false, model: Mat4::IDENTITY });
+            self.flights.push(Flight {
+                billboard: (*b).clone(),
+                visual,
+                start: at + POP_DELAY,
+                turn: if seed < 0.5 { 1.0 } else { -1.0 },
+                drift: (angle.cos() * FLIGHT_DRIFT, angle.sin() * FLIGHT_DRIFT),
+                landed: false,
+                model: Mat4::IDENTITY,
+            });
         }
         let shown: HashSet<(i32, i32)> = items.iter().map(|b| (b.x, b.y)).collect();
         self.known.retain(|cell, _| shown.contains(cell) || covered.contains(cell));
-        self.worth = items.iter().filter(|b| scene.cell(b.x, b.y).is_some_and(|c| c.visibility == Visibility::Visible)).filter_map(|b| b.rarity.map(|r| ((b.x, b.y), r))).collect();
+        self.worth = items
+            .iter()
+            .filter(|b| scene.cell(b.x, b.y).is_some_and(|c| c.visibility == Visibility::Visible))
+            .filter_map(|b| b.rarity.map(|r| ((b.x, b.y), r)))
+            .collect();
         self.mark(self.clock);
     }
 
@@ -225,8 +262,17 @@ impl LootLayer {
             let ground = ground_at(m.cell.0, m.cell.1);
             let (x, z) = (m.cell.0 as f32 + 0.5, m.cell.1 as f32 + 0.5);
             let height = BEAM_HEIGHT * stretch * fade;
-            let beam = Mat4::from_cols((across * BEAM_WIDTH).extend(0.0), (Vec3::Y * height).extend(0.0), facing.extend(0.0), Vec4::new(x, ground + height / 2.0, z, 1.0));
-            let halo = Mat4::from_scale_rotation_translation(Vec3::splat(HALO_SIZE), Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2), Vec3::new(x, ground + HALO_HEIGHT, z));
+            let beam = Mat4::from_cols(
+                (across * BEAM_WIDTH).extend(0.0),
+                (Vec3::Y * height).extend(0.0),
+                facing.extend(0.0),
+                Vec4::new(x, ground + height / 2.0, z, 1.0),
+            );
+            let halo = Mat4::from_scale_rotation_translation(
+                Vec3::splat(HALO_SIZE),
+                Quat::from_rotation_x(-std::f32::consts::FRAC_PI_2),
+                Vec3::new(x, ground + HALO_HEIGHT, z),
+            );
             let i = rarity_index(m.rarity);
             beams[i].push(Instance { model: beam.to_cols_array_2d(), extra: [fade, seed, 0.0, 0.0] });
             halos[i].push(Instance { model: halo.to_cols_array_2d(), extra: [fade, seed, 0.0, 0.0] });

@@ -33,16 +33,8 @@ pub const ATLASES: [&str; 7] = ["floor", "wall", "feat", "main", "player", "gui"
 pub const SPRITE_ATLASES: [&str; 3] = ["feat", "main", "player"];
 
 /// The scripts [`load_gamedata`] needs, in the order it evaluates them.
-pub const SCRIPTS: [&str; 8] = [
-    "enums.js",
-    "tileinfo-floor.js",
-    "tileinfo-wall.js",
-    "tileinfo-feat.js",
-    "tileinfo-main.js",
-    "tileinfo-player.js",
-    "tileinfo-gui.js",
-    "tileinfo-icons.js",
-];
+pub const SCRIPTS: [&str; 8] =
+    ["enums.js", "tileinfo-floor.js", "tileinfo-wall.js", "tileinfo-feat.js", "tileinfo-main.js", "tileinfo-player.js", "tileinfo-gui.js", "tileinfo-icons.js"];
 
 /// The optional script with how status icons lay out; a server may predate it.
 pub const STATUS_ICON_SIZES: &str = "status-icon-sizes.js";
@@ -55,28 +47,18 @@ pub fn script_files() -> Vec<&'static str> {
 /// Every file of one version's gamedata a client wants, the atlases last (they are nearly
 /// all of the bytes): the scripts, `status-icon-sizes.js`, then `<atlas>.png`.
 pub fn gamedata_files() -> Vec<String> {
-    script_files()
-        .into_iter()
-        .map(String::from)
-        .chain(ATLASES.iter().map(|a| format!("{a}.png")))
-        .collect()
+    script_files().into_iter().map(String::from).chain(ATLASES.iter().map(|a| format!("{a}.png"))).collect()
 }
 
 /// The directory one version's gamedata is published under: `<base>/gamedata/<version>`.
 pub fn gamedata_root(base: &str, version: &str) -> String {
-    format!(
-        "{}/gamedata/{version}",
-        base.strip_suffix('/').unwrap_or(base)
-    )
+    format!("{}/gamedata/{version}", base.strip_suffix('/').unwrap_or(base))
 }
 
 /// [`gamedata_files`] under [`gamedata_root`].
 pub fn gamedata_urls(base: &str, version: &str) -> Vec<String> {
     let root = gamedata_root(base, version);
-    gamedata_files()
-        .into_iter()
-        .map(|f| format!("{root}/{f}"))
-        .collect()
+    gamedata_files().into_iter().map(|f| format!("{root}/{f}")).collect()
 }
 
 /// Where the files come from: the text of a file by its name (`enums.js`, ...).
@@ -211,10 +193,7 @@ impl NameIndex {
         for (v, k) in sentinels {
             names.entry(v).or_insert_with(|| k.to_string());
         }
-        let mods = mods
-            .iter()
-            .map(|m| (m.first, m.end, m.bases.clone()))
-            .collect();
+        let mods = mods.iter().map(|m| (m.first, m.end, m.bases.clone())).collect();
         NameIndex { names, ids, mods }
     }
 
@@ -229,16 +208,10 @@ impl NameIndex {
     /// The canonical name of the base tile (a variation resolves to its base).
     pub fn base_name(&self, id: TileId) -> Option<&str> {
         let id = id as i64;
-        let base = self
-            .mods
-            .iter()
-            .find(|(first, end, _)| id >= *first && id < *end)
-            .map(|(first, _, bases)| bases[(id - first) as usize]);
+        let base = self.mods.iter().find(|(first, end, _)| id >= *first && id < *end).map(|(first, _, bases)| bases[(id - first) as usize]);
         match base {
             None => self.names.get(&id),
-            Some(base) => base
-                .and_then(|b| self.names.get(&b))
-                .or_else(|| self.names.get(&id)),
+            Some(base) => base.and_then(|b| self.names.get(&b)).or_else(|| self.names.get(&id)),
         }
         .map(String::as_str)
     }
@@ -298,37 +271,17 @@ impl Enums {
 pub fn verify_enums(gd: &Gamedata, expected: &[(&str, &[(&str, i64)])]) -> Vec<String> {
     let mut out = Vec::new();
     for (group, table) in expected {
-        let published = if group.is_empty() {
-            Some(gd.enums.values())
-        } else {
-            gd.enums.table(group)
-        };
+        let published = if group.is_empty() { Some(gd.enums.values()) } else { gd.enums.table(group) };
         let Some(published) = published else {
-            out.push(format!(
-                "enums.js does not publish {}",
-                if group.is_empty() {
-                    "top-level constants"
-                } else {
-                    group
-                }
-            ));
+            out.push(format!("enums.js does not publish {}", if group.is_empty() { "top-level constants" } else { group }));
             continue;
         };
-        let prefix = if group.is_empty() {
-            String::new()
-        } else {
-            format!("{group}.")
-        };
+        let prefix = if group.is_empty() { String::new() } else { format!("{group}.") };
         for (name, value) in table.iter() {
             match published.get(*name) {
-                None => out.push(format!(
-                    "enums.js has no {prefix}{name} (client assumes {value})"
-                )),
+                None => out.push(format!("enums.js has no {prefix}{name} (client assumes {value})")),
                 Some(got) if got.as_f64() == Some(*value as f64) => {}
-                Some(got) => out.push(format!(
-                    "enums.js {prefix}{name} = {}, client assumes {value}",
-                    json_to_js_string(got)
-                )),
+                Some(got) => out.push(format!("enums.js {prefix}{name} = {}, client assumes {value}", json_to_js_string(got))),
             }
         }
     }
@@ -340,15 +293,8 @@ fn json_to_js_string(v: &serde_json::Value) -> String {
     match v {
         serde_json::Value::Object(_) => "[object Object]".into(),
         serde_json::Value::String(s) => s.clone(),
-        serde_json::Value::Array(a) => a
-            .iter()
-            .map(json_to_js_string)
-            .collect::<Vec<_>>()
-            .join(","),
-        serde_json::Value::Number(n) => n
-            .as_f64()
-            .map(js::num_to_string)
-            .unwrap_or_else(|| n.to_string()),
+        serde_json::Value::Array(a) => a.iter().map(json_to_js_string).collect::<Vec<_>>().join(","),
+        serde_json::Value::Number(n) => n.as_f64().map(js::num_to_string).unwrap_or_else(|| n.to_string()),
         other => other.to_string(),
     }
 }
@@ -403,10 +349,7 @@ fn atlas_index(name: &str) -> Option<usize> {
 impl Gamedata {
     /// Load from files already fetched, by name. A file missing from the map is an error,
     /// except the optional `status-icon-sizes.js`.
-    pub fn from_files(
-        files: &HashMap<String, String>,
-        version: &str,
-    ) -> Result<Gamedata, GamedataError> {
+    pub fn from_files(files: &HashMap<String, String>, version: &str) -> Result<Gamedata, GamedataError> {
         load_gamedata_from_map(files, version)
     }
 
@@ -429,11 +372,7 @@ impl Gamedata {
     /// server's own `enums.texture` (FLOOR, WALL, FEAT, PLAYER, DEFAULT, GUI, ICONS); it is
     /// not the tileinfo dependency order.
     pub fn module_for_texture(&self, tex: u32) -> Option<&TileModule> {
-        self.texture_order
-            .get(tex as usize)
-            .copied()
-            .flatten()
-            .map(|i| &self.modules[i])
+        self.texture_order.get(tex as usize).copied().flatten().map(|i| &self.modules[i])
     }
 
     /// The client's id of a tile the server sent from a module named by its atlas. Zero, the
@@ -460,9 +399,7 @@ impl Gamedata {
     /// or none (the module is the one the id falls in).
     pub fn tile(&self, id: TileId, layer: Option<&str>) -> Option<TileRect> {
         match layer {
-            Some(l) if !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit()) => {
-                self.tile_for_texture(id, l.parse().ok()?)
-            }
+            Some(l) if !l.is_empty() && l.bytes().all(|b| b.is_ascii_digit()) => self.tile_for_texture(id, l.parse().ok()?),
             Some(l) if atlas_index(l).is_some() => self.tile_in(id, l),
             _ => self.rect(id as i64, self.module_for(id)?),
         }
@@ -501,17 +438,12 @@ impl Gamedata {
 
     /// How many variants the tile has (1 where the module says none).
     pub fn tile_count(&self, id: TileId) -> u32 {
-        self.module_for(id)
-            .map(|m| m.tile_count(id as i64))
-            .unwrap_or(1)
+        self.module_for(id).map(|m| m.tile_count(id as i64)).unwrap_or(1)
     }
 
     /// The first variant of the tile's group; the tile itself where the module says none.
     pub fn basetile(&self, id: TileId) -> TileId {
-        self.module_for(id)
-            .and_then(|m| m.basetile(id as i64))
-            .and_then(|b| TileId::try_from(b).ok())
-            .unwrap_or(id)
+        self.module_for(id).and_then(|m| m.basetile(id as i64)).and_then(|b| TileId::try_from(b).ok()).unwrap_or(id)
     }
 
     pub fn atlas_names(&self) -> &'static [&'static str] {
@@ -534,11 +466,7 @@ impl Gamedata {
     pub fn status_icon_size(&self, id: TileId) -> i32 {
         if let Some(s) = &self.icon_sizes {
             let i = id as i64 - s.first;
-            let n = if i >= 0 && (i as usize) < s.table.len() {
-                s.table[i as usize]
-            } else {
-                s.default
-            };
+            let n = if i >= 0 && (i as usize) < s.table.len() { s.table[i as usize] } else { s.default };
             if let Some(n) = n.filter(|n| !n.is_nan()) {
                 return n as i32;
             }
@@ -555,31 +483,23 @@ impl Gamedata {
     /// `prepare_fg_flags` does; its `value` is the client's id. A word is a number, or
     /// `[lo, hi]` for more than 32 bits.
     pub fn fg(&self, word: &serde_json::Value) -> FlagWord {
-        self.fg_flags
-            .decode(&flags::words_of(word))
-            .moved(self.modules[3].offset)
+        self.fg_flags.decode(&flags::words_of(word)).moved(self.modules[3].offset)
     }
 
     /// A background word (dungeon tiles), decoded as `prepare_bg_flags` does; its `value` is
     /// the client's id.
     pub fn bg(&self, word: &serde_json::Value) -> FlagWord {
-        self.bg_flags
-            .decode(&flags::words_of(word))
-            .moved(self.modules[0].offset)
+        self.bg_flags.decode(&flags::words_of(word)).moved(self.modules[0].offset)
     }
 
     /// [`Gamedata::fg`] of a word given as its two 32-bit halves.
     pub fn fg_bits(&self, lo: u32, hi: u32) -> FlagWord {
-        self.fg_flags
-            .decode(&[lo as f64, hi as f64])
-            .moved(self.modules[3].offset)
+        self.fg_flags.decode(&[lo as f64, hi as f64]).moved(self.modules[3].offset)
     }
 
     /// [`Gamedata::bg`] of a word given as its two 32-bit halves.
     pub fn bg_bits(&self, lo: u32, hi: u32) -> FlagWord {
-        self.bg_flags
-            .decode(&[lo as f64, hi as f64])
-            .moved(self.modules[0].offset)
+        self.bg_flags.decode(&[lo as f64, hi as f64]).moved(self.modules[0].offset)
     }
 
     /// Every foreground flag name, as [`FlagWord::is_set`] indexes them.
@@ -601,52 +521,30 @@ const CALL_BUDGET: u64 = 1_000_000;
 const MAX_MODULE_TILES: i64 = 1_000_000;
 
 static HTML: Lazy<Regex> = Lazy::new(|| Regex::new(r"(?i)^\s*(<!|<html|<\?xml)").unwrap());
-static MAX_KEY: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"^(FLOOR|WALL|FEAT|MAIN|PLAYER|GUI|ICONS)_MAX$").unwrap());
+static MAX_KEY: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(FLOOR|WALL|FEAT|MAIN|PLAYER|GUI|ICONS)_MAX$").unwrap());
 
 /// Evaluate one gamedata module. A shell whose gamedata proxy is missing answers with its
 /// own app shell, a 200 whose body is HTML: say so instead of a syntax error.
 fn eval_script(interp: &mut Interp, src: &str, dep: Value) -> Result<Value, String> {
     if HTML.is_match(src) {
-        return Err(
-            "expected JavaScript, got an HTML page (is the gamedata proxy serving this path?)"
-                .into(),
-        );
+        return Err("expected JavaScript, got an HTML page (is the gamedata proxy serving this path?)".into());
     }
     let script = js::parse(src)?;
     interp.run_module(&script, dep, MODULE_BUDGET)
 }
 
 /// Load enums, tileinfo modules and status icon sizes for one server version.
-pub fn load_gamedata(
-    source: impl GamedataSource,
-    version: &str,
-) -> Result<Gamedata, GamedataError> {
+pub fn load_gamedata(source: impl GamedataSource, version: &str) -> Result<Gamedata, GamedataError> {
     load_gamedata_at(source, "", version)
 }
 
 /// [`load_gamedata`] from files already fetched, by name.
-pub fn load_gamedata_from_map(
-    files: &HashMap<String, String>,
-    version: &str,
-) -> Result<Gamedata, GamedataError> {
-    load_gamedata(
-        |name: &str| {
-            files
-                .get(name)
-                .cloned()
-                .ok_or_else(|| format!("{name} was not fetched"))
-        },
-        version,
-    )
+pub fn load_gamedata_from_map(files: &HashMap<String, String>, version: &str) -> Result<Gamedata, GamedataError> {
+    load_gamedata(|name: &str| files.get(name).cloned().ok_or_else(|| format!("{name} was not fetched")), version)
 }
 
 /// [`load_gamedata`], its errors naming each file under [`gamedata_root`]`(base, version)`.
-pub fn load_gamedata_at(
-    mut source: impl GamedataSource,
-    base: &str,
-    version: &str,
-) -> Result<Gamedata, GamedataError> {
+pub fn load_gamedata_at(mut source: impl GamedataSource, base: &str, version: &str) -> Result<Gamedata, GamedataError> {
     let path = |file: &str| {
         if base.is_empty() {
             format!("{version}/{file}")
@@ -654,11 +552,7 @@ pub fn load_gamedata_at(
             format!("{}/{file}", gamedata_root(base, version))
         }
     };
-    let fail = |file: &str, message: String| GamedataError {
-        file: file.to_string(),
-        path: path(file),
-        message,
-    };
+    let fail = |file: &str, message: String| GamedataError { file: file.to_string(), path: path(file), message };
     let mut texts = Vec::with_capacity(SCRIPTS.len());
     for f in SCRIPTS {
         texts.push(source.fetch_text(f).map_err(|e| fail(f, e))?);
@@ -666,26 +560,16 @@ pub fn load_gamedata_at(
     let mut diags: Vec<String> = Vec::new();
     let mut interp = Interp::new();
 
-    let enums_value =
-        eval_script(&mut interp, &texts[0], Value::Undef).map_err(|e| fail(SCRIPTS[0], e))?;
-    let enums_obj = enums_value
-        .as_obj()
-        .ok_or_else(|| fail(SCRIPTS[0], "the module is not an object".into()))?;
-    let enums = Enums {
-        values: obj_to_json(enums_obj, 0),
+    let enums_value = eval_script(&mut interp, &texts[0], Value::Undef).map_err(|e| fail(SCRIPTS[0], e))?;
+    let enums_obj = enums_value.as_obj().ok_or_else(|| fail(SCRIPTS[0], "the module is not an object".into()))?;
+    let enums = Enums { values: obj_to_json(enums_obj, 0) };
+    let flag_spec = |fn_name: &str, fallback: &str, interp: &mut Interp, diags: &mut Vec<String>| {
+        let f = enums_value.prop(fn_name).ok_or_else(|| fail(SCRIPTS[0], format!("enums.js has no {fn_name}")))?;
+        // prepare_fg_flags(tileidx) calls prepare_flags(tileidx, fg_flags, fg_cache): the table
+        // is the second argument, read in the scope the function closes over
+        let table = interp.find_call_arg(&f, 1).ok_or_else(|| fail(SCRIPTS[0], format!("{fn_name} passes on no flag table")))?;
+        FlagSpec::from_value(&table, fallback, diags).map_err(|e| fail(SCRIPTS[0], e))
     };
-    let flag_spec =
-        |fn_name: &str, fallback: &str, interp: &mut Interp, diags: &mut Vec<String>| {
-            let f = enums_value
-                .prop(fn_name)
-                .ok_or_else(|| fail(SCRIPTS[0], format!("enums.js has no {fn_name}")))?;
-            // prepare_fg_flags(tileidx) calls prepare_flags(tileidx, fg_flags, fg_cache): the table
-            // is the second argument, read in the scope the function closes over
-            let table = interp
-                .find_call_arg(&f, 1)
-                .ok_or_else(|| fail(SCRIPTS[0], format!("{fn_name} passes on no flag table")))?;
-            FlagSpec::from_value(&table, fallback, diags).map_err(|e| fail(SCRIPTS[0], e))
-        };
     let fg_flags = flag_spec("prepare_fg_flags", "fg_flags", &mut interp, &mut diags)?;
     let bg_flags = flag_spec("prepare_bg_flags", "bg_flags", &mut interp, &mut diags)?;
 
@@ -694,18 +578,9 @@ pub fn load_gamedata_at(
     let mut fp = String::new();
     for (i, name) in ATLASES.iter().enumerate() {
         let file = SCRIPTS[i + 1];
-        let exports =
-            eval_script(&mut interp, &texts[i + 1], prev.clone()).map_err(|e| fail(file, e))?;
+        let exports = eval_script(&mut interp, &texts[i + 1], prev.clone()).map_err(|e| fail(file, e))?;
         let prev_end = modules.last().map(|m| m.end);
-        let m = build_module(
-            &mut interp,
-            name_static(name),
-            file,
-            &exports,
-            prev_end,
-            &mut diags,
-        )
-        .map_err(|e| fail(file, e))?;
+        let m = build_module(&mut interp, name_static(name), file, &exports, prev_end, &mut diags).map_err(|e| fail(file, e))?;
         fp.push_str(&format!("{name}:{};", m.end));
         modules.push(m);
         prev = exports;
@@ -727,8 +602,7 @@ pub fn load_gamedata_at(
     };
     let texture_order = texture_order(&enums);
     let icon_sizes = load_icon_sizes(&mut source, &mut interp, &modules[6], &mut diags);
-    let names =
-        |idx: &[usize]| NameIndex::new(&idx.iter().map(|&i| &modules[i]).collect::<Vec<_>>());
+    let names = |idx: &[usize]| NameIndex::new(&idx.iter().map(|&i| &modules[i]).collect::<Vec<_>>());
     Ok(Gamedata {
         version: version.to_string(),
         fingerprint: fnv1a(&fp),
@@ -749,28 +623,17 @@ pub fn load_gamedata_at(
 }
 
 fn name_static(name: &str) -> &'static str {
-    ATLASES
-        .iter()
-        .find(|a| **a == name)
-        .copied()
-        .unwrap_or("main")
+    ATLASES.iter().find(|a| **a == name).copied().unwrap_or("main")
 }
 
 /// `status-icon-sizes.js`, its function asked once for every icon. Any problem is a
 /// diagnostic: status icons then shift by their own width.
-fn load_icon_sizes(
-    source: &mut impl GamedataSource,
-    interp: &mut Interp,
-    icons: &TileModule,
-    diags: &mut Vec<String>,
-) -> Option<IconSizes> {
+fn load_icon_sizes(source: &mut impl GamedataSource, interp: &mut Interp, icons: &TileModule, diags: &mut Vec<String>) -> Option<IconSizes> {
     let fallback = "status icons shift by their own width";
     let src = match source.fetch_text(STATUS_ICON_SIZES) {
         Ok(s) => s,
         Err(e) => {
-            diags.push(format!(
-                "{STATUS_ICON_SIZES} not available; {fallback} ({e})"
-            ));
+            diags.push(format!("{STATUS_ICON_SIZES} not available; {fallback} ({e})"));
             return None;
         }
     };
@@ -785,16 +648,12 @@ fn load_icon_sizes(
     let module = match eval_script(interp, &src, dep) {
         Ok(m) => m,
         Err(e) => {
-            diags.push(format!(
-                "{STATUS_ICON_SIZES} not available; {fallback} ({e})"
-            ));
+            diags.push(format!("{STATUS_ICON_SIZES} not available; {fallback} ({e})"));
             return None;
         }
     };
     let Some(f) = module.prop("status_icon_size").filter(Value::is_callable) else {
-        diags.push(format!(
-            "{STATUS_ICON_SIZES} has no status_icon_size; {fallback}"
-        ));
+        diags.push(format!("{STATUS_ICON_SIZES} has no status_icon_size; {fallback}"));
         return None;
     };
     let mut ask = |id: f64| -> Option<f64> {
@@ -805,31 +664,20 @@ fn load_icon_sizes(
     };
     let table = (icons.first..icons.end).map(|id| ask(id as f64)).collect();
     let default = ask(f64::NAN);
-    Some(IconSizes {
-        first: icons.first,
-        table,
-        default,
-    })
+    Some(IconSizes { first: icons.first, table, default })
 }
 
 /// A module's first tile id, as the server numbers it: its lowest named id, the end when it
 /// names none.
 fn first_tile_id(numbers: &[(String, f64)], end: f64) -> f64 {
-    numbers
-        .iter()
-        .filter(|(k, _)| !k.ends_with("_MAX"))
-        .map(|(_, v)| *v)
-        .fold(end, |first, v| if v < first { v } else { first })
+    numbers.iter().filter(|(k, _)| !k.ends_with("_MAX")).map(|(_, v)| *v).fold(end, |first, v| if v < first { v } else { first })
 }
 
 fn whole(n: f64, what: &str) -> Result<i64, String> {
     if n.is_finite() && n.fract() == 0.0 && n.abs() < 1e15 {
         Ok(n as i64)
     } else {
-        Err(format!(
-            "{what} is not a whole number ({})",
-            js::num_to_string(n)
-        ))
+        Err(format!("{what} is not a whole number ({})", js::num_to_string(n)))
     }
 }
 
@@ -844,30 +692,14 @@ fn build_module(
     let obj = exports.as_obj().ok_or("the module is not an object")?;
     let (numbers, max_key): (Vec<(String, f64)>, Option<String>) = {
         let o = obj.borrow();
-        let numbers = o
-            .entries()
-            .iter()
-            .filter_map(|(k, v)| v.as_num().map(|n| (k.to_string(), n)))
-            .collect();
-        let max_key = o
-            .entries()
-            .iter()
-            .map(|(k, _)| k)
-            .find(|k| MAX_KEY.is_match(k))
-            .map(|k| k.to_string());
+        let numbers = o.entries().iter().filter_map(|(k, v)| v.as_num().map(|n| (k.to_string(), n))).collect();
+        let max_key = o.entries().iter().map(|(k, _)| k).find(|k| MAX_KEY.is_match(k)).map(|k| k.to_string());
         (numbers, max_key)
     };
     let end = match &max_key {
-        Some(k) => exports
-            .prop(k)
-            .map(|v| to_number(&v))
-            .filter(|n| *n != 0.0 && !n.is_nan())
-            .unwrap_or(0.0),
+        Some(k) => exports.prop(k).map(|v| to_number(&v)).filter(|n| *n != 0.0 && !n.is_nan()).unwrap_or(0.0),
         None => {
-            diags.push(format!(
-                "{file}: no {}_MAX; the module has no tiles",
-                atlas.to_uppercase()
-            ));
+            diags.push(format!("{file}: no {}_MAX; the module has no tiles", atlas.to_uppercase()));
             0.0
         }
     };
@@ -887,15 +719,9 @@ fn build_module(
         }
     }
     if skipped > 0 {
-        diags.push(format!(
-            "{file}: {skipped} exported values are not tile ids; left out of the names"
-        ));
+        diags.push(format!("{file}: {skipped} exported values are not tile ids; left out of the names"));
     }
-    let export_index = moved
-        .iter()
-        .enumerate()
-        .map(|(i, (k, _))| (k.clone(), i))
-        .collect();
+    let export_index = moved.iter().enumerate().map(|(i, (k, _))| (k.clone(), i)).collect();
 
     let function = |name: &str, diags: &mut Vec<String>| {
         let f = exports.prop(name).filter(Value::is_callable);
@@ -961,28 +787,12 @@ fn build_module(
         counts.push(count);
         bases.push(base);
     }
-    for (which, (count, first_error)) in ["get_tile_info", "tile_count", "basetile"]
-        .iter()
-        .zip(failures)
-    {
+    for (which, (count, first_error)) in ["get_tile_info", "tile_count", "basetile"].iter().zip(failures) {
         if count > 0 {
-            diags.push(format!(
-                "{file}: {which} failed for {count} of {n} tiles (first: {})",
-                first_error.unwrap_or_default()
-            ));
+            diags.push(format!("{file}: {which} failed for {count} of {n} tiles (first: {})", first_error.unwrap_or_default()));
         }
     }
-    Ok(TileModule {
-        atlas,
-        first: first + offset,
-        end: end + offset,
-        offset,
-        exports: moved,
-        export_index,
-        infos,
-        counts,
-        bases,
-    })
+    Ok(TileModule { atlas, first: first + offset, end: end + offset, offset, exports: moved, export_index, infos, counts, bases })
 }
 
 fn tile_info_of(v: &Value) -> Option<TileInfoRaw> {
@@ -1059,23 +869,14 @@ fn to_json(v: &Value, depth: u32) -> Option<serde_json::Value> {
             }
         }
         Value::Str(s) => J::String(s.to_string()),
-        Value::Arr(a) if depth < 4 => J::Array(
-            a.borrow()
-                .iter()
-                .map(|x| to_json(x, depth + 1).unwrap_or(J::Null))
-                .collect(),
-        ),
+        Value::Arr(a) if depth < 4 => J::Array(a.borrow().iter().map(|x| to_json(x, depth + 1).unwrap_or(J::Null)).collect()),
         Value::Obj(o) if depth < 4 => J::Object(obj_to_json(o, depth + 1)),
         _ => return None,
     })
 }
 
 fn obj_to_json(o: &js::ObjRef, depth: u32) -> serde_json::Map<String, serde_json::Value> {
-    o.borrow()
-        .entries()
-        .iter()
-        .filter_map(|(k, v)| Some((k.to_string(), to_json(v, depth)?)))
-        .collect()
+    o.borrow().entries().iter().filter_map(|(k, v)| Some((k.to_string(), to_json(v, depth)?))).collect()
 }
 
 #[cfg(test)]

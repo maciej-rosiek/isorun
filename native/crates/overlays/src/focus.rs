@@ -157,7 +157,13 @@ pub fn focus_step(slots: &[FocusSlot], index: i32, dir: FocusDir, opts: StepOpts
                 Some(b) => {
                     let b = slots[b];
                     // the nearest column that way; within it, the nearest row
-                    let better = if s.col == b.col { (s.row - cur.row).abs() < (b.row - cur.row).abs() } else if forward { s.col < b.col } else { s.col > b.col };
+                    let better = if s.col == b.col {
+                        (s.row - cur.row).abs() < (b.row - cur.row).abs()
+                    } else if forward {
+                        s.col < b.col
+                    } else {
+                        s.col > b.col
+                    };
                     if better {
                         best = Some(i);
                     }
@@ -215,7 +221,13 @@ pub fn focus_wrap(slots: &[FocusSlot], index: i32, dir: FocusDir, opts: StepOpts
                 None => best = Some(i),
                 Some(b) => {
                     let b = slots[b];
-                    let better = if s.col == b.col { opts.columns && (s.row - cur.row).abs() < (b.row - cur.row).abs() } else if dir == FocusDir::Right { s.col < b.col } else { s.col > b.col };
+                    let better = if s.col == b.col {
+                        opts.columns && (s.row - cur.row).abs() < (b.row - cur.row).abs()
+                    } else if dir == FocusDir::Right {
+                        s.col < b.col
+                    } else {
+                        s.col > b.col
+                    };
                     if better {
                         best = Some(i);
                     }
@@ -497,7 +509,10 @@ mod tests {
     #[test]
     fn layout_defaults() {
         assert_eq!(focus_slots(&[(None, None); 3]), vec![FocusSlot { row: 0, col: 0 }, FocusSlot { row: 1, col: 0 }, FocusSlot { row: 2, col: 0 }]);
-        assert_eq!(focus_slots(&[(Some(5), None), (Some(5), None), (Some(7), None)]), vec![FocusSlot { row: 5, col: 0 }, FocusSlot { row: 5, col: 1 }, FocusSlot { row: 7, col: 0 }]);
+        assert_eq!(
+            focus_slots(&[(Some(5), None), (Some(5), None), (Some(7), None)]),
+            vec![FocusSlot { row: 5, col: 0 }, FocusSlot { row: 5, col: 1 }, FocusSlot { row: 7, col: 0 }]
+        );
     }
 
     const SKILLS: [(i32, i32); 7] = [(1, 0), (1, 1), (3, 0), (3, 1), (4, 0), (6, 1), (7, 0)];
