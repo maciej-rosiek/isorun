@@ -16,6 +16,7 @@ use std::hash::{Hash, Hasher};
 pub const TEXELS_PER_CELL: usize = 4;
 const SIZE: usize = MEMORY_CELLS * TEXELS_PER_CELL;
 const LIT_HEIGHT: f32 = 0.35;
+const NEAREST_LIT: f32 = 1.0;
 const SIGHT_POINTS: [(f32, f32); 5] = [(0.0, 0.0), (-0.3, -0.3), (0.3, -0.3), (-0.3, 0.3), (0.3, 0.3)];
 
 type TorchKey = (i32, i32, u32, u32);
@@ -114,7 +115,7 @@ fn clear(scene: &Scene, from: (f32, f32), to: (f32, f32)) -> bool {
 }
 
 fn attenuation(d: f32, cutoff: f32, decay: f32) -> f32 {
-    let falloff = 1.0 / d.powf(decay).max(0.01);
+    let falloff = 1.0 / d.max(NEAREST_LIT).powf(decay);
     if cutoff > 0.0 {
         let c = (1.0 - (d / cutoff).powi(4)).clamp(0.0, 1.0);
         return falloff * c * c;
