@@ -53,6 +53,40 @@ pub struct IsorunApp {
     visits: isorun_client::visits::Visits,
     /// When the last frame's work ended, for [`FrameWatch`].
     watch: FrameWatch,
+    /// The Frame rate setting's pacing.
+    #[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+    pace: FramePace,
+}
+
+/// Holds each frame back to the Frame rate setting (settings::frame_cap): the screen's vsync
+/// alone draws 120 frames a second on a 120 Hz phone, which drains its battery and heats it for
+/// nothing a turn-based game shows. Natively the frame sleeps until its turn; the web's runner
+/// is capped when the page starts (`WebOptions::max_fps`), as a page cannot sleep. Each frame's
+/// turn is one gap after the last one's, not after the last one ended, so a sleep that wakes late
+/// does not slow the rate; after a pause (nothing asked for a frame) the next draws at once.
+#[derive(Default)]
+#[cfg_attr(target_arch = "wasm32", allow(dead_code))]
+struct FramePace {
+    due: f64,
+}
+
+impl FramePace {
+    #[cfg(not(target_arch = "wasm32"))]
+    fn wait(&mut self) {
+        let cap = isorun_front::settings::frame_cap();
+        if cap == 0 {
+            return;
+        }
+        let gap = 1.0 / cap as f64;
+        let now = isorun_client::platform::seconds();
+        self.due += gap;
+        let wait = self.due - now;
+        if wait < -gap {
+            self.due = now;
+        } else if wait > 0.001 {
+            std::thread::sleep(std::time::Duration::from_secs_f64(wait.min(gap)));
+        }
+    }
 }
 
 /// The frames that keep the app's thread too long, to the log (logcat on Android, where a thread
@@ -128,6 +162,7 @@ impl IsorunApp {
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();
         #[cfg(not(all(not(target_arch = "wasm32"), feature = "gilrs")))]
         let pads: Pads = ();
+        isorun_front::settings::set_frame_cap(&isorun_front::settings::get());
         let mut app = IsorunApp {
             rs,
             front,
@@ -140,6 +175,7 @@ impl IsorunApp {
             buttons: ButtonDedupe::default(),
             visits: Default::default(),
             watch: FrameWatch::default(),
+            pace: FramePace::default(),
         };
         if let Some(path) = args.iter().position(|a| a == "--open").and_then(|i| args.get(i + 1)).cloned() {
             app.front.open(&path);
@@ -369,6 +405,8 @@ impl eframe::App for IsorunApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        #[cfg(not(target_arch = "wasm32"))]
+        self.pace.wait();
         let started = isorun_client::platform::seconds();
         self.screens(ui);
         let (screen, in_game) = match &self.screen {

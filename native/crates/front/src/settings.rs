@@ -12,7 +12,7 @@ use isorun_client::platform::storage::{load, save};
 use isorun_client::servers;
 use isorun_render::{IsoQuality, SurfaceDetail};
 use serde_json::{json, Map, Value};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
 const SETTINGS_KEY: &str = "isorun.settings";
 
@@ -67,6 +67,7 @@ pub fn defaults() -> Settings {
         "torchShadows": "auto",
         "look": "diorama",
         "animationSpeed": 1.5,
+        "frameRate": 60,
         "arrowKeys": "aim",
         "leftStick": "aim",
         "exploreTrigger": "hold",
@@ -117,6 +118,7 @@ pub fn from_stored(saved: &Value) -> Settings {
     keep(&mut s, "look", &|v| v.as_str().is_some_and(|l| l == "custom" || isorun_render::lights(l).is_some()));
     keep(&mut s, "hud", &|v| matches!(v.as_str(), Some("dock" | "classic")));
     keep(&mut s, "minimap", &|v| matches!(v.as_str(), Some("auto" | "on" | "off")));
+    keep(&mut s, "frameRate", &|v| v.as_str() == Some("off") || v.as_f64().is_some_and(|x| x.is_finite() && x >= 10.0));
     keep(&mut s, "uiScale", &|v| v.as_f64().is_some_and(|x| x.is_finite() && x > 0.2 && x < 4.0));
     s
 }
@@ -124,7 +126,30 @@ pub fn from_stored(saved: &Value) -> Settings {
 /// Keep `s`: only what differs from the defaults is written down, so a default moved later
 /// moves for everyone.
 pub fn save_settings(s: &Settings) {
+    set_frame_cap(s);
     save(SETTINGS_KEY, &Value::Object(changed(s)));
+}
+
+/// The Frame rate setting's cap in frames a second, 0 for none (Unlimited, so the screen's own).
+static FRAME_CAP: AtomicU32 = AtomicU32::new(60);
+
+/// The cap the app paces its frames to: the Frame rate kept last (with [`save_settings`] or this).
+pub fn frame_cap() -> u32 {
+    FRAME_CAP.load(Ordering::Relaxed)
+}
+
+pub fn set_frame_cap(s: &Settings) {
+    FRAME_CAP.store(frame_rate(s), Ordering::Relaxed);
+}
+
+/// The Frame rate setting in frames a second, 0 for Unlimited.
+pub fn frame_rate(s: &Settings) -> u32 {
+    s.get("frameRate").and_then(Value::as_f64).map(|x| x.round() as u32).unwrap_or(0)
+}
+
+/// The Frame rate setting's stops: a phone's battery and heat want 30 or 60, a fast screen more.
+fn frame_rates() -> Vec<Value> {
+    vec![json!(30), json!(60), json!(90), json!(120), json!(144), json!("off")]
 }
 
 /// What of `s` differs from the defaults.
@@ -338,6 +363,7 @@ pub fn rows() -> Vec<SettingRow> {
         row("Graphics", "Resolution", "resolution", resolutions(), "How many of the screen's pixels the dungeon is drawn with; the rest are filled in when the picture is scaled up. Fewer is much faster on a big screen. Auto takes the Quality's, and draws fewer for a while when the GPU cannot keep up with the screen.", |v| auto_or(v, percent)),
         row("Graphics", "Ambient occlusion", "ambientOcclusion", strs(&["auto", "off", "low", "medium", "high"]), "The soft shadows in the corners and at the foot of the walls. Low draws them with fewer samples, High at the full size of the screen. Auto takes the Quality's.", |v| auto_or(v, |v| cap(&plain(v)))),
         row("Graphics", "Antialiasing", "antialias", strs(&["auto", "off", "on"]), "Smooths the edges of the walls by drawing the scene four times over; it costs about as much as the rest of the scene. Auto takes the Quality's.", |v| auto_or(v, |v| if v.as_str() == Some("on") { "On".into() } else { "Off".into() })),
+        row("Graphics", "Frame rate", "frameRate", frame_rates(), "The most frames a second the app draws. Fewer save battery and keep a phone cool; more are smoother on a fast screen. Unlimited draws as many as the screen shows. On the web a change takes effect when the page next loads.", |v| if v.as_str() == Some("off") { "Unlimited".into() } else { format!("{} fps", plain(v)) }),
         row("Graphics", "Animation speed", "animationSpeed", nums(&[1.0, 1.25, 1.5, 2.0, 3.0]), "How fast the player and the monsters walk and fight on the screen. The game itself does not wait for them.", |v| format!("{}x", plain(v))),
         row("Graphics", "Travel", "travel", strs(&["paced", "fast"]), "Paced: travel and explore wait for every hop, so the walk shows cell by cell. Fast: they go as fast as the server does, and a long way is a jump.", |v| if v.as_str() == Some("paced") { "Paced".into() } else { "Fast".into() }),
         row("Graphics", "Look", "look", looks, "The lights, the colours and the screen effects of the dungeon. Custom is what Tune the look set last.", |v| match v.as_str() {
@@ -451,6 +477,14 @@ mod tests {
         assert_eq!(str_of(&s, "minimap"), "auto");
         assert_eq!(client_settings(&from_stored(&json!({ "minimap": "off" }))).minimap, "off");
         assert_eq!(str_of(&from_stored(&json!({ "minimap": "sometimes" })), "minimap"), "auto");
+    }
+
+    #[test]
+    fn frame_rate_reads() {
+        assert_eq!(frame_rate(&from_stored(&json!({}))), 60);
+        assert_eq!(frame_rate(&from_stored(&json!({ "frameRate": 120 }))), 120);
+        assert_eq!(frame_rate(&from_stored(&json!({ "frameRate": "off" }))), 0);
+        assert_eq!(frame_rate(&from_stored(&json!({ "frameRate": "fast" }))), 60);
     }
 
     #[test]

@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- A Frame rate setting (Graphics): the app draws at most 60 frames a second by default, which saves a phone's battery and keeps it cool; 30, 90, 120, 144 or Unlimited are there too.
 - A new look, Two-tone: a warm light from the left and a cool one from the right of the screen, so every wall shows at a glance which way it faces, whichever way you turn the view.
 - A new look, Ink: the dungeon in grey ink on paper, and only what matters in colour: you, the monsters, the items, doors, stairs, altars and the like.
 - A travel-excluded area shows on the dungeon floor again: crawl's red cross on each excluded cell, as the minimap has it.

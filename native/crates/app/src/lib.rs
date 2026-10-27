@@ -146,7 +146,9 @@ pub fn start() {
         let canvas = document.get_element_by_id("isorun").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();
         // the page's offline engine is looked up first, so the front end offers it from the start
         isorun_client::engine::init().await;
-        let options = eframe::WebOptions { wgpu_options: isorun_ui::wgpu_options(), ..Default::default() };
+        // the Frame rate setting, as the page keeps it when it loads (the app's FramePace)
+        let cap = isorun_front::settings::frame_rate(&isorun_front::settings::get());
+        let options = eframe::WebOptions { wgpu_options: isorun_ui::wgpu_options(), max_fps: (cap > 0).then_some(cap), ..Default::default() };
         let _ = eframe::WebRunner::new().start(canvas, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc))))).await;
     });
 }
