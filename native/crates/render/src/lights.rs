@@ -204,7 +204,7 @@ pub fn diorama() -> IsoLights {
         ambient_sky: 0xe4ecff,
         ambient_ground: 0x8c7c6c,
         ambient_intensity: 3.4,
-        torch: PointLightSpec { colour: 0xffd9b0, intensity: 14.0, distance: 7.0, decay: 1.0 },
+        torch: PointLightSpec { colour: 0xffe0cc, intensity: 14.0, distance: 7.0, decay: 1.0 },
         shading: ShadingSettings {
             wrap: 0.25,
             bands: 5.0,
