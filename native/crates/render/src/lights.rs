@@ -210,7 +210,7 @@ pub fn diorama() -> IsoLights {
             bands: 5.0,
             relief: 0.3,
             depth: 0.06,
-            sprites: 0.2,
+            sprites: 0.5,
             gloss: 0.25,
             rim: 0.4,
             cavity: 0.55,
