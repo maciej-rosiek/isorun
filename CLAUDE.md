@@ -77,6 +77,16 @@ Chromium: WebGL2 with `--use-angle=swiftshader --enable-unsafe-swiftshader`; rea
 --use-webgpu-adapter=swiftshader --use-angle=swiftshader`. WebGPU allows 16 sampled textures per
 shader. `hasTouch` and `isMobile` emulate a phone (a `deviceScaleFactor` above 1 does not work).
 
+A real phone's GPU driver: the emulators draw with software drivers (SwiftShader, llvmpipe),
+which take shaders a phone's driver crashes on (Mali's compiler on a second bool in a WGSL
+struct). With a phone on adb, build `isorun-render`'s `snapshot` example for
+`aarch64-linux-android` (the NDK's clang as linker), push it and `crates/client/assets` to
+`/data/local/tmp`, and run it with `SNAPSHOT_ROOT=<assets>`: it compiles every shader with the
+phone's driver, a segfault is the driver's. An Android SDK with the NDK, the emulator and API 34
+images is in `~/android-sdk` (its `adb` is not on `PATH`); quote logcat filters in fish
+(`'isorun:*'`). A local APK is signed with the debug key: installing it means `adb uninstall`,
+which deletes the player's saves, so on the user's phone use the CI's `Isorun-android` artifact.
+
 Testing against real games: spectate on a public server that allows anonymous spectating (CUE
 `wss://underhound.eu:8080/socket` does; CAO does not), from the front end's Watch.
 

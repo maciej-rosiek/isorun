@@ -62,6 +62,15 @@ it nor a release-signed APK will update the other. On GitHub the key is two repo
 `.github/workflows/isorun-android.yml` builds it on every push to `main` (the run's
 artifact) and adds it to a release when one is published, or on a manual run with "upload".
 
+## A crash on one phone
+
+The smoke test's emulator draws with SwiftShader, a software driver, so it does not catch a
+crash in a phone's own GPU driver. A start that only closes with a native crash leaves a
+tombstone in the log (`adb logcat -d -s 'DEBUG:*'`); a backtrace in the driver
+(`libGLES_mali.so`, `vulkan.adreno.so`) under `vkCreateGraphicsPipelines` is a shader the driver
+could not compile. The render crate's `snapshot` example, built for the phone and run from `adb
+shell` with `SNAPSHOT_ROOT`, compiles the shaders with that driver without the app.
+
 ## Smoke test
 
 `smoke.sh <Isorun.apk> <kit>` plays the engine on a device or emulator over adb: crawl from a
