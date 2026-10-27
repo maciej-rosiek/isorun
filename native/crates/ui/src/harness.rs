@@ -53,7 +53,6 @@ impl Game {
         if !self.tiles_set {
             if let Some(gd) = self.session.gamedata.clone() {
                 self.tiles_set = true;
-                let _ = self.view.renderer.set_torch_model(isorun_client::testbed::TORCH_GLB);
                 self.view.renderer.set_tiles(gd);
                 self.view.renderer.new_level();
             }

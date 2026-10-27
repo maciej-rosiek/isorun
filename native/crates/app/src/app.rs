@@ -156,9 +156,6 @@ impl IsorunApp {
                 let mut view = View3d::new(&self.rs);
                 let s = isorun_front::settings::get();
                 isorun_front::settings::apply_graphics(&mut view.renderer, &s, 1.0);
-                if let Err(e) = view.renderer.set_torch_model(testbed::TORCH_GLB) {
-                    log::warn!("torch model: {e}");
-                }
                 view.renderer.set_tiles(tiles);
                 view.renderer.new_level();
                 if let Some(v) = crate::launch_args().iter().find_map(|a| a.strip_prefix("--debug-view=")?.parse().ok()) {

@@ -197,6 +197,30 @@ fn picks_level_presentation_by_branch() {
 // ---- build_scene on a recorded level
 
 #[test]
+fn tells_a_wall_with_a_torch_from_a_plain_one() {
+    // given
+    let gd = gd();
+    let mut st = replayed();
+    let mut torch = first_floor(&st);
+    let mut plain = torch.clone();
+    plain.x += 1;
+    for (mc, name) in [(&mut torch, "WALL_BRICK_DARK_2_TORCH"), (&mut plain, "WALL_BRICK_DARK_2")] {
+        mc.g = Some("#".into());
+        set_bg(mc, gd.dngn.id(name).unwrap());
+    }
+    let (at, beside) = ((torch.x, torch.y), (plain.x, plain.y));
+    put(&mut st, torch);
+    put(&mut st, plain);
+
+    // when
+    let scene = full(&st);
+
+    // then
+    assert!(scene.cell(at.0, at.1).unwrap().flags.torch_wall);
+    assert!(!scene.cell(beside.0, beside.1).unwrap().flags.torch_wall);
+}
+
+#[test]
 fn stands_a_tree_upright_rather_than_laying_it_on_the_floor() {
     let gd = gd();
     let mut st = replayed();

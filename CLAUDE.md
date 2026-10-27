@@ -25,7 +25,7 @@ separate branch.) Other agents often share this checkout: commit your own paths 
   `ATTRIBUTION.md`), the front end's room (`room/places.json`, `room/places/<id>.{json,png}`), the
   orb, the icons, the favicon, the Steam art `STEAM.md` links, the command catalogue
   (`commands.json`). The test bed's level and atlas are `native/crates/client/assets` (`iso.des`,
-  `atlas.{png,json}` packed by `tools/build/pack-room.mjs`, the KayKit torch `torch_mounted.glb`).
+  `atlas.{png,json}` packed by `tools/build/pack-room.mjs`).
 - `native/fixtures/`: test fixtures: recorded sessions (`*.ndjson`), menus (`menus/`), one
   gamedata version's scripts (`gamedata/<sha>`).
 - `native/desktop/`, `native/android/`, `native/web/`: the three packagings (READMEs there).

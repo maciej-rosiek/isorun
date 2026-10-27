@@ -89,8 +89,6 @@ fn main() {
         pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
     device.on_uncaptured_error(std::sync::Arc::new(|e| panic!("wgpu: {e}")));
     let mut r = IsoRenderer::new(device.clone(), queue.clone());
-    let glb = std::fs::read(format!("{root}/torch_mounted.glb")).unwrap();
-    r.set_torch_model(&glb).unwrap();
     r.set_tiles(packed.clone());
     let detail = match std::env::var("DETAIL").as_deref() {
         Ok("off") => isorun_render::SurfaceDetail::Off,

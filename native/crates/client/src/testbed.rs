@@ -6,8 +6,6 @@ use isorun_render::{AtlasImage, TileSource};
 use isorun_scene::*;
 use std::sync::Arc;
 
-pub const TORCH_GLB: &[u8] = include_bytes!("../assets/torch_mounted.glb");
-
 pub struct Packed {
     atlas: isorun_vault::PackedAtlas,
     image: Arc<AtlasImage>,

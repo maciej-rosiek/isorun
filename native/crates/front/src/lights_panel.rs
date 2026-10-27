@@ -112,7 +112,6 @@ pub fn sections() -> Vec<Section> {
                 num!("Wetness", 0.0, 1.0, 0.05, |l| l.shading.wetness),
                 num!("Glow", 0.0, 3.0, 0.05, |l| l.shading.glow),
                 num!("Sparkle", 0.0, 3.0, 0.05, |l| l.shading.sparkle),
-                num!("Torch dust", 0.0, 2.0, 0.05, |l| l.shading.dust),
             ],
         ),
         s(

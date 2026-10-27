@@ -92,8 +92,7 @@ DCSS client for phones, for the ideas Orbrun took from it.
 
 The game is [Dungeon Crawl Stone Soup](https://crawl.develz.org), by its
 developers and contributors. Its tiles, which Isorun draws, are the work of
-the DCSS tile artists, released under CC0. The wall torch is from KayKit
-Dungeon Remastered by Kay Lousberg (CC0).
+the DCSS tile artists, released under CC0.
 
 Most of the code was written with Claude Code. [The source](https://github.com/maciej-rosiek/isorun) is licensed under
 [AGPL-3.0-or-later](LICENSE), and [ATTRIBUTION.md](ATTRIBUTION.md) explains

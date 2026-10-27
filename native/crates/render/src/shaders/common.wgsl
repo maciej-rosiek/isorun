@@ -39,7 +39,7 @@ struct Frame {
     shading3: vec4<f32>,
     // width, height, light count, unused
     viewport: vec4<f32>,
-    // view-space up, w = dust strength
+    // view-space up, w unused
     up: vec4<f32>,
     torch_light: vec4<f32>,
     lights: array<Light, MAX_LIGHTS>,

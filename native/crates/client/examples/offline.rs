@@ -71,7 +71,6 @@ fn main() {
     let (device, queue) =
         pollster::block_on(adapter.request_device(&wgpu::DeviceDescriptor { required_limits: adapter.limits(), ..Default::default() })).expect("device");
     let mut r = isorun_render::IsoRenderer::new(device.clone(), queue.clone());
-    r.set_torch_model(isorun_client::testbed::TORCH_GLB).unwrap();
     r.set_tiles(gd);
     r.set_scene(s.scene.clone());
     let mut camera = isorun_render::IsoCamera::default();

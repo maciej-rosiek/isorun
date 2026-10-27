@@ -762,6 +762,7 @@ fn build_cell(mc: &MapCell, ctx: &Ctx) -> SceneCell {
         cursor_kind: cursor_kind(&bgw, bf),
         out_of_range: on(&bgw, bf.OOR),
         magic_mapped: on(&bgw, bf.MM_UNSEEN),
+        torch_wall: false,
     };
     let glyph = mc.g.as_deref();
     let mut base = SceneCell {
@@ -797,6 +798,7 @@ fn build_cell(mc: &MapCell, ctx: &Ctx) -> SceneCell {
     base.liquid = liquid;
     flags.water = liquid.is_some_and(|l| matches!(l.kind, LiquidKind::Water | LiquidKind::Murky | LiquidKind::Starwater));
     flags.lava = liquid.is_some_and(|l| l.kind == LiquidKind::Lava);
+    flags.torch_wall = gd.dngn.name(bg_idx).is_some_and(|n| n.contains("_TORCH"));
     base.flags = flags;
     let floor_under = t.flv.as_ref().and_then(|f| f.f).map_or(bg_idx, |f| f as TileId);
     let has_cloud = cloud > 0;

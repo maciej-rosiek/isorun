@@ -231,7 +231,6 @@ pub struct GameScreen {
     last_3d: f64,
     /// the view moved this frame (the camera's easing, the renderer's animations)
     animating: bool,
-    torch_loaded: bool,
     level_map_was: bool,
     touch: bool,
     /// the settings over the game were opened from the Isorun menu: their Back goes back to it
@@ -351,7 +350,6 @@ impl GameScreen {
             last_active: now_ms(),
             last_3d: 0.0,
             animating: true,
-            torch_loaded: false,
             level_map_was: false,
             touch,
             settings_from_system: false,
@@ -476,12 +474,6 @@ impl GameScreen {
         if !self.tiles_set {
             if let Some(gd) = self.session.gamedata.clone() {
                 self.tiles_set = true;
-                if !self.torch_loaded {
-                    self.torch_loaded = true;
-                    if let Err(e) = self.parts.view.renderer.set_torch_model(isorun_client::testbed::TORCH_GLB) {
-                        log::warn!("torch model: {e}");
-                    }
-                }
                 self.parts.view.renderer.set_tiles(gd.clone());
                 self.parts.view.renderer.new_level();
                 self.loading = None;

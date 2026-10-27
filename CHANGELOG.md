@@ -6,9 +6,9 @@ Notable changes to Isorun, newest first.
 
 - The inventory shows the right card when a weapon or armour and a scroll or potion share a letter (crawl now lets them); pointing at one no longer lights up both.
 - Loot as in Diablo: an item a monster drops as it dies flies up out of it, turns over and lands on the floor with a clink.
-- The dungeon has no sun any more: an even light and the wall torches light it, so a narrow corridor is no darker than a room and the torches are the bright places; each frame does less work. The looks' Sun and Shadows settings are gone.
-- The wall torches burn a little warmer, and a wall by a torch, or by several, no longer glares white; the room around keeps its light.
-- The parts of a level above or left of where you came in are no longer drawn as if in sight with no torch light: what you only remember is darker there too, and the wall torches light them.
+- The dungeon has no sun any more: an even light and crawl's torch walls light it, so a narrow corridor is no darker than a room and the torches are the bright places; each frame does less work. The looks' Sun and Shadows settings are gone.
+- The torches are crawl's own: the torch walls some vaults have light their rooms with a warm light, and a wall by a torch, or by several, no longer glares white. The torches Isorun added to the walls, and the sparks around them, are gone.
+- The parts of a level above or left of where you came in are no longer drawn as if in sight with no torch light: what you only remember is darker there too, and the torch walls light them.
 - Good items on the floor stand in a slim column of light with a soft glow around them: orange for a random artefact (legendary), gold for a named artefact (unique); a dropped one chimes when it lands.
 - Find (Ctrl-F, the dock's Find) is a screen to browse: everything you have seen, on every level, in categories (weapons, armour, potions, scrolls, wands, jewellery, stairs, altars, shops, portals and more) with counts, your level first and new things on top; a tap travels there, a long press shows the details, and the search box still asks crawl.
 - Offline games no longer freeze the app (and Android no longer says it is not responding) when you tap or press keys faster than crawl answers, as in a fight at low health; your keys wait for crawl instead of the screen.

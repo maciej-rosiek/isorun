@@ -30,7 +30,6 @@ impl IsoRenderer {
         self.combat.prepare(&self.gpu, samples);
         self.steps.prepare(&self.gpu, samples);
         self.loot.prepare(&self.gpu, samples);
-        self.torches.prepare(&self.gpu, samples);
         self.overlay.prepare(&self.gpu, samples);
     }
 
@@ -95,41 +94,12 @@ impl IsoRenderer {
         self.perspective = perspective;
     }
 
-    /// The torches nearest the camera hold the dust, and every torch lights the level from the
-    /// baked torch light map.
+    /// Every torch lights the level from the baked torch light map.
     fn place_lights(&mut self) {
-        let nearest = self.nearest_torches();
-        let placed = assign_torches(&self.lit, &nearest);
-        let mut moved = self.revision_counter != self.dust_revision;
-        for i in 0..TORCH_LIGHTS {
-            let torch = placed.get(i).copied().flatten();
-            moved |= !same_torch(&torch, &self.lit[i]) || torch.is_some() != self.lit[i].is_some();
-            self.lit[i] = torch;
-        }
-        if moved {
-            self.dust_revision = self.revision_counter;
-            let scene = self.scene.clone();
-            let lit: Vec<Option<Torch>> = self.lit.iter().map(|t| t.filter(|t| scene.as_ref().and_then(|s| s.cell(t.cell.0, t.cell.1)).is_some_and(|c| c.visibility == Visibility::Visible))).collect();
-            self.torches.place_dust(&self.gpu, &lit);
-        }
         if let Some(scene) = self.scene.clone() {
             self.torch_light.bake(&scene, &self.tile_torches, self.tile_torches_version, self.lights.torch.distance, self.lights.torch.decay);
         }
         self.torch_light.upload(&self.gpu);
-    }
-
-    fn nearest_torches(&mut self) -> Vec<Torch> {
-        let x = self.cam.eye_x.round() as f32 + 0.5;
-        let z = self.cam.eye_y.round() as f32 + 0.5;
-        if x != self.nearest_from.0 || z != self.nearest_from.1 || self.nearest_from.2 != self.tile_torches_version {
-            self.nearest_from = (x, z, self.tile_torches_version);
-            let mut all = self.tile_torches.clone();
-            let away = |t: &Torch| (t.position.x - x).powi(2) + (t.position.z - z).powi(2);
-            all.sort_by(|a, b| away(a).total_cmp(&away(b)));
-            all.truncate(TORCH_LIGHTS);
-            self.nearest = all;
-        }
-        self.nearest.clone()
     }
 
     fn frame_uniform(&self, now: f64) -> FrameUniform {
@@ -170,7 +140,7 @@ impl IsoRenderer {
             shading2: [gate(detail.variation, s.variation), gate(detail.wetness, s.wetness), gate(detail.glow, s.glow), gate(detail.sparkle, s.sparkle)],
             shading3: [detail.depth_steps as f32, detail.liquids as u8 as f32, detail.statuses as u8 as f32, (now - self.start) as f32],
             viewport: [self.width, self.height, MAX_LIGHTS as f32, 0.0],
-            up: [up.x, up.y, up.z, gate(detail.dust, s.dust)],
+            up: [up.x, up.y, up.z, 0.0],
             torch_light: [colour[0] * spec.intensity, colour[1] * spec.intensity, colour[2] * spec.intensity, self.tile_torches.first().map_or(1.0, |t| t.position.y)],
             lights,
         }
@@ -269,9 +239,6 @@ impl IsoRenderer {
         chunk_items.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
         items.extend(chunk_items.into_iter().map(|(_, _, item)| item));
         self.features.draws(&mut items);
-        if let Some(model) = &self.torch_model {
-            self.torches.draws(&mut items, model);
-        }
         self.actors.draws(&mut items);
         self.loot.draws(&mut items);
         // the uniforms of every draw, in one buffer
@@ -285,14 +252,12 @@ impl IsoRenderer {
                 PageRef::Page(i) => r.pages.as_ref().and_then(|pages| pages.bind_group(i)).cloned(),
                 PageRef::Cap => Some(r.cap_group.clone()),
                 PageRef::Door => Some(r.door_group.clone()),
-                PageRef::Torch => r.torch_group.clone(),
             }
         };
         let groups: Vec<Option<wgpu::BindGroup>> = items.iter().map(|i| page_group(self, i.page)).collect();
 
         let pipelines = self.pipelines.as_ref().unwrap();
         self.fog.upload(&self.gpu);
-        self.torches.set_dust_strength(&self.gpu, frame.up[3]);
         // the scene pass
         let targets = self.post.targets.as_ref().unwrap();
         let bg = linear(self.lights.background);
@@ -330,7 +295,6 @@ impl IsoRenderer {
             self.combat.draw_opaque(&mut pass, &self.frame_group);
             self.overlay.draw(&mut pass, &self.frame_group);
             // what is blended, by three's render order
-            self.torches.draw_glows(&mut pass, &self.frame_group);
             self.combat.draw_sparks(&mut pass, &self.frame_group);
             self.steps.draw_prints(&mut pass, &self.frame_group);
             self.combat.draw_splats(&mut pass, &self.frame_group);
@@ -339,7 +303,6 @@ impl IsoRenderer {
             self.loot.draw(&mut pass, &self.frame_group);
             self.fog.draw(&mut pass, &self.frame_group);
             self.steps.draw_puffs(&mut pass, &self.frame_group);
-            self.torches.draw_dust(&mut pass, &self.frame_group);
         }
         let emission = self.liquids.glowing() || (self.pages.as_ref().is_some_and(|p| p.glowing) && self.detail.detail().glow && self.lights.shading.glow > 0.0 && (self.glow_in_view() || self.actors.glowing() || self.features.glowing));
         let origin = view_proj.project_point3(Vec3::ZERO);

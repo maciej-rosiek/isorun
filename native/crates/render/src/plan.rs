@@ -333,29 +333,6 @@ pub fn tile_frame(rect: &TileRect, ox: f32, oy: f32, ymax: Option<f32>) -> TileF
     TileFrame { left: (rect.ox as f32 + ox) / cell, top: (rect.oy as f32 + oy) / cell, width: rect.w as f32 / cell, height: h / cell, texel_height: h }
 }
 
-const TORCH_EVERY: f64 = 5.0;
-
-/// Whether a wall carries a torch on this face: about one face in five, the same every time.
-pub fn has_torch(x: i32, y: i32, s: Side) -> bool {
-    let idx = match s {
-        Side::N => 0,
-        Side::S => 1,
-        Side::W => 2,
-        Side::E => 3,
-    };
-    // the same 32-bit arithmetic as the JS (`| 0`, `Math.imul`, `>>>`)
-    let h0 = (x as i64 * 374761393 + y as i64 * 668265263 + (idx + 7) as i64 * 2147483647) as i64;
-    let mut h = to_int32(h0);
-    h = (h ^ ((h as u32) >> 13) as i32).wrapping_mul(1274126177);
-    let v = (h ^ ((h as u32) >> 16) as i32) as u32;
-    (v as f64 / 4294967296.0) * TORCH_EVERY < 1.0
-}
-
-/// ECMAScript ToInt32 of a value exact in f64 (the products here stay below 2^53).
-fn to_int32(v: i64) -> i32 {
-    (v.rem_euclid(1 << 32)) as u32 as i32
-}
-
 pub const TORCH_HEIGHT: f32 = 0.5;
 
 #[cfg(test)]
@@ -367,16 +344,5 @@ mod tests {
         assert_eq!(stick_to_dir(0.0, -1.0, 0.0), 0);
         assert_eq!(stick_to_dir(1.0, 0.0, 0.0), 2);
         assert_eq!(stick_to_dir(0.0, -1.0, std::f32::consts::FRAC_PI_2), 2);
-    }
-
-    #[test]
-    fn about_one_face_in_five_has_a_torch() {
-        let mut n = 0;
-        for x in 0..40 {
-            for y in 0..40 {
-                n += has_torch(x, y, Side::N) as i32;
-            }
-        }
-        assert!((250..390).contains(&n), "{n}");
     }
 }

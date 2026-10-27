@@ -40,7 +40,6 @@ pub struct ShadingSettings {
     pub wetness: f32,
     pub glow: f32,
     pub sparkle: f32,
-    pub dust: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -218,7 +217,6 @@ pub fn diorama() -> IsoLights {
             wetness: 0.25,
             glow: 0.9,
             sparkle: 0.65,
-            dust: 0.5,
         },
         paint: PaintSettings { radius: 0.0, levels: 0.0, lift: 1.4, upscale: Upscale::Scale2x },
         walls: Walls { bevel: 0.0, moss: 0.25, moss_colour: 0x707070 },
@@ -300,7 +298,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.background = 0x0e1216;
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0x9fb4cc, 0x3c4448, 3.2);
             l.torch = PointLightSpec { colour: 0xffa858, intensity: 8.0, distance: 9.0, decay: 1.0 };
-            l.shading = ShadingSettings { gloss: 0.7, rim: 0.5, cavity: 0.7, wetness: 0.9, dust: 0.2, ..l.shading };
+            l.shading = ShadingSettings { gloss: 0.7, rim: 0.5, cavity: 0.7, wetness: 0.9, ..l.shading };
             l.walls.moss_colour = 0x4e5a4a;
             l.water = WaterSettings { strength: 0.25, speed: 0.9, ..l.water };
             l.grade = Grade { saturation: 0.75, shadows: 0xd8e4ff, highlights: 0xfff0dc, vignette: 0.3 };
@@ -311,7 +309,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.background = 0x1c0e0a;
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xb4a098, 0x4a2a20, 2.5);
             l.torch = PointLightSpec { colour: 0xff9448, intensity: 7.0, distance: 9.0, decay: 1.0 };
-            l.shading = ShadingSettings { gloss: 0.35, rim: 0.7, cavity: 0.7, glow: 1.6, dust: 1.4, ..l.shading };
+            l.shading = ShadingSettings { gloss: 0.35, rim: 0.7, cavity: 0.7, glow: 1.6, ..l.shading };
             l.bloom = Bloom { enabled: true, strength: 0.3, radius: 0.5, threshold: 0.7 };
             l.lava.glow = 0.8;
             l.grade = Grade { saturation: 0.9, shadows: 0xe8dcff, highlights: 0xffe8c8, vignette: 0.4 };
@@ -322,7 +320,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.background = 0x161c24;
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xd8ecff, 0x6c7888, 4.5);
             l.torch = PointLightSpec { colour: 0xffc890, intensity: 5.0, distance: 9.0, decay: 1.0 };
-            l.shading = ShadingSettings { wrap: 0.35, gloss: 0.6, rim: 0.9, sparkle: 1.6, wetness: 0.4, dust: 0.3, ..l.shading };
+            l.shading = ShadingSettings { wrap: 0.35, gloss: 0.6, rim: 0.9, sparkle: 1.6, wetness: 0.4, ..l.shading };
             l.walls = Walls { bevel: 0.05, moss: 0.35, moss_colour: 0xdce8f4 };
             l.grade = Grade { saturation: 0.7, shadows: 0xd4e4ff, highlights: 0xf4f8ff, vignette: 0.2 };
         }),
@@ -341,7 +339,7 @@ pub fn lights(name: &str) -> Option<IsoLights> {
             l.background = 0x080808;
             (l.ambient_sky, l.ambient_ground, l.ambient_intensity) = (0xc0c0c0, 0x303030, 3.4);
             l.torch = PointLightSpec { colour: 0xfff0e0, intensity: 7.0, distance: 7.0, decay: 1.4 };
-            l.shading = ShadingSettings { bands: 3.0, gloss: 0.4, rim: 1.2, cavity: 0.8, glow: 0.6, dust: 0.7, ..l.shading };
+            l.shading = ShadingSettings { bands: 3.0, gloss: 0.4, rim: 1.2, cavity: 0.8, glow: 0.6, ..l.shading };
             l.grade = Grade { saturation: 0.12, shadows: 0xe8ecf4, highlights: 0xfff8ec, vignette: 0.6 };
         }),
         _ => return None,
@@ -396,14 +394,13 @@ pub struct Detail {
     pub wetness: bool,
     pub glow: bool,
     pub sparkle: bool,
-    pub dust: bool,
     pub statuses: bool,
     pub liquids: bool,
 }
 
 impl SurfaceDetail {
     pub fn detail(self) -> Detail {
-        let d = |depth_steps, gloss, rim, cavity, variation, wetness, glow, sparkle, dust, statuses, liquids| Detail {
+        let d = |depth_steps, gloss, rim, cavity, variation, wetness, glow, sparkle, statuses, liquids| Detail {
             depth_steps,
             gloss,
             rim,
@@ -412,15 +409,14 @@ impl SurfaceDetail {
             wetness,
             glow,
             sparkle,
-            dust,
             statuses,
             liquids,
         };
         match self {
-            SurfaceDetail::Off => d(0, false, false, false, false, false, false, false, false, false, false),
-            SurfaceDetail::Low => d(0, false, true, true, true, false, false, false, false, true, false),
-            SurfaceDetail::Medium => d(8, true, true, true, true, true, true, false, false, true, false),
-            SurfaceDetail::High => d(16, true, true, true, true, true, true, true, true, true, true),
+            SurfaceDetail::Off => d(0, false, false, false, false, false, false, false, false, false),
+            SurfaceDetail::Low => d(0, false, true, true, true, false, false, false, true, false),
+            SurfaceDetail::Medium => d(8, true, true, true, true, true, true, false, true, false),
+            SurfaceDetail::High => d(16, true, true, true, true, true, true, true, true, true),
         }
     }
 }

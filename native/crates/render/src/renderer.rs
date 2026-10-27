@@ -1,6 +1,6 @@
 //! `IsoRenderer` (the port of `render-iso-3d.ts`): the level's geometry in chunks of 8 by 8 cells,
 //! built again only where the cells, the cut-away walls or what stands on them changed; the actors,
-//! the doors and stairs, the torches and the layers over them; the torch lights; and the screen
+//! the doors and stairs and the layers over them; the torch lights; and the screen
 //! effects.
 
 use crate::actors::{actor_id, ActorEnv, ActorLayer, UprightPose, STRIKE_DELAY};
@@ -17,13 +17,12 @@ use crate::mesh::{GpuMesh, Point3, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::mipmap::Mipmapper;
 use crate::pages::{page_bind_group, Pages};
 use crate::plan::{
-    aim_colour, cut_away_cells, cut_away_focus, ground_basis, ground_point, has_torch, is_pointable, is_shown, plan_scene, side, tile_frame, wall_height_at,
-    GroundLayer, IsoAim, IsoRoute, IsoView, Side, Sprite, SpriteLayer, WallBlock, DEFAULT_VIEW, TORCH_HEIGHT,
+    aim_colour, cut_away_cells, cut_away_focus, ground_basis, ground_point, is_pointable, is_shown, plan_scene, side, tile_frame, wall_height_at, GroundLayer,
+    IsoAim, IsoRoute, IsoView, Side, Sprite, SpriteLayer, WallBlock, DEFAULT_VIEW, TORCH_HEIGHT,
 };
 use crate::post::{Post, PostFrame};
 use crate::steps::StepLayer;
 use crate::torch_light::TorchLightMap;
-use crate::torches::{TorchLayer, TorchModel, TorchPlacement};
 use crate::uniforms::{DrawBuffer, DrawUniform, FrameUniform, LightUniform, MAX_LIGHTS};
 use crate::{now_seconds, TileSource};
 use glam::{Mat4, Vec3, Vec4};
@@ -62,7 +61,6 @@ pub enum PageRef {
     Page(u32),
     Cap,
     Door,
-    Torch,
 }
 
 /// One mesh drawn with one material this frame.
@@ -77,7 +75,6 @@ pub struct DrawItem {
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Torch {
     pub position: Vec3,
-    pub phase: f32,
     /// The open cell the torch hangs over.
     pub cell: (i32, i32),
 }
@@ -86,7 +83,6 @@ struct Chunk {
     key: u64,
     meshes: Vec<(Material, PageRef, Arc<GpuMesh>)>,
     torches: Vec<Torch>,
-    placements: Vec<TorchPlacement>,
     glows: bool,
 }
 
@@ -143,7 +139,6 @@ pub struct IsoRenderer {
     noise: wgpu::Texture,
     cap_group: wgpu::BindGroup,
     door_group: wgpu::BindGroup,
-    torch_group: Option<wgpu::BindGroup>,
     tiles: Option<Arc<dyn TileSource>>,
     scene: Option<Arc<Scene>>,
     scene_revision: u64,
@@ -171,8 +166,6 @@ pub struct IsoRenderer {
     focus_memo: Option<(u64, i32, Option<(i32, i32)>, Vec<(i32, i32)>)>,
     actors: ActorLayer,
     features: TileFeatures,
-    torches: TorchLayer,
-    torch_model: Option<Arc<TorchModel>>,
     fog: FogLayer,
     liquids: Liquids,
     combat: CombatLayer,
@@ -181,9 +174,6 @@ pub struct IsoRenderer {
     overlay: crate::overlay::Overlay,
     tile_torches: Vec<Torch>,
     tile_torches_version: u64,
-    nearest: Vec<Torch>,
-    nearest_from: (f32, f32, u64),
-    lit: [Option<Torch>; TORCH_LIGHTS],
     impacts: Vec<PendingImpact>,
     clock: f64,
     stop_until: f64,
@@ -201,7 +191,6 @@ pub struct IsoRenderer {
     revision_counter: u64,
     /// whether a liquid lies on a cell in sight, by the scene's revision (for `animating`)
     liquid_sight: std::cell::Cell<(u64, bool)>,
-    dust_revision: u64,
     pub frame_number: u64,
 }
 
@@ -288,18 +277,6 @@ pub fn ground_floor(scene: &Scene, x: i32, y: i32) -> bool {
     scene.cell(x, y).is_some_and(|c| !c.occluder && on_land(c) && c.visibility == Visibility::Visible)
 }
 
-fn same_torch(a: &Option<Torch>, b: &Option<Torch>) -> bool {
-    matches!((a, b), (Some(a), Some(b)) if a.position == b.position)
-}
-
-/// Which torch each light of a group hangs at: a light keeps its torch while it is still wanted.
-fn assign_torches(held: &[Option<Torch>], wanted: &[Torch]) -> Vec<Option<Torch>> {
-    let kept: Vec<Option<Torch>> = held.iter().map(|t| wanted.iter().find(|w| same_torch(&Some(**w), t)).copied()).collect();
-    let mut left: Vec<Torch> = wanted.iter().filter(|w| !kept.iter().any(|k| same_torch(k, &Some(**w)))).copied().collect();
-    left.reverse();
-    kept.into_iter().map(|k| k.or_else(|| left.pop())).collect()
-}
-
 fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
     let t = ((x - e0) / (e1 - e0)).clamp(0.0, 1.0);
     t * t * (3.0 - 2.0 * t)
@@ -330,7 +307,6 @@ impl IsoRenderer {
         let combat = CombatLayer::new(&gpu);
         let steps = StepLayer::new(&gpu);
         let loot = LootLayer::new(&gpu);
-        let torches = TorchLayer::new(&gpu);
         let overlay = crate::overlay::Overlay::new(&gpu);
         let features = TileFeatures::new();
         let lights = diorama();
@@ -348,7 +324,6 @@ impl IsoRenderer {
             noise,
             cap_group,
             door_group,
-            torch_group: None,
             tiles: None,
             scene: None,
             scene_revision: u64::MAX,
@@ -376,8 +351,6 @@ impl IsoRenderer {
             focus_memo: None,
             actors: ActorLayer::default(),
             features,
-            torches,
-            torch_model: None,
             fog,
             liquids,
             combat,
@@ -386,9 +359,6 @@ impl IsoRenderer {
             overlay,
             tile_torches: Vec::new(),
             tile_torches_version: 0,
-            nearest: Vec::new(),
-            nearest_from: (f32::NAN, f32::NAN, u64::MAX),
-            lit: [None; TORCH_LIGHTS],
             impacts: Vec::new(),
             clock: 0.0,
             stop_until: 0.0,
@@ -405,7 +375,6 @@ impl IsoRenderer {
             events: FrameEvents::default(),
             revision_counter: 0,
             liquid_sight: std::cell::Cell::new((u64::MAX, false)),
-            dust_revision: u64::MAX,
             frame_number: 0,
         };
         r.apply_lights();
@@ -435,16 +404,6 @@ impl IsoRenderer {
     pub fn set_tiles(&mut self, tiles: Arc<dyn TileSource>) {
         self.tiles = Some(tiles);
         self.rebuild_pages();
-    }
-
-    /// The wall torch model (a glTF binary); until it is set, the walls carry no torches.
-    pub fn set_torch_model(&mut self, glb: &[u8]) -> Result<(), String> {
-        let model = TorchModel::load(&self.gpu, glb)?;
-        self.torch_group =
-            Some(page_bind_group(&self.gpu.device, &self.gpu.page_layout, &self.gpu.page_sampler, &model.texture, &model.texture, &model.texture));
-        self.torch_model = Some(Arc::new(model));
-        self.invalidate();
-        Ok(())
     }
 
     /// A scene with the same revision as the last one is the same scene.
@@ -642,7 +601,7 @@ impl IsoRenderer {
     /// What keeps `animating` true, for the perf log: the first reason found.
     pub fn animating_why(&self) -> Option<&'static str> {
         let now = now_seconds();
-        let reasons: [(&'static str, &dyn Fn() -> bool); 11] = [
+        let reasons: [(&'static str, &dyn Fn() -> bool); 10] = [
             ("impact", &|| !self.impacts.is_empty()),
             ("hit stop", &|| now < self.stop_until),
             // the low hit points' red edge pulses
@@ -653,7 +612,6 @@ impl IsoRenderer {
             ("loot", &|| self.loot.animating()),
             ("doors", &|| self.features.animating()),
             ("fog fade", &|| self.fog.fading()),
-            ("torch dust", &|| self.torches.dust_shown()),
             ("liquid", &|| self.liquids.drawn() && self.liquid_in_sight()),
         ];
         reasons.iter().find(|(_, f)| f()).map(|(n, _)| *n)
@@ -935,7 +893,7 @@ fn unused(
     _: ImpactKind,
 ) {
     let _ = (ATLAS_INSET, SPRITE_LEAN, ROUTE_STEPS, AIM_LIFT, DEPTH_FORMAT, DIR8_DX, DIR8_DY);
-    let _ = (aim_colour, cut_away_cells, ground_basis, has_torch, plan_scene, side, tile_frame, wall_height_at, key_to_xy, is_tile_feature, linear, smoothstep);
+    let _ = (aim_colour, cut_away_cells, ground_basis, plan_scene, side, tile_frame, wall_height_at, key_to_xy, is_tile_feature, linear, smoothstep);
     let _ = (
         CAMERA_DISTANCE,
         PERSPECTIVE_DEPTH,

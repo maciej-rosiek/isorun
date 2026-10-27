@@ -314,6 +314,7 @@ fn cell_of(c: &Value) -> SceneCell {
             },
             out_of_range: flag("outOfRange"),
             magic_mapped: flag("magicMapped"),
+            torch_wall: flag("torchWall"),
         },
         flash: c.get("flash").map(|f| Rgba8 { r: num(f, "r") as u8, g: num(f, "g") as u8, b: num(f, "b") as u8, a: num(f, "a") as u8 }),
         glyph: None,
@@ -571,7 +572,6 @@ impl RoomView {
                 match r {
                     Ok(p) => {
                         let mut view = View3d::new(rs);
-                        let _ = view.renderer.set_torch_model(isorun_client::testbed::TORCH_GLB);
                         crate::settings::apply_graphics(&mut view.renderer, settings, ui.ctx().pixels_per_point());
                         view.renderer.set_tiles(p.tiles.clone());
                         view.renderer.new_level();

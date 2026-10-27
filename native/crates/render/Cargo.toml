@@ -13,7 +13,6 @@ glam = { version = "0.30", features = ["bytemuck"] }
 bytemuck = { version = "1", features = ["derive"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
-gltf = { version = "1", default-features = false, features = ["import", "utils"] }
 log = "0.4"
 half = "=2.7.1"
 web-time = "1"

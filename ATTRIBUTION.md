@@ -140,8 +140,6 @@ upstream and a JSPI-only build.
 - [egui](https://github.com/emilk/egui) and [wgpu](https://wgpu.rs) (MIT or Apache-2.0): the
   interface and the renderer; the Rust crates `native/Cargo.lock` lists, each under its own
   licence.
-- KayKit Dungeon Remastered by Kay Lousberg (CC0): the wall torch model,
-  `native/crates/client/assets/torch_mounted.glb` (its licence beside it).
 - Grenze Gotisch by Omnibus-Type (SIL Open Font License 1.1,
   `assets/fonts/OFL.txt`): the title face, as described above.
 - Cinzel by Natanael Gama, The Cinzel Project Authors (SIL Open Font License 1.1,
