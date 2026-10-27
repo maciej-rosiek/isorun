@@ -20,6 +20,10 @@ took the time) and a key crawl took over 500 ms to read. Keys go to crawl from a
 own (`client::engine`), so a busy crawl never holds the frame or Android's input. For a player's
 report: `adb logcat -d -s isorun:* ActivityManager:* InputDispatcher:*`, or a bug report
 (Developer options › Take bug report), which also has the not-responding stacks.
+The app also logs under `isorun` the GPU it draws with and its limits at the start (`drawing
+with …`, `the GPU's limits: …`), a wgpu error before it stops the app (`wgpu error: …`), a panic
+with its place and stack (`isorun panicked: …`), and eframe failing to start (`the app could not
+start: …`): a start that only closes leaves its reason there.
 
 It is `io.github.maciejrosiek.isorun`, the id of the Capacitor app it replaced, with the version
 code that app had (from the version in `native/Cargo.toml`: 0.1.5 is 105) and the same release

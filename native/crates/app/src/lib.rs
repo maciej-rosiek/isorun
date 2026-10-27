@@ -54,6 +54,7 @@ pub fn run_native() -> eframe::Result {
 #[unsafe(no_mangle)]
 fn android_main(android: winit::platform::android::activity::AndroidApp) {
     android_logger_init();
+    log_panics();
     android_insets::set_app(&android);
     if let Some(dir) = android.internal_data_path() {
         if let Err(e) = unpack_engine(&android, &dir.join("engine")) {
@@ -63,7 +64,20 @@ fn android_main(android: winit::platform::android::activity::AndroidApp) {
     }
     let mut options = native_options();
     options.android_app = Some(android);
-    let _ = eframe::run_native(servers::APP_NAME, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc)))));
+    if let Err(e) = eframe::run_native(servers::APP_NAME, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc))))) {
+        log::error!("the app could not start: {e}");
+    }
+}
+
+/// A panic's message, where and the stack in the log (logcat): Android shows a panicked app only
+/// closing, and the standard hook writes to a stderr nobody reads.
+#[cfg(target_os = "android")]
+fn log_panics() {
+    let previous = std::panic::take_hook();
+    std::panic::set_hook(Box::new(move |info| {
+        log::error!("isorun panicked: {info}\n{}", std::backtrace::Backtrace::force_capture());
+        previous(info);
+    }));
 }
 
 /// The offline engine's data (crawl's `dat`, `docs` and `settings`, the client's gamedata) is in

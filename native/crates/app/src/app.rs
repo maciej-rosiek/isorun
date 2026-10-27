@@ -84,9 +84,21 @@ impl FrameWatch {
     }
 }
 
+/// The GPU the app draws with and what it allows, in the log, and every wgpu error before it
+/// stops the app: a player's log then says what their GPU refused.
+fn log_gpu(rs: &eframe::egui_wgpu::RenderState) {
+    log::info!("drawing with {:?}", rs.adapter.get_info());
+    log::info!("the GPU's limits: {:?}", rs.device.limits());
+    rs.device.on_uncaptured_error(std::sync::Arc::new(|error| {
+        log::error!("wgpu error: {error}");
+        panic!("wgpu error: {error}");
+    }));
+}
+
 impl IsorunApp {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         let rs = cc.wgpu_render_state.clone().expect("Isorun draws with wgpu");
+        log_gpu(&rs);
         isorun_ui::install(&cc.egui_ctx);
         isorun_hud::install(&cc.egui_ctx);
         // egui quits on Ctrl-Q and zooms on Ctrl-plus / minus: those keys are crawl's (Ctrl-Q is its quit prompt)
