@@ -218,6 +218,16 @@ const GROUND_RIM: f32 = 0.15;
 // surface says; darker on a remembered cell.
 @fragment
 fn fs_ground(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
+    return ground(in, front, 0.5);
+}
+
+// crawl's see-through marks on the ground (the travel exclusion), blended over the floor under them.
+@fragment
+fn fs_mark(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
+    return ground(in, front, 0.01);
+}
+
+fn ground(in: VertexOut, front: bool, least_alpha: f32) -> FragmentOut {
     let face = select(-1.0, 1.0, front);
     let across = dpdx(in.uv);
     let down = dfdy2(in.uv);
@@ -226,7 +236,7 @@ fn fs_ground(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     let wet_map = wetness_at(in.world);
     let sunk = under_water(in, parallax_uv(in, face), wet_map.g, face);
     let colour = textureSampleGrad(colour_map, page_sampler, sunk, across, down);
-    if (colour.a * 1.0 < 0.5) {
+    if (colour.a < least_alpha) {
         discard;
     }
     let surface = textureSampleGrad(surface_map, data_sampler, sunk, across, down);

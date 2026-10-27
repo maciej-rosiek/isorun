@@ -21,7 +21,7 @@ impl IsoRenderer {
             return;
         }
         let mut world = HashMap::new();
-        for m in [Material::Ground, Material::Sprite, Material::Actor, Material::Cap, Material::Clay] {
+        for m in [Material::Ground, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark] {
             world.insert(m, self.gpu.world_pipeline(m, samples));
         }
         self.pipelines = Some(Pipelines { samples, world });

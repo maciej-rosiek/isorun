@@ -19,6 +19,7 @@ pub enum Material {
     Actor,
     Cap,
     Clay,
+    Mark,
 }
 
 /// How a pass draws over what is there.
@@ -202,8 +203,10 @@ impl Gpu {
             Material::Actor => ("vs_actor", "fs_actor"),
             Material::Cap => ("vs_main", "fs_cap"),
             Material::Clay => ("vs_main", "fs_clay"),
+            Material::Mark => ("vs_main", "fs_mark"),
         };
-        let targets = scene_targets(Blend::Opaque, false);
+        let blended = material == Material::Mark;
+        let targets = if blended { scene_targets(Blend::Alpha, true) } else { scene_targets(Blend::Opaque, false) };
         self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(fs),
             layout: Some(&layout),
@@ -217,7 +220,7 @@ impl Gpu {
             primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
-                depth_write_enabled: Some(true),
+                depth_write_enabled: Some(!blended),
                 depth_compare: Some(wgpu::CompareFunction::LessEqual),
                 stencil: Default::default(),
                 bias: Default::default(),

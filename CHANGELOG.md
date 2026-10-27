@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- A travel-excluded area shows on the dungeon floor again: crawl's red cross on each excluded cell, as the minimap has it.
 - The inventory shows the right card when a weapon or armour and a scroll or potion share a letter (crawl now lets them); pointing at one no longer lights up both.
 - Loot as in Diablo: an item a monster drops as it dies flies up out of it, turns over and lands on the floor with a clink.
 - The dungeon has no sun any more: an even light and crawl's torch walls light it, so a narrow corridor is no darker than a room and the torches are the bright places; each frame does less work. The looks' Sun and Shadows settings are gone.
