@@ -245,6 +245,16 @@ fn direct(model: u32, s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: 
 }
 
 const TORCH_LIGHT_TEXELS: f32 = 4.0;
+const TORCH_LIGHT_KNEE: f32 = 0.45;
+const TORCH_LIGHT_CEILING: f32 = 0.9;
+
+fn limited_torch_light(amount: f32) -> f32 {
+    if (amount <= TORCH_LIGHT_KNEE) {
+        return amount;
+    }
+    let room = TORCH_LIGHT_CEILING - TORCH_LIGHT_KNEE;
+    return TORCH_LIGHT_KNEE + room * (1.0 - exp(-(amount - TORCH_LIGHT_KNEE) / room));
+}
 
 fn on_lit_side(s: Surface, to_light_world: vec3<f32>) -> f32 {
     if (s.all_round > 0.5) {
@@ -262,7 +272,7 @@ fn baked_torch_light(model: u32, s: Surface) -> vec3<f32> {
     let across = baked.rb / baked.a;
     let to_torch = vec3<f32>(across.x, frame.torch_light.w - s.world.y, across.y);
     let towards = (frame.view * vec4<f32>(normalize(to_torch), 0.0)).xyz;
-    return direct(model, s, towards, frame.torch_light.rgb * baked.a * on_lit_side(s, to_torch), s.all_round > 0.5);
+    return direct(model, s, towards, frame.torch_light.rgb * limited_torch_light(baked.a) * on_lit_side(s, to_torch), s.all_round > 0.5);
 }
 
 // Every light on the surface: the hemisphere light, the torches and the point lights.
