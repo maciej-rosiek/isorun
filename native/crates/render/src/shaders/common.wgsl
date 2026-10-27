@@ -166,12 +166,12 @@ fn memory_cell(world: vec3<f32>, normal_world: vec3<f32>) -> vec2<f32> {
 
 // How light the surface's cell is: 1 in sight, darker when only remembered.
 fn memory_shade(cell: vec2<f32>) -> f32 {
-    return textureSampleLevel(memory_map, nearest_sampler, (cell + 0.5) / MEMORY_CELLS, 0.0).r;
+    return textureSampleLevel(memory_map, nearest_sampler, fract((cell + 0.5) / MEMORY_CELLS), 0.0).r;
 }
 
 // How wet the ground is here (r) and how deep under see-through water (g), smooth between cells.
 fn wetness_at(world: vec3<f32>) -> vec2<f32> {
-    return textureSampleLevel(wet_map, linear_sampler, world.xz / MEMORY_CELLS, 0.0).rg;
+    return textureSampleLevel(wet_map, repeat_sampler, world.xz / MEMORY_CELLS, 0.0).rg;
 }
 
 // three's getDistanceAttenuation.
@@ -344,7 +344,7 @@ fn on_lit_side(s: Surface, to_light_world: vec3<f32>) -> f32 {
 
 fn baked_torch_light(model: u32, s: Surface) -> vec3<f32> {
     let at = s.world.xz + s.normal_world.xz * (0.5 / TORCH_LIGHT_TEXELS);
-    let baked = textureSampleLevel(torch_light_map, linear_sampler, at / MEMORY_CELLS, 0.0);
+    let baked = textureSampleLevel(torch_light_map, repeat_sampler, at / MEMORY_CELLS, 0.0);
     if (baked.a <= 0.0001) {
         return vec3<f32>(0.0);
     }

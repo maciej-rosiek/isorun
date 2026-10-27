@@ -26,16 +26,31 @@ fn key_of(torch: &Torch) -> TorchKey {
 
 #[derive(Clone, Copy)]
 struct Window {
-    x0: usize,
-    y0: usize,
-    x1: usize,
-    y1: usize,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
 }
 
 impl Window {
     fn union(self, other: Window) -> Window {
         Window { x0: self.x0.min(other.x0), y0: self.y0.min(other.y0), x1: self.x1.max(other.x1), y1: self.y1.max(other.y1) }
     }
+
+    fn wrapped(self) -> Window {
+        let (x0, y0) = (self.x0.rem_euclid(SIZE as i32), self.y0.rem_euclid(SIZE as i32));
+        let (x1, y1) = (x0 + self.x1 - self.x0, y0 + self.y1 - self.y0);
+        if x1 > SIZE as i32 || y1 > SIZE as i32 {
+            return WHOLE;
+        }
+        Window { x0, y0, x1, y1 }
+    }
+}
+
+const WHOLE: Window = Window { x0: 0, y0: 0, x1: SIZE as i32, y1: SIZE as i32 };
+
+fn wrapped_texel(tx: i32, ty: i32) -> usize {
+    ty.rem_euclid(SIZE as i32) as usize * SIZE + tx.rem_euclid(SIZE as i32) as usize
 }
 
 struct Baked {
@@ -108,22 +123,23 @@ fn attenuation(d: f32, cutoff: f32, decay: f32) -> f32 {
 }
 
 fn bake(scene: &Scene, torch: &Torch, reach: f32, decay: f32, walls: u64, window: Window) -> Baked {
-    let (cx0, cy0) = (window.x0 / TEXELS_PER_CELL, window.y0 / TEXELS_PER_CELL);
-    let (cx1, cy1) = (window.x1 / TEXELS_PER_CELL, window.y1 / TEXELS_PER_CELL);
+    let texels_per_cell = TEXELS_PER_CELL as i32;
+    let (cx0, cy0) = (window.x0 / texels_per_cell, window.y0 / texels_per_cell);
+    let (cx1, cy1) = (window.x1 / texels_per_cell, window.y1 / texels_per_cell);
     let from = (torch.position.x, torch.position.z);
-    let columns = cx1 - cx0;
-    let mut sight = vec![0.0f32; columns * (cy1 - cy0)];
+    let columns = (cx1 - cx0) as usize;
+    let mut sight = vec![0.0f32; columns * (cy1 - cy0) as usize];
     for cy in cy0..cy1 {
         for cx in cx0..cx1 {
             let seen = SIGHT_POINTS.iter().filter(|(ox, oy)| clear(scene, from, (cx as f32 + 0.5 + ox, cy as f32 + 0.5 + oy))).count();
-            sight[(cy - cy0) * columns + cx - cx0] = seen as f32 / SIGHT_POINTS.len() as f32;
+            sight[(cy - cy0) as usize * columns + (cx - cx0) as usize] = seen as f32 / SIGHT_POINTS.len() as f32;
         }
     }
-    let width = window.x1 - window.x0;
-    let mut texels = vec![[0.0f32; 4]; width * (window.y1 - window.y0)];
+    let width = (window.x1 - window.x0) as usize;
+    let mut texels = vec![[0.0f32; 4]; width * (window.y1 - window.y0) as usize];
     for ty in window.y0..window.y1 {
         for tx in window.x0..window.x1 {
-            let seen = sight[(ty / TEXELS_PER_CELL - cy0) * columns + tx / TEXELS_PER_CELL - cx0];
+            let seen = sight[(ty.div_euclid(texels_per_cell) - cy0) as usize * columns + (tx.div_euclid(texels_per_cell) - cx0) as usize];
             if seen <= 0.0 {
                 continue;
             }
@@ -133,7 +149,7 @@ fn bake(scene: &Scene, torch: &Torch, reach: f32, decay: f32, walls: u64, window
             if light <= 0.0 {
                 continue;
             }
-            texels[(ty - window.y0) * width + tx - window.x0] = [to_torch.x * light, 0.0, to_torch.z * light, light];
+            texels[(ty - window.y0) as usize * width + (tx - window.x0) as usize] = [to_torch.x * light, 0.0, to_torch.z * light, light];
         }
     }
     Baked { walls, window, texels }
@@ -147,16 +163,17 @@ impl TorchLightMap {
 
     fn add(&mut self, baked: &Baked, amount: f32) {
         let w = baked.window;
-        let width = w.x1 - w.x0;
+        let width = (w.x1 - w.x0) as usize;
         for ty in w.y0..w.y1 {
             for tx in w.x0..w.x1 {
-                let t = baked.texels[(ty - w.y0) * width + tx - w.x0];
-                let s = &mut self.sum[ty * SIZE + tx];
+                let t = baked.texels[(ty - w.y0) as usize * width + (tx - w.x0) as usize];
+                let s = &mut self.sum[wrapped_texel(tx, ty)];
                 for c in 0..4 {
                     s[c] += t[c] * amount;
                 }
             }
         }
+        let w = w.wrapped();
         self.dirty = Some(self.dirty.map_or(w, |d| d.union(w)));
     }
 
@@ -174,15 +191,11 @@ impl TorchLightMap {
         for torch in torches {
             let key = key_of(torch);
             let (tx, ty) = (torch.position.x.floor() as i32, torch.position.z.floor() as i32);
-            let limit = |v: i32| v.clamp(0, MEMORY_CELLS as i32) as usize;
-            let (cx0, cy0, cx1, cy1) = (limit(tx - cells), limit(ty - cells), limit(tx + cells + 1), limit(ty + cells + 1));
-            if cx0 >= cx1 || cy0 >= cy1 {
-                continue;
-            }
+            let (cx0, cy0, cx1, cy1) = (tx - cells, ty - cells, tx + cells + 1, ty + cells + 1);
             let mut hasher = DefaultHasher::new();
             for cy in cy0..cy1 {
                 for cx in cx0..cx1 {
-                    blocks(scene, cx as i32, cy as i32).hash(&mut hasher);
+                    blocks(scene, cx, cy).hash(&mut hasher);
                 }
             }
             let walls = hasher.finish();
@@ -193,7 +206,8 @@ impl TorchLightMap {
                 }
                 self.add(&old, -1.0);
             }
-            let window = Window { x0: cx0 * TEXELS_PER_CELL, y0: cy0 * TEXELS_PER_CELL, x1: cx1 * TEXELS_PER_CELL, y1: cy1 * TEXELS_PER_CELL };
+            let texels_per_cell = TEXELS_PER_CELL as i32;
+            let window = Window { x0: cx0 * texels_per_cell, y0: cy0 * texels_per_cell, x1: cx1 * texels_per_cell, y1: cy1 * texels_per_cell };
             let baked = bake(scene, torch, reach, decay, walls, window);
             self.add(&baked, 1.0);
             kept.insert(key, baked);
@@ -208,15 +222,16 @@ impl TorchLightMap {
     fn clear(&mut self) {
         self.torches.clear();
         self.sum.iter_mut().for_each(|s| *s = [0.0; 4]);
-        self.dirty = Some(Window { x0: 0, y0: 0, x1: SIZE, y1: SIZE });
+        self.dirty = Some(WHOLE);
     }
 
     pub fn upload(&mut self, gpu: &Gpu) {
         let Some(w) = self.dirty.take() else { return };
-        let width = w.x1 - w.x0;
-        let mut data: Vec<u16> = Vec::with_capacity(width * (w.y1 - w.y0) * 4);
-        for ty in w.y0..w.y1 {
-            for s in &self.sum[ty * SIZE + w.x0..ty * SIZE + w.x1] {
+        let (x0, y0, x1, y1) = (w.x0 as usize, w.y0 as usize, w.x1 as usize, w.y1 as usize);
+        let width = x1 - x0;
+        let mut data: Vec<u16> = Vec::with_capacity(width * (y1 - y0) * 4);
+        for ty in y0..y1 {
+            for s in &self.sum[ty * SIZE + x0..ty * SIZE + x1] {
                 let light = s[3].max(0.0);
                 data.extend([s[0], s[1], s[2]].map(|c| f16::from_f32(if light > 0.0 { c } else { 0.0 }).to_bits()));
                 data.push(f16::from_f32(light).to_bits());
@@ -226,12 +241,12 @@ impl TorchLightMap {
             wgpu::TexelCopyTextureInfo {
                 texture: &self.texture,
                 mip_level: 0,
-                origin: wgpu::Origin3d { x: w.x0 as u32, y: w.y0 as u32, z: 0 },
+                origin: wgpu::Origin3d { x: x0 as u32, y: y0 as u32, z: 0 },
                 aspect: wgpu::TextureAspect::All,
             },
             bytemuck::cast_slice(&data),
-            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width as u32 * 8), rows_per_image: Some((w.y1 - w.y0) as u32) },
-            wgpu::Extent3d { width: width as u32, height: (w.y1 - w.y0) as u32, depth_or_array_layers: 1 },
+            wgpu::TexelCopyBufferLayout { offset: 0, bytes_per_row: Some(width as u32 * 8), rows_per_image: Some((y1 - y0) as u32) },
+            wgpu::Extent3d { width: width as u32, height: (y1 - y0) as u32, depth_or_array_layers: 1 },
         );
     }
 }

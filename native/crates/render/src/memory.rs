@@ -10,6 +10,14 @@ const IN_SIGHT: u8 = 255;
 const WET_REACH: f32 = 2.5;
 const SHALLOW_SUBMERSION: u8 = 100;
 
+fn wrapped_cell(v: i32) -> usize {
+    v.rem_euclid(MEMORY_CELLS as i32) as usize
+}
+
+fn texel_of(x: i32, y: i32) -> usize {
+    (wrapped_cell(y) * MEMORY_CELLS + wrapped_cell(x)) * 4
+}
+
 fn wetting(k: LiquidKind) -> bool {
     matches!(k, LiquidKind::Water | LiquidKind::Murky | LiquidKind::Bog | LiquidKind::Mud | LiquidKind::Slime | LiquidKind::Acid)
 }
@@ -35,11 +43,9 @@ impl MemoryMask {
     pub fn update(&mut self, gpu: &Gpu, scene: &Scene) {
         let remembered = (MEMORY_SHADE * IN_SIGHT as f32).round() as u8;
         let mut next = vec![IN_SIGHT; MEMORY_CELLS * MEMORY_CELLS * 4];
-        let inside = |x: i32, y: i32| x >= 0 && y >= 0 && (x as usize) < MEMORY_CELLS && (y as usize) < MEMORY_CELLS;
         for c in scene.cells.values() {
-            if c.visibility == Visibility::Remembered && inside(c.x, c.y) {
-                let i = (c.y as usize * MEMORY_CELLS + c.x as usize) * 4;
-                next[i] = remembered;
+            if c.visibility == Visibility::Remembered {
+                next[texel_of(c.x, c.y)] = remembered;
             }
         }
         if next != self.cells {
@@ -49,7 +55,7 @@ impl MemoryMask {
         let mut sources: Vec<(i32, i32, LiquidKind, bool)> = scene
             .cells
             .values()
-            .filter_map(|c| c.liquid.filter(|l| wetting(l.kind) && c.visibility != Visibility::Unseen && inside(c.x, c.y)).map(|l| (c.x, c.y, l.kind, l.deep)))
+            .filter_map(|c| c.liquid.filter(|l| wetting(l.kind) && c.visibility != Visibility::Unseen).map(|l| (c.x, c.y, l.kind, l.deep)))
             .collect();
         sources.sort_by_key(|s| (s.1, s.0));
         if sources == self.wet_key {
@@ -60,19 +66,15 @@ impl MemoryMask {
         for &(sx, sy, _, _) in &sources {
             for dy in -reach..=reach {
                 for dx in -reach..=reach {
-                    let (x, y) = (sx + dx, sy + dy);
-                    if !inside(x, y) {
-                        continue;
-                    }
                     let wet = ((1.0 - ((dx * dx + dy * dy) as f32).sqrt() / WET_REACH).max(0.0) * 255.0) as u8;
-                    let i = (y as usize * MEMORY_CELLS + x as usize) * 4;
+                    let i = texel_of(sx + dx, sy + dy);
                     self.wet[i] = self.wet[i].max(wet);
                 }
             }
         }
         for &(x, y, kind, deep) in &sources {
             if matches!(kind, LiquidKind::Water | LiquidKind::Murky) {
-                self.wet[(y as usize * MEMORY_CELLS + x as usize) * 4 + 1] = if deep { 255 } else { SHALLOW_SUBMERSION };
+                self.wet[texel_of(x, y) + 1] = if deep { 255 } else { SHALLOW_SUBMERSION };
             }
         }
         self.wet_key = sources;
