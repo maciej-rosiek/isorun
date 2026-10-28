@@ -396,6 +396,7 @@ impl GameScreen {
     /// One frame of the game screen. Some when the game is over and the front end comes back.
     pub fn ui(&mut self, ui: &mut egui::Ui) -> Option<Outcome> {
         let ctx = ui.ctx().clone();
+        drop_button_focus(&ctx);
         let now = now_ms();
         let dt = ((now - self.last_frame) / 1000.0).clamp(0.0, 0.1) as f32;
         self.last_frame = now;
@@ -1924,6 +1925,18 @@ impl GameScreen {
     }
 }
 
+/// Let go of egui's keyboard focus on anything but a text field. Tab is crawl's (autofight) and
+/// egui's too: with nothing focused it gives the focus to the first button drawn, the arrows then
+/// move it from button to button, and Space or Enter clicks it, so a player who aimed with the
+/// arrows and stepped with Space opened a quick slot or a screen now and then. The game screen's
+/// buttons are the mouse's and the pad's (the dock has a cursor of its own); the keys are crawl's.
+fn drop_button_focus(ctx: &egui::Context) {
+    let Some(id) = ctx.memory(|m| m.focused()) else { return };
+    if egui::text_edit::TextEditState::load(ctx, id).is_none() {
+        ctx.memory_mut(|m| m.surrender_focus(id));
+    }
+}
+
 /// The pointer is over a panel of the screen's (a menu, the dock, a popup): not over the view.
 fn pointer_over_panel(ctx: &egui::Context) -> bool {
     ctx.pointer_latest_pos().is_some_and(|p| pointer_over_panel_at(ctx, p))
@@ -1999,5 +2012,38 @@ fn front_pad(ev: &isorun_input::PadEvent) -> Option<isorun_front::PadEvent> {
             _ => return None,
         })),
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn press(key: egui::Key) -> egui::Event {
+        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers: Default::default() }
+    }
+
+    /// Frames of two buttons with these keys one frame each; whether a button was clicked.
+    fn clicked_by(keys: &[egui::Key], drop_focus: bool) -> bool {
+        let ctx = egui::Context::default();
+        let mut clicked = false;
+        for key in keys.iter().copied().chain([egui::Key::F20]) {
+            let input = egui::RawInput { events: vec![press(key)], ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                if drop_focus {
+                    drop_button_focus(ui.ctx());
+                }
+                clicked |= ui.button("quick slot").clicked() | ui.button("inventory").clicked();
+            });
+            out.textures_delta.clear();
+        }
+        clicked
+    }
+
+    #[test]
+    fn tab_then_space_clicks_no_button() {
+        use egui::Key::{ArrowDown, Space, Tab};
+        assert!(clicked_by(&[Tab, ArrowDown, Space], false), "egui's own focus clicks a button");
+        assert!(!clicked_by(&[Tab, ArrowDown, Space], true));
     }
 }

@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- Aiming with the arrow keys and stepping with Space no longer opens a quick slot or a screen now and then: Tab (autofight) no longer puts the keyboard on the HUD's buttons.
 - Android: no more "Isorun isn't responding" after the phone is locked and unlocked: the game waits for the lock screen to go before it draws again.
 - Android: the sound comes back after the phone is locked or the app left: it pauses while the game is away and starts afresh when it returns.
 - You, the monsters, the items and the fountains and plants look less flat: each part of a sprite (a head, an arm, a belly) is rounded and catches the light on its own, and everything that moves casts a soft shadow on the floor, away from the nearest wall torch. Tune the look's new Sprites section sets the relief, the form light and the shadows, or turns them off.
