@@ -3,6 +3,7 @@
 //! next start), can be saved under a name (`isorun.lights.saved`), and show as text to copy back
 //! into `lights.rs`. What the panel set last is the Look setting's Custom ([`lights_for`]).
 
+use crate::settings::{self, Settings};
 use isorun_client::platform::storage::{get_raw, set_raw};
 use isorun_render::lights::Upscale;
 use isorun_render::{IsoLights, LIGHTS_NAMES};
@@ -11,6 +12,8 @@ use serde_json::{Map, Value};
 const CURRENT_KEY: &str = "isorun.lights.current";
 const SAVED_KEY: &str = "isorun.lights.saved";
 const BASE: &str = "diorama";
+
+const FEATURES: [&str; 4] = ["globalIllumination", "sightLight", "materials", "voxels"];
 
 pub const UPSCALES: [&str; 4] = ["pixel", "scale2x", "xbr", "scalefx"];
 
@@ -429,6 +432,7 @@ pub struct LightsPanel {
 pub enum LightsEvent {
     /// The look changed: put it on the renderer (and the Look setting is Custom now).
     Changed(IsoLights),
+    FeaturesChanged,
     Close,
 }
 
@@ -455,7 +459,7 @@ impl LightsPanel {
     }
 
     /// Draw the panel down the right of the screen (`.look-panel`: 22rem wide, the full height).
-    pub fn ui(&mut self, ctx: &egui::Context) -> Option<LightsEvent> {
+    pub fn ui(&mut self, ctx: &egui::Context, settings: &mut Settings) -> Option<LightsEvent> {
         let mut out = None;
         let screen = ctx.content_rect();
         let width = 22.0 * 15.0;
@@ -531,6 +535,15 @@ impl LightsPanel {
                                     self.active = Some(format!("saved/{name}"));
                                     out = Some(self.sync());
                                 }
+                            }
+                        }
+                        ui.add_space(6.0);
+                        ui.label(egui::RichText::new("Features").color(accent));
+                        for row in settings::rows().into_iter().filter(|r| FEATURES.contains(&r.key)) {
+                            let mut on = settings::bool_of(settings, row.key);
+                            if ui.checkbox(&mut on, row.label).on_hover_text(row.hint).changed() {
+                                settings.insert(row.key.into(), Value::Bool(on));
+                                out = Some(LightsEvent::FeaturesChanged);
                             }
                         }
                         for section in &self.sections {

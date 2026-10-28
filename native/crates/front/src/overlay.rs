@@ -347,8 +347,12 @@ impl GameMenus {
     pub fn ui(&mut self, ctx: &egui::Context) -> Vec<MenuAction> {
         let mut out = Vec::new();
         if let Some(panel) = &mut self.lights {
-            match panel.ui(ctx) {
+            match panel.ui(ctx, &mut self.settings) {
                 Some(LightsEvent::Close) => self.lights = None,
+                Some(LightsEvent::FeaturesChanged) => {
+                    settings::save_settings(&self.settings);
+                    out.push(MenuAction::SettingsChanged);
+                }
                 Some(LightsEvent::Changed(l)) => {
                     if settings::str_of(&self.settings, "look") != "custom" {
                         self.settings.insert("look".into(), "custom".into());
