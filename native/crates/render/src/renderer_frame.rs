@@ -20,7 +20,7 @@ impl IsoRenderer {
         let cell_lights = self.cell_lights.flags();
         if let Some(materials) = self.materials.as_mut() {
             materials.prepare(&self.gpu, samples, cell_lights);
-            self.liquids.prepare_reflections(&self.gpu, samples, &materials.layout);
+            self.liquids.prepare_reflections(&self.gpu, samples, cell_lights, &materials.layout);
         }
         if self.pipelines.as_ref().is_some_and(|p| p.samples == samples && p.cell_lights == cell_lights) {
             return;
@@ -31,7 +31,7 @@ impl IsoRenderer {
         }
         self.pipelines = Some(Pipelines { samples, cell_lights, world });
         self.fog.prepare(&self.gpu, samples);
-        self.liquids.prepare(&self.gpu, samples);
+        self.liquids.prepare(&self.gpu, samples, cell_lights);
         self.combat.prepare(&self.gpu, samples);
         self.steps.prepare(&self.gpu, samples);
         self.loot.prepare(&self.gpu, samples);
@@ -248,7 +248,7 @@ impl IsoRenderer {
         let (width, height) = self.render_size();
         let samples = 1;
         self.ensure_pipelines(samples);
-        self.voxels.prepare(&self.gpu, samples);
+        self.voxels.prepare(&self.gpu, samples, self.cell_lights.flags(), self.materials.as_ref().map(|m| &m.layout));
         if self.voxels.on() {
             let figures = self.actors.figures();
             if let Some(pages) = self.pages.as_mut() {
@@ -326,7 +326,7 @@ impl IsoRenderer {
                 multiview_mask: None,
             });
             if let Some(pages) = self.pages.as_ref() {
-                self.voxels.draw(&mut pass, &self.frame_group, &voxel_chunks, pages);
+                self.voxels.draw(&mut pass, &self.frame_group, self.materials.as_ref().map(|m| &m.group), &voxel_chunks, pages);
             }
             pass.set_bind_group(0, &self.frame_group, &[]);
             let world = self.materials.as_ref().map_or(&pipelines.world, |m| m.world_pipelines());

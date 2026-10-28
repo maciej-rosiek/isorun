@@ -235,6 +235,12 @@ fn lambert_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
     return saturate1(dot(s.normal, dir)) * colour * s.diffuse / PI;
 }
 
+const SURFACE_TERRAIN: u32 = 0u;
+const SURFACE_FEATURE: u32 = 1u;
+const SURFACE_SPRITE: u32 = 2u;
+const SURFACE_ACTOR: u32 = 3u;
+const SURFACE_CLAY: u32 = 4u;
+
 const MODEL_CLAY: u32 = 0u;
 const MODEL_PHONG: u32 = 1u;
 const MODEL_LAMBERT: u32 = 2u;
@@ -299,8 +305,12 @@ fn terrain_colour(c: vec3<f32>) -> vec3<f32> {
     return mix(vec3<f32>(dot(c, vec3<f32>(0.2126, 0.7152, 0.0722))), c, frame.terrain.x);
 }
 
-// Every light on the surface: the hemisphere light, the torches, the side lights and the point lights.
 fn light_surface(model: u32, s: Surface) -> vec3<f32> {
+    return lit_surface(model, s, vec3<f32>(0.0));
+}
+
+// Every light on the surface: the hemisphere light, the torches, the side lights and the point lights.
+fn lit_surface(model: u32, s: Surface, own: vec3<f32>) -> vec3<f32> {
     let weight = dot(s.normal, frame.up.xyz) * 0.5 + 0.5;
     let irradiance = mix(frame.ground.rgb, frame.sky.rgb, weight);
     var out = irradiance * s.diffuse / PI * cell_fill_kept();
@@ -323,7 +333,7 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
         let colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w) * on_lit_side(s, light.world.xyz - s.world);
         out = out + direct(model, s, to_light / d, colour, s.all_round > 0.5);
     }
-    return cell_light_surface(model, s, out);
+    return cell_light_surface(model, s, out, own);
 }
 
 // three's perturbNormal2Arb: a tangent-space normal onto the surface, with the frame from derivatives.

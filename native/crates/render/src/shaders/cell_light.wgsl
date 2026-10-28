@@ -95,6 +95,9 @@ fn cell_hero_light(model: u32, s: Surface, seen: f32) -> vec3<f32> {
     let fade = mix(1.0, cell_light_frame.hero_colour.w, smoothstep(0.0, cell_light_frame.hero.w, d));
     let colour = cell_light_frame.hero_colour.rgb * fade * seen * cell_hero_flicker() * on_lit_side(s, to_hero);
     let towards = (frame.view * vec4<f32>(to_hero / d, 0.0)).xyz;
+    if (cell_on_top(s)) {
+        return side_light(s, towards, colour);
+    }
     return direct(model, s, towards, colour, s.all_round > 0.5);
 }
 
@@ -106,7 +109,18 @@ fn cell_remembered(s: Surface) -> vec3<f32> {
     return dot(s.diffuse, CELL_LUMINANCE) * shape * cell_light_frame.memory.rgb;
 }
 
-fn cell_light_surface(model: u32, s: Surface, lit: vec3<f32>) -> vec3<f32> {
+fn cell_seen(sight: vec3<f32>) -> f32 {
+    return smoothstep(CELL_SIGHT_EDGE_LOW, CELL_SIGHT_EDGE_HIGH, sight.r);
+}
+
+fn cell_memory_look(s: Surface, colour: vec3<f32>) -> vec3<f32> {
+    if (!cell_light_on(CELL_LIGHT_SIGHT)) {
+        return colour;
+    }
+    return mix(cell_remembered(s), colour, cell_seen(cell_sight_at(s, cell_light_point(s))));
+}
+
+fn cell_light_surface(model: u32, s: Surface, lit: vec3<f32>, own: vec3<f32>) -> vec3<f32> {
     var out = lit;
     let at = cell_light_point(s);
     if (cell_light_on(CELL_LIGHT_GI)) {
@@ -115,10 +129,10 @@ fn cell_light_surface(model: u32, s: Surface, lit: vec3<f32>) -> vec3<f32> {
     }
     if (cell_light_on(CELL_LIGHT_SIGHT)) {
         let sight = cell_sight_at(s, at);
-        let seen = smoothstep(CELL_SIGHT_EDGE_LOW, CELL_SIGHT_EDGE_HIGH, sight.r);
+        let seen = cell_seen(sight);
         out = out + cell_hero_light(model, s, seen) + cell_spread_light(s, cell_light_frame.halo.rgb * sight.g);
         out = out * (1.0 - saturate1(sight.b) * cell_light_frame.halo.w);
-        out = mix(cell_remembered(s), out, seen);
+        return mix(cell_remembered(s), out + own, seen);
     }
-    return out;
+    return out + own;
 }

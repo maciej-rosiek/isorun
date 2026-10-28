@@ -17,6 +17,7 @@ pub fn layer_pipeline(
     samples: u32,
     keep_normal: bool,
     bias: wgpu::DepthBiasState,
+    cell_lights: u32,
 ) -> wgpu::RenderPipeline {
     let mut layouts: Vec<Option<&wgpu::BindGroupLayout>> = vec![Some(&gpu.frame_layout)];
     layouts.extend(groups.iter().map(|g| Some(*g)));
@@ -33,8 +34,10 @@ pub fn layer_pipeline(
     } else {
         scene_targets(blend, keep_normal)
     };
-    let constants = [("BLEND_MODE", if blend == Blend::Additive { 2.0 } else { 1.0 }), ("KEEP_NORMAL", if keep_normal { 1.0 } else { 0.0 })];
-    let compilation_options = if premultiplied { wgpu::PipelineCompilationOptions { constants: &constants, ..Default::default() } } else { Default::default() };
+    let blending = [("BLEND_MODE", if blend == Blend::Additive { 2.0 } else { 1.0 }), ("KEEP_NORMAL", if keep_normal { 1.0 } else { 0.0 })];
+    let lighting = [("CELL_LIGHTS", f64::from(cell_lights))];
+    let constants: Vec<(&str, f64)> = blending.iter().filter(|_| premultiplied).chain(lighting.iter().filter(|_| cell_lights != 0)).copied().collect();
+    let compilation_options = wgpu::PipelineCompilationOptions { constants: &constants, ..Default::default() };
     let buffers: Vec<Option<wgpu::VertexBufferLayout>> = buffers.iter().cloned().map(Some).collect();
     gpu.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
         label: Some(label),

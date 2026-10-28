@@ -49,12 +49,6 @@ struct FragmentOut {
     @location(2) emission: vec4<f32>,
 };
 
-const SURFACE_TERRAIN: u32 = 0u;
-const SURFACE_FEATURE: u32 = 1u;
-const SURFACE_SPRITE: u32 = 2u;
-const SURFACE_ACTOR: u32 = 3u;
-const SURFACE_CLAY: u32 = 4u;
-
 const ACTOR_HOVER: f32 = 2.0;
 const ACTOR_FLICKER: f32 = 3.0;
 

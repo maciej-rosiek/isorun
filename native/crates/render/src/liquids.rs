@@ -163,7 +163,7 @@ pub struct Liquids {
     module: wgpu::ShaderModule,
     pipelines: Vec<(&'static str, wgpu::RenderPipeline)>,
     built_revision: u64,
-    reflecting: Option<(u32, wgpu::RenderPipeline)>,
+    reflecting: Option<((u32, u32), wgpu::RenderPipeline)>,
 }
 
 fn grid_buffers() -> [wgpu::VertexBufferLayout<'static>; 1] {
@@ -218,12 +218,27 @@ impl Liquids {
         Liquids { pools, layout, module, pipelines: Vec::new(), built_revision: u64::MAX, reflecting: None }
     }
 
-    pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
+    pub fn prepare(&mut self, gpu: &Gpu, samples: u32, cell_lights: u32) {
         let buffers = grid_buffers();
         self.pipelines = ["fs_water", "fs_lava", "fs_starwater"]
             .iter()
             .map(|fs| {
-                (*fs, layer_pipeline(gpu, fs, &self.module, "vs_liquid", fs, &buffers, &[&self.layout], Blend::Alpha, false, samples, true, Default::default()))
+                let pipeline = layer_pipeline(
+                    gpu,
+                    fs,
+                    &self.module,
+                    "vs_liquid",
+                    fs,
+                    &buffers,
+                    &[&self.layout],
+                    Blend::Alpha,
+                    false,
+                    samples,
+                    true,
+                    Default::default(),
+                    cell_lights,
+                );
+                (*fs, pipeline)
             })
             .collect();
     }
@@ -285,8 +300,8 @@ impl Liquids {
         self.pools.iter().any(|p| matches!(p.grid.kind, LiquidKind::Lava | LiquidKind::Starwater) && p.shown && p.grid.count > 0)
     }
 
-    pub fn prepare_reflections(&mut self, gpu: &Gpu, samples: u32, materials: &wgpu::BindGroupLayout) {
-        if self.reflecting.as_ref().is_some_and(|(s, _)| *s == samples) {
+    pub fn prepare_reflections(&mut self, gpu: &Gpu, samples: u32, cell_lights: u32, materials: &wgpu::BindGroupLayout) {
+        if self.reflecting.as_ref().is_some_and(|(key, _)| *key == (samples, cell_lights)) {
             return;
         }
         let module = shader(gpu, "liquids with materials", &crate::materials::water_source());
@@ -303,8 +318,9 @@ impl Liquids {
             samples,
             true,
             Default::default(),
+            cell_lights,
         );
-        self.reflecting = Some((samples, pipeline));
+        self.reflecting = Some(((samples, cell_lights), pipeline));
     }
 
     pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, frame: &wgpu::BindGroup, materials: Option<&wgpu::BindGroup>) {

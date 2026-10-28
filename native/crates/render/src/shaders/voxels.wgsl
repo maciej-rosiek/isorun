@@ -1,4 +1,5 @@
 @group(1) @binding(0) var colour_map: texture_2d<f32>;
+@group(1) @binding(1) var normal_map: texture_2d<f32>;
 @group(1) @binding(2) var surface_map: texture_2d<f32>;
 @group(1) @binding(3) var page_sampler: sampler;
 @group(1) @binding(4) var data_sampler: sampler;
@@ -28,6 +29,7 @@ struct VoxelOut {
     @location(6) tint: vec4<f32>,
     @location(7) harm: vec4<f32>,
     @location(8) aura: vec4<f32>,
+    @location(9) face: vec3<f32>,
 };
 
 struct FragmentOut {
@@ -37,6 +39,7 @@ struct FragmentOut {
 };
 
 const VOXEL_HOVER: f32 = 2.0;
+const VOXEL_FIGURE: f32 = 0.5;
 const TERRAIN_RIM: f32 = 0.15;
 const FIGURE_RIM: f32 = 0.4;
 const STONE_GREY: vec3<f32> = vec3<f32>(0.62, 0.6, 0.57);
@@ -52,7 +55,7 @@ fn vs_voxel(v: VoxelIn) -> VoxelOut {
     if (abs(v.look.x - VOXEL_HOVER) < 0.5) {
         hover = sin(time() * 2.2 + v.look.y) * 0.04 + 0.05;
     }
-    let world = v.origin.xyz + v.axis_x.xyz * v.position.x + v.axis_y.xyz * v.position.y + v.axis_z.xyz * v.position.z + vec3<f32>(0.0, hover, 0.0);
+    let world = v.origin.xyz + v.axis_x.xyz * v.position.x + v.axis_y.xyz * v.position.y + v.axis_z.xyz * v.position.z + vec3<f32>(0.0, hover, 0.0) + voxel_sway(v);
     let normal_world = normalize(v.axis_x.xyz * v.normal.x + v.axis_y.xyz * v.normal.y + v.axis_z.xyz * v.normal.z);
     let grid = vec2<f32>(v.axis_x.w, v.axis_y.w);
     var out: VoxelOut;
@@ -66,6 +69,10 @@ fn vs_voxel(v: VoxelIn) -> VoxelOut {
     out.tint = v.tint;
     out.harm = v.harm;
     out.aura = v.aura;
+    out.face = normal_world;
+    if (v.origin.w < VOXEL_FIGURE && dot(v.axis_z.xyz, v.axis_z.xyz) > 0.0) {
+        out.face = normalize(v.axis_z.xyz);
+    }
     return out;
 }
 
@@ -78,12 +85,11 @@ fn voxel_uv(in: VoxelOut) -> vec2<f32> {
 
 fn voxel_surface(in: VoxelOut, diffuse: vec3<f32>, rim: f32, gloss: f32) -> Surface {
     var s: Surface;
-    let normal_world = normalize(in.normal_world);
     s.position = in.view_pos;
-    s.normal = normalize((frame.view * vec4<f32>(normal_world, 0.0)).xyz);
+    s.normal = normalize((frame.view * vec4<f32>(normalize(in.normal_world), 0.0)).xyz);
     s.view_dir = normalize(-in.view_pos);
     s.world = in.world;
-    s.normal_world = normal_world;
+    s.normal_world = normalize(in.face);
     s.diffuse = diffuse;
     s.specular = vec3<f32>(gloss * frame.shading1.y);
     s.shininess = mix(8.0, 160.0, gloss);
@@ -92,16 +98,20 @@ fn voxel_surface(in: VoxelOut, diffuse: vec3<f32>, rim: f32, gloss: f32) -> Surf
     return s;
 }
 
-fn voxel_outputs(s: Surface, light: vec3<f32>) -> FragmentOut {
+fn voxel_outputs(s: Surface, colour: vec3<f32>, light: vec3<f32>) -> FragmentOut {
     var out: FragmentOut;
-    out.colour = vec4<f32>(light_surface(MODEL_CLAY, s) + light, 1.0);
+    out.colour = vec4<f32>(colour, 1.0);
     out.normal = vec4<f32>(pack_normal(s.normal), 1.0);
     out.emission = vec4<f32>(light, 1.0);
     return out;
 }
 
+fn voxel_lit(s: Surface, light: vec3<f32>) -> FragmentOut {
+    return voxel_outputs(s, lit_surface(MODEL_CLAY, s, light), light);
+}
+
 fn memory_of(in: VoxelOut) -> f32 {
-    return mix(1.0, memory_shade(memory_cell(in.world, normalize(in.normal_world))), in.misc.w);
+    return mix(1.0, memory_shade(memory_cell(in.world, normalize(in.face))), in.misc.w);
 }
 
 @fragment
@@ -113,13 +123,15 @@ fn fs_voxel(in: VoxelOut) -> FragmentOut {
     let figure = in.misc.y > 0.5;
     var diffuse = colour.rgb / max(colour.a, 0.5) * shade * in.tint.rgb;
     var rim = TERRAIN_RIM;
+    var kind = SURFACE_TERRAIN;
     if (figure) {
         rim = FIGURE_RIM;
+        kind = SURFACE_SPRITE;
     } else {
         diffuse = terrain_colour(diffuse);
     }
     let light = colour.rgb * surface.g * frame.shading2.z * shade;
-    return voxel_outputs(voxel_surface(in, diffuse, rim, surface.r), light);
+    return voxel_material_out(in, at, voxel_surface(in, diffuse, rim, surface.r), light, kind);
 }
 
 @fragment
@@ -158,7 +170,7 @@ fn fs_voxel_actor(in: VoxelOut) -> FragmentOut {
         + FLAMES_LIGHT * harm.y * 0.5 * pulse
         + base * 0.5 * aura.y
         + SUMMONED_LIGHT * edge * aura.z;
-    return voxel_outputs(s, light);
+    return voxel_material_out(in, at, s, light, SURFACE_ACTOR);
 }
 
 struct PieceIn {
@@ -202,5 +214,5 @@ fn fs_piece(in: PieceOut) -> FragmentOut {
     s.shininess = 30.0;
     s.rim = FIGURE_RIM;
     s.all_round = 0.0;
-    return voxel_outputs(s, vec3<f32>(0.0));
+    return voxel_lit(s, vec3<f32>(0.0));
 }

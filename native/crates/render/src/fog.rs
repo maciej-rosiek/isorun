@@ -275,6 +275,7 @@ impl FogLayer {
             samples,
             true,
             Default::default(),
+            0,
         ));
     }
 

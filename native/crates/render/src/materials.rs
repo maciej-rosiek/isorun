@@ -224,6 +224,10 @@ pub fn world_source() -> String {
     with_common(&[include_str!("shaders/world.wgsl"), include_str!("shaders/materials.wgsl"), include_str!("shaders/materials_world.wgsl")].join("\n"))
 }
 
+pub fn voxel_source() -> String {
+    with_common(&[include_str!("shaders/voxels.wgsl"), include_str!("shaders/materials.wgsl"), include_str!("shaders/materials_voxels.wgsl")].join("\n"))
+}
+
 pub fn water_source() -> String {
     [include_str!("shaders/liquids.wgsl"), include_str!("shaders/materials.wgsl"), include_str!("shaders/materials_water.wgsl")].join("\n")
 }

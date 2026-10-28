@@ -100,7 +100,7 @@ impl Overlay {
         ];
         let bias = wgpu::DepthBiasState { constant: -2, slope_scale: -2.0, clamp: 0.0 };
         self.pipeline =
-            Some(layer_pipeline(gpu, "overlay", &self.module, "vs_overlay", "fs_overlay", &buffers, &[], Blend::Opaque, true, samples, false, bias));
+            Some(layer_pipeline(gpu, "overlay", &self.module, "vs_overlay", "fs_overlay", &buffers, &[], Blend::Opaque, true, samples, false, bias, 0));
     }
 
     /// Where the pointer's pieces are this frame.

@@ -15,6 +15,6 @@ fn water_colour(in: VertexOut, s: Surface, alpha: f32) -> vec4<f32> {
     let mirrored = mix(room_light(ray), walls.rgb, walls.a) + sheen(s, WATER_SHEEN) * clearness * lit.y;
     let glancing = pow(1.0 - saturate1(dot(s.normal, s.view_dir)), 3.0);
     let strength = clamp(material.water_reflection * clearness * (WATER_MIRROR + (1.0 - WATER_MIRROR) * glancing), 0.0, WATER_MIRROR_MOST) * lit.x;
-    let colour = mix(light_surface(MODEL_PHONG, s) + hero_highlight(s), mirrored, strength);
+    let colour = mix(lit_surface(MODEL_PHONG, s, hero_highlight(s)), cell_memory_look(s, mirrored), strength);
     return vec4<f32>(colour, alpha + (1.0 - alpha) * strength * saturate1(alpha * 2.0));
 }

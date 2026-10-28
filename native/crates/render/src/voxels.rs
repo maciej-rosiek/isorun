@@ -524,8 +524,15 @@ pub struct FigureLayer {
     pub rows: f32,
 }
 
-struct Pipelines {
+#[derive(Clone, Copy, PartialEq)]
+struct PipelineKey {
     samples: u32,
+    cell_lights: u32,
+    materials: bool,
+}
+
+struct Pipelines {
+    key: PipelineKey,
     terrain: wgpu::RenderPipeline,
     actors: wgpu::RenderPipeline,
     pieces: wgpu::RenderPipeline,
@@ -536,7 +543,7 @@ pub struct VoxelLayer {
     cells: u32,
     meshes: HashMap<MeshKey, Arc<VoxelGpuMesh>>,
     next_id: u64,
-    module: Option<wgpu::ShaderModule>,
+    modules: HashMap<bool, wgpu::ShaderModule>,
     pipelines: Option<Pipelines>,
     figures: HashMap<u64, Vec<VoxelPart>>,
     actor_instances: Option<DynamicBuffer>,
@@ -558,7 +565,7 @@ impl Default for VoxelLayer {
             cells: 16,
             meshes: HashMap::new(),
             next_id: 0,
-            module: None,
+            modules: HashMap::new(),
             pipelines: None,
             figures: HashMap::new(),
             actor_instances: None,
@@ -829,34 +836,48 @@ impl VoxelLayer {
         buffer.write(gpu, bytemuck::cast_slice(&instances));
     }
 
-    pub fn prepare(&mut self, gpu: &Gpu, samples: u32) {
-        if !self.wanted || self.pipelines.as_ref().is_some_and(|p| p.samples == samples) {
+    pub fn prepare(&mut self, gpu: &Gpu, samples: u32, cell_lights: u32, materials: Option<&wgpu::BindGroupLayout>) {
+        let key = PipelineKey { samples, cell_lights, materials: materials.is_some() };
+        if !self.wanted || self.pipelines.as_ref().is_some_and(|p| p.key == key) {
             return;
         }
-        let module = self.module.get_or_insert_with(|| {
-            gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("voxels"),
-                source: wgpu::ShaderSource::Wgsl(crate::gpu::with_common(include_str!("shaders/voxels.wgsl")).into()),
-            })
+        let module = self.modules.entry(key.materials).or_insert_with(|| {
+            let source = if key.materials {
+                crate::materials::voxel_source()
+            } else {
+                crate::gpu::with_common(&[include_str!("shaders/voxels.wgsl"), include_str!("shaders/plain_voxels.wgsl")].join("\n"))
+            };
+            gpu.device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("voxels"), source: wgpu::ShaderSource::Wgsl(source.into()) })
         });
         let parts = [VoxelVertex::layout(), VoxelInstance::layout()];
         let pieces = [VoxelVertex::layout(), PieceInstance::layout()];
         let pipeline = |label: &str, vs: &str, fs: &str, buffers: &[wgpu::VertexBufferLayout], groups: &[&wgpu::BindGroupLayout]| {
-            layer_pipeline(gpu, label, module, vs, fs, buffers, groups, Blend::Opaque, true, samples, false, Default::default())
+            layer_pipeline(gpu, label, module, vs, fs, buffers, groups, Blend::Opaque, true, samples, false, Default::default(), cell_lights)
         };
+        let paged: Vec<&wgpu::BindGroupLayout> = std::iter::once(&gpu.page_layout).chain(materials).collect();
         self.pipelines = Some(Pipelines {
-            samples,
-            terrain: pipeline("voxel terrain", "vs_voxel", "fs_voxel", &parts, &[&gpu.page_layout]),
-            actors: pipeline("voxel actors", "vs_voxel", "fs_voxel_actor", &parts, &[&gpu.page_layout]),
+            key,
+            terrain: pipeline("voxel terrain", "vs_voxel", "fs_voxel", &parts, &paged),
+            actors: pipeline("voxel actors", "vs_voxel", "fs_voxel_actor", &parts, &paged),
             pieces: pipeline("voxel pieces", "vs_piece", "fs_piece", &pieces, &[]),
         });
     }
 
-    pub fn draw(&mut self, pass: &mut wgpu::RenderPass<'_>, frame: &wgpu::BindGroup, chunks: &[&VoxelChunk], pages: &Pages) {
+    pub fn draw(
+        &mut self,
+        pass: &mut wgpu::RenderPass<'_>,
+        frame: &wgpu::BindGroup,
+        materials: Option<&wgpu::BindGroup>,
+        chunks: &[&VoxelChunk],
+        pages: &Pages,
+    ) {
         let mut stats = VoxelStats { meshes: self.meshes.len(), pieces: self.pieces.len(), ..Default::default() };
         let Some(p) = self.pipelines.as_ref().filter(|_| self.wanted) else { return };
         pass.set_pipeline(&p.terrain);
         pass.set_bind_group(0, frame, &[]);
+        if let Some(group) = materials.filter(|_| p.key.materials) {
+            pass.set_bind_group(2, group, &[]);
+        }
         for chunk in chunks {
             draw_parts(pass, &chunk.instances, &chunk.draws, pages, &mut stats);
         }

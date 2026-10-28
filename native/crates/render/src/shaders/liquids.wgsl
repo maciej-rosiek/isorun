@@ -188,7 +188,7 @@ fn fs_lava(in: VertexOut) -> FragmentOut {
     let s = surface(in, normal, crust * (1.0 - open) * lit.x);
     let emissive = (melt * BRIGHTNESS * open + lava.molten.rgb * rim) * lit.x;
     var out: FragmentOut;
-    out.colour = vec4<f32>(light_surface(MODEL_LAMBERT, s) + emissive, max(shape, rim * RIM_OPACITY));
+    out.colour = vec4<f32>(lit_surface(MODEL_LAMBERT, s, emissive), max(shape, rim * RIM_OPACITY));
     out.normal = vec4<f32>(0.0);
     out.emission = vec4<f32>(melt * below * shape * lit.y * lava.params.x, 1.0);
     return out;
@@ -222,7 +222,8 @@ fn fs_starwater(in: VertexOut) -> FragmentOut {
     }
     let star = min(stars, 1.0) * twinkle * lit.y * smoothstep(0.55, 0.75, edge);
     var out: FragmentOut;
-    out.colour = vec4<f32>(mix(sky, STAR * 2.5, star) * lit.x, shape * 0.95);
+    let sky_surface = surface(in, frame.up.xyz, sky * lit.x);
+    out.colour = vec4<f32>(cell_memory_look(sky_surface, mix(sky, STAR * 2.5, star) * lit.x), shape * 0.95);
     out.normal = vec4<f32>(0.0);
     out.emission = vec4<f32>(STAR * star * shape * 1.5, 1.0);
     return out;
