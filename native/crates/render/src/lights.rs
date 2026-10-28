@@ -246,6 +246,7 @@ pub struct IsoLights {
     pub voxels: VoxelRelief,
     pub gi: GlobalIllumination,
     pub sight: SightLight,
+    pub materials: crate::materials::MaterialSettings,
 }
 
 pub fn diorama() -> IsoLights {
@@ -301,6 +302,7 @@ pub fn diorama() -> IsoLights {
             halo: 0xffe6a0,
             umbra_darkness: 0.6,
         },
+        materials: crate::materials::MATERIALS,
     }
 }
 

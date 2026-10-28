@@ -18,6 +18,10 @@ fn box_visible(planes: &[Vec4; 6], min: Vec3, max: Vec3) -> bool {
 impl IsoRenderer {
     fn ensure_pipelines(&mut self, samples: u32) {
         let cell_lights = self.cell_lights.flags();
+        if let Some(materials) = self.materials.as_mut() {
+            materials.prepare(&self.gpu, samples, cell_lights);
+            self.liquids.prepare_reflections(&self.gpu, samples, &materials.layout);
+        }
         if self.pipelines.as_ref().is_some_and(|p| p.samples == samples && p.cell_lights == cell_lights) {
             return;
         }
@@ -113,6 +117,12 @@ impl IsoRenderer {
         self.cell_light.advance(&self.gpu, dt);
         let hero = self.player_shown().filter(|_| scene.player_on_level);
         self.cell_light.write_uniform(&self.gpu, &self.cell_light.uniform(&self.lights, hero));
+    }
+
+    fn update_materials(&mut self, scene: &Scene, tiles: &Arc<dyn TileSource>) {
+        let (Some(materials), Some(pages)) = (self.materials.as_mut(), self.pages.as_mut()) else { return };
+        materials.sync(&self.gpu, scene, self.revision_counter, &mut |tile| tiles.tile(tile).map(|rect| pages.average_colour(tiles.as_ref(), &rect)));
+        materials.configure(&self.gpu, &self.lights, self.actors.shown_cell_of(PLAYER_ACTOR), self.camera_view, self.view.wall_height);
     }
 
     fn frame_uniform(&self, now: f64) -> FrameUniform {
@@ -221,6 +231,7 @@ impl IsoRenderer {
         let danger = self.danger * (1.0 - DANGER_PULSE + DANGER_PULSE * (now as f32 * DANGER_PULSE_SPEED).sin());
         self.place_lights();
         self.light_cells(&scene, tiles.as_ref(), dt);
+        self.update_materials(&scene, &tiles);
         let aim_colour_of = |r: &IsoRenderer, intent| {
             let c = if intent == crate::plan::AimIntent::Move { r.lights.aim.colour } else { aim_colour(intent) };
             let l = linear(c);
@@ -318,6 +329,10 @@ impl IsoRenderer {
                 self.voxels.draw(&mut pass, &self.frame_group, &voxel_chunks, pages);
             }
             pass.set_bind_group(0, &self.frame_group, &[]);
+            let world = self.materials.as_ref().map_or(&pipelines.world, |m| m.world_pipelines());
+            if let Some(materials) = &self.materials {
+                pass.set_bind_group(3, &materials.group, &[]);
+            }
             let mut current: Option<Material> = None;
             let mut counts = FrameCounts::default();
             for (k, item) in items.iter().enumerate() {
@@ -326,7 +341,7 @@ impl IsoRenderer {
                 }
                 let Some(group) = &groups[k] else { continue };
                 if current != Some(item.material) {
-                    pass.set_pipeline(&pipelines.world[&item.material]);
+                    pass.set_pipeline(&world[&item.material]);
                     current = Some(item.material);
                 }
                 pass.set_bind_group(1, group, &[]);
@@ -342,13 +357,13 @@ impl IsoRenderer {
             self.combat.draw_sparks(&mut pass, &self.frame_group);
             self.steps.draw_prints(&mut pass, &self.frame_group);
             self.combat.draw_splats(&mut pass, &self.frame_group);
-            self.liquids.draw(&mut pass, &self.frame_group);
+            self.liquids.draw(&mut pass, &self.frame_group, self.materials.as_ref().map(|m| &m.group));
             // over the liquids, which do not keep the depth of what they cover
             self.loot.draw(&mut pass, &self.frame_group);
             self.fog.draw(&mut pass, &self.frame_group);
             self.steps.draw_puffs(&mut pass, &self.frame_group);
         }
-        let emission = self.liquids.glowing() || (self.pages.as_ref().is_some_and(|p| p.glowing) && self.detail.detail().glow && self.lights.shading.glow > 0.0 && (self.glow_in_view() || self.actors.glowing() || self.features.glowing));
+        let emission = self.liquids.glowing() || self.materials.as_ref().is_some_and(|m| m.glowing()) || (self.pages.as_ref().is_some_and(|p| p.glowing) && self.detail.detail().glow && self.lights.shading.glow > 0.0 && (self.glow_in_view() || self.actors.glowing() || self.features.glowing));
         let origin = view_proj.project_point3(Vec3::ZERO);
         let ratio = self.pixel_ratio();
         let post_frame = PostFrame {

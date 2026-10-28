@@ -5,6 +5,7 @@
 
 use crate::labels::{label_of, tile_hash, Joints, TileLabel, UNLABELLED};
 use crate::lights::{PaintSettings, Upscale};
+use crate::materials::tile_class;
 use crate::scalefx::{scalefx, SCALEFX_SCALE};
 
 pub const ENHANCE_SCALE: u32 = 4;
@@ -380,7 +381,7 @@ fn terrain_height(px: &[u8], w: usize, h: usize, scale: u32, label: &TileLabel) 
 }
 
 /// A tangent-space normal map from a height, bent by `relief`; blue is the parallax height.
-fn normal_map(height: &[f32], depth: &[f32], w: usize, h: usize, relief: f32) -> Vec<u8> {
+fn normal_map(height: &[f32], depth: &[f32], w: usize, h: usize, relief: f32, material: u8) -> Vec<u8> {
     let mut out = vec![0u8; w * h * 4];
     let at = |x: isize, y: isize| height[(y.clamp(0, h as isize - 1) as usize) * w + x.clamp(0, w as isize - 1) as usize];
     for y in 0..h {
@@ -393,7 +394,7 @@ fn normal_map(height: &[f32], depth: &[f32], w: usize, h: usize, relief: f32) ->
             out[o] = clamp8(((-dx / len) * 0.5 + 0.5) * 255.0);
             out[o + 1] = clamp8(((dy / len) * 0.5 + 0.5) * 255.0);
             out[o + 2] = clamp8(depth[y * w + x] * 255.0);
-            out[o + 3] = 255;
+            out[o + 3] = material;
         }
     }
     out
@@ -481,12 +482,13 @@ pub fn enhance_tile(job: &TileJob) -> EnhancedTile {
     }
     let label = job.label.unwrap_or(UNLABELLED);
     let surface = surface_map(&colour, w, h, &label);
+    let material = tile_class(job.label.as_ref()).texel_alpha();
     let normal = if sprite {
         let height = sprite_height(&colour, w, h);
-        normal_map(&height, &tile_depth(&colour, &height), w, h, RELIEF)
+        normal_map(&height, &tile_depth(&colour, &height), w, h, RELIEF, material)
     } else {
         let height = terrain_height(&colour, w, h, scale, &label);
-        normal_map(&height, &height, w, h, TERRAIN_RELIEF)
+        normal_map(&height, &height, w, h, TERRAIN_RELIEF, material)
     };
     EnhancedTile { w: w as u32, h: h as u32, colour, normal, surface }
 }

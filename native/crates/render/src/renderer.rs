@@ -13,6 +13,7 @@ use crate::gpu::{Gpu, Material, DEPTH_FORMAT};
 use crate::lights::{diorama, linear, IsoLights, IsoQuality, SurfaceDetail, QUALITY_MEDIUM};
 use crate::liquids::{Liquids, FILMS};
 use crate::loot::{Landing, LootLayer, LIGHT_REACH as LOOT_LIGHT_REACH};
+use crate::materials::{door_metal, MaterialLayer};
 use crate::memory::MemoryMask;
 use crate::mesh::{GpuMesh, Point3, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::mipmap::Mipmapper;
@@ -180,6 +181,7 @@ pub struct IsoRenderer {
     features: TileFeatures,
     fog: FogLayer,
     liquids: Liquids,
+    materials: Option<MaterialLayer>,
     combat: CombatLayer,
     steps: StepLayer,
     loot: LootLayer,
@@ -313,10 +315,12 @@ impl IsoRenderer {
         let cell_light = CellLight::new(&gpu);
         let frame_group = Self::frame_group(&gpu, &frame_buffer, &memory, &noise, &torch_light, &cell_light);
         let draws = DrawBuffer::new(&gpu.device, &gpu.draw_layout, 256);
-        let (cap, door) = (cap_texture(&gpu), door_texture(&gpu));
+        let (door_width, door_height, door_pixels) = door_pixels();
+        let (cap, door) = (cap_texture(&gpu), gpu.texture_with("door", door_width, door_height, wgpu::TextureFormat::Rgba8UnormSrgb, &door_pixels));
         let blank = gpu.texture_with("blank", 1, 1, wgpu::TextureFormat::Rgba8Unorm, &[128, 128, 255, 0]);
+        let door_normal = gpu.texture_with("door normal", door_width, door_height, wgpu::TextureFormat::Rgba8Unorm, &door_metal(&door_pixels));
         let cap_group = page_bind_group(&gpu.device, &gpu.page_layout, &gpu.nearest_sampler, &cap, &blank, &blank);
-        let door_group = page_bind_group(&gpu.device, &gpu.page_layout, &gpu.page_sampler, &door, &blank, &blank);
+        let door_group = page_bind_group(&gpu.device, &gpu.page_layout, &gpu.page_sampler, &door, &door_normal, &blank);
         let fog = FogLayer::new(&gpu);
         let liquids = Liquids::new(&gpu);
         let combat = CombatLayer::new(&gpu);
@@ -370,6 +374,7 @@ impl IsoRenderer {
             features,
             fog,
             liquids,
+            materials: None,
             combat,
             steps,
             loot,
@@ -516,6 +521,12 @@ impl IsoRenderer {
 
     pub fn set_cell_lights(&mut self, on: CellLights) {
         self.cell_lights = on;
+    }
+
+    pub fn set_materials(&mut self, on: bool) {
+        if on != self.materials.is_some() {
+            self.materials = on.then(|| MaterialLayer::new(&self.gpu));
+        }
     }
 
     pub fn set_aim(&mut self, aim: Option<IsoAim>) {
@@ -879,7 +890,7 @@ fn cap_texture(gpu: &Gpu) -> wgpu::Texture {
 }
 
 /// A door leaf in the DCSS manner: dark planks, two iron bands with rivets and a ring, 32 by 48.
-fn door_texture(gpu: &Gpu) -> wgpu::Texture {
+fn door_pixels() -> (u32, u32, Vec<u8>) {
     let (w, h) = (32usize, 48usize);
     let mut px = vec![0u8; w * h * 4];
     let mut random = seeded(7);
@@ -919,7 +930,7 @@ fn door_texture(gpu: &Gpu) -> wgpu::Texture {
         put(0, y, [30.0, 18.0, 10.0], &mut px);
         put(w - 1, y, [30.0, 18.0, 10.0], &mut px);
     }
-    gpu.texture_with("door", w as u32, h as u32, wgpu::TextureFormat::Rgba8UnormSrgb, &px)
+    (w as u32, h as u32, px)
 }
 
 pub fn seeded(seed: u32) -> impl FnMut() -> f32 {

@@ -54,7 +54,7 @@ fn builds_the_test_bed_level_from_its_atlas() {
     let (v, atlas) = testbed();
     let s = vault_scene(&v, &atlas).unwrap();
     assert_eq!((s.bounds.right, s.bounds.bottom), (v.width as i32 - 1, v.height as i32 - 1));
-    assert_eq!(s.cells.len(), v.width * v.height);
+    assert_eq!(s.cells.len(), v.map.iter().flatten().filter(|g| **g != ' ').count());
     assert!(s.cells.values().all(|c| c.visibility == Visibility::Visible));
     // every tile the scene names is in the atlas, the variants among them
     for c in s.cells.values() {
@@ -73,7 +73,8 @@ fn builds_the_test_bed_level_from_its_atlas() {
     assert!(wall.occluder);
     assert_eq!(wall.wall_style, Some(WallStyle::Solid));
     assert_eq!(wall.label.as_deref(), Some("brick dark"));
-    let walls: Vec<_> = s.cells.values().filter(|c| c.kind == CellKind::Wall).collect();
+    let masonry = at(&v, '#');
+    let walls: Vec<_> = s.cells.values().filter(|c| c.kind == CellKind::Wall && masonry.contains(&(c.x, c.y))).collect();
     assert!(walls.iter().all(|c| (brick..brick + 12).contains(&c.wall_tile.unwrap())));
     assert!(walls.iter().map(|c| c.wall_tile).collect::<std::collections::HashSet<_>>().len() > 3);
     assert_eq!(s.level.ceiling_tile, Some(brick));
@@ -144,8 +145,9 @@ fn builds_the_test_bed_level_from_its_atlas() {
 
     // monsters and items stand as billboards
     let monsters: Vec<_> = s.billboards.iter().filter(|b| b.kind == BillboardKind::Monster).collect();
-    assert_eq!(monsters.len(), 9);
-    assert!(monsters.iter().all(|b| b.scenery && b.attitude == Some(Attitude::Hostile) && b.height == 0.6));
+    assert_eq!(monsters.len(), 10);
+    assert!(monsters.iter().all(|b| b.scenery && b.attitude == Some(Attitude::Hostile)));
+    assert!(monsters.iter().all(|b| b.height == if b.name.as_deref() == Some("fungus") { 0.95 } else { 0.6 }));
     let (hx, hy) = at(&v, 'h')[0];
     let human = monsters.iter().find(|b| (b.x, b.y) == (hx, hy)).unwrap();
     assert_eq!(human.name.as_deref(), Some("human"));
@@ -155,7 +157,7 @@ fn builds_the_test_bed_level_from_its_atlas() {
     let skeleton = monsters.iter().find(|b| (b.x, b.y) == (kx, ky)).unwrap();
     assert_eq!((skeleton.name.as_deref(), Some(skeleton.tile)), (Some("skeletal warrior"), atlas.id("MONS_SKELETAL_WARRIOR")));
     let items: Vec<_> = s.billboards.iter().filter(|b| b.kind == BillboardKind::Item).collect();
-    assert_eq!(items.len(), 3);
+    assert_eq!(items.len(), 4);
     for (g, tile) in [('!', "POTION_OFFSET"), ('?', "SCROLL"), ('$', "GOLD05")] {
         let (x, y) = at(&v, g)[0];
         let item = items.iter().find(|b| (b.x, b.y) == (x, y)).unwrap();

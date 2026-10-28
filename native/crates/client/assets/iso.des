@@ -1,7 +1,10 @@
 # The isometric test bed's level (testbed/iso.ts): two halls joined by a
 # corridor, pools of water, murky water, starwater, toxic bog, mud and lava,
 # slime and corroding floor, a side room and a lower hall with the stairs
-# down. The human (h) is the player; @ and l only satisfy the vault format.
+# down, and below the player's hall a gallery of what the Materials setting
+# draws: crystal, metal, glass and ice walls over a pool, a wall torch, trees,
+# a fungus, ice floor, gold, a golden statue and an altar of Vehumet.
+# The human (h) is the player; @ and l only satisfy the vault format.
 NAME: isorun_testbed
 TILE:  # = wall_brick_dark
 FTILE: . = floor_grey_dirt
@@ -14,6 +17,15 @@ FTILE: * = dngn_starwater
 FTILE: u = liquefaction
 FTILE: z = floor_slime
 FTILE: a = floor_slime_acidic
+TILE:  C = dngn_crystal_wall
+TILE:  M = dngn_metal_wall
+TILE:  G = dngn_transparent_wall
+TILE:  I = wall_ice
+TILE:  t = wall_brick_dark_2_torch
+FTILE: i = floor_ice
+KFEAT: T = dngn_tree
+KFEAT: Y = dngn_golden_statue
+KFEAT: V = dngn_altar_vehumet
 KFEAT: + = dngn_closed_door
 KFEAT: ' = dngn_open_door
 KFEAT: > = dngn_stone_stairs_down
@@ -27,6 +39,7 @@ KMONS: k = mons_kobold
 KMONS: K = mons_skeletal_warrior
 KMONS: W = mons_wight
 KMONS: N = mons_necromancer
+KMONS: f = mons_fungus
 KITEM: ! = potion_offset
 KITEM: ? = scroll
 KITEM: $ = gold05
@@ -47,5 +60,8 @@ MAP
 #..h.@.l.......+a.W...k.uu######
 #.....?**.######.8..K..8..######
 #.....***.######....N>....######
-################################
+#.CCMMGGII######################
+t.sswwww.$#
+#.TT.fiiYV#
+###########
 ENDMAP

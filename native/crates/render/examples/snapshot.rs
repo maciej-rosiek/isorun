@@ -189,6 +189,7 @@ fn main() {
         r.set_lights(isorun_render::lights(&name).expect("no such look"));
     }
     r.set_voxels(std::env::var("VOXELS").is_ok_and(|v| v == "1"));
+    r.set_materials(std::env::var("MATERIALS").is_ok_and(|v| v == "1"));
     r.set_scene(scene.clone());
     let angles = CameraAngles { rotation: DEFAULT_ANGLES.rotation + env_f32("TURN", 0.0), tilt: env_f32("TILT", DEFAULT_ANGLES.tilt), ..DEFAULT_ANGLES };
     let mut camera = IsoCamera::new(angles, DEFAULT_VIEW.zoom * env_f32("ZOOM", 1.0));

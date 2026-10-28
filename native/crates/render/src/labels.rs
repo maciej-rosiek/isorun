@@ -59,8 +59,14 @@ pub const UNLABELLED: TileLabel = TileLabel {
 
 #[derive(Deserialize)]
 struct LabelFile {
+    materials: Vec<String>,
     labels: Vec<Vec<u8>>,
     tiles: HashMap<String, usize>,
+}
+
+struct LabelTable {
+    materials: Vec<String>,
+    by_hash: HashMap<u32, TileLabel>,
 }
 
 pub(crate) fn decode_label(v: &[u8]) -> TileLabel {
@@ -92,18 +98,24 @@ pub(crate) fn decode_label(v: &[u8]) -> TileLabel {
     }
 }
 
-fn table() -> &'static HashMap<u32, TileLabel> {
-    static TABLE: OnceLock<HashMap<u32, TileLabel>> = OnceLock::new();
+fn table() -> &'static LabelTable {
+    static TABLE: OnceLock<LabelTable> = OnceLock::new();
     TABLE.get_or_init(|| {
         let file: LabelFile = serde_json::from_str(include_str!("tile-labels.json")).expect("tile-labels.json");
         let labels: Vec<TileLabel> = file.labels.iter().map(|l| decode_label(l)).collect();
-        file.tiles.into_iter().filter_map(|(hash, i)| Some((u32::from_str_radix(&hash, 16).ok()?, labels.get(i).copied().unwrap_or(UNLABELLED)))).collect()
+        let by_hash =
+            file.tiles.into_iter().filter_map(|(hash, i)| Some((u32::from_str_radix(&hash, 16).ok()?, labels.get(i).copied().unwrap_or(UNLABELLED)))).collect();
+        LabelTable { materials: file.materials, by_hash }
     })
 }
 
 /// The label of a tile by its pixels (`tile_hash`), or none when no label names that art.
 pub fn label_of(hash: u32) -> Option<TileLabel> {
-    table().get(&hash).copied()
+    table().by_hash.get(&hash).copied()
+}
+
+pub fn material_name(label: &TileLabel) -> Option<&'static str> {
+    table().materials.get(usize::from(label.material)).map(String::as_str)
 }
 
 /// FNV-1a over a tile's size and its pixels, with every texel under half alpha as nothing.

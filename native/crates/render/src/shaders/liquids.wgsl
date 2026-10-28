@@ -114,7 +114,7 @@ fn fs_water(in: VertexOut) -> FragmentOut {
     s.specular = vec3<f32>(water.params.w * lit.y * frame.shading3.y);
     let alpha = max(shape * min(mix(SHALLOW_OPACITY, DEEP_OPACITY, in.depth) * water.params.z, 1.0), glow * shape);
     var out: FragmentOut;
-    out.colour = vec4<f32>(light_surface(MODEL_PHONG, s), alpha);
+    out.colour = water_colour(in, s, alpha);
     out.normal = vec4<f32>(0.0);
     out.emission = vec4<f32>(0.0);
     return out;
