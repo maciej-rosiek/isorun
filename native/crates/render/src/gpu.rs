@@ -1,6 +1,7 @@
 //! The GPU objects every frame uses: the bind group layouts, the samplers, the shaders and the
 //! pipelines of the level's materials.
 
+use crate::cell_light::CellLightUniform;
 use crate::mesh::Vertex;
 use crate::uniforms::{DrawUniform, FrameUniform};
 
@@ -108,7 +109,7 @@ pub fn uniform_entry(binding: u32, size: u64, dynamic: bool) -> wgpu::BindGroupL
 
 /// Source text with the shared WGSL in front of it.
 pub fn with_common(source: &str) -> String {
-    format!("{}\n{}", include_str!("shaders/common.wgsl"), source)
+    format!("{}\n{}\n{}", include_str!("shaders/common.wgsl"), include_str!("shaders/cell_light.wgsl"), source)
 }
 
 impl Gpu {
@@ -126,6 +127,9 @@ impl Gpu {
                 texture_entry(8, float, d2),
                 sampler_entry(9, wgpu::SamplerBindingType::Filtering),
                 texture_entry(10, float, d2),
+                uniform_entry(11, u64::try_from(std::mem::size_of::<CellLightUniform>()).unwrap_or(0), false),
+                texture_entry(12, float, d2),
+                texture_entry(13, float, d2),
             ],
         });
         let page_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -192,7 +196,7 @@ impl Gpu {
     }
 
     /// A pipeline of the level's materials for the scene pass.
-    pub fn world_pipeline(&self, material: Material, samples: u32) -> wgpu::RenderPipeline {
+    pub fn world_pipeline(&self, material: Material, samples: u32, cell_lights: u32) -> wgpu::RenderPipeline {
         let layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("world"),
             bind_group_layouts: &[Some(&self.frame_layout), Some(&self.page_layout), Some(&self.draw_layout)],
@@ -208,6 +212,8 @@ impl Gpu {
             Material::Mark => ("vs_main", "fs_mark"),
         };
         let blended = material == Material::Mark;
+        let constants = [("CELL_LIGHTS", f64::from(cell_lights))];
+        let constants = if cell_lights == 0 { &constants[..0] } else { &constants[..] };
         let targets = if blended { scene_targets(Blend::Alpha, true) } else { scene_targets(Blend::Opaque, false) };
         self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(fs),
@@ -218,7 +224,12 @@ impl Gpu {
                 buffers: &[Some(Vertex::layout())],
                 compilation_options: Default::default(),
             },
-            fragment: Some(wgpu::FragmentState { module: &self.world, entry_point: Some(fs), targets: &targets, compilation_options: Default::default() }),
+            fragment: Some(wgpu::FragmentState {
+                module: &self.world,
+                entry_point: Some(fs),
+                targets: &targets,
+                compilation_options: wgpu::PipelineCompilationOptions { constants, ..Default::default() },
+            }),
             primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,

@@ -315,6 +315,8 @@ fn cell_of(c: &Value) -> SceneCell {
             out_of_range: flag("outOfRange"),
             magic_mapped: flag("magicMapped"),
             torch_wall: flag("torchWall"),
+            halo: flag("halo"),
+            umbra: flag("umbra"),
         },
         flash: c.get("flash").map(|f| Rgba8 { r: num(f, "r") as u8, g: num(f, "g") as u8, b: num(f, "b") as u8, a: num(f, "a") as u8 }),
         glyph: None,

@@ -303,7 +303,7 @@ fn terrain_colour(c: vec3<f32>) -> vec3<f32> {
 fn light_surface(model: u32, s: Surface) -> vec3<f32> {
     let weight = dot(s.normal, frame.up.xyz) * 0.5 + 0.5;
     let irradiance = mix(frame.ground.rgb, frame.sky.rgb, weight);
-    var out = irradiance * s.diffuse / PI;
+    var out = irradiance * s.diffuse / PI * cell_fill_kept();
     out = out + baked_torch_light(model, s);
     out = out + side_light(s, frame.key_light.xyz, frame.key_colour.rgb) + side_light(s, frame.fill_light.xyz, frame.fill_colour.rgb);
     let count = u32(frame.viewport.z);
@@ -323,7 +323,7 @@ fn light_surface(model: u32, s: Surface) -> vec3<f32> {
         let colour = light.colour.rgb * distance_attenuation(d, light.position.w, light.colour.w) * on_lit_side(s, light.world.xyz - s.world);
         out = out + direct(model, s, to_light / d, colour, s.all_round > 0.5);
     }
-    return out;
+    return cell_light_surface(model, s, out);
 }
 
 // three's perturbNormal2Arb: a tangent-space normal onto the surface, with the frame from derivatives.

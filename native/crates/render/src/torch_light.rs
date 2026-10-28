@@ -72,7 +72,7 @@ fn blocks(scene: &Scene, x: i32, y: i32) -> bool {
     scene.cell(x, y).is_none_or(|c| c.occluder || c.kind == CellKind::Unknown)
 }
 
-fn clear(scene: &Scene, from: (f32, f32), to: (f32, f32)) -> bool {
+pub(crate) fn clear(blocked: impl Fn(i32, i32) -> bool, from: (f32, f32), to: (f32, f32)) -> bool {
     let (mut x, mut y) = (from.0.floor() as i32, from.1.floor() as i32);
     let (end_x, end_y) = (to.0.floor() as i32, to.1.floor() as i32);
     let (dx, dy) = (to.0 - from.0, to.1 - from.1);
@@ -108,13 +108,13 @@ fn clear(scene: &Scene, from: (f32, f32), to: (f32, f32)) -> bool {
         if (x, y) == (end_x, end_y) {
             return true;
         }
-        if blocks(scene, x, y) {
+        if blocked(x, y) {
             return false;
         }
     }
 }
 
-fn attenuation(d: f32, cutoff: f32, decay: f32) -> f32 {
+pub(crate) fn attenuation(d: f32, cutoff: f32, decay: f32) -> f32 {
     let falloff = 1.0 / d.max(NEAREST_LIT).powf(decay);
     if cutoff > 0.0 {
         let c = (1.0 - (d / cutoff).powi(4)).clamp(0.0, 1.0);
@@ -132,7 +132,7 @@ fn bake(scene: &Scene, torch: &Torch, reach: f32, decay: f32, walls: u64, window
     let mut sight = vec![0.0f32; columns * (cy1 - cy0) as usize];
     for cy in cy0..cy1 {
         for cx in cx0..cx1 {
-            let seen = SIGHT_POINTS.iter().filter(|(ox, oy)| clear(scene, from, (cx as f32 + 0.5 + ox, cy as f32 + 0.5 + oy))).count();
+            let seen = SIGHT_POINTS.iter().filter(|(ox, oy)| clear(|x, y| blocks(scene, x, y), from, (cx as f32 + 0.5 + ox, cy as f32 + 0.5 + oy))).count();
             sight[(cy - cy0) as usize * columns + (cx - cx0) as usize] = seen as f32 / SIGHT_POINTS.len() as f32;
         }
     }

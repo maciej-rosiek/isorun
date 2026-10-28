@@ -5,6 +5,7 @@
 
 use crate::actors::{actor_id, ActorEnv, ActorLayer, UprightPose, STRIKE_DELAY};
 use crate::camera::IsoCamera;
+use crate::cell_light::{CellLight, CellLights};
 use crate::combat::{CombatLayer, ImpactKind};
 use crate::features::{is_tile_feature, TileFeatures};
 use crate::fog::FogLayer;
@@ -112,6 +113,7 @@ struct PendingImpact {
 
 struct Pipelines {
     samples: u32,
+    cell_lights: u32,
     world: HashMap<Material, wgpu::RenderPipeline>,
 }
 
@@ -140,6 +142,8 @@ pub struct IsoRenderer {
     post: Post,
     memory: MemoryMask,
     torch_light: TorchLightMap,
+    cell_light: CellLight,
+    cell_lights: CellLights,
     pipelines: Option<Pipelines>,
     frame_buffer: wgpu::Buffer,
     frame_group: wgpu::BindGroup,
@@ -306,7 +310,8 @@ impl IsoRenderer {
         });
         let noise = crate::fog::noise_texture(&gpu);
         let torch_light = TorchLightMap::new(&gpu);
-        let frame_group = Self::frame_group(&gpu, &frame_buffer, &memory, &noise, &torch_light);
+        let cell_light = CellLight::new(&gpu);
+        let frame_group = Self::frame_group(&gpu, &frame_buffer, &memory, &noise, &torch_light, &cell_light);
         let draws = DrawBuffer::new(&gpu.device, &gpu.draw_layout, 256);
         let (cap, door) = (cap_texture(&gpu), door_texture(&gpu));
         let blank = gpu.texture_with("blank", 1, 1, wgpu::TextureFormat::Rgba8Unorm, &[128, 128, 255, 0]);
@@ -327,6 +332,8 @@ impl IsoRenderer {
             post,
             memory,
             torch_light,
+            cell_light,
+            cell_lights: CellLights::default(),
             pipelines: None,
             frame_buffer,
             frame_group,
@@ -393,7 +400,14 @@ impl IsoRenderer {
         r
     }
 
-    fn frame_group(gpu: &Gpu, buffer: &wgpu::Buffer, memory: &MemoryMask, noise: &wgpu::Texture, torch_light: &TorchLightMap) -> wgpu::BindGroup {
+    fn frame_group(
+        gpu: &Gpu,
+        buffer: &wgpu::Buffer,
+        memory: &MemoryMask,
+        noise: &wgpu::Texture,
+        torch_light: &TorchLightMap,
+        cell_light: &CellLight,
+    ) -> wgpu::BindGroup {
         let view = |t: &wgpu::Texture| t.create_view(&wgpu::TextureViewDescriptor::default());
         gpu.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("frame"),
@@ -407,6 +421,9 @@ impl IsoRenderer {
                 wgpu::BindGroupEntry { binding: 8, resource: wgpu::BindingResource::TextureView(&view(noise)) },
                 wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::Sampler(&gpu.repeat_sampler) },
                 wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&view(&torch_light.texture)) },
+                wgpu::BindGroupEntry { binding: 11, resource: cell_light.buffer.as_entire_binding() },
+                wgpu::BindGroupEntry { binding: 12, resource: wgpu::BindingResource::TextureView(&view(cell_light.gi_texture())) },
+                wgpu::BindGroupEntry { binding: 13, resource: wgpu::BindingResource::TextureView(&view(cell_light.sight_texture())) },
             ],
         })
     }
@@ -439,6 +456,7 @@ impl IsoRenderer {
         self.steps.clear();
         self.loot.clear();
         self.voxels.new_level();
+        self.cell_light.snap();
     }
 
     pub fn set_camera(&mut self, cam: Camera) {
@@ -494,6 +512,10 @@ impl IsoRenderer {
 
     pub fn set_surface_detail(&mut self, detail: SurfaceDetail) {
         self.detail = detail;
+    }
+
+    pub fn set_cell_lights(&mut self, on: CellLights) {
+        self.cell_lights = on;
     }
 
     pub fn set_aim(&mut self, aim: Option<IsoAim>) {
@@ -630,7 +652,7 @@ impl IsoRenderer {
     /// What keeps `animating` true, for the perf log: the first reason found.
     pub fn animating_why(&self) -> Option<&'static str> {
         let now = now_seconds();
-        let reasons: [(&'static str, &dyn Fn() -> bool); 11] = [
+        let reasons: [(&'static str, &dyn Fn() -> bool); 12] = [
             ("impact", &|| !self.impacts.is_empty()),
             ("hit stop", &|| now < self.stop_until),
             // the low hit points' red edge pulses
@@ -643,6 +665,7 @@ impl IsoRenderer {
             ("fog fade", &|| self.fog.fading()),
             ("liquid", &|| self.liquids.drawn() && self.liquid_in_sight()),
             ("voxels", &|| self.voxels.animating()),
+            ("light fade", &|| self.cell_lights.any() && self.cell_light.easing()),
         ];
         reasons.iter().find(|(_, f)| f()).map(|(n, _)| *n)
     }

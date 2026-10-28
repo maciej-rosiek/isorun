@@ -199,6 +199,8 @@ pub struct CellFlags {
     /// Known through magic mapping only, never seen.
     pub magic_mapped: bool,
     pub torch_wall: bool,
+    pub halo: bool,
+    pub umbra: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Default)]

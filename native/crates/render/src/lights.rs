@@ -191,6 +191,30 @@ pub struct StepSettings {
     pub prints: f32,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct GlobalIllumination {
+    pub strength: f32,
+    pub bounce: f32,
+    pub reach_cells: f32,
+    pub fill_kept: f32,
+    pub lava: Hex,
+    pub fire: Hex,
+    pub flash: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct SightLight {
+    pub colour: Hex,
+    pub strength: f32,
+    pub light_at_sight_edge: f32,
+    pub fill_kept: f32,
+    pub flicker: f32,
+    pub memory_colour: Hex,
+    pub memory_level: f32,
+    pub halo: Hex,
+    pub umbra_darkness: f32,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct IsoLights {
     pub label: &'static str,
@@ -220,6 +244,8 @@ pub struct IsoLights {
     pub combat: CombatSettings,
     pub steps: StepSettings,
     pub voxels: VoxelRelief,
+    pub gi: GlobalIllumination,
+    pub sight: SightLight,
 }
 
 pub fn diorama() -> IsoLights {
@@ -263,6 +289,18 @@ pub fn diorama() -> IsoLights {
         combat: CombatSettings { blood: 0x8a0f0f, gore: 1.0, shake: 0.4, hit_stop: 0.07, flash: 1.0 },
         steps: StepSettings { colour: 0x8a7a66, dust: 1.0, prints: 6.0 },
         voxels: VoxelRelief { wall: 0.08, floor: 0.025, figure: 0.07 },
+        gi: GlobalIllumination { strength: 1.0, bounce: 0.6, reach_cells: 7.0, fill_kept: 0.7, lava: 0xff8c3c, fire: 0xff9a40, flash: 1.5 },
+        sight: SightLight {
+            colour: 0xffd2a0,
+            strength: 9.0,
+            light_at_sight_edge: 0.35,
+            fill_kept: 0.45,
+            flicker: 0.04,
+            memory_colour: 0x8aa0d8,
+            memory_level: 2.5,
+            halo: 0xffe6a0,
+            umbra_darkness: 0.6,
+        },
     }
 }
 

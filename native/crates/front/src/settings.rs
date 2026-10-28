@@ -10,7 +10,7 @@
 
 use isorun_client::platform::storage::{load, save};
 use isorun_client::servers;
-use isorun_render::{IsoQuality, SurfaceDetail};
+use isorun_render::{CellLights, IsoQuality, SurfaceDetail};
 use serde_json::{json, Map, Value};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 
@@ -66,6 +66,8 @@ pub fn defaults() -> Settings {
         "surfaceDetail": default_surface_detail(),
         "voxels": false,
         "torchShadows": "auto",
+        "globalIllumination": false,
+        "sightLight": false,
         "look": "diorama",
         "animationSpeed": 1.5,
         "frameRate": 60,
@@ -268,12 +270,17 @@ pub fn surface_detail(s: &Settings) -> SurfaceDetail {
     }
 }
 
+pub fn cell_lights(s: &Settings) -> CellLights {
+    CellLights { gi: bool_of(s, "globalIllumination"), sight: bool_of(s, "sightLight") }
+}
+
 /// The graphics settings on a renderer: the quality, the surface detail, the look and the
 /// animation speed, as the game draws them.
 pub fn apply_graphics(r: &mut isorun_render::IsoRenderer, s: &Settings, device_pixel_ratio: f32) {
     r.set_quality(quality_for(s, device_pixel_ratio));
     r.set_surface_detail(surface_detail(s));
     r.set_voxels(bool_of(s, "voxels"));
+    r.set_cell_lights(cell_lights(s));
     r.set_lights(crate::lights_panel::lights_for(str_of(s, "look")));
     r.set_animation_speed(num_of(s, "animationSpeed").max(0.1));
 }
@@ -321,6 +328,14 @@ fn plain(v: &Value) -> String {
     }
 }
 
+fn on_off(v: &Value) -> String {
+    if v.as_bool() == Some(true) {
+        "On".into()
+    } else {
+        "Off".into()
+    }
+}
+
 fn auto_or(v: &Value, f: impl Fn(&Value) -> String) -> String {
     if v.as_str() == Some("auto") {
         "Auto".into()
@@ -363,6 +378,8 @@ pub fn rows() -> Vec<SettingRow> {
         row("Graphics", "Quality", "graphics", strs(&["low", "medium", "high"]), "How much work each frame does: the pixels drawn, the soft shadows in the corners, and the edges. Lower is faster on a weak GPU. The rows under it can change one of them.", |v| isorun_render::quality(v.as_str().unwrap_or("")).map(|q| q.label.to_string()).unwrap_or_else(|| plain(v))),
         row("Graphics", "Surface detail", "surfaceDetail", surface_details(), "What the tiles show of their surface. Low: rim light, dirt and wear, and how each cell differs. Medium: the depth of the bricks and stones, gloss, wetness and glowing tiles too. High: sparkle and deep liquids too. A phone stops at Medium.", |v| cap(&plain(v))),
         row("Graphics", "Voxels", "voxels", vec![json!(false), json!(true)], "Builds the dungeon of little blocks: the bricks of the walls stand out of their mortar, the floor takes a light relief, and you, the monsters and the items are small figures that break into pieces when they fall, as do the walls. High Quality cuts the tiles finer. It costs more on a weak GPU.", |v| if v.as_bool() == Some(true) { "On".into() } else { "Off".into() }),
+        row("Graphics", "Global illumination", "globalIllumination", vec![json!(false), json!(true)], "Real light on the level: lava, fire, glowing things and spells light the cells they reach, and the light bounces off the walls and floors in their colours.", on_off),
+        row("Graphics", "Sight light", "sightLight", vec![json!(false), json!(true)], "You carry a light whose shadows are exactly what you can see: the walls cast them on the floor, and what you only remember is drawn as a cool map. Halos, umbras and darkness change the light.", on_off),
         row("Graphics", "Resolution", "resolution", resolutions(), "How many of the screen's pixels the dungeon is drawn with; the rest are filled in when the picture is scaled up. Fewer is much faster on a big screen. Auto takes the Quality's, and draws fewer for a while when the GPU cannot keep up with the screen.", |v| auto_or(v, percent)),
         row("Graphics", "Ambient occlusion", "ambientOcclusion", strs(&["auto", "off", "low", "medium", "high"]), "The soft shadows in the corners and at the foot of the walls. Low draws them with fewer samples, High at the full size of the screen. Auto takes the Quality's.", |v| auto_or(v, |v| cap(&plain(v)))),
         row("Graphics", "Antialiasing", "antialias", strs(&["auto", "off", "on"]), "Smooths the edges of the walls by drawing the scene four times over; it costs about as much as the rest of the scene. Auto takes the Quality's.", |v| auto_or(v, |v| if v.as_str() == Some("on") { "On".into() } else { "Off".into() })),
@@ -554,6 +571,21 @@ mod tests {
         assert_eq!(q.ao_resolution, 0.0);
         let c = client_settings(&s);
         assert_eq!(c.resolution, "50");
+    }
+
+    #[test]
+    fn cell_lights_are_off_until_turned_on() {
+        // given
+        let mut s = defaults();
+
+        // when
+        let before = cell_lights(&s);
+        s.insert("globalIllumination".into(), json!(true));
+        s.insert("sightLight".into(), json!(true));
+
+        // then
+        assert_eq!(before, CellLights { gi: false, sight: false });
+        assert_eq!(cell_lights(&s), CellLights { gi: true, sight: true });
     }
 
     #[test]

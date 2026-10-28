@@ -5,6 +5,7 @@
 
 pub mod actors;
 pub mod camera;
+pub mod cell_light;
 pub mod combat;
 pub mod enhance;
 pub mod features;
@@ -32,6 +33,7 @@ pub mod uniforms;
 pub mod voxels;
 
 pub use camera::{CameraAngles, IsoCamera, DEFAULT_ANGLES, TILT_MAX, TILT_MIN, TURN_DEGREES, ZOOM_MAX, ZOOM_MIN};
+pub use cell_light::CellLights;
 pub use lights::{lights, quality, IsoLights, IsoQuality, SurfaceDetail, LIGHTS_NAMES};
 pub use loot::Landing;
 pub use plan::{stick_to_dir, AimIntent, IsoAim, IsoRoute, IsoView, DEFAULT_VIEW};

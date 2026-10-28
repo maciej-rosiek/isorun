@@ -251,6 +251,32 @@ pub fn sections() -> Vec<Section> {
             "Steps",
             vec![colour!("Colour", |l| l.steps.colour), num!("Dust", 0.0, 3.0, 0.1, |l| l.steps.dust), num!("Footprints", 0.0, 30.0, 1.0, |l| l.steps.prints)],
         ),
+        s(
+            "Global illumination",
+            vec![
+                num!("Strength", 0.0, 4.0, 0.05, |l| l.gi.strength),
+                num!("Bounce", 0.0, 3.0, 0.05, |l| l.gi.bounce),
+                num!("Reach", 2.0, 14.0, 0.5, |l| l.gi.reach_cells),
+                num!("Fill light kept", 0.0, 1.0, 0.05, |l| l.gi.fill_kept),
+                colour!("Lava", |l| l.gi.lava),
+                colour!("Fire", |l| l.gi.fire),
+                num!("Spells", 0.0, 5.0, 0.1, |l| l.gi.flash),
+            ],
+        ),
+        s(
+            "Sight light",
+            vec![
+                colour!("Colour", |l| l.sight.colour),
+                num!("Strength", 0.0, 30.0, 0.25, |l| l.sight.strength),
+                num!("At the edge of sight", 0.0, 1.0, 0.05, |l| l.sight.light_at_sight_edge),
+                num!("Fill light kept", 0.0, 1.0, 0.05, |l| l.sight.fill_kept),
+                num!("Flicker", 0.0, 0.3, 0.01, |l| l.sight.flicker),
+                colour!("Memory colour", |l| l.sight.memory_colour),
+                num!("Memory level", 0.0, 2.0, 0.05, |l| l.sight.memory_level),
+                colour!("Halo", |l| l.sight.halo),
+                num!("Umbra", 0.0, 1.0, 0.05, |l| l.sight.umbra_darkness),
+            ],
+        ),
         s("Pointer", vec![colour!("Colour", |l| l.aim.colour), num!("Brightness", 0.2, 4.0, 0.1, |l| l.aim.brightness)]),
     ]
 }

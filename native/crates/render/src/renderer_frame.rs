@@ -17,14 +17,15 @@ fn box_visible(planes: &[Vec4; 6], min: Vec3, max: Vec3) -> bool {
 
 impl IsoRenderer {
     fn ensure_pipelines(&mut self, samples: u32) {
-        if self.pipelines.as_ref().is_some_and(|p| p.samples == samples) {
+        let cell_lights = self.cell_lights.flags();
+        if self.pipelines.as_ref().is_some_and(|p| p.samples == samples && p.cell_lights == cell_lights) {
             return;
         }
         let mut world = HashMap::new();
         for m in [Material::Ground, Material::Feature, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark] {
-            world.insert(m, self.gpu.world_pipeline(m, samples));
+            world.insert(m, self.gpu.world_pipeline(m, samples, cell_lights));
         }
-        self.pipelines = Some(Pipelines { samples, world });
+        self.pipelines = Some(Pipelines { samples, cell_lights, world });
         self.fog.prepare(&self.gpu, samples);
         self.liquids.prepare(&self.gpu, samples);
         self.combat.prepare(&self.gpu, samples);
@@ -100,6 +101,18 @@ impl IsoRenderer {
             self.torch_light.bake(&scene, &self.tile_torches, self.tile_torches_version, self.lights.torch.distance, self.lights.torch.decay);
         }
         self.torch_light.upload(&self.gpu);
+    }
+
+    fn light_cells(&mut self, scene: &Scene, tiles: &dyn TileSource, dt: f64) {
+        if !self.cell_lights.any() {
+            return;
+        }
+        let Some(pages) = self.pages.as_mut() else { return };
+        let mut env = ActorEnv { gpu: &self.gpu, pages, tiles };
+        self.cell_light.update(&mut env, scene, self.revision_counter, &self.lights, self.cell_lights);
+        self.cell_light.advance(&self.gpu, dt);
+        let hero = self.player_shown().filter(|_| scene.player_on_level);
+        self.cell_light.write_uniform(&self.gpu, &self.cell_light.uniform(&self.lights, hero));
     }
 
     fn frame_uniform(&self, now: f64) -> FrameUniform {
@@ -207,6 +220,7 @@ impl IsoRenderer {
         }
         let danger = self.danger * (1.0 - DANGER_PULSE + DANGER_PULSE * (now as f32 * DANGER_PULSE_SPEED).sin());
         self.place_lights();
+        self.light_cells(&scene, tiles.as_ref(), dt);
         let aim_colour_of = |r: &IsoRenderer, intent| {
             let c = if intent == crate::plan::AimIntent::Move { r.lights.aim.colour } else { aim_colour(intent) };
             let l = linear(c);
