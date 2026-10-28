@@ -9,11 +9,13 @@ use crate::catalog::{AmbientLevels, Mood, SoundName};
 
 pub type Cell = (i32, i32);
 
-/// Who acts in a fight: the player, or a monster by its id (the renderer's actor id).
+/// Who acts in a fight: the player, a monster by its id (the renderer's actor id), or a monster
+/// out of sight on the cell the player struck at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Fighter {
     Player,
     Monster(i64),
+    Unseen(Cell),
 }
 
 /// What a fight message shows, as `combat.ts` reads it from the message lines: `Attack` swings

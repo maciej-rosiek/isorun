@@ -7,11 +7,13 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::collections::HashMap;
 
-/// Who acts in a fight: the player, or a monster by its client id (the renderer's actor id).
+/// Who acts in a fight: the player, a monster by its client id (the renderer's actor id), or a
+/// monster the player cannot see, crawl's "something", on the cell the player struck at.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Fighter {
     Player,
     Monster(i64),
+    Unseen((i32, i32)),
 }
 
 /// How hard a blow struck: `tier` is crawl's punctuation (attack.cc
@@ -102,6 +104,10 @@ fn not_blow(verb: &str) -> bool {
 static STRUCK_YOU_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^the [\w\s-]+ (?:hits|strikes|burns|freezes|shocks|pierces|engulfs) you\b").unwrap());
 static FOR_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r" for (\d+)\b").unwrap());
 static NO_DAMAGE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bno damage\b").unwrap());
+/// The player's blow on a monster out of sight: crawl names it "something" (monster.cc `_str_monam`).
+static ON_SOMETHING_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^you (?:\w+ly )?(\w+) something\b").unwrap());
+/// A blow on the player from a monster out of sight.
+static FROM_SOMETHING_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^something (?:\w+ly )?(\w+) you\b").unwrap());
 
 /// The fight the message lines describe, in the order they were written:
 /// the player's blows and kills ("You hit the goblin.", "You kill the
@@ -110,11 +116,11 @@ static NO_DAMAGE_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\bno damage\b").unw
 /// goblin."). A monster is found on the scene by the name the server gave it,
 /// the nearest of that name to the player; a line that names no monster in
 /// view shows nothing. `monsters` gives a monster's plural by its id (the map's monsters).
-pub fn combat_events(lines: &[GameMessage], scene: &Scene, monsters: &HashMap<i64, Monster>) -> Vec<CombatEvent> {
+/// A monster out of sight is crawl's "something": the player's blow on it lands on `unseen`, the
+/// cell the player last struck or stepped at (none: it shows nothing), and its blow on the
+/// player comes from nowhere in particular.
+pub fn combat_events(lines: &[GameMessage], scene: &Scene, monsters: &HashMap<i64, Monster>, unseen: Option<(i32, i32)>) -> Vec<CombatEvent> {
     let found: Vec<&Billboard> = scene.billboards.iter().filter(|b| b.kind == BillboardKind::Monster && b.ref_id.is_some()).collect();
-    if found.is_empty() {
-        return Vec::new();
-    }
     let mut names: Vec<(String, Vec<&Billboard>)> = Vec::new();
     for b in &found {
         for name in monster_names(b, monsters) {
@@ -140,6 +146,30 @@ pub fn combat_events(lines: &[GameMessage], scene: &Scene, monsters: &HashMap<i6
     for line in lines {
         for sentence in sentences(&formatted_string_to_text(&line.text)) {
             let s = sentence.to_lowercase();
+            if let Some(verb) = ON_SOMETHING_RE.captures(&s).map(|c| c[1].to_string()).filter(|v| !not_blow(v)) {
+                if let Some(at) = unseen {
+                    if king_moves(at, player) <= REACH {
+                        events.push(CombatEvent::Attack { by: Fighter::Player, at });
+                    }
+                    let on = Fighter::Unseen(at);
+                    events.push(if KILL_VERBS.contains(&verb.as_str()) {
+                        CombatEvent::Death { on, from: Some(player) }
+                    } else if verb == "miss" {
+                        CombatEvent::Miss { on, from: Some(player) }
+                    } else {
+                        CombatEvent::Hit { on, from: Some(player), strength: blow_strength(&s) }
+                    });
+                }
+                continue;
+            }
+            if let Some(verb) = FROM_SOMETHING_RE.captures(&s).map(|c| c[1].to_string()).filter(|v| !not_blow(v)) {
+                events.push(if verb.starts_with("miss") {
+                    CombatEvent::Miss { on: Fighter::Player, from: None }
+                } else {
+                    CombatEvent::Hit { on: Fighter::Player, from: None, strength: blow_strength(&s) }
+                });
+                continue;
+            }
             if STRUCK_YOU_RE.is_match(&s) && !by_length.iter().any(|(name, _)| s.starts_with(&format!("the {name} "))) {
                 events.push(CombatEvent::Hit { on: Fighter::Player, from: None, strength: blow_strength(&s) });
                 continue;

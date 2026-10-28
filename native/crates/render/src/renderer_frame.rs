@@ -48,7 +48,7 @@ impl IsoRenderer {
             if matches!(impact.action, ActorAction::Attack | ActorAction::Miss) {
                 continue;
             }
-            let Some(at) = self.actors.cell_of(impact.id) else { continue };
+            let Some(at) = impact.at.or_else(|| self.actors.cell_of(impact.id)) else { continue };
             let kind = if impact.action == ActorAction::Death {
                 ImpactKind::Death
             } else if impact.id == PLAYER_ACTOR {

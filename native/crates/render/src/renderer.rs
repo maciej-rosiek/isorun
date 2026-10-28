@@ -103,12 +103,17 @@ struct Built {
     standing: HashMap<CellKey, u64>,
 }
 
+/// The id of no actor, for an impact on a cell (`act_at`).
+const NO_ACTOR: i64 = i64::MIN;
+
 struct PendingImpact {
     time: f64,
     id: i64,
     action: ActorAction,
     from: Option<(i32, i32)>,
     token: Option<u64>,
+    /// The cell it lands on when no actor takes it (`act_at`); else the actor's.
+    at: Option<(i32, i32)>,
 }
 
 struct Pipelines {
@@ -525,7 +530,7 @@ impl IsoRenderer {
         if action == ActorAction::Attack {
             self.actors.act(id, action, self.clock, target);
             if token.is_some() {
-                self.impacts.push(PendingImpact { time: self.clock + STRIKE_DELAY, id, action, from: target, token });
+                self.impacts.push(PendingImpact { time: self.clock + STRIKE_DELAY, id, action, from: target, token, at: None });
             }
             return;
         }
@@ -536,7 +541,15 @@ impl IsoRenderer {
             }
         }
         self.actors.act(id, action, time, target);
-        self.impacts.push(PendingImpact { time, id, action, from: target, token });
+        self.impacts.push(PendingImpact { time, id, action, from: target, token, at: None });
+    }
+
+    /// A blow that lands on a cell with no actor: a monster the player cannot see ("You hit
+    /// something."). It lands when the blow from `from` does, as on an actor, with the impact's
+    /// sparks or blood on the cell; its token is shown as any other.
+    pub fn act_at(&mut self, action: ActorAction, at: (i32, i32), from: Option<(i32, i32)>, token: Option<u64>) {
+        let time = self.actors.impact_from(from, self.clock);
+        self.impacts.push(PendingImpact { time, id: NO_ACTOR, action, from, token, at: Some(at) });
     }
 
     /// The floor cell under a point of the view, in logical pixels; over a wall, the fog or the

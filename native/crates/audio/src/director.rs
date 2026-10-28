@@ -172,6 +172,7 @@ impl GameAudio {
         let cell_of = |who: Fighter| match who {
             Fighter::Player => Some(scene.player),
             Fighter::Monster(id) => monster_cell(scene, id),
+            Fighter::Unseen(cell) => Some(cell),
         };
         let plays: Vec<Play> = cues_for_combat(event, cell_of)
             .into_iter()

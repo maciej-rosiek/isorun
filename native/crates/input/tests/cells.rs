@@ -168,7 +168,7 @@ fn plays_the_players_blows_the_monsters_blows_and_the_kill() {
     let (scene, monsters) = scene_with_goblin();
     let lines = [line("<lightgrey>You slash the goblin.<lightgrey>"), line("The goblin hits you."), line("You kill the goblin!")];
     assert_eq!(
-        combat_events(&lines, &scene, &monsters),
+        combat_events(&lines, &scene, &monsters, None),
         vec![
             CombatEvent::Attack { by: P, at: (6, 5) },
             hit(G, Some((5, 5)), 0, None),
@@ -185,7 +185,7 @@ fn plays_a_miss_as_a_swing_and_a_dodge() {
     let (scene, monsters) = scene_with_goblin();
     let lines = [line("You barely miss the goblin."), line("The goblin closely misses you.")];
     assert_eq!(
-        combat_events(&lines, &scene, &monsters),
+        combat_events(&lines, &scene, &monsters, None),
         vec![
             CombatEvent::Attack { by: P, at: (6, 5) },
             CombatEvent::Miss { on: G, from: Some((5, 5)) },
@@ -199,7 +199,30 @@ fn plays_a_miss_as_a_swing_and_a_dodge() {
 fn plays_a_monsters_ranged_attack_and_the_missile_that_hits_the_player() {
     let (scene, monsters) = scene_with_goblin();
     let lines = [line("The goblin breathes fire at you."), line("The searing blast hits you!")];
-    assert_eq!(combat_events(&lines, &scene, &monsters), vec![CombatEvent::Attack { by: G, at: (5, 5) }, hit(P, None, 1, None)]);
+    assert_eq!(combat_events(&lines, &scene, &monsters, None), vec![CombatEvent::Attack { by: G, at: (5, 5) }, hit(P, None, 1, None)]);
+}
+
+#[test]
+fn plays_the_blows_on_and_from_a_monster_out_of_sight_where_the_player_struck() {
+    let (mut scene, monsters) = scene_with_goblin();
+    scene.billboards.clear();
+    let lines = [line("You hit something."), line("Something misses you."), line("Something hits you!"), line("You kill something!")];
+    let u = Fighter::Unseen((6, 4));
+    assert_eq!(
+        combat_events(&lines, &scene, &monsters, Some((6, 4))),
+        vec![
+            CombatEvent::Attack { by: P, at: (6, 4) },
+            hit(u, Some((5, 5)), 0, None),
+            CombatEvent::Miss { on: P, from: None },
+            hit(P, None, 1, None),
+            CombatEvent::Attack { by: P, at: (6, 4) },
+            CombatEvent::Death { on: u, from: Some((5, 5)) },
+        ]
+    );
+    // with no cell struck at, a blow on something shows nothing; one from it still lands on the player
+    assert_eq!(combat_events(&lines, &scene, &monsters, None), vec![CombatEvent::Miss { on: P, from: None }, hit(P, None, 1, None)]);
+    // "you see something" is no blow
+    assert_eq!(combat_events(&[line("You sense something nearby.")], &scene, &monsters, Some((6, 4))), vec![]);
 }
 
 #[test]
@@ -207,7 +230,7 @@ fn reads_how_hard_a_blow_struck_and_the_damage_it_did() {
     let (scene, monsters) = scene_with_goblin();
     let lines = [line("You slash the goblin for 12!!"), line("The goblin hits you for 3 with a club.")];
     assert_eq!(
-        combat_events(&lines, &scene, &monsters),
+        combat_events(&lines, &scene, &monsters, None),
         vec![
             CombatEvent::Attack { by: P, at: (6, 5) },
             hit(G, Some((5, 5)), 2, Some(12)),

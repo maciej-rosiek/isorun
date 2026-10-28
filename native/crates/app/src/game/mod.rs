@@ -58,6 +58,9 @@ use std::sync::Arc;
 const SNAP_CELLS: i32 = 8;
 /// How long after the player's own key swung a blow the server's line about it is that same blow.
 const OWN_SWING_MS: f64 = 1000.0;
+/// How long after the player's step a blow on something unseen is that step's (crawl answers a
+/// move at once; a slow server or a long turn takes a while).
+const UNSEEN_BLOW_MS: f64 = 3000.0;
 /// Below this share of their hit points the screen's edge turns red, deeper as they fall.
 const DANGER_HP: f32 = 0.5;
 /// The safety tick while the screen rests (game.ts `IDLE_TICK_MS`): a frame every quarter second,
@@ -1003,6 +1006,24 @@ impl GameScreen {
         self.swung = Some((x, y, now));
     }
 
+    /// A fight's action on the view: on the fighter's actor, or on the cell of one out of sight.
+    fn act(&mut self, who: Fighter, action: ActorAction, target: Option<(i32, i32)>, token: u64) {
+        let r = &mut self.parts.view.renderer;
+        match who {
+            Fighter::Player => r.act(PLAYER_ACTOR, action, target, Some(token)),
+            Fighter::Monster(id) => r.act(id, action, target, Some(token)),
+            Fighter::Unseen(cell) => r.act_at(action, cell, target, Some(token)),
+        }
+    }
+
+    /// The cell next to the player that the player's last step went at, while crawl may still be
+    /// answering it: where "You hit something." lands (an invisible monster stops the step).
+    fn struck_at(&self, scene: &Scene, now: f64) -> Option<(i32, i32)> {
+        let step = self.runner.last_step.filter(|s| now - s.t < UNSEEN_BLOW_MS)?;
+        let (x, y) = scene.player;
+        Some((x + isorun_scene::DIR8_DX[step.dir as usize], y + isorun_scene::DIR8_DY[step.dir as usize]))
+    }
+
     fn token(&mut self) -> u64 {
         self.next_token += 1;
         self.next_token
@@ -1042,7 +1063,7 @@ impl GameScreen {
             return;
         }
         self.parts.overlays.messages(&fresh);
-        let events = combat_events(&fresh, &scene, &st.map.monsters);
+        let events = combat_events(&fresh, &scene, &st.map.monsters, self.struck_at(&scene, now));
         log::debug!("{} fresh lines, {} fight events", fresh.len(), events.len());
         let width = self.parts.view.rect.width().max(1.0);
         for e in events {
@@ -1052,13 +1073,10 @@ impl GameScreen {
                 CombatEvent::Miss { on, from } => isorun_audio::CombatEvent::Miss { on: fighter(on), from },
                 CombatEvent::Death { on, from } => isorun_audio::CombatEvent::Death { on: fighter(on), from },
             };
-            let actor = |f: Fighter| match f {
-                Fighter::Player => PLAYER_ACTOR,
-                Fighter::Monster(id) => id,
-            };
             let cell_of = |f: Fighter| match f {
                 Fighter::Player => Some(scene.player),
                 Fighter::Monster(id) => monster_cell(&scene, id),
+                Fighter::Unseen(cell) => Some(cell),
             };
             match e {
                 CombatEvent::Attack { by, at } => {
@@ -1071,7 +1089,7 @@ impl GameScreen {
                         let view = RendererView { renderer: &self.parts.view.renderer, width, animation_speed: self.client_settings.animation_speed };
                         self.audio.combat(&audio_event, &scene, &view, Some(token));
                     }
-                    self.parts.view.renderer.act(actor(by), ActorAction::Attack, Some(at), Some(token));
+                    self.act(by, ActorAction::Attack, Some(at), token);
                 }
                 CombatEvent::Hit { on, from, strength } => {
                     let token = self.token();
@@ -1092,7 +1110,7 @@ impl GameScreen {
                         let view = RendererView { renderer: &self.parts.view.renderer, width, animation_speed: self.client_settings.animation_speed };
                         self.audio.combat(&audio_event, &scene, &view, Some(token));
                     }
-                    self.parts.view.renderer.act(actor(on), ActorAction::Hit, from, Some(token));
+                    self.act(on, ActorAction::Hit, from, token);
                 }
                 CombatEvent::Miss { on, from } => {
                     let token = self.token();
@@ -1103,7 +1121,7 @@ impl GameScreen {
                         let view = RendererView { renderer: &self.parts.view.renderer, width, animation_speed: self.client_settings.animation_speed };
                         self.audio.combat(&audio_event, &scene, &view, Some(token));
                     }
-                    self.parts.view.renderer.act(actor(on), ActorAction::Miss, from, Some(token));
+                    self.act(on, ActorAction::Miss, from, token);
                 }
                 CombatEvent::Death { on, from } => {
                     let token = self.token();
@@ -1114,7 +1132,7 @@ impl GameScreen {
                         let view = RendererView { renderer: &self.parts.view.renderer, width, animation_speed: self.client_settings.animation_speed };
                         self.audio.combat(&audio_event, &scene, &view, Some(token));
                     }
-                    self.parts.view.renderer.act(actor(on), ActorAction::Death, from, Some(token));
+                    self.act(on, ActorAction::Death, from, token);
                 }
             }
         }
@@ -1950,6 +1968,7 @@ fn fighter(f: Fighter) -> isorun_audio::Fighter {
     match f {
         Fighter::Player => isorun_audio::Fighter::Player,
         Fighter::Monster(id) => isorun_audio::Fighter::Monster(id),
+        Fighter::Unseen(cell) => isorun_audio::Fighter::Unseen(cell),
     }
 }
 
