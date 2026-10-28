@@ -192,7 +192,7 @@ pub fn sections() -> Vec<Section> {
             "Tilt-shift blur",
             vec![
                 toggle!(|l| l.tilt_shift.enabled),
-                num!("Blur", 0.0, 6.0, 0.1, |l| l.tilt_shift.blur),
+                num!("Blur", 0.0, 6.0, 0.05, |l| l.tilt_shift.blur),
                 num!("Sharp band", 0.0, 1.0, 0.05, |l| l.tilt_shift.focus),
                 num!("Falloff", 0.05, 1.0, 0.05, |l| l.tilt_shift.falloff),
             ],
@@ -200,7 +200,7 @@ pub fn sections() -> Vec<Section> {
         s(
             "Colour grade",
             vec![
-                num!("Saturation", 0.0, 2.0, 0.05, |l| l.grade.saturation),
+                num!("Saturation", 0.0, 2.0, 0.01, |l| l.grade.saturation),
                 num!("Terrain saturation", 0.0, 1.5, 0.05, |l| l.grade.terrain),
                 colour!("Dark tint", |l| l.grade.shadows),
                 colour!("Bright tint", |l| l.grade.highlights),
@@ -248,7 +248,7 @@ pub fn sections() -> Vec<Section> {
                 num!("Hero reach", 0.0, 12.0, 0.5, |l| l.materials.hero_reach),
                 colour!("Room", |l| l.materials.room),
                 num!("Metal shine", 0.0, 2.0, 0.05, |l| l.materials.metal_shine),
-                num!("Metal sharpness", 4.0, 400.0, 4.0, |l| l.materials.metal_sharpness),
+                num!("Metal sharpness", 4.0, 400.0, 2.0, |l| l.materials.metal_sharpness),
                 num!("Crystal glints", 0.0, 4.0, 0.1, |l| l.materials.crystal_glints),
                 num!("Crystal colours", 0.0, 2.0, 0.05, |l| l.materials.crystal_colours),
                 num!("Crystal depth", 0.0, 1.0, 0.05, |l| l.materials.crystal_depth),
@@ -614,7 +614,7 @@ fn field_ui(ui: &mut egui::Ui, f: &Field, lights: &mut IsoLights, accent: egui::
                     ui.spacing_mut().slider_width = ui.available_width() - 8.0;
                     if ui.add(slider).changed() {
                         (f.set)(lights, x);
-                        changed = true;
+                        changed = (f.get)(lights) != v;
                     }
                 });
             }
@@ -654,5 +654,26 @@ mod tests {
         let mut v = Values::new();
         v.insert("Painted tiles/Upscale".into(), Value::from(3));
         assert_eq!(with_values(&v).paint.upscale, Upscale::ScaleFx);
+    }
+
+    #[test]
+    fn an_untouched_panel_reports_nothing() {
+        for name in LIGHTS_NAMES {
+            // given
+            let ctx = egui::Context::default();
+            let mut panel = LightsPanel::new(name);
+            let mut settings = crate::settings::defaults();
+            let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 8000.0));
+
+            // when
+            let mut events = Vec::new();
+            for _ in 0..2 {
+                let input = egui::RawInput { screen_rect: Some(screen), ..Default::default() };
+                ctx.run_pass(input, |ctx| events.push(panel.ui(ctx, &mut settings))).textures_delta.clear();
+            }
+
+            // then
+            assert_eq!(events, vec![None, None], "{name}");
+        }
     }
 }
