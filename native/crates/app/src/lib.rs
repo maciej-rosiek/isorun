@@ -5,6 +5,10 @@
 mod android_insets;
 #[cfg(target_os = "android")]
 mod android_keyboard;
+// on the desktop for its tests only
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg_attr(not(target_os = "android"), allow(dead_code))]
+mod android_lifecycle;
 pub mod app;
 
 #[cfg(target_os = "android")]
@@ -64,10 +68,16 @@ fn android_main(android: winit::platform::android::activity::AndroidApp) {
         }
         let _ = platform::storage::ANDROID_DIR.set(dir);
     }
-    let mut options = native_options();
-    options.android_app = Some(android);
-    if let Err(e) = eframe::run_native(servers::APP_NAME, options, Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc))))) {
-        log::error!("the app could not start: {e}");
+    // eframe's handler on an event loop of the app's own, inside android_lifecycle's, which draws
+    // only while the window has the focus and tells the sound when the window goes
+    use winit::platform::android::EventLoopBuilderExtAndroid as _;
+    let event_loop = match winit::event_loop::EventLoop::<eframe::UserEvent>::with_user_event().with_android_app(android).build() {
+        Ok(l) => l,
+        Err(e) => return log::error!("the app could not start: {e}"),
+    };
+    let app = eframe::create_native(servers::APP_NAME, native_options(), Box::new(|cc| Ok(Box::new(app::IsorunApp::new(cc)))), &event_loop);
+    if let Err(e) = event_loop.run_app(&mut android_lifecycle::Lifecycle::new(app)) {
+        log::error!("the app stopped: {e}");
     }
 }
 

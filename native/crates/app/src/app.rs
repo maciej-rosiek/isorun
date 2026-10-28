@@ -157,6 +157,23 @@ impl IsorunApp {
         // natively the sound may start at once; the web waits for the first key or click
         #[cfg(not(target_arch = "wasm32"))]
         engine.unlock();
+        // the sound pauses with the window's focus and lets go of the device when the window goes
+        #[cfg(target_os = "android")]
+        {
+            use crate::android_lifecycle::Change;
+            let engine = engine.clone();
+            crate::android_lifecycle::listen(move |change| match change {
+                Change::Hidden => engine.set_hidden(true),
+                Change::Gone => {
+                    engine.set_hidden(true);
+                    engine.close_device();
+                }
+                Change::Shown => {
+                    engine.reopen_device();
+                    engine.set_hidden(false);
+                }
+            });
+        }
         let opts = GameOptions { perf: has("--perf"), audio_trace: has("--audio-trace"), can_fullscreen, touch: touch || has("--touch") };
         #[cfg(all(not(target_arch = "wasm32"), feature = "gilrs"))]
         let pads: Pads = isorun_input::gamepad::GilrsSource::new();

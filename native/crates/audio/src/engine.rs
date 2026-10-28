@@ -146,7 +146,10 @@ struct Fading {
 struct Engine {
     clock: Rc<dyn Clock>,
     mixer: Option<Box<dyn Mixer>>,
-    make_mixer: Option<Box<dyn FnOnce(&str) -> Box<dyn Mixer>>>,
+    /// Opens the device: at `unlock`, and again after `close_device`.
+    make_mixer: Option<Rc<dyn Fn(&str) -> Box<dyn Mixer>>>,
+    /// The device was closed by `close_device` and waits for `reopen_device`.
+    closed: bool,
     /// Where the files are fetched from on the web.
     base: String,
     decoded: HashMap<String, StaticSoundData>,
@@ -155,6 +158,7 @@ struct Engine {
     active: Vec<(SoundName, f64)>,
     last_start: HashMap<SoundName, f64>,
     layers: [Option<Layer>; 4],
+    /// The mood the music is in (played once the device is open), none after `stop_music`.
     wanted_mood: Option<Mood>,
     current: Option<Track>,
     fading: Vec<Fading>,
@@ -180,7 +184,7 @@ impl SoundEngine {
     /// An engine on the wall clock that plays on the default device once unlocked.
     pub fn new() -> SoundEngine {
         let engine = SoundEngine::with_clock(Rc::new(SystemClock::new()), seed());
-        engine.inner.borrow_mut().make_mixer = Some(Box::new(device_mixer));
+        engine.inner.borrow_mut().make_mixer = Some(Rc::new(device_mixer));
         engine
     }
 
@@ -188,7 +192,7 @@ impl SoundEngine {
     /// with a device. For tests, and for a machine with no sound.
     pub fn null(clock: Rc<dyn Clock>, seed: u64) -> SoundEngine {
         let engine = SoundEngine::with_clock(clock, seed);
-        engine.inner.borrow_mut().make_mixer = Some(Box::new(|_| Box::new(NullMixer)));
+        engine.inner.borrow_mut().make_mixer = Some(Rc::new(|_| Box::new(NullMixer)));
         engine.unlock();
         engine
     }
@@ -201,10 +205,11 @@ impl SoundEngine {
         let slot = std::sync::Arc::new(std::sync::Mutex::new(None));
         let output = crate::mixer::OfflineOutput { slot: slot.clone(), sample_rate };
         let engine = SoundEngine::with_clock(clock, seed);
-        engine.inner.borrow_mut().make_mixer = Some(Box::new(move |_| match KiraMixer::<OfflineBackend>::new(OfflineSettings { sample_rate, slot }, "") {
-            Ok(m) => Box::new(m) as Box<dyn Mixer>,
-            Err(_) => Box::new(NullMixer),
-        }));
+        engine.inner.borrow_mut().make_mixer =
+            Some(Rc::new(move |_| match KiraMixer::<OfflineBackend>::new(OfflineSettings { sample_rate, slot: slot.clone() }, "") {
+                Ok(m) => Box::new(m) as Box<dyn Mixer>,
+                Err(_) => Box::new(NullMixer),
+            }));
         engine.unlock();
         (engine, output)
     }
@@ -216,6 +221,7 @@ impl SoundEngine {
                 clock,
                 mixer: None,
                 make_mixer: None,
+                closed: false,
                 base: "audio/".into(),
                 decoded: HashMap::new(),
                 loader: None,
@@ -248,19 +254,40 @@ impl SoundEngine {
     /// When the device cannot be opened the engine goes on with none.
     pub fn unlock(&self) {
         let mut e = self.inner.borrow_mut();
-        let Some(make) = e.make_mixer.take() else { return };
-        let mut mixer = make(&e.base);
-        mixer.set_volumes(e.effective_volumes());
-        e.mixer = Some(mixer);
-        let now = e.clock.now();
-        e.resumed_at = now;
-        e.last_update = now;
-        e.preload();
-        let levels = e.ambient_levels;
-        e.set_ambient(levels);
-        if let Some(mood) = e.wanted_mood {
-            e.play_mood(mood);
+        if e.mixer.is_some() || e.closed || e.make_mixer.is_none() {
+            return;
         }
+        e.resumed_at = e.clock.now();
+        e.open();
+        e.preload();
+    }
+
+    /// Let go of the sound device: the app went to the background (Android: the window is
+    /// gone), where the system may end a stream left open and never give it back, and where an
+    /// open stream costs battery for nothing heard. What sounds is dropped; the volumes, the
+    /// ambient levels and the music's mood are kept for [`SoundEngine::reopen_device`].
+    pub fn close_device(&self) {
+        let mut e = self.inner.borrow_mut();
+        if e.mixer.is_none() {
+            return;
+        }
+        e.current = None;
+        e.fading.clear();
+        e.layers = [None, None, None, None];
+        e.active.clear();
+        e.mixer = None;
+        e.closed = true;
+    }
+
+    /// Open a new stream on the device after [`SoundEngine::close_device`]: the ambience fades in
+    /// at its levels and a track of the mood starts.
+    pub fn reopen_device(&self) {
+        let mut e = self.inner.borrow_mut();
+        if !e.closed {
+            return;
+        }
+        e.closed = false;
+        e.open();
     }
 
     /// Whether sounds are heard now: unlocked and not hidden.
@@ -441,6 +468,23 @@ impl Engine {
         }
     }
 
+    /// Open the device, at the volumes, with the ambience and the mood that were asked for.
+    fn open(&mut self) {
+        let Some(make) = self.make_mixer.clone() else { return };
+        let mut mixer = make(&self.base);
+        mixer.set_volumes(self.effective_volumes());
+        if self.hidden {
+            mixer.set_paused(true);
+        }
+        self.mixer = Some(mixer);
+        self.last_update = self.clock.now();
+        let levels = self.ambient_levels;
+        self.set_ambient(levels);
+        if let Some(mood) = self.wanted_mood {
+            self.play_mood(mood);
+        }
+    }
+
     fn random(&mut self) -> f64 {
         // xorshift64*: enough for picking a file and a little spread.
         let mut x = self.rng;
@@ -538,8 +582,8 @@ impl Engine {
     }
 
     fn play_mood(&mut self, mood: Mood) {
+        self.wanted_mood = Some(mood);
         if self.mixer.is_none() {
-            self.wanted_mood = Some(mood);
             return;
         }
         let playing = self.current.as_ref().map(|t| t.name);

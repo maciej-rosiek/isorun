@@ -4,7 +4,9 @@
 use std::rc::Rc;
 use std::time::Duration;
 
-use isorun_audio::{AmbientName, AudioFrame, AudioView, CombatEvent, Fighter, GameAudio, ManualClock, PlayOptions, SoundEngine, SoundName};
+use isorun_audio::{
+    music, AmbientLevels, AmbientName, AudioFrame, AudioView, CombatEvent, Fighter, GameAudio, ManualClock, Mood, PlayOptions, SoundEngine, SoundName,
+};
 use isorun_render::{ActorStep, Landing, PLAYER_ACTOR};
 use isorun_scene::{cell_key, Billboard, BillboardKind, CellKind, ItemRarity, Scene, SceneCell};
 use isorun_webtiles::{GameMessage, GameState, Msgch};
@@ -102,6 +104,31 @@ fn nothing_plays_while_hidden_and_the_audio_clock_stands() {
 
     // then: the cooldown counted only the time shown
     assert_eq!(engine.trace(), vec!["gold", "gold"]);
+}
+
+#[test]
+fn a_closed_device_comes_back_with_the_ambience_and_the_mood() {
+    // given: a cave's bed and the calm music
+    let (engine, _clock) = engine();
+    engine.set_ambient(AmbientLevels { cavern: 1.0, ..Default::default() });
+    engine.play_mood(Mood::Calm);
+    let bed = engine.ambient_target(AmbientName::Cavern);
+    assert!(bed > 0.0);
+
+    // when: the device is let go of (the app in the background), a sound asked for meanwhile
+    engine.close_device();
+    engine.play(SoundName::Gold, PlayOptions::default());
+    let closed = (engine.current_track(), engine.ambient_target(AmbientName::Cavern), engine.running());
+    engine.reopen_device();
+
+    // then: nothing sounded while closed; then the bed and a calm track again
+    assert_eq!(closed, (None, 0.0, false));
+    assert_eq!(engine.ambient_target(AmbientName::Cavern), bed);
+    assert!(engine.current_track().is_some_and(|t| music(Mood::Calm).contains(&t)));
+    assert!(engine.running());
+    let trace = engine.trace();
+    assert_eq!(trace.iter().filter(|t| t.starts_with("music:")).count(), 2);
+    assert!(!trace.contains(&"gold".to_string()));
 }
 
 #[test]

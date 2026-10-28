@@ -4,6 +4,8 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- Android: no more "Isorun isn't responding" after the phone is locked and unlocked: the game waits for the lock screen to go before it draws again.
+- Android: the sound comes back after the phone is locked or the app left: it pauses while the game is away and starts afresh when it returns.
 - You, the monsters, the items and the fountains and plants look less flat: each part of a sprite (a head, an arm, a belly) is rounded and catches the light on its own, and everything that moves casts a soft shadow on the floor, away from the nearest wall torch. Tune the look's new Sprites section sets the relief, the form light and the shadows, or turns them off.
 - Tune the look switches Sight light on and off at its top, so you can compare while you tune.
 - A Sight light setting (Graphics, off by default): you carry a light whose shadows are exactly what you can see, and what you only remember, water and lava too, is drawn as a cool blue map.
