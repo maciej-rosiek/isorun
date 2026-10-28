@@ -49,6 +49,8 @@ pub enum FrontAction {
     Quit,
     /// Fill the screen, or leave it.
     Fullscreen(bool),
+    /// Share the log (the app's: the share sheet on Android, the clipboard elsewhere).
+    ShareLog,
 }
 
 /// How a game came back to the front end.
@@ -147,6 +149,8 @@ pub enum View {
 pub const BACK: &str = "back";
 
 /// How long a server has to answer for an rc file before the editor says it did not.
+/// The log's lines the Share the log page shows (the newest; all of it is shared).
+const LOG_PAGE_LINES: usize = 400;
 const RC_SECONDS: f64 = 10.0;
 /// The wait before a retry of the warm connection doubles from this up to the most.
 const RETRY_SECONDS: f64 = 1.0;
@@ -192,6 +196,7 @@ pub enum Act {
     Fullscreen,
     Quit,
     Testbed,
+    ShareLog,
     Play(Account, String),
     Watch,
     ServersWatch,
@@ -1708,6 +1713,19 @@ impl FrontEnd {
                 self.out = Some(FrontAction::Quit);
             }
             Act::Testbed => self.out = Some(FrontAction::Testbed),
+            Act::ShareLog => {
+                // the page shows the newest of it; the app hands all of it on
+                let lede = if isorun_client::platform::android() {
+                    "What the app wrote down, newest last. All of it went to the share sheet: send it with the report."
+                } else {
+                    "What the app wrote down, newest last. All of it is on the clipboard: paste it into the report."
+                };
+                self.show_doc("The app's log", Some(lede.into()), DocBody::Fetched, View::Home);
+                let text = isorun_client::platform::diag::text();
+                let lines: Vec<&str> = text.lines().collect();
+                self.doc_text = Some(Ok(lines[lines.len().saturating_sub(LOG_PAGE_LINES)..].join("\n")));
+                self.out = Some(FrontAction::ShareLog);
+            }
             Act::Play(a, g) => self.connect_to(&a, Some(Intent::Play(g)), true),
             Act::Watch => self.show_watch(),
             Act::ServersWatch => self.show_servers(true, None),

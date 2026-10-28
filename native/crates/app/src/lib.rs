@@ -10,6 +10,7 @@ mod android_keyboard;
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
 mod android_lifecycle;
 pub mod app;
+mod share_log;
 
 #[cfg(target_os = "android")]
 use isorun_client::platform;
@@ -66,8 +67,11 @@ fn android_main(android: winit::platform::android::activity::AndroidApp) {
         if let Err(e) = unpack_engine(&android, &dir.join("engine")) {
             log::error!("the offline engine was not unpacked: {e}");
         }
+        isorun_client::platform::diag::open_file(&dir);
         let _ = platform::storage::ANDROID_DIR.set(dir);
     }
+    // a thread that logs where the app's thread is held (android_lifecycle marks it)
+    isorun_client::platform::diag::watch();
     // eframe's handler on an event loop of the app's own, inside android_lifecycle's, which draws
     // only while the window has the focus and tells the sound when the window goes
     use winit::platform::android::EventLoopBuilderExtAndroid as _;
@@ -81,10 +85,11 @@ fn android_main(android: winit::platform::android::activity::AndroidApp) {
     }
 }
 
-/// A panic's message, where and the stack in the log (logcat): Android shows a panicked app only
-/// closing, and the standard hook writes to a stderr nobody reads.
-#[cfg(target_os = "android")]
-fn log_panics() {
+/// A panic's message, where and the stack in the log (logcat, and the app's log file that Share
+/// the log sends): Android shows a panicked app only closing, and the standard hook writes to a
+/// stderr nobody reads.
+#[cfg(not(target_arch = "wasm32"))]
+pub fn log_panics() {
     let previous = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {
         log::error!("isorun panicked: {info}\n{}", std::backtrace::Backtrace::force_capture());
@@ -139,7 +144,8 @@ fn unpack_engine(android: &winit::platform::android::activity::AndroidApp, dir: 
 
 #[cfg(target_os = "android")]
 fn android_logger_init() {
-    android_logger::init_once(android_logger::Config::default().with_max_level(log::LevelFilter::Info).with_tag("isorun"));
+    let logcat = android_logger::AndroidLogger::new(android_logger::Config::default().with_max_level(log::LevelFilter::Debug).with_tag("isorun"));
+    isorun_client::platform::diag::init(Box::new(logcat), log::LevelFilter::Info);
 }
 
 /// The web entry point: the app on the page's canvas `#isorun`. In a Web Worker (the tile
@@ -150,7 +156,7 @@ pub fn start() {
     use wasm_bindgen::JsCast;
     let Some(document) = web_sys::window().and_then(|w| w.document()) else { return };
     console_error_panic_hook_set();
-    let _ = eframe::WebLogger::init(log::LevelFilter::Info);
+    isorun_client::platform::diag::init(Box::new(eframe::WebLogger::new(log::LevelFilter::Info)), log::LevelFilter::Info);
     use_tile_workers();
     wasm_bindgen_futures::spawn_local(async move {
         let canvas = document.get_element_by_id("isorun").unwrap().dyn_into::<web_sys::HtmlCanvasElement>().unwrap();

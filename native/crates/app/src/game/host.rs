@@ -41,6 +41,8 @@ pub enum Deferred {
     DockNav(NavOp),
     ExploreAtOnce,
     Fullscreen(bool),
+    /// Share the log (the Isorun menu's row), with the frame's context for the clipboard.
+    ShareLog,
 }
 
 pub struct Host<'a> {

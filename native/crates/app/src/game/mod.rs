@@ -27,6 +27,7 @@ use convert::HudRun;
 use eframe::egui_wgpu::RenderState;
 use host::{Deferred, Host};
 use isorun_audio::{AudioFrame, AudioSettings, GameAudio, RendererView, SoundEngine};
+use isorun_client::platform::diag;
 use isorun_client::session::{GamedataStatus, Session, SessionEvent};
 use isorun_front::{GameMenus, MenuAction};
 use isorun_hud::{Hud, HudCommand, HudCx};
@@ -408,6 +409,7 @@ impl GameScreen {
         }
 
         // 1. the session's messages
+        diag::stage("frame: the game's messages");
         let mut states = 0usize;
         let mut outcome = None;
         for e in self.session.poll() {
@@ -495,6 +497,7 @@ impl GameScreen {
         }
 
         // 2. the scene, once a frame
+        diag::stage("frame: the scene");
         if self.session.flush_scene() {
             if self.perf.enabled {
                 self.perf.profile.tag("scene");
@@ -510,6 +513,7 @@ impl GameScreen {
         }
 
         // 3. the context
+        diag::stage("frame: the context");
         self.derive_context(&scene, now);
         let st_mode = self.ctx.mode;
         self.parts.map_shown = self.parts.map_hold.shown(self.session.state.ui_state == UiState::VIEW_MAP, st_mode, now);
@@ -520,6 +524,7 @@ impl GameScreen {
         self.track_actions(now, true);
 
         // 4. the layout, then the input
+        diag::stage("frame: the layout and the input");
         let screen = isorun_ui::safe::rect(&ctx);
         let map_view = self.parts.map_shown;
         let layout = self.parts.hud.layout(&ctx, screen, &self.session.state, &self.client_settings, map_view);
@@ -542,6 +547,7 @@ impl GameScreen {
         }
 
         // 5. the view (or the level map), the HUD, the overlays
+        diag::stage("frame: the view, the HUD, the overlays");
         let playing = self.started && self.tiles_set;
         ui.painter().rect_filled(screen, 0.0, egui::Color32::BLACK);
         let mut drew = false;
@@ -647,6 +653,7 @@ impl GameScreen {
         self.run_deferred(&ctx, now);
 
         // 6. what went out
+        diag::stage("frame: what went out");
         self.flush_outbox(now);
         if std::mem::take(&mut self.parts.leave) {
             self.save_view();
@@ -950,6 +957,10 @@ impl GameScreen {
                     Deferred::DockScreen(id) => self.hud_call(ctx, now, |hud, cx| hud.dock_button(id, cx)),
                     Deferred::DockNav(op) => self.hud_call(ctx, now, |hud, cx| hud.dock_nav(op, cx)),
                     Deferred::Fullscreen(on) => isorun_ui::fullscreen::set(ctx, on),
+                    Deferred::ShareLog => {
+                        let said = crate::share_log::share(ctx);
+                        self.parts.hud.status(said, isorun_client::platform::seconds());
+                    }
                     Deferred::ExploreAtOnce => {
                         self.exploring_at_once = true;
                         self.pace_travel();
@@ -1916,6 +1927,7 @@ impl GameScreen {
             }
             ClientEvent::Fire(Run::Fullscreen(on)) => self.parts.deferred.push(Deferred::Fullscreen(on)),
             ClientEvent::Fire(Run::Chat) => self.parts.hud.chat.focus(),
+            ClientEvent::Fire(Run::ShareLog) => self.parts.deferred.push(Deferred::ShareLog),
             ClientEvent::Fire(Run::Leave) => self.parts.leave = true,
             ClientEvent::Closed { from_hud } => {
                 if from_hud {

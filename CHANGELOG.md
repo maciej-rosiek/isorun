@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- Share the log (the home screen's utilities, and the Isorun menu in a game): what the app wrote down, to send with a report of a problem. On Android it goes to the share sheet, elsewhere to the clipboard. On Android the log also notes when the app is held up, and where, so a "not responding" can be traced.
 - A blow on an invisible monster ("You hit something.") shows and sounds: you swing, the hit lands on the cell you struck at with its sparks, its sound and its damage number; a blow from one ("Something hits you.") hurts you on the screen too.
 - Aiming with the arrow keys and stepping with Space no longer opens a quick slot or a screen now and then: Tab (autofight) no longer puts the keyboard on the HUD's buttons.
 - Android: no more "Isorun isn't responding" after the phone is locked and unlocked: the game waits for the lock screen to go before it draws again.

@@ -15,10 +15,15 @@
 //! the window goes (the screen locked, another app in front), where Android may end a stream left
 //! open and never give it back: the sound was gone after the phone was locked. It opens a new
 //! stream when the focus comes back.
+//!
+//! Each event says what the app's thread does while it handles it (`diag::stage`, `diag::idle`
+//! once it waits for the system again): the watch logs the stage that holds the thread, for the
+//! log a player shares when Android calls the app not responding again.
 
 use std::cell::RefCell;
 
 use eframe::UserEvent;
+use isorun_client::platform::diag;
 use winit::application::ApplicationHandler;
 use winit::event::{DeviceEvent, DeviceId, StartCause, WindowEvent};
 use winit::event_loop::ActiveEventLoop;
@@ -88,19 +93,25 @@ impl<A> Lifecycle<A> {
 impl<A: ApplicationHandler<UserEvent>> ApplicationHandler<UserEvent> for Lifecycle<A> {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         log::info!("the window: resumed");
+        diag::stage("resumed: the window made");
         self.inner.resumed(event_loop);
+        diag::idle();
     }
 
     fn suspended(&mut self, event_loop: &ActiveEventLoop) {
         // the focus went first; should it not have, the window is not drawn until it comes
         self.focus.lost = true;
+        diag::stage("suspended: the sound let go of");
         tell(Change::Gone);
+        diag::stage("suspended: the window dropped");
         self.inner.suspended(event_loop);
+        diag::idle();
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, window_id: WindowId, event: WindowEvent) {
         match &event {
             WindowEvent::Focused(focused) => {
+                diag::stage("focus: the sound");
                 if let Some(change) = self.focus.focused(*focused) {
                     tell(change);
                 }
@@ -108,30 +119,51 @@ impl<A: ApplicationHandler<UserEvent>> ApplicationHandler<UserEvent> for Lifecyc
             WindowEvent::RedrawRequested if !self.focus.paints() => return,
             _ => {}
         }
+        diag::stage(match &event {
+            WindowEvent::RedrawRequested => "a frame",
+            WindowEvent::Touch(_) => "a touch",
+            WindowEvent::KeyboardInput { .. } => "a key",
+            WindowEvent::Focused(_) => "the focus",
+            WindowEvent::Resized(_) => "a resize",
+            WindowEvent::ScaleFactorChanged { .. } => "a new scale",
+            _ => "a window event",
+        });
         self.inner.window_event(event_loop, window_id, event);
+        diag::idle();
     }
 
     fn new_events(&mut self, event_loop: &ActiveEventLoop, cause: StartCause) {
+        diag::stage("new events");
         self.inner.new_events(event_loop, cause);
+        diag::idle();
     }
 
     fn user_event(&mut self, event_loop: &ActiveEventLoop, event: UserEvent) {
+        diag::stage("a repaint asked for");
         self.inner.user_event(event_loop, event);
+        diag::idle();
     }
 
     fn device_event(&mut self, event_loop: &ActiveEventLoop, device_id: DeviceId, event: DeviceEvent) {
+        diag::stage("a device event");
         self.inner.device_event(event_loop, device_id, event);
+        diag::idle();
     }
 
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        // eframe runs the app's logic here when a redraw is overdue (the window unfocused)
+        diag::stage("about to wait");
         self.inner.about_to_wait(event_loop);
+        diag::idle();
     }
 
     fn exiting(&mut self, event_loop: &ActiveEventLoop) {
+        log::info!("the app: exiting");
         self.inner.exiting(event_loop);
     }
 
     fn memory_warning(&mut self, event_loop: &ActiveEventLoop) {
+        log::warn!("the app: low memory");
         self.inner.memory_warning(event_loop);
     }
 }

@@ -1,6 +1,7 @@
 //! What differs between the desktop, Android and the web: where settings are kept, how a socket
 //! and an HTTP request are made, the clock.
 
+pub mod diag;
 pub mod http;
 pub mod net;
 pub mod storage;

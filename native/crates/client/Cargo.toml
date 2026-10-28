@@ -14,7 +14,7 @@ isorun-vault = { path = "../vault" }
 isorun-render = { path = "../render" }
 serde = { workspace = true }
 serde_json = { workspace = true }
-log = "0.4"
+log = { version = "0.4", features = ["std"] }
 image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 web-time = "1"
 

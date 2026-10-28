@@ -422,9 +422,12 @@ impl eframe::App for IsorunApp {
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        use isorun_client::platform::diag;
+        diag::stage("frame: the frame rate's wait");
         #[cfg(not(target_arch = "wasm32"))]
         self.pace.wait();
         let started = isorun_client::platform::seconds();
+        diag::stage("frame: the screens");
         self.screens(ui);
         let (screen, in_game) = match &self.screen {
             Screen::Game(_) => ("game", true),
@@ -434,7 +437,13 @@ impl eframe::App for IsorunApp {
         self.watch.frame(started, isorun_client::platform::seconds(), screen, in_game);
         // the soft keyboard follows the text field that wants it (android_keyboard)
         #[cfg(target_os = "android")]
-        crate::android_keyboard::follow(ui.ctx());
+        {
+            diag::stage("frame: the soft keyboard");
+            crate::android_keyboard::follow(ui.ctx());
+        }
+        // what eframe does after this: the shapes, and the GPU's frame (its surface's texture,
+        // which a window the compositor does not show holds)
+        diag::stage("frame: eframe paints (the GPU)");
     }
 
     fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
@@ -442,6 +451,7 @@ impl eframe::App for IsorunApp {
     }
 
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {
+        isorun_client::platform::diag::stage("saving the view");
         if let Screen::Game(g) = &mut self.screen {
             g.save_view();
         }
@@ -456,7 +466,11 @@ impl IsorunApp {
         // a phone is told by its window (the first frame's size is the real one, the app's start
         // may not know it yet)
         #[cfg(target_os = "android")]
-        crate::android_insets::poll(ui.ctx());
+        {
+            isorun_client::platform::diag::stage("frame: the window's insets");
+            crate::android_insets::poll(ui.ctx());
+            isorun_client::platform::diag::stage("frame: the screens");
+        }
         let size = ui.ctx().content_rect().size();
         let phone = self.opts.touch && size.x.min(size.y) < 560.0;
         isorun_front::settings::set_phone(phone);
@@ -511,6 +525,10 @@ impl IsorunApp {
                     Some(FrontAction::Quit) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
                     Some(FrontAction::Fullscreen(f)) => isorun_ui::fullscreen::set(ui.ctx(), f),
                     Some(FrontAction::Testbed) => self.open_testbed(),
+                    Some(FrontAction::ShareLog) => {
+                        let said = crate::share_log::share(ui.ctx());
+                        log::info!("share the log: {said}");
+                    }
                     None => {}
                 }
             }

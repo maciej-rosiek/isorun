@@ -220,6 +220,7 @@ impl FrontEnd {
             utilities.push(Row::new("steam", "Add to Steam", "+", "Five steps that put the Linux app in a Steam Deck’s library.", Act::Steam));
         }
         utilities.push(Row::new("about", "About & credits", "?", "About Isorun, and the people behind the game.", Act::About));
+        utilities.push(Row::new("log", "Share the log", "?", "What the app wrote down, to send with a report of a problem: a hang, a crash.", Act::ShareLog));
         if self.options.testbed {
             utilities.push(Row::new("testbed", "Test bed", "?", "The renderer's test level: every kind of cell, a monster of each status.", Act::Testbed));
         }

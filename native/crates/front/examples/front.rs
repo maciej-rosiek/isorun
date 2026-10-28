@@ -198,6 +198,7 @@ impl eframe::App for App {
             }
             Some(FrontAction::Quit) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
             Some(FrontAction::Fullscreen(f)) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Fullscreen(f)),
+            Some(FrontAction::ShareLog) => ui.ctx().copy_text(isorun_client::platform::diag::text()),
             Some(FrontAction::Testbed) | None => {}
         }
     }

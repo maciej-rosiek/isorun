@@ -32,6 +32,7 @@ pub enum Run {
     Settings,
     Fullscreen(bool),
     Chat,
+    ShareLog,
     Leave,
 }
 
@@ -288,6 +289,12 @@ impl ClientMenu {
                 sub: Some("graphics, controls and the gamepad buttons, the HUD, sound".into()),
                 sep: true,
                 run: Some(Run::Settings),
+                ..Default::default()
+            });
+            rows.push(Row {
+                label: "Share the log".into(),
+                sub: Some("what the app wrote down, to send with a report of a problem".into()),
+                run: Some(Run::ShareLog),
                 ..Default::default()
             });
             if opts.can_fullscreen {
