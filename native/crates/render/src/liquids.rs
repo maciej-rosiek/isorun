@@ -163,14 +163,7 @@ pub struct Liquids {
     module: wgpu::ShaderModule,
     pipelines: Vec<(&'static str, wgpu::RenderPipeline)>,
     built_revision: u64,
-    reflecting: Option<((u32, u32), wgpu::RenderPipeline)>,
 }
-
-fn grid_buffers() -> [wgpu::VertexBufferLayout<'static>; 1] {
-    [wgpu::VertexBufferLayout { array_stride: 24, step_mode: wgpu::VertexStepMode::Vertex, attributes: &GRID_ATTRIBUTES }]
-}
-
-const GRID_ATTRIBUTES: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Float32, 3 => Float32];
 
 /// The palettes of the waters that are not clear water: deep, shallow, light, strength, speed, opacity, gloss.
 fn palette(kind: LiquidKind) -> (u32, u32, u32, f32, f32, f32, f32) {
@@ -191,7 +184,7 @@ impl Liquids {
 
     pub fn new(gpu: &Gpu) -> Self {
         let layout = uniform_layout(gpu, 64);
-        let module = shader(gpu, "liquids", &[include_str!("shaders/liquids.wgsl"), include_str!("shaders/plain_water.wgsl")].join("\n"));
+        let module = shader(gpu, "liquids", include_str!("shaders/liquids.wgsl"));
         let kinds = [
             (LiquidKind::Water, "fs_water"),
             (LiquidKind::Murky, "fs_water"),
@@ -215,11 +208,15 @@ impl Liquids {
                 Pool { grid: LiquidGrid::new(gpu, kind), uniform, group, shader, shown: true }
             })
             .collect();
-        Liquids { pools, layout, module, pipelines: Vec::new(), built_revision: u64::MAX, reflecting: None }
+        Liquids { pools, layout, module, pipelines: Vec::new(), built_revision: u64::MAX }
     }
 
-    pub fn prepare(&mut self, gpu: &Gpu, samples: u32, cell_lights: u32) {
-        let buffers = grid_buffers();
+    pub fn prepare(&mut self, gpu: &Gpu, samples: u32, sight_light: bool) {
+        let buffers = [wgpu::VertexBufferLayout {
+            array_stride: 24,
+            step_mode: wgpu::VertexStepMode::Vertex,
+            attributes: &wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32, 2 => Float32, 3 => Float32],
+        }];
         self.pipelines = ["fs_water", "fs_lava", "fs_starwater"]
             .iter()
             .map(|fs| {
@@ -236,7 +233,7 @@ impl Liquids {
                     samples,
                     true,
                     Default::default(),
-                    cell_lights,
+                    sight_light,
                 );
                 (*fs, pipeline)
             })
@@ -300,48 +297,15 @@ impl Liquids {
         self.pools.iter().any(|p| matches!(p.grid.kind, LiquidKind::Lava | LiquidKind::Starwater) && p.shown && p.grid.count > 0)
     }
 
-    pub fn prepare_reflections(&mut self, gpu: &Gpu, samples: u32, cell_lights: u32, materials: &wgpu::BindGroupLayout) {
-        if self.reflecting.as_ref().is_some_and(|(key, _)| *key == (samples, cell_lights)) {
-            return;
-        }
-        let module = shader(gpu, "liquids with materials", &crate::materials::water_source());
-        let pipeline = layer_pipeline(
-            gpu,
-            "fs_water",
-            &module,
-            "vs_liquid",
-            "fs_water",
-            &grid_buffers(),
-            &[&self.layout, materials],
-            Blend::Alpha,
-            false,
-            samples,
-            true,
-            Default::default(),
-            cell_lights,
-        );
-        self.reflecting = Some(((samples, cell_lights), pipeline));
-    }
-
-    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, frame: &wgpu::BindGroup, materials: Option<&wgpu::BindGroup>) {
+    pub fn draw(&self, pass: &mut wgpu::RenderPass<'_>, frame: &wgpu::BindGroup) {
         for pool in &self.pools {
             if !pool.shown || pool.grid.count == 0 {
                 continue;
             }
-            let reflecting = materials.zip(self.reflecting.as_ref()).filter(|_| pool.shader == "fs_water");
-            let pipeline = match reflecting {
-                Some((_, (_, pipeline))) => pipeline,
-                None => match self.pipelines.iter().find(|(n, _)| *n == pool.shader) {
-                    Some((_, pipeline)) => pipeline,
-                    None => continue,
-                },
-            };
+            let Some((_, pipeline)) = self.pipelines.iter().find(|(n, _)| *n == pool.shader) else { continue };
             pass.set_pipeline(pipeline);
             pass.set_bind_group(0, frame, &[]);
             pass.set_bind_group(1, &pool.group, &[]);
-            if let Some((group, _)) = reflecting {
-                pass.set_bind_group(2, group, &[]);
-            }
             pass.set_vertex_buffer(0, pool.grid.vertices.buffer.slice(..));
             pass.set_index_buffer(pool.grid.indices.buffer.slice(..), wgpu::IndexFormat::Uint32);
             pass.draw_indexed(0..pool.grid.count, 0, 0..1);

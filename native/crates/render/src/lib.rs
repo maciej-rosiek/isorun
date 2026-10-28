@@ -16,7 +16,6 @@ pub mod layers;
 pub mod lights;
 pub mod liquids;
 pub mod loot;
-pub mod materials;
 pub mod memory;
 pub mod mesh;
 pub mod mipmap;
@@ -31,13 +30,10 @@ pub mod scalefx;
 pub mod steps;
 pub mod torch_light;
 pub mod uniforms;
-pub mod voxels;
 
 pub use camera::{CameraAngles, IsoCamera, DEFAULT_ANGLES, TILT_MAX, TILT_MIN, TURN_DEGREES, ZOOM_MAX, ZOOM_MIN};
-pub use cell_light::CellLights;
 pub use lights::{lights, quality, IsoLights, IsoQuality, SurfaceDetail, LIGHTS_NAMES};
 pub use loot::Landing;
-pub use materials::{MaterialClass, MaterialSettings};
 pub use plan::{stick_to_dir, AimIntent, IsoAim, IsoRoute, IsoView, DEFAULT_VIEW};
 pub use renderer::{ground_floor, ActorAction, ActorStep, FrameEvents, IsoRenderer, PLAYER_ACTOR};
 

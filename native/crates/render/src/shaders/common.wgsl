@@ -235,12 +235,6 @@ fn lambert_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
     return saturate1(dot(s.normal, dir)) * colour * s.diffuse / PI;
 }
 
-const SURFACE_TERRAIN: u32 = 0u;
-const SURFACE_FEATURE: u32 = 1u;
-const SURFACE_SPRITE: u32 = 2u;
-const SURFACE_ACTOR: u32 = 3u;
-const SURFACE_CLAY: u32 = 4u;
-
 const MODEL_CLAY: u32 = 0u;
 const MODEL_PHONG: u32 = 1u;
 const MODEL_LAMBERT: u32 = 2u;

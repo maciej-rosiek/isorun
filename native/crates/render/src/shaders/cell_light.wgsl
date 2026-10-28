@@ -1,6 +1,4 @@
-override CELL_LIGHTS: u32 = 0u;
-const CELL_LIGHT_GI: u32 = 1u;
-const CELL_LIGHT_SIGHT: u32 = 2u;
+override SIGHT_LIGHT: bool = false;
 const CELL_LIGHT_LEAST_WEIGHT: f32 = 0.0001;
 const CELL_SIGHT_EDGE_LOW: f32 = 0.25;
 const CELL_SIGHT_EDGE_HIGH: f32 = 0.75;
@@ -18,12 +16,7 @@ struct CellLightFrame {
 };
 
 @group(0) @binding(11) var<uniform> cell_light_frame: CellLightFrame;
-@group(0) @binding(12) var cell_gi_map: texture_2d<f32>;
-@group(0) @binding(13) var cell_sight_map: texture_2d<f32>;
-
-fn cell_light_on(part: u32) -> bool {
-    return (CELL_LIGHTS & part) != 0u;
-}
+@group(0) @binding(12) var cell_sight_map: texture_2d<f32>;
 
 fn cell_on_top(s: Surface) -> bool {
     return s.all_round < 0.5 && s.normal_world.y > 0.5 && s.world.y > CELL_TOP_HEIGHT;
@@ -50,14 +43,6 @@ fn cell_own_point(s: Surface) -> vec2<f32> {
     return (floor(s.world.xz - s.normal_world.xz * 0.02) + 0.5) / MEMORY_CELLS;
 }
 
-fn cell_gi_at(s: Surface, at: vec2<f32>) -> vec3<f32> {
-    var v = textureSampleLevel(cell_gi_map, repeat_sampler, at, 0.0);
-    if (v.a <= CELL_LIGHT_LEAST_WEIGHT) {
-        v = textureSampleLevel(cell_gi_map, repeat_sampler, cell_own_point(s), 0.0);
-    }
-    return cell_light_unweighted(v);
-}
-
 fn cell_sight_at(s: Surface, at: vec2<f32>) -> vec3<f32> {
     var v = textureSampleLevel(cell_sight_map, repeat_sampler, at, 0.0);
     if (v.a <= CELL_LIGHT_LEAST_WEIGHT) {
@@ -67,14 +52,10 @@ fn cell_sight_at(s: Surface, at: vec2<f32>) -> vec3<f32> {
 }
 
 fn cell_fill_kept() -> f32 {
-    var kept = 1.0;
-    if (cell_light_on(CELL_LIGHT_GI)) {
-        kept = kept * cell_light_frame.fill.y;
+    if (SIGHT_LIGHT) {
+        return cell_light_frame.fill.x;
     }
-    if (cell_light_on(CELL_LIGHT_SIGHT)) {
-        kept = kept * cell_light_frame.fill.z;
-    }
-    return kept;
+    return 1.0;
 }
 
 fn cell_spread_light(s: Surface, colour: vec3<f32>) -> vec3<f32> {
@@ -86,7 +67,7 @@ fn cell_spread_light(s: Surface, colour: vec3<f32>) -> vec3<f32> {
 
 fn cell_hero_flicker() -> f32 {
     let t = time();
-    return 1.0 + cell_light_frame.fill.w * (sin(t * 7.3) * 0.6 + sin(t * 13.1 + 1.7) * 0.4);
+    return 1.0 + cell_light_frame.fill.y * (sin(t * 7.3) * 0.6 + sin(t * 13.1 + 1.7) * 0.4);
 }
 
 fn cell_hero_light(model: u32, s: Surface, seen: f32) -> vec3<f32> {
@@ -114,25 +95,19 @@ fn cell_seen(sight: vec3<f32>) -> f32 {
 }
 
 fn cell_memory_look(s: Surface, colour: vec3<f32>) -> vec3<f32> {
-    if (!cell_light_on(CELL_LIGHT_SIGHT)) {
+    if (!SIGHT_LIGHT) {
         return colour;
     }
     return mix(cell_remembered(s), colour, cell_seen(cell_sight_at(s, cell_light_point(s))));
 }
 
 fn cell_light_surface(model: u32, s: Surface, lit: vec3<f32>, own: vec3<f32>) -> vec3<f32> {
-    var out = lit;
-    let at = cell_light_point(s);
-    if (cell_light_on(CELL_LIGHT_GI)) {
-        let gi = cell_gi_at(s, at);
-        out = out + cell_spread_light(s, gi * cell_light_frame.fill.x);
+    if (!SIGHT_LIGHT) {
+        return lit + own;
     }
-    if (cell_light_on(CELL_LIGHT_SIGHT)) {
-        let sight = cell_sight_at(s, at);
-        let seen = cell_seen(sight);
-        out = out + cell_hero_light(model, s, seen) + cell_spread_light(s, cell_light_frame.halo.rgb * sight.g);
-        out = out * (1.0 - saturate1(sight.b) * cell_light_frame.halo.w);
-        return mix(cell_remembered(s), out + own, seen);
-    }
-    return out + own;
+    let sight = cell_sight_at(s, cell_light_point(s));
+    let seen = cell_seen(sight);
+    var out = lit + cell_hero_light(model, s, seen) + cell_spread_light(s, cell_light_frame.halo.rgb * sight.g);
+    out = out * (1.0 - saturate1(sight.b) * cell_light_frame.halo.w);
+    return mix(cell_remembered(s), out + own, seen);
 }

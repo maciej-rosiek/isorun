@@ -325,7 +325,7 @@ pub fn page_bind_group(
     })
 }
 
-pub(crate) fn crop(atlas: &AtlasImage, r: &TileRect) -> Vec<u8> {
+fn crop(atlas: &AtlasImage, r: &TileRect) -> Vec<u8> {
     let mut out = Vec::with_capacity((r.w * r.h * 4) as usize);
     for y in r.sy..r.sy + r.h {
         let start = ((y * atlas.width + r.sx) * 4) as usize;

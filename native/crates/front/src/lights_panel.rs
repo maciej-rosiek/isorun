@@ -13,7 +13,7 @@ const CURRENT_KEY: &str = "isorun.lights.current";
 const SAVED_KEY: &str = "isorun.lights.saved";
 const BASE: &str = "diorama";
 
-const FEATURES: [&str; 4] = ["globalIllumination", "sightLight", "materials", "voxels"];
+const FEATURES: [&str; 1] = ["sightLight"];
 
 pub const UPSCALES: [&str; 4] = ["pixel", "scale2x", "xbr", "scalefx"];
 
@@ -157,14 +157,6 @@ pub fn sections() -> Vec<Section> {
             ],
         ),
         s(
-            "Voxels",
-            vec![
-                num!("Wall relief", 0.0, 0.3, 0.005, |l| l.voxels.wall),
-                num!("Floor relief", 0.0, 0.1, 0.005, |l| l.voxels.floor),
-                num!("Figure thickness", 0.0, 0.3, 0.005, |l| l.voxels.figure),
-            ],
-        ),
-        s(
             "Ambient occlusion (GTAO)",
             vec![toggle!(|l| l.ao.enabled), num!("Strength", 0.0, 1.0, 0.05, |l| l.ao.intensity), num!("Radius", 0.1, 4.0, 0.05, |l| l.ao.radius)],
         ),
@@ -241,34 +233,6 @@ pub fn sections() -> Vec<Section> {
             ],
         ),
         s(
-            "Materials",
-            vec![
-                colour!("Hero light", |l| l.materials.hero_light),
-                num!("Hero strength", 0.0, 20.0, 0.25, |l| l.materials.hero_strength),
-                num!("Hero reach", 0.0, 12.0, 0.5, |l| l.materials.hero_reach),
-                colour!("Room", |l| l.materials.room),
-                num!("Metal shine", 0.0, 2.0, 0.05, |l| l.materials.metal_shine),
-                num!("Metal sharpness", 4.0, 400.0, 2.0, |l| l.materials.metal_sharpness),
-                num!("Crystal glints", 0.0, 4.0, 0.1, |l| l.materials.crystal_glints),
-                num!("Crystal colours", 0.0, 2.0, 0.05, |l| l.materials.crystal_colours),
-                num!("Crystal depth", 0.0, 1.0, 0.05, |l| l.materials.crystal_depth),
-                num!("See-through", 0.0, 1.0, 0.05, |l| l.materials.see_through),
-                num!("Glass tint", 0.0, 1.0, 0.05, |l| l.materials.glass_tint),
-                num!("Ice gloss", 0.0, 2.0, 0.05, |l| l.materials.ice_gloss),
-                num!("Wet gloss", 0.0, 2.0, 0.05, |l| l.materials.wet_gloss),
-                num!("Puddles", 0.0, 2.0, 0.05, |l| l.materials.puddles),
-                num!("Water reflection", 0.0, 2.0, 0.05, |l| l.materials.water_reflection),
-                num!("Sway", 0.0, 3.0, 0.1, |l| l.materials.sway),
-                num!("Sway speed", 0.0, 4.0, 0.1, |l| l.materials.sway_speed),
-                colour!("Fungus colour", |l| l.materials.fungus),
-                num!("Fungus glow", 0.0, 3.0, 0.05, |l| l.materials.fungus_glow),
-                num!("Magic glow", 0.0, 3.0, 0.05, |l| l.materials.magic_glow),
-                num!("Lava heat", 0.0, 3.0, 0.05, |l| l.materials.lava_heat),
-                num!("Heat flicker", 0.0, 1.0, 0.05, |l| l.materials.heat_flicker),
-                num!("Corruption", 0.0, 3.0, 0.05, |l| l.materials.corruption),
-            ],
-        ),
-        s(
             "Combat",
             vec![
                 colour!("Blood", |l| l.combat.blood),
@@ -281,19 +245,6 @@ pub fn sections() -> Vec<Section> {
         s(
             "Steps",
             vec![colour!("Colour", |l| l.steps.colour), num!("Dust", 0.0, 3.0, 0.1, |l| l.steps.dust), num!("Footprints", 0.0, 30.0, 1.0, |l| l.steps.prints)],
-        ),
-        s(
-            "Global illumination",
-            vec![
-                num!("Strength", 0.0, 4.0, 0.05, |l| l.gi.strength),
-                num!("Bounce", 0.0, 3.0, 0.05, |l| l.gi.bounce),
-                num!("Reach", 2.0, 14.0, 0.5, |l| l.gi.reach_cells),
-                num!("Fill light kept", 0.0, 1.0, 0.05, |l| l.gi.fill_kept),
-                colour!("Lava", |l| l.gi.lava),
-                colour!("Fire", |l| l.gi.fire),
-                num!("Spells", 0.0, 5.0, 0.1, |l| l.gi.flash),
-                num!("Hero light", 0.0, 4.0, 0.05, |l| l.gi.hero),
-            ],
         ),
         s(
             "Sight light",

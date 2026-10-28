@@ -5,7 +5,7 @@
 
 use crate::actors::{actor_id, ActorEnv, ActorLayer, UprightPose, STRIKE_DELAY};
 use crate::camera::IsoCamera;
-use crate::cell_light::{CellLight, CellLights};
+use crate::cell_light::CellLight;
 use crate::combat::{CombatLayer, ImpactKind};
 use crate::features::{is_tile_feature, TileFeatures};
 use crate::fog::FogLayer;
@@ -13,7 +13,6 @@ use crate::gpu::{Gpu, Material, DEPTH_FORMAT};
 use crate::lights::{diorama, linear, IsoLights, IsoQuality, SurfaceDetail, QUALITY_MEDIUM};
 use crate::liquids::{Liquids, FILMS};
 use crate::loot::{Landing, LootLayer, LIGHT_REACH as LOOT_LIGHT_REACH};
-use crate::materials::{door_metal, MaterialLayer};
 use crate::memory::MemoryMask;
 use crate::mesh::{GpuMesh, Point3, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::mipmap::Mipmapper;
@@ -26,7 +25,6 @@ use crate::post::{Post, PostFrame};
 use crate::steps::StepLayer;
 use crate::torch_light::TorchLightMap;
 use crate::uniforms::{DrawBuffer, DrawUniform, FrameUniform, LightUniform, MAX_LIGHTS};
-use crate::voxels::{layer_depth, VoxelChunk, VoxelKind, VoxelLayer, VoxelPart, VoxelStats};
 use crate::{now_seconds, TileSource};
 use glam::{Mat4, Vec3, Vec4};
 use isorun_scene::{cell_key, has_items_under, key_to_xy, Camera, CellKey, Feature, Scene, SceneCell, SceneCursor, TileId, Visibility, DIR8_DX, DIR8_DY};
@@ -87,7 +85,6 @@ struct Chunk {
     meshes: Vec<(Material, PageRef, Arc<GpuMesh>)>,
     torches: Vec<Torch>,
     glows: bool,
-    voxels: Option<VoxelChunk>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -114,14 +111,8 @@ struct PendingImpact {
 
 struct Pipelines {
     samples: u32,
-    cell_lights: u32,
+    sight_light: bool,
     world: HashMap<Material, wgpu::RenderPipeline>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
-pub struct FrameCounts {
-    pub draws: u32,
-    pub triangles: u64,
 }
 
 /// What happened in a frame that the client acts on: blows shown, hops started, doors moved.
@@ -144,7 +135,7 @@ pub struct IsoRenderer {
     memory: MemoryMask,
     torch_light: TorchLightMap,
     cell_light: CellLight,
-    cell_lights: CellLights,
+    sight_light: bool,
     pipelines: Option<Pipelines>,
     frame_buffer: wgpu::Buffer,
     frame_group: wgpu::BindGroup,
@@ -181,13 +172,10 @@ pub struct IsoRenderer {
     features: TileFeatures,
     fog: FogLayer,
     liquids: Liquids,
-    materials: Option<MaterialLayer>,
     combat: CombatLayer,
     steps: StepLayer,
     loot: LootLayer,
     overlay: crate::overlay::Overlay,
-    voxels: VoxelLayer,
-    counts: FrameCounts,
     tile_torches: Vec<Torch>,
     tile_torches_version: u64,
     impacts: Vec<PendingImpact>,
@@ -315,12 +303,10 @@ impl IsoRenderer {
         let cell_light = CellLight::new(&gpu);
         let frame_group = Self::frame_group(&gpu, &frame_buffer, &memory, &noise, &torch_light, &cell_light);
         let draws = DrawBuffer::new(&gpu.device, &gpu.draw_layout, 256);
-        let (door_width, door_height, door_pixels) = door_pixels();
-        let (cap, door) = (cap_texture(&gpu), gpu.texture_with("door", door_width, door_height, wgpu::TextureFormat::Rgba8UnormSrgb, &door_pixels));
+        let (cap, door) = (cap_texture(&gpu), door_texture(&gpu));
         let blank = gpu.texture_with("blank", 1, 1, wgpu::TextureFormat::Rgba8Unorm, &[128, 128, 255, 0]);
-        let door_normal = gpu.texture_with("door normal", door_width, door_height, wgpu::TextureFormat::Rgba8Unorm, &door_metal(&door_pixels));
         let cap_group = page_bind_group(&gpu.device, &gpu.page_layout, &gpu.nearest_sampler, &cap, &blank, &blank);
-        let door_group = page_bind_group(&gpu.device, &gpu.page_layout, &gpu.page_sampler, &door, &door_normal, &blank);
+        let door_group = page_bind_group(&gpu.device, &gpu.page_layout, &gpu.page_sampler, &door, &blank, &blank);
         let fog = FogLayer::new(&gpu);
         let liquids = Liquids::new(&gpu);
         let combat = CombatLayer::new(&gpu);
@@ -337,7 +323,7 @@ impl IsoRenderer {
             memory,
             torch_light,
             cell_light,
-            cell_lights: CellLights::default(),
+            sight_light: false,
             pipelines: None,
             frame_buffer,
             frame_group,
@@ -374,13 +360,10 @@ impl IsoRenderer {
             features,
             fog,
             liquids,
-            materials: None,
             combat,
             steps,
             loot,
             overlay,
-            voxels: VoxelLayer::default(),
-            counts: FrameCounts::default(),
             tile_torches: Vec::new(),
             tile_torches_version: 0,
             impacts: Vec::new(),
@@ -427,8 +410,7 @@ impl IsoRenderer {
                 wgpu::BindGroupEntry { binding: 9, resource: wgpu::BindingResource::Sampler(&gpu.repeat_sampler) },
                 wgpu::BindGroupEntry { binding: 10, resource: wgpu::BindingResource::TextureView(&view(&torch_light.texture)) },
                 wgpu::BindGroupEntry { binding: 11, resource: cell_light.buffer.as_entire_binding() },
-                wgpu::BindGroupEntry { binding: 12, resource: wgpu::BindingResource::TextureView(&view(cell_light.gi_texture())) },
-                wgpu::BindGroupEntry { binding: 13, resource: wgpu::BindingResource::TextureView(&view(cell_light.sight_texture())) },
+                wgpu::BindGroupEntry { binding: 12, resource: wgpu::BindingResource::TextureView(&view(cell_light.sight_texture())) },
             ],
         })
     }
@@ -446,9 +428,6 @@ impl IsoRenderer {
             return;
         }
         self.scene_revision = scene.revision;
-        if let (true, Some(tiles)) = (self.voxels.on(), &self.tiles) {
-            self.voxels.walls_broken(self.scene.as_deref(), &scene, tiles.as_ref());
-        }
         self.memory.update(&self.gpu, &scene);
         self.scene = Some(scene);
         self.revision_counter += 1;
@@ -460,7 +439,6 @@ impl IsoRenderer {
         self.combat.clear();
         self.steps.clear();
         self.loot.clear();
-        self.voxels.new_level();
         self.cell_light.snap();
     }
 
@@ -496,19 +474,6 @@ impl IsoRenderer {
         self.post.set_ao_resolution(quality.ao_resolution);
         self.post.ao_samples = quality.ao_samples;
         self.resolution.reset();
-        self.voxels.configure(self.voxels.on(), quality.voxel_cells);
-    }
-
-    pub fn set_voxels(&mut self, on: bool) {
-        self.voxels.configure(on, self.quality.voxel_cells);
-    }
-
-    pub fn voxel_stats(&self) -> VoxelStats {
-        self.voxels.stats
-    }
-
-    pub fn frame_counts(&self) -> FrameCounts {
-        self.counts
     }
 
     pub fn quality(&self) -> IsoQuality {
@@ -519,14 +484,8 @@ impl IsoRenderer {
         self.detail = detail;
     }
 
-    pub fn set_cell_lights(&mut self, on: CellLights) {
-        self.cell_lights = on;
-    }
-
-    pub fn set_materials(&mut self, on: bool) {
-        if on != self.materials.is_some() {
-            self.materials = on.then(|| MaterialLayer::new(&self.gpu));
-        }
+    pub fn set_sight_light(&mut self, on: bool) {
+        self.sight_light = on;
     }
 
     pub fn set_aim(&mut self, aim: Option<IsoAim>) {
@@ -663,7 +622,7 @@ impl IsoRenderer {
     /// What keeps `animating` true, for the perf log: the first reason found.
     pub fn animating_why(&self) -> Option<&'static str> {
         let now = now_seconds();
-        let reasons: [(&'static str, &dyn Fn() -> bool); 12] = [
+        let reasons: [(&'static str, &dyn Fn() -> bool); 11] = [
             ("impact", &|| !self.impacts.is_empty()),
             ("hit stop", &|| now < self.stop_until),
             // the low hit points' red edge pulses
@@ -675,8 +634,7 @@ impl IsoRenderer {
             ("doors", &|| self.features.animating()),
             ("fog fade", &|| self.fog.fading()),
             ("liquid", &|| self.liquids.drawn() && self.liquid_in_sight()),
-            ("voxels", &|| self.voxels.animating()),
-            ("light fade", &|| self.cell_lights.any() && self.cell_light.easing()),
+            ("light fade", &|| self.sight_light && self.cell_light.easing()),
         ];
         reasons.iter().find(|(_, f)| f()).map(|(n, _)| *n)
     }
@@ -703,7 +661,6 @@ impl IsoRenderer {
             return;
         }
         self.pages = Some(Pages::new(self.lights.paint, self.gpu.max_texture));
-        self.voxels.pages_changed();
         self.invalidate();
     }
 
@@ -890,7 +847,7 @@ fn cap_texture(gpu: &Gpu) -> wgpu::Texture {
 }
 
 /// A door leaf in the DCSS manner: dark planks, two iron bands with rivets and a ring, 32 by 48.
-fn door_pixels() -> (u32, u32, Vec<u8>) {
+fn door_texture(gpu: &Gpu) -> wgpu::Texture {
     let (w, h) = (32usize, 48usize);
     let mut px = vec![0u8; w * h * 4];
     let mut random = seeded(7);
@@ -930,7 +887,7 @@ fn door_pixels() -> (u32, u32, Vec<u8>) {
         put(0, y, [30.0, 18.0, 10.0], &mut px);
         put(w - 1, y, [30.0, 18.0, 10.0], &mut px);
     }
-    (w as u32, h as u32, px)
+    gpu.texture_with("door", w as u32, h as u32, wgpu::TextureFormat::Rgba8UnormSrgb, &px)
 }
 
 pub fn seeded(seed: u32) -> impl FnMut() -> f32 {

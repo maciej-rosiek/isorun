@@ -241,7 +241,7 @@ fn ground(in: VertexOut, front: bool, least_alpha: f32, terrain: bool) -> Fragme
     let cell = memory_cell(in.world, normalize(in.normal_world));
     let shade = memory_shade(cell);
     let wet_map = wetness_at(in.world);
-    let sunk = material_at(in, under_water(in, parallax_uv(in, face), wet_map.g, face));
+    let sunk = under_water(in, parallax_uv(in, face), wet_map.g, face);
     let colour = textureSampleGrad(colour_map, page_sampler, sunk, across, down);
     if (colour.a < least_alpha) {
         discard;
@@ -269,7 +269,7 @@ fn ground(in: VertexOut, front: bool, least_alpha: f32, terrain: bool) -> Fragme
     s.shininess = gloss_shininess(gloss);
     s.rim = GROUND_RIM;
     let light = emission(colour.rgb, surface, sunk, cell_hash * 6.283) * shade;
-    return material_out(in, sunk, s, light, colour.a, face, select(SURFACE_FEATURE, SURFACE_TERRAIN, terrain));
+    return outputs(lit_surface(MODEL_CLAY, s, light), colour.a, in, face, light);
 }
 
 // The sprites that stand in the level (items, features): lit with the sprite light, glossy and
@@ -277,22 +277,21 @@ fn ground(in: VertexOut, front: bool, least_alpha: f32, terrain: bool) -> Fragme
 @fragment
 fn fs_sprite(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     let face = select(-1.0, 1.0, front);
-    let at = material_at(in, in.uv);
-    let colour = textureSample(colour_map, page_sampler, at);
+    let colour = textureSample(colour_map, page_sampler, in.uv);
     if (colour.a < 0.5) {
         discard;
     }
-    let surface = textureSample(surface_map, data_sampler, at);
+    let surface = textureSample(surface_map, data_sampler, in.uv);
     let shade = memory_shade(memory_cell(in.world, normalize(in.normal_world)));
     let diffuse = colour.rgb * frame.shading1.x * shade * in.colour;
-    let normal = relief_normal(in, at, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
+    let normal = relief_normal(in, in.uv, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
     var s = surface_of(in, normal, diffuse);
     s.specular = gloss_specular(surface.r);
     s.shininess = gloss_shininess(surface.r);
     s.rim = 1.0;
     s.all_round = 1.0;
-    let light = emission(colour.rgb, surface, at, 0.0) * shade;
-    return material_out(in, at, s, light, colour.a, face, SURFACE_SPRITE);
+    let light = emission(colour.rgb, surface, in.uv, 0.0) * shade;
+    return outputs(lit_surface(MODEL_CLAY, s, light), colour.a, in, face, light);
 }
 
 const STONE: vec3<f32> = vec3<f32>(0.62, 0.6, 0.57);
@@ -312,9 +311,8 @@ const DISSOLVE_EDGE: f32 = 0.12;
 @fragment
 fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     let face = select(-1.0, 1.0, front);
-    let at = material_at(in, in.uv);
-    let colour = textureSample(colour_map, page_sampler, at);
-    let surface = textureSample(surface_map, data_sampler, at);
+    let colour = textureSample(colour_map, page_sampler, in.uv);
+    let surface = textureSample(surface_map, data_sampler, in.uv);
     let opacity = draw.tint.w;
     let phase = draw.look.y;
     var harm = draw.harm;
@@ -342,7 +340,7 @@ fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     tinted = mix(tinted, tinted * RAGE, aura.x);
     tinted = mix(tinted, tinted * (WET_DARK + 0.2), aura.w);
     let diffuse = tinted * frame.shading1.x * draw.tint.rgb * in.colour;
-    let normal = relief_normal(in, at, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
+    let normal = relief_normal(in, in.uv, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
     var s = surface_of(in, normal, diffuse);
     let gloss = mix(max(surface.r, aura.w * WET_GLOSS), 0.0, harm.x);
     s.specular = gloss_specular(gloss);
@@ -360,13 +358,13 @@ fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     if (opacity < 1.0) {
         embers = smoothstep(opacity - DISSOLVE_EDGE, opacity, grain);
     }
-    let light = emission(colour.rgb, surface, at, phase) * (1.0 - harm.x)
+    let light = emission(colour.rgb, surface, in.uv, phase) * (1.0 - harm.x)
         + EMBERS * embers
         + FLAME_COLOUR * flames * harm.y * 0.9
         + RAGE_GLOW * edge * aura.x * (pulse * 0.5 + 0.5)
         + colour.rgb * 0.5 * aura.y
         + SUMMONED_GLOW * edge * aura.z;
-    return material_out(in, at, s, light, 1.0, face, SURFACE_ACTOR);
+    return outputs(lit_surface(MODEL_CLAY, s, light), 1.0, in, face, light);
 }
 
 // The wall tops: a faint stone grain under the vertex colours, darker on a remembered cell.
@@ -391,5 +389,5 @@ fn fs_clay(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
         shade = memory_shade(memory_cell(in.world, normalize(in.normal_world)));
     }
     let s = surface_of(in, normal, colour.rgb * in.colour * draw.tint.rgb * shade);
-    return material_out(in, in.uv, s, vec3<f32>(0.0), 1.0, face, SURFACE_CLAY);
+    return outputs(light_surface(MODEL_CLAY, s), 1.0, in, face, vec3<f32>(0.0));
 }

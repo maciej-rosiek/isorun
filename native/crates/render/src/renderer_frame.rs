@@ -17,21 +17,17 @@ fn box_visible(planes: &[Vec4; 6], min: Vec3, max: Vec3) -> bool {
 
 impl IsoRenderer {
     fn ensure_pipelines(&mut self, samples: u32) {
-        let cell_lights = self.cell_lights.flags();
-        if let Some(materials) = self.materials.as_mut() {
-            materials.prepare(&self.gpu, samples, cell_lights);
-            self.liquids.prepare_reflections(&self.gpu, samples, cell_lights, &materials.layout);
-        }
-        if self.pipelines.as_ref().is_some_and(|p| p.samples == samples && p.cell_lights == cell_lights) {
+        let sight_light = self.sight_light;
+        if self.pipelines.as_ref().is_some_and(|p| p.samples == samples && p.sight_light == sight_light) {
             return;
         }
         let mut world = HashMap::new();
         for m in [Material::Ground, Material::Feature, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark] {
-            world.insert(m, self.gpu.world_pipeline(m, samples, cell_lights));
+            world.insert(m, self.gpu.world_pipeline(m, samples, sight_light));
         }
-        self.pipelines = Some(Pipelines { samples, cell_lights, world });
+        self.pipelines = Some(Pipelines { samples, sight_light, world });
         self.fog.prepare(&self.gpu, samples);
-        self.liquids.prepare(&self.gpu, samples, cell_lights);
+        self.liquids.prepare(&self.gpu, samples, sight_light);
         self.combat.prepare(&self.gpu, samples);
         self.steps.prepare(&self.gpu, samples);
         self.loot.prepare(&self.gpu, samples);
@@ -107,22 +103,14 @@ impl IsoRenderer {
         self.torch_light.upload(&self.gpu);
     }
 
-    fn light_cells(&mut self, scene: &Scene, tiles: &dyn TileSource, dt: f64) {
-        if !self.cell_lights.any() {
+    fn light_cells(&mut self, scene: &Scene, dt: f64) {
+        if !self.sight_light {
             return;
         }
-        let Some(pages) = self.pages.as_mut() else { return };
-        let mut env = ActorEnv { gpu: &self.gpu, pages, tiles };
-        self.cell_light.update(&mut env, scene, self.revision_counter, &self.lights, self.cell_lights);
+        self.cell_light.update(scene, self.revision_counter);
         self.cell_light.advance(&self.gpu, dt);
         let hero = self.player_shown().filter(|_| scene.player_on_level);
         self.cell_light.write_uniform(&self.gpu, &self.cell_light.uniform(&self.lights, hero));
-    }
-
-    fn update_materials(&mut self, scene: &Scene, tiles: &Arc<dyn TileSource>) {
-        let (Some(materials), Some(pages)) = (self.materials.as_mut(), self.pages.as_mut()) else { return };
-        materials.sync(&self.gpu, scene, self.revision_counter, &mut |tile| tiles.tile(tile).map(|rect| pages.average_colour(tiles.as_ref(), &rect)));
-        materials.configure(&self.gpu, &self.lights, self.actors.shown_cell_of(PLAYER_ACTOR), self.camera_view, self.view.wall_height);
     }
 
     fn frame_uniform(&self, now: f64) -> FrameUniform {
@@ -230,8 +218,7 @@ impl IsoRenderer {
         }
         let danger = self.danger * (1.0 - DANGER_PULSE + DANGER_PULSE * (now as f32 * DANGER_PULSE_SPEED).sin());
         self.place_lights();
-        self.light_cells(&scene, tiles.as_ref(), dt);
-        self.update_materials(&scene, &tiles);
+        self.light_cells(&scene, dt);
         let aim_colour_of = |r: &IsoRenderer, intent| {
             let c = if intent == crate::plan::AimIntent::Move { r.lights.aim.colour } else { aim_colour(intent) };
             let l = linear(c);
@@ -248,14 +235,6 @@ impl IsoRenderer {
         let (width, height) = self.render_size();
         let samples = 1;
         self.ensure_pipelines(samples);
-        self.voxels.prepare(&self.gpu, samples, self.cell_lights.flags(), self.materials.as_ref().map(|m| &m.layout));
-        if self.voxels.on() {
-            let figures = self.actors.figures();
-            if let Some(pages) = self.pages.as_mut() {
-                self.voxels.actors(&self.gpu, pages, tiles.as_ref(), &figures, self.lights.voxels.figure);
-            }
-            self.voxels.update(&self.gpu, dt);
-        }
         self.post.ensure(&self.gpu, width, height, samples);
         {
             let pages = self.pages.as_mut().unwrap();
@@ -269,7 +248,6 @@ impl IsoRenderer {
         // (painterSortStable): what stands in front is drawn first, so the depth test can spare
         // the shading of what it hides
         let mut chunk_items: Vec<(u8, f32, DrawItem)> = Vec::new();
-        let mut voxel_chunks: Vec<&VoxelChunk> = Vec::new();
         for (id, chunk) in self.chunks.iter().chain(self.sprite_chunks.iter()) {
             let a = chunk_area(*id);
             let visible = box_visible(&planes, Vec3::new(a.x0 - 1.0, -1.5, a.y0 - 1.0), Vec3::new(a.x1 + 1.0, 3.0, a.y1 + 1.0));
@@ -277,7 +255,6 @@ impl IsoRenderer {
             if !visible {
                 continue;
             }
-            voxel_chunks.extend(chunk.voxels.as_ref());
             for (material, page, mesh) in &chunk.meshes {
                 chunk_items.push((*material as u8, -centre.z, DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain() }));
             }
@@ -285,9 +262,7 @@ impl IsoRenderer {
         chunk_items.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
         items.extend(chunk_items.into_iter().map(|(_, _, item)| item));
         self.features.draws(&mut items);
-        if !self.voxels.on() {
-            self.actors.draws(&mut items);
-        }
+        self.actors.draws(&mut items);
         self.loot.draws(&mut items);
         // the uniforms of every draw, in one buffer
         self.draws.clear();
@@ -325,45 +300,34 @@ impl IsoRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            if let Some(pages) = self.pages.as_ref() {
-                self.voxels.draw(&mut pass, &self.frame_group, self.materials.as_ref().map(|m| &m.group), &voxel_chunks, pages);
-            }
             pass.set_bind_group(0, &self.frame_group, &[]);
-            let world = self.materials.as_ref().map_or(&pipelines.world, |m| m.world_pipelines());
-            if let Some(materials) = &self.materials {
-                pass.set_bind_group(3, &materials.group, &[]);
-            }
             let mut current: Option<Material> = None;
-            let mut counts = FrameCounts::default();
             for (k, item) in items.iter().enumerate() {
                 if !box_visible_item(&planes, item) {
                     continue;
                 }
                 let Some(group) = &groups[k] else { continue };
                 if current != Some(item.material) {
-                    pass.set_pipeline(&world[&item.material]);
+                    pass.set_pipeline(&pipelines.world[&item.material]);
                     current = Some(item.material);
                 }
                 pass.set_bind_group(1, group, &[]);
                 pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
                 item.mesh.draw(&mut pass);
-                counts.draws += 1;
-                counts.triangles += u64::from(item.mesh.count / 3);
             }
-            self.counts = counts;
             self.combat.draw_opaque(&mut pass, &self.frame_group);
             self.overlay.draw(&mut pass, &self.frame_group);
             // what is blended, by three's render order
             self.combat.draw_sparks(&mut pass, &self.frame_group);
             self.steps.draw_prints(&mut pass, &self.frame_group);
             self.combat.draw_splats(&mut pass, &self.frame_group);
-            self.liquids.draw(&mut pass, &self.frame_group, self.materials.as_ref().map(|m| &m.group));
+            self.liquids.draw(&mut pass, &self.frame_group);
             // over the liquids, which do not keep the depth of what they cover
             self.loot.draw(&mut pass, &self.frame_group);
             self.fog.draw(&mut pass, &self.frame_group);
             self.steps.draw_puffs(&mut pass, &self.frame_group);
         }
-        let emission = self.liquids.glowing() || self.materials.as_ref().is_some_and(|m| m.glowing()) || (self.pages.as_ref().is_some_and(|p| p.glowing) && self.detail.detail().glow && self.lights.shading.glow > 0.0 && (self.glow_in_view() || self.actors.glowing() || self.features.glowing));
+        let emission = self.liquids.glowing() || (self.pages.as_ref().is_some_and(|p| p.glowing) && self.detail.detail().glow && self.lights.shading.glow > 0.0 && (self.glow_in_view() || self.actors.glowing() || self.features.glowing));
         let origin = view_proj.project_point3(Vec3::ZERO);
         let ratio = self.pixel_ratio();
         let post_frame = PostFrame {

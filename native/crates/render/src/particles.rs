@@ -97,7 +97,7 @@ impl ParticleBatch {
             samples,
             self.blend != Blend::Opaque,
             Default::default(),
-            0,
+            false,
         ));
     }
 

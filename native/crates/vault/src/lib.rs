@@ -415,7 +415,6 @@ pub fn vault_scene(v: &Vault, names: &dyn TileNames) -> Result<Scene, DesError> 
                     cell.occluder = true;
                     cell.wall_tile = Some(variant_at(id, names.tile_count(id), x, y));
                     cell.wall_style = Some(if SEE_THROUGH.is_match(&e.tile) { WallStyle::Transparent } else { WallStyle::Solid });
-                    cell.flags.torch_wall = e.tile.to_uppercase().contains("_TORCH");
                     cell.label = Some(words(&e.tile, "WALL_"));
                     cell.glyph = Some("#".into());
                     match wall_bases.iter_mut().find(|w| w.0 == id) {

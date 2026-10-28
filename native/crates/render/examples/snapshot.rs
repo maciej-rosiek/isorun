@@ -4,7 +4,7 @@
 //! phone: built for `aarch64-linux-android` and run from `adb shell`, it compiles the shaders
 //! with the phone's own GPU driver.
 
-use isorun_render::{ActorAction, AtlasImage, CameraAngles, IsoCamera, IsoRenderer, TileSource, DEFAULT_ANGLES, DEFAULT_VIEW};
+use isorun_render::{AtlasImage, CameraAngles, IsoCamera, IsoRenderer, TileSource, DEFAULT_ANGLES, DEFAULT_VIEW};
 use isorun_scene::*;
 use std::sync::Arc;
 
@@ -134,9 +134,6 @@ fn main() {
     if let Some(radius) = std::env::var("LOS").ok().and_then(|v| v.parse::<i32>().ok()) {
         line_of_sight(&mut scene, radius);
     }
-    if let Some(at) = std::env::var("FLASH").ok().as_deref().and_then(cells_of) {
-        mark(&mut scene, at, |c| c.flash = Some(Rgba8 { r: 255, g: 64, b: 64, a: 100 }));
-    }
     if let Some(at) = std::env::var("HALO").ok().as_deref().and_then(cells_of) {
         mark(&mut scene, at, |c| c.flags.halo = true);
     }
@@ -183,13 +180,10 @@ fn main() {
     let mut quality = isorun_render::quality(&std::env::var("QUALITY").unwrap_or_default()).unwrap_or(isorun_render::lights::QUALITY_MEDIUM);
     quality.adaptive = false;
     r.set_quality(quality);
-    let on = |name: &str| std::env::var(name).is_ok_and(|v| v == "1");
-    r.set_cell_lights(isorun_render::CellLights { gi: on("GI"), sight: on("SIGHT") });
+    r.set_sight_light(std::env::var("SIGHT").is_ok_and(|v| v == "1"));
     if let Ok(name) = std::env::var("LIGHTS") {
         r.set_lights(isorun_render::lights(&name).expect("no such look"));
     }
-    r.set_voxels(std::env::var("VOXELS").is_ok_and(|v| v == "1"));
-    r.set_materials(std::env::var("MATERIALS").is_ok_and(|v| v == "1"));
     r.set_scene(scene.clone());
     let angles = CameraAngles { rotation: DEFAULT_ANGLES.rotation + env_f32("TURN", 0.0), tilt: env_f32("TILT", DEFAULT_ANGLES.tilt), ..DEFAULT_ANGLES };
     let mut camera = IsoCamera::new(angles, DEFAULT_VIEW.zoom * env_f32("ZOOM", 1.0));
@@ -209,42 +203,7 @@ fn main() {
     let frames: usize = std::env::var("FRAMES").ok().and_then(|f| f.parse().ok()).unwrap_or(30);
     let start = std::time::Instant::now();
     let (mut encode_ms, mut frame_ms, mut timed) = (0.0, 0.0, 0u32);
-    let event_frame = std::env::var("EVENT_FRAME").ok().and_then(|f| f.parse().ok()).unwrap_or(frames.saturating_sub(6));
     for i in 0..frames {
-        if i == event_frame {
-            if std::env::var("DIE").is_ok() {
-                let near = scene
-                    .billboards
-                    .iter()
-                    .filter(|b| b.kind == BillboardKind::Monster)
-                    .min_by_key(|b| (b.x - scene.player.0).abs() + (b.y - scene.player.1).abs());
-                if let Some(id) = near.and_then(|b| b.ref_id) {
-                    r.act(id, ActorAction::Death, Some(scene.player), None);
-                }
-            }
-            if std::env::var("BREAK").is_ok() || std::env::var("REBUILD").is_ok() {
-                let mut changed = (*scene).clone();
-                let (px, py) = scene.player;
-                let wall = changed.cells.values().filter(|c| c.kind == CellKind::Wall).min_by_key(|c| (c.x - px).abs() + (c.y - py).abs()).map(|c| (c.x, c.y));
-                let floor = changed.cells.values().find(|c| c.kind == CellKind::Floor).cloned();
-                if let (Some(key), Some(floor)) = (wall.map(|(x, y)| cell_key(x, y)), floor) {
-                    if let Some(cell) = changed.cells.get_mut(&key) {
-                        let (x, y) = (cell.x, cell.y);
-                        *cell = SceneCell { x, y, visibility: Visibility::Visible, ..floor };
-                    }
-                }
-                changed.revision += 1;
-                changed.layout_revision = changed.revision;
-                r.set_scene(Arc::new(changed));
-                let mut encoder = device.create_command_encoder(&Default::default());
-                let t = std::time::Instant::now();
-                r.render(&mut encoder, &view, wgpu::TextureFormat::Rgba8UnormSrgb);
-                eprintln!("a wall cell gone: chunks rebuilt and the frame encoded in {:.2} ms", t.elapsed().as_secs_f64() * 1000.0);
-                queue.submit([encoder.finish()]);
-                let _ = device.poll(wgpu::PollType::wait_indefinitely());
-                continue;
-            }
-        }
         camera.update(1.0 / 60.0, scene.player.0, scene.player.1);
         r.follow(&camera);
         let t = std::time::Instant::now();
@@ -287,12 +246,6 @@ fn main() {
         encode_ms / n,
         frame_ms / n,
         gpu_ms / n
-    );
-    let counts = r.frame_counts();
-    let v = r.voxel_stats();
-    eprintln!(
-        "level meshes: {} draws, {} triangles; voxels: {} draws, {} triangles, {} instances, {} tile meshes, {} pieces",
-        counts.draws, counts.triangles, v.draws, v.triangles, v.instances, v.meshes, v.pieces
     );
     let (rw, rh) = r.render_size();
     let bytes_per_row = (rw * 4).div_ceil(256) * 256;

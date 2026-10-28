@@ -129,7 +129,6 @@ impl Gpu {
                 texture_entry(10, float, d2),
                 uniform_entry(11, u64::try_from(std::mem::size_of::<CellLightUniform>()).unwrap_or(0), false),
                 texture_entry(12, float, d2),
-                texture_entry(13, float, d2),
             ],
         });
         let page_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -172,7 +171,7 @@ impl Gpu {
         let repeat_sampler = sampler("repeat", wgpu::FilterMode::Linear, wgpu::MipmapFilterMode::Nearest, wgpu::AddressMode::Repeat, 1);
         let world = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("world"),
-            source: wgpu::ShaderSource::Wgsl(with_common(&[include_str!("shaders/world.wgsl"), include_str!("shaders/plain_world.wgsl")].join("\n")).into()),
+            source: wgpu::ShaderSource::Wgsl(with_common(include_str!("shaders/world.wgsl")).into()),
         });
         let max_texture = device.limits().max_texture_dimension_2d;
         let gl = device.adapter_info().backend == wgpu::Backend::Gl;
@@ -196,22 +195,12 @@ impl Gpu {
     }
 
     /// A pipeline of the level's materials for the scene pass.
-    pub fn world_pipeline(&self, material: Material, samples: u32, cell_lights: u32) -> wgpu::RenderPipeline {
-        self.world_pipeline_with(&self.world, None, material, samples, cell_lights)
-    }
-
-    pub fn world_pipeline_with(
-        &self,
-        module: &wgpu::ShaderModule,
-        extra: Option<&wgpu::BindGroupLayout>,
-        material: Material,
-        samples: u32,
-        cell_lights: u32,
-    ) -> wgpu::RenderPipeline {
-        let mut layouts = vec![Some(&self.frame_layout), Some(&self.page_layout), Some(&self.draw_layout)];
-        layouts.extend(extra.map(Some));
-        let layout =
-            self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: Some("world"), bind_group_layouts: &layouts, immediate_size: 0 });
+    pub fn world_pipeline(&self, material: Material, samples: u32, sight_light: bool) -> wgpu::RenderPipeline {
+        let layout = self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+            label: Some("world"),
+            bind_group_layouts: &[Some(&self.frame_layout), Some(&self.page_layout), Some(&self.draw_layout)],
+            immediate_size: 0,
+        });
         let (vs, fs) = match material {
             Material::Ground => ("vs_main", "fs_ground"),
             Material::Feature => ("vs_main", "fs_feature"),
@@ -222,15 +211,20 @@ impl Gpu {
             Material::Mark => ("vs_main", "fs_mark"),
         };
         let blended = material == Material::Mark;
-        let constants = [("CELL_LIGHTS", f64::from(cell_lights))];
-        let constants = if cell_lights == 0 { &constants[..0] } else { &constants[..] };
+        let constants = [("SIGHT_LIGHT", 1.0)];
+        let constants = if sight_light { &constants[..] } else { &constants[..0] };
         let targets = if blended { scene_targets(Blend::Alpha, true) } else { scene_targets(Blend::Opaque, false) };
         self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some(fs),
             layout: Some(&layout),
-            vertex: wgpu::VertexState { module, entry_point: Some(vs), buffers: &[Some(Vertex::layout())], compilation_options: Default::default() },
+            vertex: wgpu::VertexState {
+                module: &self.world,
+                entry_point: Some(vs),
+                buffers: &[Some(Vertex::layout())],
+                compilation_options: Default::default(),
+            },
             fragment: Some(wgpu::FragmentState {
-                module,
+                module: &self.world,
                 entry_point: Some(fs),
                 targets: &targets,
                 compilation_options: wgpu::PipelineCompilationOptions { constants, ..Default::default() },
