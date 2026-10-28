@@ -105,6 +105,7 @@ impl GameMenus {
     /// Open Tune the look: every light, colour and screen effect on sliders, shown at once over the game.
     pub fn tune_look(&mut self) {
         if self.lights.is_none() {
+            self.settings = settings::get();
             let look = settings::str_of(&self.settings, "look").to_string();
             self.lights = Some(LightsPanel::new(if look == "custom" { "" } else { &look }));
         }
