@@ -292,6 +292,7 @@ pub fn sections() -> Vec<Section> {
                 colour!("Lava", |l| l.gi.lava),
                 colour!("Fire", |l| l.gi.fire),
                 num!("Spells", 0.0, 5.0, 0.1, |l| l.gi.flash),
+                num!("Hero light", 0.0, 4.0, 0.05, |l| l.gi.hero),
             ],
         ),
         s(

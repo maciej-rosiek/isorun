@@ -26,6 +26,7 @@ const TORCH_WALL_LIGHT: f32 = 2.0;
 const GLOWING_TILE_LIGHT: f32 = 0.8;
 const GLOWING_ACTOR_LIGHT: f32 = 1.5;
 const BURNING_ACTOR_LIGHT: f32 = 2.0;
+const HERO_LIGHT: f32 = 8.0;
 const FLASH_FULL_ALPHA: f32 = 100.0;
 const HALO_LIGHT: f32 = 6.0;
 const GI_RISE_SECONDS: f64 = 0.05;
@@ -277,10 +278,14 @@ struct Emitters {
     passing: Vec<Emitter>,
 }
 
-fn emitters(scene: &Scene, lights: &IsoLights, glow_of: &mut dyn FnMut(TileId) -> Option<Rgb>) -> Emitters {
+fn emitters(scene: &Scene, lights: &IsoLights, on: CellLights, glow_of: &mut dyn FnMut(TileId) -> Option<Rgb>) -> Emitters {
     let gi = lights.gi;
     let mut lasting = Vec::new();
     let mut passing = Vec::new();
+    if gi.hero > 0.0 {
+        let (x, y) = scene.player;
+        passing.push(Emitter { x, y, colour: scaled(linear(lights.sight.colour), HERO_LIGHT * gi.hero), shown: !on.sight });
+    }
     let at = |c: &SceneCell, colour: Rgb, shown: bool| Emitter { x: c.x, y: c.y, colour, shown };
     for c in scene.cells.values() {
         if c.visibility == Visibility::Unseen {
@@ -463,7 +468,15 @@ impl CellLight {
 
     pub fn update(&mut self, env: &mut ActorEnv, scene: &Scene, revision: u64, lights: &IsoLights, on: CellLights) {
         let gi = lights.gi;
-        let settings = hash_of(&(on, [gi.reach_cells, gi.bounce, gi.flash].map(f32::to_bits), gi.lava, gi.fire, lights.torch.colour, lights.sight.halo));
+        let settings = hash_of(&(
+            on,
+            [gi.reach_cells, gi.bounce, gi.flash, gi.hero].map(f32::to_bits),
+            gi.lava,
+            gi.fire,
+            lights.torch.colour,
+            lights.sight.halo,
+            lights.sight.colour,
+        ));
         if self.updated_for == Some((revision, settings)) {
             return;
         }
@@ -474,14 +487,14 @@ impl CellLight {
             self.sight.retarget(&texels);
         }
         if on.gi {
-            self.bake_gi(env, scene, lights);
+            self.bake_gi(env, scene, lights, on);
         }
     }
 
-    fn bake_gi(&mut self, env: &mut ActorEnv, scene: &Scene, lights: &IsoLights) {
+    fn bake_gi(&mut self, env: &mut ActorEnv, scene: &Scene, lights: &IsoLights, on: CellLights) {
         let Some(grid) = Grid::of(scene, &mut |c| albedo_of(env, c)) else { return };
         let glows = &mut self.glows;
-        let found = emitters(scene, lights, &mut |tile| glow_of(glows, env, tile));
+        let found = emitters(scene, lights, on, &mut |tile| glow_of(glows, env, tile));
         let (reach, bounce) = (lights.gi.reach_cells, lights.gi.bounce);
         let grid_key = hash_of(&(grid.key(), reach.to_bits(), bounce.to_bits()));
         let lasting_key = hash_of(&(grid_key, found.lasting.iter().map(Emitter::key).collect::<Vec<_>>()));
@@ -555,7 +568,7 @@ mod tests {
         let lights = crate::lights::diorama();
         let green_walls = |c: &SceneCell| if c.occluder { [0.1, 0.8, 0.1] } else { [0.3, 0.3, 0.3] };
         let grid = Grid::of(&scene, &mut |c| green_walls(c)).expect("a grid");
-        let found = emitters(&scene, &lights, &mut |_| None);
+        let found = emitters(&scene, &lights, CellLights { gi: true, sight: false }, &mut |_| None);
 
         // when
         let field = light_field(&grid, &found.lasting, lights.gi.reach_cells, lights.gi.bounce);
@@ -565,6 +578,27 @@ mod tests {
         let (beside, near_wall, lava) = (at(2), at(3), linear(lights.gi.lava));
         assert!(beside[0] > beside[2], "lava light is warm: {beside:?}");
         assert!(near_wall[1] / near_wall[0] > lava[1] / lava[0], "the green wall gives back green: {near_wall:?}");
+        assert_eq!(at(5), [0.0; 3], "no light past the wall");
+    }
+
+    #[test]
+    fn the_hero_lights_the_room_and_its_walls_bounce_their_colour() {
+        // given
+        let mut scene = row("#...#.", |_| Visibility::Visible);
+        scene.player = (1, 0);
+        let lights = crate::lights::diorama();
+        let green_walls = |c: &SceneCell| if c.occluder { [0.1, 0.8, 0.1] } else { [0.3, 0.3, 0.3] };
+        let grid = Grid::of(&scene, &mut |c| green_walls(c)).expect("a grid");
+        let found = emitters(&scene, &lights, CellLights { gi: true, sight: false }, &mut |_| None);
+
+        // when
+        let field = light_field(&grid, &found.passing, lights.gi.reach_cells, lights.gi.bounce);
+
+        // then
+        let at = |x: i32| field[grid.index(x, 0).expect("in the grid")];
+        let hero = linear(lights.sight.colour);
+        assert!(at(2)[0] > 0.0, "the hero's light reaches the floor: {:?}", at(2));
+        assert!(at(3)[1] / at(3)[0] > hero[1] / hero[0], "the green wall gives back green: {:?}", at(3));
         assert_eq!(at(5), [0.0; 3], "no light past the wall");
     }
 

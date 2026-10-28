@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- Global illumination lights every room now: your own light is one of its sources, so it warms the floor and walls around you and bounces off them in their colours. Tune the look's Hero light sets how strong.
 - Voxels, Global illumination, Sight light and Materials work together: the voxel dungeon takes the new lights, the blue map of what you remember and the shine of what things are made of; water and lava take the lights and the memory map too, and the wall tops in your light are no longer flat tan squares.
 - Tune the look switches Global illumination, Sight light, Materials and Voxels on and off at its top, so you can compare them while you tune.
 - A Voxels setting (Graphics, off by default): the dungeon built of little blocks, the bricks of the walls standing out of their mortar and you, the monsters and the items as small figures; a monster that dies and a wall that is dug away break into pieces that fall.

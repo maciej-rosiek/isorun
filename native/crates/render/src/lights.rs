@@ -200,6 +200,7 @@ pub struct GlobalIllumination {
     pub lava: Hex,
     pub fire: Hex,
     pub flash: f32,
+    pub hero: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -290,7 +291,7 @@ pub fn diorama() -> IsoLights {
         combat: CombatSettings { blood: 0x8a0f0f, gore: 1.0, shake: 0.4, hit_stop: 0.07, flash: 1.0 },
         steps: StepSettings { colour: 0x8a7a66, dust: 1.0, prints: 6.0 },
         voxels: VoxelRelief { wall: 0.08, floor: 0.025, figure: 0.07 },
-        gi: GlobalIllumination { strength: 1.0, bounce: 0.6, reach_cells: 7.0, fill_kept: 0.7, lava: 0xff8c3c, fire: 0xff9a40, flash: 1.5 },
+        gi: GlobalIllumination { strength: 1.0, bounce: 0.6, reach_cells: 7.0, fill_kept: 0.7, lava: 0xff8c3c, fire: 0xff9a40, flash: 1.5, hero: 1.0 },
         sight: SightLight {
             colour: 0xffd2a0,
             strength: 9.0,
