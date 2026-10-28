@@ -22,7 +22,7 @@ impl IsoRenderer {
             return;
         }
         let mut world = HashMap::new();
-        for m in [Material::Ground, Material::Feature, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark] {
+        for m in [Material::Ground, Material::Feature, Material::Sprite, Material::Actor, Material::Cap, Material::Clay, Material::Mark, Material::Shadow] {
             world.insert(m, self.gpu.world_pipeline(m, samples, sight_light));
         }
         self.pipelines = Some(Pipelines { samples, sight_light, world });
@@ -164,6 +164,7 @@ impl IsoRenderer {
             fill_light: side_light(1.0),
             fill_colour: lin(side.fill, side.fill_strength),
             terrain: [self.lights.grade.terrain, 0.0, 0.0, 0.0],
+            sprites: if self.lights.sprites.enabled { [self.lights.sprites.relief, self.lights.sprites.form, 0.0, 0.0] } else { [0.0; 4] },
             lights,
         }
     }
@@ -264,6 +265,10 @@ impl IsoRenderer {
         self.features.draws(&mut items);
         self.actors.draws(&mut items);
         self.loot.draws(&mut items);
+        let (right, forward) = ground_basis(self.cam.yaw as f32);
+        let overhead = Vec2::new(forward[0] * SHADOW_BEHIND + right[0] * SHADOW_ASIDE, forward[1] * SHADOW_BEHIND + right[1] * SHADOW_ASIDE);
+        let (torches, reach) = (&self.tile_torches, self.lights.torch.distance);
+        self.actors.shadow_draws(&|feet| shadow_slant(torches, feet, reach, overhead), if self.lights.sprites.enabled { self.lights.sprites.shadows } else { 0.0 }, &mut items);
         // the uniforms of every draw, in one buffer
         self.draws.clear();
         let offsets: Vec<u32> = items.iter().map(|i| self.draws.push(&i.uniform)).collect();
@@ -303,7 +308,7 @@ impl IsoRenderer {
             pass.set_bind_group(0, &self.frame_group, &[]);
             let mut current: Option<Material> = None;
             for (k, item) in items.iter().enumerate() {
-                if !box_visible_item(&planes, item) {
+                if item.material == Material::Shadow || !box_visible_item(&planes, item) {
                     continue;
                 }
                 let Some(group) = &groups[k] else { continue };
@@ -321,6 +326,16 @@ impl IsoRenderer {
             self.combat.draw_sparks(&mut pass, &self.frame_group);
             self.steps.draw_prints(&mut pass, &self.frame_group);
             self.combat.draw_splats(&mut pass, &self.frame_group);
+            pass.set_pipeline(&pipelines.world[&Material::Shadow]);
+            for (k, item) in items.iter().enumerate() {
+                let Some(group) = &groups[k] else { continue };
+                if item.material != Material::Shadow {
+                    continue;
+                }
+                pass.set_bind_group(1, group, &[]);
+                pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
+                item.mesh.draw(&mut pass);
+            }
             self.liquids.draw(&mut pass, &self.frame_group);
             // over the liquids, which do not keep the depth of what they cover
             self.loot.draw(&mut pass, &self.frame_group);

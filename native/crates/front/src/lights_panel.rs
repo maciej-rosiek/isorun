@@ -172,6 +172,15 @@ pub fn sections() -> Vec<Section> {
         s("Painted screen", vec![toggle!(|l| l.painted.enabled), num!("Brush", 0.5, 4.0, 0.25, |l| l.painted.radius)]),
         s("Pixel look", vec![toggle!(|l| l.pixelate.enabled), num!("Size", 2.0, 8.0, 0.5, |l| l.pixelate.size)]),
         s(
+            "Sprites",
+            vec![
+                toggle!(|l| l.sprites.enabled),
+                num!("Relief", 0.0, 2.0, 0.05, |l| l.sprites.relief),
+                num!("Form light", 0.0, 0.5, 0.01, |l| l.sprites.form),
+                num!("Shadows", 0.0, 1.0, 0.05, |l| l.sprites.shadows),
+            ],
+        ),
+        s(
             "Bloom",
             vec![
                 toggle!(|l| l.bloom.enabled),

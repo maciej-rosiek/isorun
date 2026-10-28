@@ -7,10 +7,10 @@ use crate::labels::Motion;
 use crate::mesh::{GpuMesh, QuadBatch, ATLAS_INSET, SPRITE_LEAN};
 use crate::pages::Pages;
 use crate::plan::{ground_basis, is_shown, tile_frame};
-use crate::renderer::{DrawItem, PageRef};
+use crate::renderer::{DrawItem, PageRef, Torch};
 use crate::uniforms::DrawUniform;
 use crate::TileSource;
-use glam::{EulerRot, Mat4, Quat, Vec3};
+use glam::{EulerRot, Mat4, Quat, Vec2, Vec3, Vec4};
 use isorun_scene::{Billboard, BillboardKind, Scene, SpriteEffect, TileId, PLAYER_REF};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -58,6 +58,10 @@ const SLOWEST_PACE: f64 = 1.5;
 const HOP_EASE: f64 = 0.35;
 const HURT_TINT: [f32; 3] = [4.0, 0.6, 0.5];
 const FLASH_TINT: [f32; 3] = [4.0, 4.0, 4.0];
+const SHADOW_LIFT: f32 = 0.03;
+const SHADOW_LONGEST: f32 = 1.6;
+const SHADOW_MIDDLE: f32 = 0.5;
+const SHADOW_LIGHT_LEAST_HEIGHT: f32 = 0.3;
 const LAYER_LIFT: f32 = 0.0015;
 const ICON_LIFT: f32 = 0.03;
 
@@ -221,6 +225,7 @@ struct Actor {
     phase: f32,
     last_now: f64,
     model: Mat4,
+    ground: f32,
 }
 
 fn random_phase(seed: i64) -> f32 {
@@ -253,6 +258,7 @@ impl Actor {
             phase: random_phase(id.wrapping_mul(31).wrapping_add(7)),
             last_now: 0.0,
             model: Mat4::IDENTITY,
+            ground: 0.0,
         }
     }
 
@@ -401,6 +407,7 @@ impl Actor {
         let g_from = ground_at(self.hop_from.0, self.hop_from.1);
         let g_to = ground_at(self.hop_to.0, self.hop_to.1);
         let ground = g_from + (g_to - g_from) * move_t.clamp(0.0, 1.0) as f32;
+        self.ground = ground;
         let position = Vec3::new(px, lift + ground, pz);
         let breath = ((now as f32) * 2.6 + self.phase).sin() * 0.025;
         let scale_y = pose.stretch * (1.0 + breath) * (1.0 - recoil * SQUASH) * sink;
@@ -408,6 +415,31 @@ impl Actor {
         let rotation = Quat::from_euler(EulerRot::YXZ, -yaw, -pose.lean, tilt);
         self.model = Mat4::from_translation(position) * Mat4::from_quat(rotation) * Mat4::from_scale(scale);
     }
+}
+
+/// Lays what stands above the ground at `ground` onto it, moved by `slant` for each unit of height.
+fn shadow_matrix(slant: Vec2, ground: f32) -> Mat4 {
+    Mat4::from_cols(
+        Vec4::new(1.0, 0.0, 0.0, 0.0),
+        Vec4::new(slant.x, 0.0, slant.y, 0.0),
+        Vec4::new(0.0, 0.0, 1.0, 0.0),
+        Vec4::new(-ground * slant.x, ground + SHADOW_LIFT, -ground * slant.y, 1.0),
+    )
+}
+
+/// The slant of the shadow of what stands at `feet`: away from the nearest wall torch in `reach`,
+/// as far across as the torch is for each unit of its height over the actor's middle, turning
+/// to `overhead` (the slant under a light above and in front) as the torch is farther.
+pub fn shadow_slant(torches: &[Torch], feet: Vec3, reach: f32, overhead: Vec2) -> Vec2 {
+    let across = |t: &Torch| Vec2::new(feet.x - t.position.x, feet.z - t.position.z);
+    let Some(torch) = torches.iter().min_by(|a, b| across(a).length_squared().total_cmp(&across(b).length_squared())) else { return overhead };
+    let distance = across(torch).length();
+    if distance >= reach {
+        return overhead;
+    }
+    let height = (torch.position.y - feet.y - SHADOW_MIDDLE).max(SHADOW_LIGHT_LEAST_HEIGHT);
+    let from_torch = (across(torch) / height).clamp_length_max(SHADOW_LONGEST);
+    from_torch.lerp(overhead, distance / reach)
 }
 
 /// How far an attack reaches at `t` (0 to 1): a short pull back, a fast strike, a slower return.
@@ -516,6 +548,24 @@ impl ActorLayer {
 
     pub fn clear(&mut self) {
         self.actors.clear();
+    }
+
+    /// Each actor's shadow on the ground, `strength` dark, slanted by `slant` from where its feet are.
+    pub fn shadow_draws(&self, slant: &dyn Fn(Vec3) -> Vec2, strength: f32, out: &mut Vec<DrawItem>) {
+        if strength <= 0.0 {
+            return;
+        }
+        let mut ids: Vec<&i64> = self.actors.keys().collect();
+        ids.sort();
+        for id in ids {
+            let a = &self.actors[id];
+            let feet = Vec3::new(a.model.w_axis.x, a.ground, a.model.w_axis.z);
+            let model = shadow_matrix(slant(feet), a.ground) * a.model;
+            let uniform = DrawUniform { tint: [1.0, 1.0, 1.0, strength * a.visual.opacity], ..DrawUniform::at(model) };
+            for (page, mesh) in &a.visual.meshes {
+                out.push(DrawItem { material: Material::Shadow, page: PageRef::Page(*page), mesh: mesh.clone(), uniform });
+            }
+        }
     }
 
     pub fn draws(&self, out: &mut Vec<DrawItem>) {

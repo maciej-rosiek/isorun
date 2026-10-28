@@ -22,6 +22,7 @@ pub enum Material {
     Cap,
     Clay,
     Mark,
+    Shadow,
 }
 
 /// How a pass draws over what is there.
@@ -209,8 +210,10 @@ impl Gpu {
             Material::Cap => ("vs_main", "fs_cap"),
             Material::Clay => ("vs_main", "fs_clay"),
             Material::Mark => ("vs_main", "fs_mark"),
+            Material::Shadow => ("vs_main", "fs_shadow"),
         };
-        let blended = material == Material::Mark;
+        let blended = matches!(material, Material::Mark | Material::Shadow);
+        let shadow = material == Material::Shadow;
         let constants = [("SIGHT_LIGHT", 1.0)];
         let constants = if sight_light { &constants[..] } else { &constants[..0] };
         let targets = if blended { scene_targets(Blend::Alpha, true) } else { scene_targets(Blend::Opaque, false) };
@@ -232,8 +235,8 @@ impl Gpu {
             primitive: wgpu::PrimitiveState { cull_mode: None, ..Default::default() },
             depth_stencil: Some(wgpu::DepthStencilState {
                 format: DEPTH_FORMAT,
-                depth_write_enabled: Some(!blended),
-                depth_compare: Some(wgpu::CompareFunction::LessEqual),
+                depth_write_enabled: Some(!blended || shadow),
+                depth_compare: Some(if shadow { wgpu::CompareFunction::Less } else { wgpu::CompareFunction::LessEqual }),
                 stencil: Default::default(),
                 bias: Default::default(),
             }),

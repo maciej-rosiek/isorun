@@ -4,6 +4,7 @@ Notable changes to Isorun, newest first.
 
 ## 0.1.6 — 2026-10-22
 
+- You, the monsters, the items and the fountains and plants look less flat: each part of a sprite (a head, an arm, a belly) is rounded and catches the light on its own, and everything that moves casts a soft shadow on the floor, away from the nearest wall torch. Tune the look's new Sprites section sets the relief, the form light and the shadows, or turns them off.
 - Tune the look switches Sight light on and off at its top, so you can compare while you tune.
 - A Sight light setting (Graphics, off by default): you carry a light whose shadows are exactly what you can see, and what you only remember, water and lava too, is drawn as a cool blue map.
 - A Frame rate setting (Graphics): the app draws at most 60 frames a second by default, which saves a phone's battery and keeps it cool; 30, 90, 120, 144 or Unlimited are there too.

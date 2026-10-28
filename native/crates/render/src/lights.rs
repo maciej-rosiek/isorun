@@ -93,6 +93,14 @@ pub struct Pixelate {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Sprites {
+    pub enabled: bool,
+    pub relief: f32,
+    pub form: f32,
+    pub shadows: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Bloom {
     pub enabled: bool,
     pub strength: f32,
@@ -210,6 +218,7 @@ pub struct IsoLights {
     pub torch: PointLightSpec,
     pub side_lights: SideLights,
     pub shading: ShadingSettings,
+    pub sprites: Sprites,
     pub paint: PaintSettings,
     pub walls: Walls,
     pub ao: Ao,
@@ -253,6 +262,7 @@ pub fn diorama() -> IsoLights {
             glow: 0.9,
             sparkle: 0.65,
         },
+        sprites: Sprites { enabled: true, relief: 1.0, form: 0.25, shadows: 0.8 },
         paint: PaintSettings { radius: 0.0, levels: 0.0, lift: 1.4, upscale: Upscale::Scale2x },
         walls: Walls { bevel: 0.0, moss: 0.25, moss_colour: 0x707070 },
         ao: Ao { enabled: true, intensity: 1.0, radius: 0.85 },

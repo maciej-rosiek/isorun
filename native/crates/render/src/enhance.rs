@@ -8,10 +8,12 @@ use crate::lights::{PaintSettings, Upscale};
 use crate::scalefx::{scalefx, SCALEFX_SCALE};
 
 pub const ENHANCE_SCALE: u32 = 4;
-const DOME_RADIUS: f32 = 10.0;
+const PART_DOME: f32 = 0.09;
+const CREASE_LUMINANCE: f32 = 0.16;
 const OUTLINE_TRIM: f32 = 2.0;
 const OUTLINE_LUMINANCE: f32 = 40.0;
-const RELIEF: f32 = 1.6;
+const SHADOW_BLACK: u8 = 8;
+const RELIEF: f32 = 10.0;
 const TERRAIN_RELIEF: f32 = 6.0;
 const RELIEF_AMPLITUDE: [f32; 4] = [0.08, 0.35, 0.7, 1.0];
 const GLOSS: [f32; 4] = [0.0, 0.3, 0.6, 1.0];
@@ -170,7 +172,12 @@ pub fn upscale(rgba: &[u8], w: u32, h: u32, how: Upscale) -> Vec<u8> {
 
 /// Distance in pixels to the nearest transparent pixel, capped at `cap` (two-pass chamfer).
 fn edge_distance(px: &[u8], w: usize, h: usize, cap: f32) -> Vec<f32> {
-    let mut d: Vec<f32> = (0..w * h).map(|i| if px[i * 4 + 3] < 128 { 0.0 } else { cap }).collect();
+    chamfer_distance(|i| px[i * 4 + 3] < 128, w, h, cap)
+}
+
+/// Distance in pixels to the nearest pixel where `blocked`, capped at `cap` (two-pass chamfer).
+fn chamfer_distance(blocked: impl Fn(usize) -> bool, w: usize, h: usize, cap: f32) -> Vec<f32> {
+    let mut d: Vec<f32> = (0..w * h).map(|i| if blocked(i) { 0.0 } else { cap }).collect();
     let diag = std::f32::consts::SQRT_2;
     for y in 0..h {
         for x in 0..w {
@@ -213,6 +220,35 @@ fn edge_distance(px: &[u8], w: usize, h: usize, cap: f32) -> Vec<f32> {
         }
     }
     d
+}
+
+/// DCSS paints a sprite's shadow on the ground in black beside it: the black pixels that touch no
+/// colour and reach the outside, so the outline, which touches the colour, stays. The shadow is
+/// cast by the renderer.
+fn drop_painted_shadow(px: &mut [u8], w: usize, h: usize) {
+    let black = |i: usize| px[i * 4 + 3] >= 128 && px[i * 4..i * 4 + 3].iter().all(|&c| c <= SHADOW_BLACK);
+    let around = |i: usize| {
+        let (x, y) = ((i % w) as isize, (i / w) as isize);
+        (-1..=1).flat_map(move |dy| (-1..=1).map(move |dx| (x + dx, y + dy))).filter(move |&(nx, ny)| (nx, ny) != (x, y))
+    };
+    let at = |(nx, ny): (isize, isize)| (nx >= 0 && ny >= 0 && (nx as usize) < w && (ny as usize) < h).then(|| ny as usize * w + nx as usize);
+    let coloured = |i: usize| px[i * 4 + 3] >= 128 && !black(i);
+    let outside = |i: usize| px[i * 4 + 3] < 128;
+    let loose: Vec<bool> = (0..w * h).map(|i| black(i) && !around(i).filter_map(at).any(coloured)).collect();
+    let mut gone = vec![false; w * h];
+    let mut open: Vec<usize> = (0..w * h).filter(|&i| loose[i] && around(i).any(|p| at(p).is_none_or(outside))).collect();
+    while let Some(i) = open.pop() {
+        if gone[i] {
+            continue;
+        }
+        gone[i] = true;
+        open.extend(around(i).filter_map(at).filter(|&n| loose[n] && !gone[n]));
+    }
+    for (i, g) in gone.iter().enumerate() {
+        if *g {
+            px[i * 4 + 3] = 0;
+        }
+    }
 }
 
 /// DCSS outlines every sprite in one black pixel, four after upscaling; trim the outer half.
@@ -310,16 +346,21 @@ fn smoothstep(e0: f32, e1: f32, x: f32) -> f32 {
     t * t * (3.0 - 2.0 * t)
 }
 
-/// The height of a sprite: a rounded dome from the silhouette plus its brightness.
+/// The height of a sprite: a rounded dome from the silhouette, and one for each of its parts,
+/// whose borders are the art's dark lines (a head, an arm, a belly), plus a little brightness.
 fn sprite_height(px: &[u8], w: usize, h: usize) -> Vec<f32> {
-    let distance = edge_distance(px, w, h, DOME_RADIUS);
-    (0..w * h)
-        .map(|i| {
-            let t = distance[i] / DOME_RADIUS;
-            let dome = (1.0 - (1.0 - t) * (1.0 - t)).max(0.0).sqrt();
-            dome * 0.4 + luminance(px, i) * 0.35
-        })
-        .collect()
+    let silhouette = edge_distance(px, w, h, w as f32);
+    let silhouette_radius = silhouette.iter().copied().fold(1.0, f32::max);
+    let part_radius = w as f32 * PART_DOME;
+    let parts = chamfer_distance(|i| px[i * 4 + 3] < 128 || luminance(px, i) < CREASE_LUMINANCE, w, h, part_radius);
+    let height: Vec<f32> =
+        (0..w * h).map(|i| dome(silhouette[i] / silhouette_radius) * 0.55 + dome(parts[i] / part_radius) * 0.35 + luminance(px, i) * 0.1).collect();
+    box_blur(&height, w, h, 1)
+}
+
+/// A rounded rise from 0 at the edge to 1 at `t` = 1.
+fn dome(t: f32) -> f32 {
+    (1.0 - (1.0 - t) * (1.0 - t)).max(0.0).sqrt()
 }
 
 /// A box blur of `radius` texels across and down, wrapping at the edges.
@@ -464,9 +505,13 @@ pub struct EnhancedTile {
 /// Upscale a tile, paint it, and make its normal map and surface data.
 pub fn enhance_tile(job: &TileJob) -> EnhancedTile {
     let scale = upscale_factor(job.paint.upscale);
-    let mut colour = upscale(&job.pixels, job.w, job.h, job.paint.upscale);
+    let sprite = job.framed || job.pixels.chunks_exact(4).any(|p| p[3] < 128);
+    let mut source = job.pixels.clone();
+    if sprite {
+        drop_painted_shadow(&mut source, job.w as usize, job.h as usize);
+    }
+    let mut colour = upscale(&source, job.w, job.h, job.paint.upscale);
     let (w, h) = ((job.w * scale) as usize, (job.h * scale) as usize);
-    let sprite = job.framed || colour.chunks_exact(4).any(|p| p[3] < 128);
     if sprite {
         trim_outline(&mut colour, w, h);
     }

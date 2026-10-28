@@ -49,6 +49,8 @@ struct Frame {
     fill_colour: vec4<f32>,
     // the terrain's saturation, unused, unused, unused
     terrain: vec4<f32>,
+    // the sprites' relief, form light reach, unused, unused
+    sprites: vec4<f32>,
     lights: array<Light, MAX_LIGHTS>,
 };
 
@@ -200,7 +202,7 @@ struct Surface {
 // ClayLightingModel.direct: wrapped, banded diffuse, a Blinn-Phong highlight, a rim light.
 fn clay_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: bool) -> vec3<f32> {
     if (all_round) {
-        return colour * ALL_ROUND_SHADE * s.diffuse / PI;
+        return all_round_direct(s, dir, colour);
     }
     let wrap = frame.shading0.x;
     let bands = frame.shading0.y;
@@ -240,6 +242,18 @@ const MODEL_PHONG: u32 = 1u;
 const MODEL_LAMBERT: u32 = 2u;
 
 const ALL_ROUND_SHADE: f32 = 0.35;
+const ALL_ROUND_RELIEF: f32 = 0.7;
+
+// A sprite takes light from any side, so a torch behind it does not leave it dark, but its relief
+// turns toward the light, unbanded, and a light behind it rims its edges in their own colour, so
+// the dark outline stays dark.
+fn all_round_direct(s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
+    let facing = dot(s.normal, dir) * 0.5 + 0.5;
+    let shade = ALL_ROUND_SHADE * mix(1.0 - ALL_ROUND_RELIEF, 1.0 + ALL_ROUND_RELIEF, facing);
+    let edge = pow(1.0 - saturate1(dot(s.normal, s.view_dir)), 3.0);
+    let behind = saturate1(-dot(dir, s.view_dir));
+    return colour * s.diffuse * (shade / PI + edge * behind * s.rim * frame.shading1.z);
+}
 
 fn direct(model: u32, s: Surface, dir: vec3<f32>, colour: vec3<f32>, all_round: bool) -> vec3<f32> {
     if (model == MODEL_PHONG) {
@@ -289,7 +303,7 @@ fn side_light(s: Surface, dir: vec3<f32>, colour: vec3<f32>) -> vec3<f32> {
         return vec3<f32>(0.0);
     }
     if (s.all_round > 0.5) {
-        return colour * ALL_ROUND_SHADE * s.diffuse / PI;
+        return all_round_direct(s, dir, colour);
     }
     return lambert_direct(s, dir, colour);
 }

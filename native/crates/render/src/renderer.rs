@@ -3,7 +3,7 @@
 //! the doors and stairs and the layers over them; the torch lights; and the screen
 //! effects.
 
-use crate::actors::{actor_id, ActorEnv, ActorLayer, UprightPose, STRIKE_DELAY};
+use crate::actors::{actor_id, shadow_slant, ActorEnv, ActorLayer, UprightPose, STRIKE_DELAY};
 use crate::camera::IsoCamera;
 use crate::cell_light::CellLight;
 use crate::combat::{CombatLayer, ImpactKind};
@@ -26,7 +26,7 @@ use crate::steps::StepLayer;
 use crate::torch_light::TorchLightMap;
 use crate::uniforms::{DrawBuffer, DrawUniform, FrameUniform, LightUniform, MAX_LIGHTS};
 use crate::{now_seconds, TileSource};
-use glam::{Mat4, Vec3, Vec4};
+use glam::{Mat4, Vec2, Vec3, Vec4};
 use isorun_scene::{cell_key, has_items_under, key_to_xy, Camera, CellKey, Feature, Scene, SceneCell, SceneCursor, TileId, Visibility, DIR8_DX, DIR8_DY};
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
@@ -45,6 +45,8 @@ const CAMERA_DISTANCE: f32 = 60.0;
 const PERSPECTIVE_DEPTH: f32 = 60.0;
 const CAP_SHADE: f32 = 0.6;
 const BEHIND_ACTORS: f32 = 0.1;
+const SHADOW_BEHIND: f32 = 0.6;
+const SHADOW_ASIDE: f32 = 0.45;
 const PILE_COPIES: [(f32, f32, bool); 2] = [(-0.2, 0.08, true), (0.18, 0.14, false)];
 const PILE_SCALE: f32 = 0.75;
 const PILE_SHADE: f32 = 0.55;

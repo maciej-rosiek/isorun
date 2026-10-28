@@ -35,6 +35,7 @@ pub struct FrameUniform {
     pub fill_light: [f32; 4],
     pub fill_colour: [f32; 4],
     pub terrain: [f32; 4],
+    pub sprites: [f32; 4],
     pub lights: [LightUniform; MAX_LIGHTS],
 }
 

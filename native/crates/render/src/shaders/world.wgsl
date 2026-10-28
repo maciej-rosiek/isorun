@@ -89,11 +89,11 @@ fn vs_actor(v: VertexIn) -> VertexOut {
     return place(v, vec3<f32>(v.position.x * (1.0 + flicker), v.position.y + hover, v.position.z));
 }
 
-// The normal from the map, whose strength follows the relief setting; `flatten` lays it flat.
-fn relief_normal(in: VertexOut, at: vec2<f32>, flatten: f32, face: f32, across: vec2<f32>, down: vec2<f32>) -> vec3<f32> {
+// The normal from the map, bent by `strength`; `flatten` lays it flat.
+fn relief_normal(in: VertexOut, at: vec2<f32>, flatten: f32, face: f32, across: vec2<f32>, down: vec2<f32>, strength: f32) -> vec3<f32> {
     let xy = (textureSampleGrad(normal_map, data_sampler, at, across, down).rg * 2.0 - 1.0) * (1.0 - flatten);
     let z = sqrt(max(0.0, 1.0 - dot(xy, xy)));
-    let map_n = vec3<f32>(xy * frame.shading0.z, z);
+    let map_n = vec3<f32>(xy * strength, z);
     let geometry = normalize(in.normal_view) * face;
     return perturb_normal(in.view_pos, geometry, in.uv, map_n, face);
 }
@@ -212,6 +212,8 @@ const PUDDLE_EDGE: f32 = 0.04;
 const WET_DARK: f32 = 0.55;
 const WET_GLOSS: f32 = 0.4;
 const GROUND_RIM: f32 = 0.15;
+const FORM_LIGHT: vec3<f32> = vec3<f32>(-0.45, 0.65, 0.61);
+const FORM_STRENGTH: f32 = 0.9;
 
 // The ground and the walls: the tile seen through its height, dirt in its hollows and wear on its
 // edges, each cell a little different, wet near water with puddles, glossy and glowing where its
@@ -262,7 +264,7 @@ fn ground(in: VertexOut, front: bool, least_alpha: f32, terrain: bool) -> Fragme
     if (terrain) {
         diffuse = terrain_colour(diffuse);
     }
-    let normal = relief_normal(in, sunk, puddle, face, across, down);
+    let normal = relief_normal(in, sunk, puddle, face, across, down, frame.shading0.z);
     var s = surface_of(in, normal, diffuse);
     let gloss = max(surface.r, max(wet * WET_GLOSS, puddle));
     s.specular = gloss_specular(gloss);
@@ -283,9 +285,11 @@ fn fs_sprite(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     }
     let surface = textureSample(surface_map, data_sampler, in.uv);
     let shade = memory_shade(memory_cell(in.world, normalize(in.normal_world)));
+    let across = dpdx(in.uv);
+    let down = dfdy2(in.uv);
     let diffuse = colour.rgb * frame.shading1.x * shade * in.colour;
-    let normal = relief_normal(in, in.uv, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
-    var s = surface_of(in, normal, diffuse);
+    let normal = relief_normal(in, in.uv, 0.0, face, across, down, frame.sprites.x);
+    var s = surface_of(in, normal, diffuse * form_shade(in, normal, face));
     s.specular = gloss_specular(surface.r);
     s.shininess = gloss_shininess(surface.r);
     s.rim = 1.0;
@@ -339,9 +343,11 @@ fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
     tinted = mix(tinted, tinted * RUST, rust);
     tinted = mix(tinted, tinted * RAGE, aura.x);
     tinted = mix(tinted, tinted * (WET_DARK + 0.2), aura.w);
+    let across = dpdx(in.uv);
+    let down = dfdy2(in.uv);
     let diffuse = tinted * frame.shading1.x * draw.tint.rgb * in.colour;
-    let normal = relief_normal(in, in.uv, 0.0, face, dpdx(in.uv), dfdy2(in.uv));
-    var s = surface_of(in, normal, diffuse);
+    let normal = relief_normal(in, in.uv, 0.0, face, across, down, frame.sprites.x);
+    var s = surface_of(in, normal, diffuse * form_shade(in, normal, face));
     let gloss = mix(max(surface.r, aura.w * WET_GLOSS), 0.0, harm.x);
     s.specular = gloss_specular(gloss);
     s.shininess = gloss_shininess(gloss);
@@ -365,6 +371,43 @@ fn fs_actor(in: VertexOut, @builtin(front_facing) front: bool) -> FragmentOut {
         + colour.rgb * 0.5 * aura.y
         + SUMMONED_GLOW * edge * aura.z;
     return outputs(lit_surface(MODEL_CLAY, s, light), 1.0, in, face, light);
+}
+
+// A sprite's own key light from the screen's upper left, whatever lights the level: each part of
+// its relief turns lighter or darker than the flat sprite by how it faces it.
+fn form_shade(in: VertexOut, normal: vec3<f32>, face: f32) -> f32 {
+    let flat = dot(normalize(in.normal_view) * face, FORM_LIGHT);
+    return 1.0 + clamp((dot(normal, FORM_LIGHT) - flat) * FORM_STRENGTH, -frame.sprites.y, frame.sprites.y);
+}
+
+const SHADOW_SOFTNESS: f32 = 1.5;
+const SHADOW_FAR: f32 = 0.75;
+const SHADOW_DEPTH_STEPS: f32 = 65536.0;
+
+struct ShadowOut {
+    @location(0) colour: vec4<f32>,
+    @location(1) normal: vec4<f32>,
+    @location(2) emission: vec4<f32>,
+    @builtin(frag_depth) depth: f32,
+};
+
+// An actor's shadow: its silhouette laid on the ground away from the light, softened by a coarser
+// mip and darkest at the feet. The layers of one sprite lie in one plane, so the depth is rounded
+// to the same step and the depth test lets the ground darken once under them.
+@fragment
+fn fs_shadow(in: VertexOut) -> ShadowOut {
+    let coverage = textureSampleBias(colour_map, page_sampler, in.uv, SHADOW_SOFTNESS).a;
+    let at_feet = 1.0 - saturate1(in.local_y);
+    let alpha = smoothstep(0.2, 0.7, coverage) * draw.tint.w * mix(SHADOW_FAR, 1.0, at_feet);
+    if (alpha < 0.01) {
+        discard;
+    }
+    var out: ShadowOut;
+    out.colour = vec4<f32>(0.0, 0.0, 0.0, alpha);
+    out.normal = vec4<f32>(0.0);
+    out.emission = vec4<f32>(0.0);
+    out.depth = floor(in.clip.z * SHADOW_DEPTH_STEPS) / SHADOW_DEPTH_STEPS;
+    return out;
 }
 
 // The wall tops: a faint stone grain under the vertex colours, darker on a remembered cell.
