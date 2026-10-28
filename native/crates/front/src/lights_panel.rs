@@ -154,6 +154,14 @@ pub fn sections() -> Vec<Section> {
             ],
         ),
         s(
+            "Voxels",
+            vec![
+                num!("Wall relief", 0.0, 0.3, 0.005, |l| l.voxels.wall),
+                num!("Floor relief", 0.0, 0.1, 0.005, |l| l.voxels.floor),
+                num!("Figure thickness", 0.0, 0.3, 0.005, |l| l.voxels.figure),
+            ],
+        ),
+        s(
             "Ambient occlusion (GTAO)",
             vec![toggle!(|l| l.ao.enabled), num!("Strength", 0.0, 1.0, 0.05, |l| l.ao.intensity), num!("Radius", 0.1, 4.0, 0.05, |l| l.ao.radius)],
         ),

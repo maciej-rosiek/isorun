@@ -64,6 +64,7 @@ pub fn defaults() -> Settings {
         "ambientOcclusion": "auto",
         "antialias": "auto",
         "surfaceDetail": default_surface_detail(),
+        "voxels": false,
         "torchShadows": "auto",
         "look": "diorama",
         "animationSpeed": 1.5,
@@ -272,6 +273,7 @@ pub fn surface_detail(s: &Settings) -> SurfaceDetail {
 pub fn apply_graphics(r: &mut isorun_render::IsoRenderer, s: &Settings, device_pixel_ratio: f32) {
     r.set_quality(quality_for(s, device_pixel_ratio));
     r.set_surface_detail(surface_detail(s));
+    r.set_voxels(bool_of(s, "voxels"));
     r.set_lights(crate::lights_panel::lights_for(str_of(s, "look")));
     r.set_animation_speed(num_of(s, "animationSpeed").max(0.1));
 }
@@ -360,6 +362,7 @@ pub fn rows() -> Vec<SettingRow> {
     vec![
         row("Graphics", "Quality", "graphics", strs(&["low", "medium", "high"]), "How much work each frame does: the pixels drawn, the soft shadows in the corners, and the edges. Lower is faster on a weak GPU. The rows under it can change one of them.", |v| isorun_render::quality(v.as_str().unwrap_or("")).map(|q| q.label.to_string()).unwrap_or_else(|| plain(v))),
         row("Graphics", "Surface detail", "surfaceDetail", surface_details(), "What the tiles show of their surface. Low: rim light, dirt and wear, and how each cell differs. Medium: the depth of the bricks and stones, gloss, wetness and glowing tiles too. High: sparkle and deep liquids too. A phone stops at Medium.", |v| cap(&plain(v))),
+        row("Graphics", "Voxels", "voxels", vec![json!(false), json!(true)], "Builds the dungeon of little blocks: the bricks of the walls stand out of their mortar, the floor takes a light relief, and you, the monsters and the items are small figures that break into pieces when they fall, as do the walls. High Quality cuts the tiles finer. It costs more on a weak GPU.", |v| if v.as_bool() == Some(true) { "On".into() } else { "Off".into() }),
         row("Graphics", "Resolution", "resolution", resolutions(), "How many of the screen's pixels the dungeon is drawn with; the rest are filled in when the picture is scaled up. Fewer is much faster on a big screen. Auto takes the Quality's, and draws fewer for a while when the GPU cannot keep up with the screen.", |v| auto_or(v, percent)),
         row("Graphics", "Ambient occlusion", "ambientOcclusion", strs(&["auto", "off", "low", "medium", "high"]), "The soft shadows in the corners and at the foot of the walls. Low draws them with fewer samples, High at the full size of the screen. Auto takes the Quality's.", |v| auto_or(v, |v| cap(&plain(v)))),
         row("Graphics", "Antialiasing", "antialias", strs(&["auto", "off", "on"]), "Smooths the edges of the walls by drawing the scene four times over; it costs about as much as the rest of the scene. Auto takes the Quality's.", |v| auto_or(v, |v| if v.as_str() == Some("on") { "On".into() } else { "Off".into() })),

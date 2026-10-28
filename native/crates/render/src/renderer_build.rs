@@ -68,7 +68,7 @@ impl IsoRenderer {
             self.level_yaw().to_bits(),
             self.level_pitch().to_bits(),
             self.view.wall_height.to_bits(),
-            (w.bevel.to_bits(), w.moss.to_bits(), w.moss_colour),
+            (w.bevel.to_bits(), w.moss.to_bits(), w.moss_colour, self.voxel_key()),
             self.lights.fog.height.to_bits(),
             self.lights.fog.reach.to_bits(),
             self.lights.water.enabled,
@@ -76,6 +76,14 @@ impl IsoRenderer {
             self.pages.as_ref().map(|p| p.pages.len()).unwrap_or(0) > 0,
             self.loot.hidden(),
         ))
+    }
+
+    fn voxel_key(&self) -> u64 {
+        if !self.voxels.on() {
+            return 0;
+        }
+        let v = self.lights.voxels;
+        hash_of(&(self.voxels.key(), v.wall.to_bits(), v.floor.to_bits(), v.figure.to_bits()))
     }
 
     fn clear_statics(&mut self) {
@@ -94,7 +102,12 @@ impl IsoRenderer {
         let level_yaw = self.level_yaw();
         let pose = self.upright(level_pitch);
         let w = &self.lights.walls;
-        let chunks_key = hash_of(&(self.view.wall_height.to_bits(), (w.bevel.to_bits(), w.moss.to_bits(), w.moss_colour), self.lights.water.enabled, self.lights.lava.enabled));
+        let chunks_key = hash_of(&(
+            self.view.wall_height.to_bits(),
+            (w.bevel.to_bits(), w.moss.to_bits(), w.moss_colour, self.voxel_key()),
+            self.lights.water.enabled,
+            self.lights.lava.enabled,
+        ));
         if chunks_key != self.chunks_key {
             self.clear_statics();
             self.chunks_key = chunks_key;
@@ -193,7 +206,10 @@ impl IsoRenderer {
     }
 
     fn build_chunk(&mut self, scene: &Scene, tiles: &dyn TileSource, part: &ChunkPart, key: u64) -> Chunk {
-        let mut chunk = Chunk { key, meshes: Vec::new(), torches: Vec::new(), glows: false };
+        let mut chunk = Chunk { key, meshes: Vec::new(), torches: Vec::new(), glows: false, voxels: None };
+        let voxel_on = self.voxels.on();
+        let relief = self.lights.voxels;
+        let mut voxel_parts: Vec<VoxelPart> = Vec::new();
         let mut ground_batches: HashMap<u32, QuadBatch> = HashMap::new();
         let mut feature_batches: HashMap<u32, QuadBatch> = HashMap::new();
         let mut sprite_batches: HashMap<u32, QuadBatch> = HashMap::new();
@@ -229,7 +245,15 @@ impl IsoRenderer {
             } else {
                 &mut ground_batches
             };
-            quad(pages, batches, 0.0, tile, [[x0, y, z0], [x0 + 1.0, y, z0], [x0 + 1.0, y, z0 + 1.0], [x0, y, z0 + 1.0]], None, 1.0, &mut glows);
+            let corners = [[x0, y, z0], [x0 + 1.0, y, z0], [x0 + 1.0, y, z0 + 1.0], [x0, y, z0 + 1.0]];
+            let voxels = if voxel_on && !see_through && g.lift == 0 { self.voxels.part(gpu, pages, tiles, tile, VoxelKind::Floor, corners, None, relief.floor, 1.0) } else { None };
+            match voxels {
+                Some(p) => {
+                    glows |= p.glows;
+                    voxel_parts.push(p);
+                }
+                None => quad(pages, batches, 0.0, tile, corners, None, 1.0, &mut glows),
+            }
         }
         let mut torch_faces = Vec::new();
         for w in &part.walls {
@@ -254,7 +278,15 @@ impl IsoRenderer {
                 let (ax, ay) = ((w.x + info.from.0) as f32, (w.y + info.from.1) as f32);
                 let (bx, by) = ((w.x + info.to.0) as f32, (w.y + info.to.1) as f32);
                 let texel_height = tiles.tile(face.tile).map(|r| r.h as f32 * face_top.min(1.0));
-                quad(pages, &mut ground_batches, 0.0, face.tile, [[ax, face_top, ay], [bx, face_top, by], [bx, 0.0, by], [ax, 0.0, ay]], texel_height, 1.0, &mut glows);
+                let corners = [[ax, face_top, ay], [bx, face_top, by], [bx, 0.0, by], [ax, 0.0, ay]];
+                let voxels = if voxel_on { self.voxels.part(gpu, pages, tiles, face.tile, VoxelKind::Wall, corners, texel_height, relief.wall, 1.0) } else { None };
+                match voxels {
+                    Some(p) => {
+                        glows |= p.glows;
+                        voxel_parts.push(p);
+                    }
+                    None => quad(pages, &mut ground_batches, 0.0, face.tile, corners, texel_height, 1.0, &mut glows),
+                }
                 if bevel > 0.0 {
                     let cx = |x: f32| x.clamp(x0, x1);
                     let cz = |z: f32| z.clamp(z0, z1);
@@ -287,7 +319,20 @@ impl IsoRenderer {
                         let y0 = cy + (f.top - 0.5) * scale;
                         let (x1, y1) = (x0 + f.width * scale, y0 + f.height * scale);
                         let (l, r) = if mirror { (x1, x0) } else { (x0, x1) };
-                        quad(pages, &mut sprite_batches, SPRITE_LEAN, layer.tile, [[l, y, y0], [r, y, y0], [r, y, y1], [l, y, y1]], Some(f.texel_height), shade, &mut glows);
+                        let depth = layer_depth(relief.figure, i) * scale;
+                        let raised = y + depth;
+                        let voxels = if voxel_on {
+                            self.voxels.part(gpu, pages, tiles, layer.tile, VoxelKind::Figure, [[l, raised, y0], [r, raised, y0], [r, raised, y1], [l, raised, y1]], Some(f.texel_height), depth, shade)
+                        } else {
+                            None
+                        };
+                        match voxels {
+                            Some(p) => {
+                                glows |= p.glows;
+                                voxel_parts.push(p);
+                            }
+                            None => quad(pages, &mut sprite_batches, SPRITE_LEAN, layer.tile, [[l, y, y0], [r, y, y0], [r, y, y1], [l, y, y1]], Some(f.texel_height), shade, &mut glows),
+                        }
                     } else {
                         let cx = s.x as f32 + 0.5 + forward[0] * (BEHIND_ACTORS + behind) + right[0] * across;
                         let cy = s.y as f32 + 0.5 + forward[1] * (BEHIND_ACTORS + behind) + right[1] * across;
@@ -297,7 +342,16 @@ impl IsoRenderer {
                         let bottom = (1.0 - f.top - f.height) * pose.stretch * scale;
                         let (l, r) = if mirror { (right_edge, left) } else { (left, right_edge) };
                         let at = |a: f32, up: f32| [cx + right[0] * a + forward[0] * up * pose.lean.sin(), up * pose.lean.cos(), cy + right[1] * a + forward[1] * up * pose.lean.sin()];
-                        quad(pages, &mut sprite_batches, SPRITE_LEAN, layer.tile, [at(l, top), at(r, top), at(r, bottom), at(l, bottom)], Some(f.texel_height), shade, &mut glows);
+                        let corners = [at(l, top), at(r, top), at(r, bottom), at(l, bottom)];
+                        let depth = layer_depth(relief.figure, i) * scale;
+                        let voxels = if voxel_on { self.voxels.part(gpu, pages, tiles, layer.tile, VoxelKind::Figure, corners, Some(f.texel_height), depth, shade) } else { None };
+                        match voxels {
+                            Some(p) => {
+                                glows |= p.glows;
+                                voxel_parts.push(p);
+                            }
+                            None => quad(pages, &mut sprite_batches, SPRITE_LEAN, layer.tile, corners, Some(f.texel_height), shade, &mut glows),
+                        }
                     }
                 }
             }
@@ -308,6 +362,7 @@ impl IsoRenderer {
         }
         chunk.glows = glows;
         let device = &self.gpu.device;
+        chunk.voxels = self.voxels.chunk(device, voxel_parts);
         if !caps.is_empty() {
             chunk.meshes.push((Material::Cap, PageRef::Cap, Arc::new(GpuMesh::from_batch(device, &caps))));
         }

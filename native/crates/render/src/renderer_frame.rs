@@ -223,6 +223,14 @@ impl IsoRenderer {
         let (width, height) = self.render_size();
         let samples = 1;
         self.ensure_pipelines(samples);
+        self.voxels.prepare(&self.gpu, samples);
+        if self.voxels.on() {
+            let figures = self.actors.figures();
+            if let Some(pages) = self.pages.as_mut() {
+                self.voxels.actors(&self.gpu, pages, tiles.as_ref(), &figures, self.lights.voxels.figure);
+            }
+            self.voxels.update(&self.gpu, dt);
+        }
         self.post.ensure(&self.gpu, width, height, samples);
         {
             let pages = self.pages.as_mut().unwrap();
@@ -236,6 +244,7 @@ impl IsoRenderer {
         // (painterSortStable): what stands in front is drawn first, so the depth test can spare
         // the shading of what it hides
         let mut chunk_items: Vec<(u8, f32, DrawItem)> = Vec::new();
+        let mut voxel_chunks: Vec<&VoxelChunk> = Vec::new();
         for (id, chunk) in self.chunks.iter().chain(self.sprite_chunks.iter()) {
             let a = chunk_area(*id);
             let visible = box_visible(&planes, Vec3::new(a.x0 - 1.0, -1.5, a.y0 - 1.0), Vec3::new(a.x1 + 1.0, 3.0, a.y1 + 1.0));
@@ -243,6 +252,7 @@ impl IsoRenderer {
             if !visible {
                 continue;
             }
+            voxel_chunks.extend(chunk.voxels.as_ref());
             for (material, page, mesh) in &chunk.meshes {
                 chunk_items.push((*material as u8, -centre.z, DrawItem { material: *material, page: *page, mesh: mesh.clone(), uniform: DrawUniform::plain() }));
             }
@@ -250,7 +260,9 @@ impl IsoRenderer {
         chunk_items.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.total_cmp(&b.1)));
         items.extend(chunk_items.into_iter().map(|(_, _, item)| item));
         self.features.draws(&mut items);
-        self.actors.draws(&mut items);
+        if !self.voxels.on() {
+            self.actors.draws(&mut items);
+        }
         self.loot.draws(&mut items);
         // the uniforms of every draw, in one buffer
         self.draws.clear();
@@ -288,8 +300,12 @@ impl IsoRenderer {
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
+            if let Some(pages) = self.pages.as_ref() {
+                self.voxels.draw(&mut pass, &self.frame_group, &voxel_chunks, pages);
+            }
             pass.set_bind_group(0, &self.frame_group, &[]);
             let mut current: Option<Material> = None;
+            let mut counts = FrameCounts::default();
             for (k, item) in items.iter().enumerate() {
                 if !box_visible_item(&planes, item) {
                     continue;
@@ -302,7 +318,10 @@ impl IsoRenderer {
                 pass.set_bind_group(1, group, &[]);
                 pass.set_bind_group(2, &self.draws.bind_group, &[offsets[k]]);
                 item.mesh.draw(&mut pass);
+                counts.draws += 1;
+                counts.triangles += u64::from(item.mesh.count / 3);
             }
+            self.counts = counts;
             self.combat.draw_opaque(&mut pass, &self.frame_group);
             self.overlay.draw(&mut pass, &self.frame_group);
             // what is blended, by three's render order

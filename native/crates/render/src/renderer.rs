@@ -24,6 +24,7 @@ use crate::post::{Post, PostFrame};
 use crate::steps::StepLayer;
 use crate::torch_light::TorchLightMap;
 use crate::uniforms::{DrawBuffer, DrawUniform, FrameUniform, LightUniform, MAX_LIGHTS};
+use crate::voxels::{layer_depth, VoxelChunk, VoxelKind, VoxelLayer, VoxelPart, VoxelStats};
 use crate::{now_seconds, TileSource};
 use glam::{Mat4, Vec3, Vec4};
 use isorun_scene::{cell_key, has_items_under, key_to_xy, Camera, CellKey, Feature, Scene, SceneCell, SceneCursor, TileId, Visibility, DIR8_DX, DIR8_DY};
@@ -84,6 +85,7 @@ struct Chunk {
     meshes: Vec<(Material, PageRef, Arc<GpuMesh>)>,
     torches: Vec<Torch>,
     glows: bool,
+    voxels: Option<VoxelChunk>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -111,6 +113,12 @@ struct PendingImpact {
 struct Pipelines {
     samples: u32,
     world: HashMap<Material, wgpu::RenderPipeline>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct FrameCounts {
+    pub draws: u32,
+    pub triangles: u64,
 }
 
 /// What happened in a frame that the client acts on: blows shown, hops started, doors moved.
@@ -172,6 +180,8 @@ pub struct IsoRenderer {
     steps: StepLayer,
     loot: LootLayer,
     overlay: crate::overlay::Overlay,
+    voxels: VoxelLayer,
+    counts: FrameCounts,
     tile_torches: Vec<Torch>,
     tile_torches_version: u64,
     impacts: Vec<PendingImpact>,
@@ -357,6 +367,8 @@ impl IsoRenderer {
             steps,
             loot,
             overlay,
+            voxels: VoxelLayer::default(),
+            counts: FrameCounts::default(),
             tile_torches: Vec::new(),
             tile_torches_version: 0,
             impacts: Vec::new(),
@@ -412,6 +424,9 @@ impl IsoRenderer {
             return;
         }
         self.scene_revision = scene.revision;
+        if let (true, Some(tiles)) = (self.voxels.on(), &self.tiles) {
+            self.voxels.walls_broken(self.scene.as_deref(), &scene, tiles.as_ref());
+        }
         self.memory.update(&self.gpu, &scene);
         self.scene = Some(scene);
         self.revision_counter += 1;
@@ -423,6 +438,7 @@ impl IsoRenderer {
         self.combat.clear();
         self.steps.clear();
         self.loot.clear();
+        self.voxels.new_level();
     }
 
     pub fn set_camera(&mut self, cam: Camera) {
@@ -457,6 +473,19 @@ impl IsoRenderer {
         self.post.set_ao_resolution(quality.ao_resolution);
         self.post.ao_samples = quality.ao_samples;
         self.resolution.reset();
+        self.voxels.configure(self.voxels.on(), quality.voxel_cells);
+    }
+
+    pub fn set_voxels(&mut self, on: bool) {
+        self.voxels.configure(on, self.quality.voxel_cells);
+    }
+
+    pub fn voxel_stats(&self) -> VoxelStats {
+        self.voxels.stats
+    }
+
+    pub fn frame_counts(&self) -> FrameCounts {
+        self.counts
     }
 
     pub fn quality(&self) -> IsoQuality {
@@ -601,7 +630,7 @@ impl IsoRenderer {
     /// What keeps `animating` true, for the perf log: the first reason found.
     pub fn animating_why(&self) -> Option<&'static str> {
         let now = now_seconds();
-        let reasons: [(&'static str, &dyn Fn() -> bool); 10] = [
+        let reasons: [(&'static str, &dyn Fn() -> bool); 11] = [
             ("impact", &|| !self.impacts.is_empty()),
             ("hit stop", &|| now < self.stop_until),
             // the low hit points' red edge pulses
@@ -613,6 +642,7 @@ impl IsoRenderer {
             ("doors", &|| self.features.animating()),
             ("fog fade", &|| self.fog.fading()),
             ("liquid", &|| self.liquids.drawn() && self.liquid_in_sight()),
+            ("voxels", &|| self.voxels.animating()),
         ];
         reasons.iter().find(|(_, f)| f()).map(|(n, _)| *n)
     }
@@ -639,6 +669,7 @@ impl IsoRenderer {
             return;
         }
         self.pages = Some(Pages::new(self.lights.paint, self.gpu.max_texture));
+        self.voxels.pages_changed();
         self.invalidate();
     }
 

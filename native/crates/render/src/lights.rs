@@ -133,6 +133,13 @@ pub struct SideLights {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
+pub struct VoxelRelief {
+    pub wall: f32,
+    pub floor: f32,
+    pub figure: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Aim {
     pub colour: Hex,
     pub brightness: f32,
@@ -212,6 +219,7 @@ pub struct IsoLights {
     pub lava: LavaSettings,
     pub combat: CombatSettings,
     pub steps: StepSettings,
+    pub voxels: VoxelRelief,
 }
 
 pub fn diorama() -> IsoLights {
@@ -254,6 +262,7 @@ pub fn diorama() -> IsoLights {
         lava: LavaSettings { enabled: true, crust: 0x1c0d09, molten: 0xb02a08, hot: 0xffa030, glow: 0.4, speed: 0.6 },
         combat: CombatSettings { blood: 0x8a0f0f, gore: 1.0, shake: 0.4, hit_stop: 0.07, flash: 1.0 },
         steps: StepSettings { colour: 0x8a7a66, dust: 1.0, prints: 6.0 },
+        voxels: VoxelRelief { wall: 0.08, floor: 0.025, figure: 0.07 },
     }
 }
 
@@ -406,11 +415,15 @@ pub struct IsoQuality {
     pub ao_samples: u32,
     /// 4x multisampling on the scene pass.
     pub antialias: bool,
+    pub voxel_cells: u32,
 }
 
-pub const QUALITY_LOW: IsoQuality = IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false };
-pub const QUALITY_MEDIUM: IsoQuality = IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false };
-pub const QUALITY_HIGH: IsoQuality = IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true };
+pub const QUALITY_LOW: IsoQuality =
+    IsoQuality { label: "Low", pixel_ratio: 1.0, adaptive: true, ao_resolution: 0.0, ao_samples: 8, antialias: false, voxel_cells: 16 };
+pub const QUALITY_MEDIUM: IsoQuality =
+    IsoQuality { label: "Medium", pixel_ratio: 1.5, adaptive: true, ao_resolution: 0.5, ao_samples: 8, antialias: false, voxel_cells: 16 };
+pub const QUALITY_HIGH: IsoQuality =
+    IsoQuality { label: "High", pixel_ratio: 2.0, adaptive: true, ao_resolution: 1.0, ao_samples: 16, antialias: true, voxel_cells: 32 };
 
 pub fn quality(name: &str) -> Option<IsoQuality> {
     match name {

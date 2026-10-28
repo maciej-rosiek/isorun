@@ -29,6 +29,7 @@ pub mod scalefx;
 pub mod steps;
 pub mod torch_light;
 pub mod uniforms;
+pub mod voxels;
 
 pub use camera::{CameraAngles, IsoCamera, DEFAULT_ANGLES, TILT_MAX, TILT_MIN, TURN_DEGREES, ZOOM_MAX, ZOOM_MIN};
 pub use lights::{lights, quality, IsoLights, IsoQuality, SurfaceDetail, LIGHTS_NAMES};

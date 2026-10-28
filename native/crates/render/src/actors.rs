@@ -9,6 +9,7 @@ use crate::pages::Pages;
 use crate::plan::{ground_basis, is_shown, tile_frame};
 use crate::renderer::{DrawItem, PageRef};
 use crate::uniforms::DrawUniform;
+use crate::voxels::{ActorFigure, FigureLayer};
 use crate::TileSource;
 use glam::{EulerRot, Mat4, Quat, Vec3};
 use isorun_scene::{Billboard, BillboardKind, Scene, SpriteEffect, TileId, PLAYER_REF};
@@ -109,6 +110,7 @@ pub(crate) struct SpriteVisual {
     key: u64,
     pages_id: usize,
     meshes: Vec<(u32, Arc<GpuMesh>)>,
+    figure: Vec<FigureLayer>,
     glows: bool,
     motion: f32,
     phase: f32,
@@ -147,6 +149,7 @@ impl SpriteVisual {
         let mut batches: HashMap<u32, QuadBatch> = HashMap::new();
         let mut glows = false;
         let mut motion = 0.0;
+        let mut figure = Vec::new();
         for (index, (tile, ox, oy, ymax, icon)) in layers.iter().enumerate() {
             let Some(rect) = env.tiles.tile(*tile) else { continue };
             let Some(placed) = env.pages.for_tile(&env.gpu.device, &env.gpu.page_layout, &env.gpu.page_sampler, env.tiles, &rect) else { continue };
@@ -172,12 +175,14 @@ impl SpriteVisual {
             let top = 1.0 - f.top;
             let bottom = 1.0 - f.top - f.height;
             let z = if *icon { ICON_LIFT } else { index as f32 * LAYER_LIFT };
+            let corners = [[left, top, z], [right, top, z], [right, bottom, z], [left, bottom, z]];
+            figure.push(FigureLayer { tile: *tile, corners, rows: f.texel_height });
             let batch = batches.entry(placed.page).or_insert_with(|| QuadBatch::new(texels, texels, SPRITE_LEAN, ATLAS_INSET));
-            batch.add_grey([[left, top, z], [right, top, z], [right, bottom, z], [left, bottom, z]], placed.sx, placed.sy, rect.w as f32, f.texel_height, 1.0);
+            batch.add_grey(corners, placed.sx, placed.sy, rect.w as f32, f.texel_height, 1.0);
         }
         let mut meshes: Vec<(u32, Arc<GpuMesh>)> = batches.into_iter().map(|(p, b)| (p, Arc::new(GpuMesh::from_batch(&env.gpu.device, &b)))).collect();
         meshes.sort_by_key(|m| m.0);
-        SpriteVisual { key, pages_id: env.pages as *const Pages as usize, meshes, glows, motion, phase, effects, tint: [1.0; 3], opacity: 1.0 }
+        SpriteVisual { key, pages_id: env.pages as *const Pages as usize, meshes, figure, glows, motion, phase, effects, tint: [1.0; 3], opacity: 1.0 }
     }
 
     fn set_flash(&mut self, amount: f32, tint: [f32; 3]) {
@@ -326,6 +331,17 @@ impl Actor {
                 self.fall = (-dx, -dy);
             }
             _ => {}
+        }
+    }
+
+    fn uniform(&self) -> DrawUniform {
+        let v = &self.visual;
+        DrawUniform {
+            model: self.model.to_cols_array_2d(),
+            tint: [v.tint[0], v.tint[1], v.tint[2], v.opacity],
+            look: [v.motion, v.phase, 0.0, 1.0],
+            harm: [v.effects[0], v.effects[1], v.effects[2], v.effects[3]],
+            aura: [v.effects[4], v.effects[5], v.effects[6], v.effects[7]],
         }
     }
 
@@ -518,20 +534,32 @@ impl ActorLayer {
         self.actors.clear();
     }
 
+    pub fn figures(&self) -> Vec<ActorFigure<'_>> {
+        let mut ids: Vec<&i64> = self.actors.keys().collect();
+        ids.sort();
+        ids.into_iter()
+            .map(|id| {
+                let a = &self.actors[id];
+                let v = &a.visual;
+                ActorFigure {
+                    id: *id,
+                    key: v.key,
+                    model: a.model,
+                    uniform: a.uniform(),
+                    layers: &v.figure,
+                    fallen: a.death_start.is_some_and(|d| a.last_now >= d),
+                }
+            })
+            .collect()
+    }
+
     pub fn draws(&self, out: &mut Vec<DrawItem>) {
         let mut ids: Vec<&i64> = self.actors.keys().collect();
         ids.sort();
         for id in ids {
             let a = &self.actors[id];
-            let v = &a.visual;
-            let uniform = DrawUniform {
-                model: a.model.to_cols_array_2d(),
-                tint: [v.tint[0], v.tint[1], v.tint[2], v.opacity],
-                look: [v.motion, v.phase, 0.0, 1.0],
-                harm: [v.effects[0], v.effects[1], v.effects[2], v.effects[3]],
-                aura: [v.effects[4], v.effects[5], v.effects[6], v.effects[7]],
-            };
-            for (page, mesh) in &v.meshes {
+            let uniform = a.uniform();
+            for (page, mesh) in &a.visual.meshes {
                 out.push(DrawItem { material: Material::Actor, page: PageRef::Page(*page), mesh: mesh.clone(), uniform });
             }
         }
